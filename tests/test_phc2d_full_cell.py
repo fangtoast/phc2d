@@ -21,6 +21,7 @@ from phc2d.data import (
     validate_representation_compatibility,
     write_full_cell_hdf5,
 )
+from phc2d.data.full_cell_generation import _validate_config, load_full_cell_generation_config
 from phc2d.generators import (
     generate_binary_polar_holes,
     generate_binary_spectral_threshold,
@@ -122,6 +123,23 @@ def test_spectral_generator_uses_configured_higher_cutoff_scale() -> None:
 
     assert 2.5 <= float(structure.parameters["cutoff_scale"]) <= 4.5
     assert max(max(abs(int(mode["mx"])), abs(int(mode["my"]))) for mode in structure.parameters["modes"]) == 8
+
+
+@pytest.mark.parametrize(
+    "name,lane",
+    [
+        ("full_cell_graded_bz9_10000_v1.yaml", "graded_medium"),
+        ("full_cell_binary_bz9_10000_v1.yaml", "binary_air_holes"),
+    ],
+)
+def test_full_cell_10000_configs_are_valid_and_have_fixed_splits(name: str, lane: str) -> None:
+    path = Path(__file__).parents[1] / "configs" / "research" / name
+    config = load_full_cell_generation_config(path)
+
+    assert _validate_config(config) == []
+    assert config["dataset"]["lane"] == lane
+    assert config["dataset"]["sample_count"] == 10_000
+    assert config["dataset"]["split"] == {"train": 8_000, "val": 1_000, "test": 1_000}
 
 
 def test_full_cell_hdf5_roundtrip_and_schema(tmp_path: Path) -> None:
