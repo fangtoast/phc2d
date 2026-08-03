@@ -22,11 +22,17 @@ generator:
   epsilon_material: 8.9
   audit_resolution: 256
   fourier_cutoff: 3
-  graded_target_material_fraction_range: [0.60, 0.78]
-  graded_temperature_range: [0.08, 0.16]
+  graded_target_material_fraction_range: [0.64, 0.74]
+  graded_temperature_range: [0.10, 0.16]
   graded_fourier_strength_range: [0.03, 0.10]
   graded_air_well_magnitude_range: [0.90, 1.40]
-  max_attempts: 256
+  graded_core_center_range: [-0.30, 0.30]
+  graded_single_core_radius_range: [0.13, 0.19]
+  graded_double_core_radius_range: [0.09, 0.14]
+  graded_single_near_air_fraction_range: [0.08, 0.14]
+  graded_double_near_air_fraction_range: [0.12, 0.20]
+  graded_double_min_core_separation: 0.22
+  max_attempts: 1024
 
 solver:
   backend: mpb
