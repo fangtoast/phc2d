@@ -17,7 +17,7 @@ import yaml
 
 from phc2d.cli import build_parser
 from phc2d.data.full_cell import FullCellStructureSpec, load_full_cell_hdf5
-from phc2d.data.full_cell_generation import run_full_cell_generation
+from phc2d.data.full_cell_generation import run_full_cell_generation, write_combined_full_cell_manifest
 
 
 def deterministic_fake_solver(structure, *, k_points, config):
@@ -152,3 +152,37 @@ def test_data_generate_cli_parser_does_not_import_meep() -> None:
     assert namespace.command == "data generate"
     assert namespace.workers == "auto"
     assert "meep" not in set(sys.modules) - before
+
+
+def test_combined_manifest_refuses_promotion_without_convergence(tmp_path: Path) -> None:
+    lane = {
+        "status": "pilot_generated_pending_convergence",
+        "dataset_path": "data/lane.h5",
+        "dataset_sha256": "abc",
+    }
+    graded = tmp_path / "graded.yaml"
+    binary = tmp_path / "binary.yaml"
+    graded.write_text(yaml.safe_dump(lane), encoding="utf-8")
+    binary.write_text(yaml.safe_dump(lane), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="resolution_convergence_pass"):
+        write_combined_full_cell_manifest(
+            tmp_path / "combined.yaml",
+            graded_manifest=graded,
+            binary_manifest=binary,
+            status="pilot_pass",
+        )
+
+    convergence = tmp_path / "convergence.json"
+    convergence.write_text(json.dumps({"status": "resolution_convergence_pass"}), encoding="utf-8")
+    result = write_combined_full_cell_manifest(
+        tmp_path / "combined.yaml",
+        graded_manifest=graded,
+        binary_manifest=binary,
+        convergence_evidence=convergence,
+        status="pilot_pass",
+    )
+    payload = yaml.safe_load(result.read_text(encoding="utf-8"))
+    assert payload["status"] == "pilot_pass"
+    assert payload["merge_arrays"] is False
+    assert payload["resolution_convergence"]["status"] == "resolution_convergence_pass"

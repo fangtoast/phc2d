@@ -752,6 +752,7 @@ def write_combined_full_cell_manifest(
     *,
     graded_manifest: str | Path,
     binary_manifest: str | Path,
+    convergence_evidence: str | Path | None = None,
     status: str,
 ) -> Path:
     """Link accepted lanes without merging arrays or physical semantics."""
@@ -762,7 +763,28 @@ def write_combined_full_cell_manifest(
         manifest_path = _repo_path(value)
         payload = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
         entries.append({"lane": lane, "manifest": _relative(manifest_path), "manifest_sha256": _file_hash(manifest_path), "dataset": payload.get("dataset_path"), "dataset_sha256": payload.get("dataset_sha256"), "status": payload.get("status")})
-    combined = {"schema_version": "phc2d.full_cell_collection.v1", "status": str(status), "merge_arrays": False, "datasets": entries}
+    convergence = None
+    if convergence_evidence is not None:
+        convergence_path = _repo_path(convergence_evidence)
+        convergence_payload = json.loads(convergence_path.read_text(encoding="utf-8"))
+        convergence = {
+            "path": _relative(convergence_path),
+            "sha256": _file_hash(convergence_path),
+            "status": convergence_payload.get("status"),
+        }
+    if str(status) == "pilot_pass":
+        wrong_lane_statuses = [entry for entry in entries if entry["status"] != "pilot_generated_pending_convergence"]
+        if wrong_lane_statuses:
+            raise ValueError("pilot_pass requires both lane manifests to be complete real-MPB pilots")
+        if convergence is None or convergence["status"] != "resolution_convergence_pass":
+            raise ValueError("pilot_pass requires resolution_convergence_pass evidence")
+    combined = {
+        "schema_version": "phc2d.full_cell_collection.v1",
+        "status": str(status),
+        "merge_arrays": False,
+        "datasets": entries,
+        "resolution_convergence": convergence,
+    }
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(yaml.safe_dump(combined, sort_keys=False, allow_unicode=True), encoding="utf-8")
     return out
