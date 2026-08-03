@@ -91,6 +91,11 @@ PYTHONPATH=src python -m phc2d.cli data generate --config configs/research/full_
 PYTHONPATH=src python -m phc2d.cli data generate --config configs/research/full_cell_graded_bz9_pilot64.yaml
 PYTHONPATH=src python -m phc2d.cli data generate --config configs/research/full_cell_binary_holes_bz9_pilot64.yaml
 PYTHONPATH=src python -m phc2d.cli data converge --config configs/research/full_cell_resolution_convergence_v1.yaml
+PYTHONPATH=src python -m phc2d.cli data finalize \
+  --graded-run-dir <graded-run-dir> \
+  --binary-run-dir <binary-run-dir> \
+  --convergence-config configs/research/full_cell_resolution_convergence_v1.yaml \
+  --combined-manifest data/full_cell_dual_lane_pilot64_manifest.yaml
 ```
 
-正式命令必须在仓库规定的 WSL `meep_env` 中执行。Windows 本地测试只用于代码调试，不构成验收结果。
+`data finalize` 只用于长任务的 fail-closed 收尾：等待两个明确指定的正式 run，任一路线失败即停止；两边完成后才运行收敛门，且只有收敛通过才写联合清单。正式命令必须在仓库规定的 WSL `meep_env` 中执行。Windows 本地测试只用于代码调试，不构成验收结果。

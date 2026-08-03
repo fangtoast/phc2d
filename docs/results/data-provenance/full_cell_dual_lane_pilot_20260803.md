@@ -66,6 +66,8 @@ PYTHONPATH=src python -m phc2d.cli data generate \
 - `runs/20260803/full_cell_graded_bz9_pilot64_202608031427/`
 - `runs/20260803/full_cell_binary_holes_bz9_pilot64_202608031427/`
 
+14:42 已启动 fail-closed 自动收尾进程。它等待上述两个固定运行目录，最长等待 8 小时；两条路线均完成后自动执行收敛配置，并仅在收敛状态为 `resolution_convergence_pass` 时写入 `data/full_cell_dual_lane_pilot64_manifest.yaml`。启动日志为 `runs/full_cell_finalize_launch_20260803144216.{stdout,stderr}.log`。
+
 ## 结果
 
 ### 求解器 oracle
