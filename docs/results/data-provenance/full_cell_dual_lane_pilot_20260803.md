@@ -12,7 +12,7 @@
 - 正式环境：WSL Ubuntu + conda `meep_env`
 - 求解器：Meep `1.33.0-beta`，MPB `1.12.0`
 - 实验协议：[full_cell_dual_lane_data.md](../../../experiments/research/full_cell_dual_lane_data.md)
-- 当前证据状态：oracle 与每路线 4 样本真实 MPB 前置门已通过；64+64 正式试点正在计算，分辨率收敛尚未运行
+- 当前证据状态：旧规则 oracle 与每路线 4 样本真实 MPB 前置门已通过；生成规则调整后，旧 64+64 任务已作废，新规则仍需重新通过真实 MPB 前置门
 
 ## 执行结论
 
@@ -61,12 +61,14 @@ PYTHONPATH=src python -m phc2d.cli data generate \
   --max-samples 4
 ```
 
-正式 64+64 命令已于 2026-08-03 14:27 启动，对应运行目录：
+正式 64+64 命令曾于 2026-08-03 14:27 启动，对应运行目录：
 
 - `runs/20260803/full_cell_graded_bz9_pilot64_202608031427/`
 - `runs/20260803/full_cell_binary_holes_bz9_pilot64_202608031427/`
 
-14:42 已启动 fail-closed 自动收尾进程。它等待上述两个固定运行目录，最长等待 8 小时；两条路线均完成后自动执行收敛配置，并仅在收敛状态为 `resolution_convergence_pass` 时写入 `data/full_cell_dual_lane_pilot64_manifest.yaml`。启动日志为 `runs/full_cell_finalize_launch_20260803144216.{stdout,stderr}.log`。
+16:57 按新的生成规则停止了上述任务和自动收尾进程：连续路线已完成 `32/64` 个分片，二值路线已完成 `28/64` 个分片。两个运行目录均保留 `superseded.json`，明确标记为不可晋级、不可与新规则样本混合；未写正式联合清单。
+
+新规则把连续介质的目标平均材料权重调整为 `0.60–0.82`，并把二值频谱场的截止尺度由原先的 `1.5–3.0` 提高到 `2.5–4.5`、Fourier 索引上限由 `6` 提高到 `8`。确定性 64 样本结构检查得到：连续路线材料权重的最小值/中位数/最大值为 `0.6062/0.6946/0.8034`，深材料区域占比中位数为 `0.7513`；全部样本仍满足连续性与高频能量门。新规则的真实 MPB 结果尚未生成，因此旧规则的 4 样本前置结果不能替代新规则验收。
 
 ## 结果
 
@@ -119,9 +121,10 @@ PYTHONPATH=src python -m phc2d.cli plot --help
 
 ## 当前边界与下一门
 
-截至本报告写入时，64+64 正式试点仍在计算，不能将 4 样本 HDF5 视为正式训练集。完成后还必须：
+截至本报告写入时，旧规则 64+64 正式试点已作废，不能将旧规则的已完成分片或 4 样本 HDF5 视为新规则训练集。下一步还必须：
 
-1. 审计两条正式数据的 `64/64` 完成率、失败账本、`[64,81,10]` 形状和 hash；
-2. 运行 [full_cell_resolution_convergence_v1.yaml](../../../configs/research/full_cell_resolution_convergence_v1.yaml)；
-3. 要求每条路线及合并池同时通过 bands 2+ 的中位与 p95 阈值；
-4. 仅在上述条件全部满足后写联合清单，且联合清单只链接两个独立 HDF5，不合并材料语义。
+1. 用新规则分别重跑每路线 4 样本真实 MPB 前置门；
+2. 前置门通过后重启两条正式数据，并审计 `64/64` 完成率、失败账本、`[64,81,10]` 形状和 hash；
+3. 运行 [full_cell_resolution_convergence_v1.yaml](../../../configs/research/full_cell_resolution_convergence_v1.yaml)；
+4. 要求每条路线及合并池同时通过 bands 2+ 的中位与 p95 阈值；
+5. 仅在上述条件全部满足后写联合清单，且联合清单只链接两个独立 HDF5，不合并材料语义。

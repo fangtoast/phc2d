@@ -21,7 +21,8 @@ generator:
   epsilon_air: 1.0
   epsilon_material: 8.9
   audit_resolution: 256
-  fourier_cutoff: 6
+  fourier_cutoff: 8
+  spectral_cutoff_scale_range: [2.5, 4.5]
   max_attempts: 512
 
 solver:

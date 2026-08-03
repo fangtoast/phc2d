@@ -75,6 +75,20 @@ def _grid(resolution: int) -> tuple[np.ndarray, np.ndarray]:
     return np.meshgrid(axis, axis, indexing="xy")
 
 
+def _float_range(
+    cfg: Mapping[str, Any],
+    key: str,
+    default: tuple[float, float],
+) -> tuple[float, float]:
+    raw = cfg.get(key, default)
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)) or len(raw) != 2:
+        raise ValueError(f"{key} must contain exactly two numeric bounds")
+    low, high = float(raw[0]), float(raw[1])
+    if not np.isfinite(low) or not np.isfinite(high) or low >= high:
+        raise ValueError(f"{key} must contain finite ascending bounds")
+    return low, high
+
+
 def _build_spec(
     *,
     sample_id: str,
@@ -165,6 +179,10 @@ def full_cell_structure_stats(spec: FullCellStructureSpec, *, audit_resolution: 
     )
     return {
         "material_fraction": float(np.mean(weight)),
+        "material_weight_p10": float(np.quantile(weight, 0.10)),
+        "material_weight_p50": float(np.quantile(weight, 0.50)),
+        "material_weight_p90": float(np.quantile(weight, 0.90)),
+        "dense_material_fraction": float(np.mean(weight >= 0.60)),
         "air_fraction": float(np.mean(binary_air)),
         "gray_fraction": float(np.mean((weight > 0.05) & (weight < 0.95))),
         "p4m_symmetry_error": _p4m_symmetry_error(weight),
@@ -195,6 +213,9 @@ def generate_graded_rbf_fourier(
     cutoff = int(cfg.get("fourier_cutoff", 3))
     audit_resolution = int(cfg.get("audit_resolution", 256))
     max_attempts = int(cfg.get("max_attempts", 256))
+    target_range = _float_range(cfg, "graded_target_material_fraction_range", (0.60, 0.82))
+    temperature_range = _float_range(cfg, "graded_temperature_range", (0.20, 0.36))
+    strength_range = _float_range(cfg, "graded_fourier_strength_range", (0.03, 0.14))
     for attempt in range(max_attempts):
         blobs: list[dict[str, float]] = []
         for _ in range(int(core_count)):
@@ -211,9 +232,9 @@ def generate_graded_rbf_fourier(
                 }
             )
         modes = _real_fourier_modes(rng, cutoff=cutoff, envelope_power=2.5)
-        strength = float(rng.uniform(0.05, 0.25))
-        temperature = float(rng.uniform(0.15, 0.30))
-        target = float(rng.uniform(0.20, 0.75))
+        strength = float(rng.uniform(*strength_range))
+        temperature = float(rng.uniform(*temperature_range))
+        target = float(rng.uniform(*target_range))
         x, y = _grid(audit_resolution)
         raw_payload = {
             "blobs": blobs,
@@ -256,7 +277,12 @@ def generate_graded_rbf_fourier(
             epsilon_material=epsilon_material,
         )
         stats = full_cell_structure_stats(spec, audit_resolution=audit_resolution)
-        if stats["gray_fraction"] >= 0.20 and stats["high_frequency_energy_ratio"] <= 0.05:
+        if (
+            target_range[0] - 0.01 <= stats["material_fraction"] <= target_range[1] + 0.01
+            and stats["dense_material_fraction"] >= 0.35
+            and stats["gray_fraction"] >= 0.20
+            and stats["high_frequency_energy_ratio"] <= 0.05
+        ):
             return FullCellStructureSpec.from_mapping({**spec.to_mapping(), "metadata": {**spec.metadata, "stats": stats}})
     raise RuntimeError(f"Unable to generate accepted graded structure {sample_id} after {max_attempts} attempts")
 
@@ -353,9 +379,10 @@ def generate_binary_spectral_threshold(
     audit_resolution = int(cfg.get("audit_resolution", 256))
     cutoff = int(cfg.get("fourier_cutoff", 6))
     max_attempts = int(cfg.get("max_attempts", 512))
+    cutoff_scale_range = _float_range(cfg, "spectral_cutoff_scale_range", (2.5, 4.5))
     x, y = _grid(audit_resolution)
     for attempt in range(max_attempts):
-        k_c = float(rng.uniform(1.5, 3.0))
+        k_c = float(rng.uniform(*cutoff_scale_range))
         modes: list[dict[str, float | int]] = []
         for mx in range(-cutoff, cutoff + 1):
             for my in range(-cutoff, cutoff + 1):

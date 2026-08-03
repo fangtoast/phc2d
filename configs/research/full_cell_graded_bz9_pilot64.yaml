@@ -22,6 +22,9 @@ generator:
   epsilon_material: 8.9
   audit_resolution: 256
   fourier_cutoff: 3
+  graded_target_material_fraction_range: [0.60, 0.82]
+  graded_temperature_range: [0.20, 0.36]
+  graded_fourier_strength_range: [0.03, 0.14]
   max_attempts: 256
 
 solver:

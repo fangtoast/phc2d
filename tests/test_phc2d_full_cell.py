@@ -70,6 +70,8 @@ def test_graded_generator_is_deterministic_continuous_and_periodic() -> None:
     assert first.material_kind == "continuous"
     assert np.all((grid >= 0.0) & (grid <= 1.0))
     assert np.mean((grid > 0.05) & (grid < 0.95)) >= 0.20
+    assert 0.59 <= first.metadata["stats"]["material_fraction"] <= 0.83
+    assert first.metadata["stats"]["dense_material_fraction"] >= 0.35
     assert first.metadata["stats"]["p4m_symmetry_error"] > 1.0e-3
     probes = np.linspace(-0.49, 0.49, 17)
     assert np.allclose(
@@ -100,6 +102,22 @@ def test_binary_generators_are_strictly_quantized(factory, kwargs) -> None:
     assert set(np.unique(grid).tolist()) <= {0.0, 1.0}
     assert 0.07 <= float(np.mean(grid == 0.0)) <= 0.53
     assert structure.metadata["stats"]["p4m_symmetry_error"] > 1.0e-3
+
+
+def test_spectral_generator_uses_configured_higher_cutoff_scale() -> None:
+    config = {
+        **_generator_config(),
+        "fourier_cutoff": 8,
+        "spectral_cutoff_scale_range": [2.5, 4.5],
+    }
+    structure = generate_binary_spectral_threshold(
+        "binary_high_cutoff_unit",
+        master_seed=20260804,
+        config=config,
+    )
+
+    assert 2.5 <= float(structure.parameters["cutoff_scale"]) <= 4.5
+    assert max(max(abs(int(mode["mx"])), abs(int(mode["my"]))) for mode in structure.parameters["modes"]) == 8
 
 
 def test_full_cell_hdf5_roundtrip_and_schema(tmp_path: Path) -> None:
