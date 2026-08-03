@@ -218,25 +218,15 @@ def generate_graded_rbf_fourier(
     temperature_range = _float_range(cfg, "graded_temperature_range", (0.08, 0.16))
     strength_range = _float_range(cfg, "graded_fourier_strength_range", (0.03, 0.10))
     core_magnitude_range = _float_range(cfg, "graded_air_well_magnitude_range", (0.90, 1.40))
-    center_range = _float_range(cfg, "graded_core_center_range", (-0.30, 0.30))
-    single_radius_range = _float_range(cfg, "graded_single_core_radius_range", (0.13, 0.19))
-    double_radius_range = _float_range(cfg, "graded_double_core_radius_range", (0.09, 0.14))
-    single_air_fraction_range = _float_range(cfg, "graded_single_near_air_fraction_range", (0.08, 0.14))
-    double_air_fraction_range = _float_range(cfg, "graded_double_near_air_fraction_range", (0.12, 0.20))
-    min_core_separation = float(cfg.get("graded_double_min_core_separation", 0.22))
     for attempt in range(max_attempts):
         blobs: list[dict[str, float]] = []
         for _ in range(int(core_count)):
-            base = float(rng.uniform(*(single_radius_range if int(core_count) == 1 else double_radius_range)))
+            base = float(rng.uniform(0.08, 0.22))
             aspect = float(rng.uniform(0.75, 1.33))
-            center_x = float(rng.uniform(*center_range))
-            center_y = float(rng.uniform(*center_range))
-            if blobs and np.hypot(center_x - blobs[0]["center_x"], center_y - blobs[0]["center_y"]) < min_core_separation:
-                break
             blobs.append(
                 {
-                    "center_x": center_x,
-                    "center_y": center_y,
+                    "center_x": float(rng.uniform(-0.5, 0.5)),
+                    "center_y": float(rng.uniform(-0.5, 0.5)),
                     "sigma_x": float(base * np.sqrt(aspect)),
                     "sigma_y": float(base / np.sqrt(aspect)),
                     "angle": float(rng.uniform(0.0, 2.0 * np.pi)),
@@ -245,8 +235,6 @@ def generate_graded_rbf_fourier(
                     "amplitude": -float(rng.uniform(*core_magnitude_range)),
                 }
             )
-        if len(blobs) != int(core_count):
-            continue
         modes = _real_fourier_modes(rng, cutoff=cutoff, envelope_power=2.5)
         strength = float(rng.uniform(*strength_range))
         temperature = float(rng.uniform(*temperature_range))
@@ -293,11 +281,10 @@ def generate_graded_rbf_fourier(
             epsilon_material=epsilon_material,
         )
         stats = full_cell_structure_stats(spec, audit_resolution=audit_resolution)
-        near_air_range = single_air_fraction_range if int(core_count) == 1 else double_air_fraction_range
         if (
             target_range[0] - 0.01 <= stats["material_fraction"] <= target_range[1] + 0.01
             and stats["dense_material_fraction"] >= 0.35
-            and near_air_range[0] <= stats["near_air_fraction"] <= near_air_range[1]
+            and stats["near_air_fraction"] >= 0.01
             and stats["minimum"] <= 0.05
             and stats["maximum"] >= 0.90
             and stats["gray_fraction"] >= 0.20

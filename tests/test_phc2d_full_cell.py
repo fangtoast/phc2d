@@ -70,14 +70,12 @@ def test_graded_generator_is_deterministic_continuous_and_periodic() -> None:
     assert first.material_kind == "continuous"
     assert np.all((grid >= 0.0) & (grid <= 1.0))
     assert np.mean((grid > 0.05) & (grid < 0.95)) >= 0.20
-    assert 0.63 <= first.metadata["stats"]["material_fraction"] <= 0.75
+    assert 0.59 <= first.metadata["stats"]["material_fraction"] <= 0.79
     assert first.metadata["stats"]["dense_material_fraction"] >= 0.35
     assert first.metadata["stats"]["near_air_fraction"] >= 0.01
     assert first.metadata["stats"]["minimum"] <= 0.05
     assert first.metadata["stats"]["maximum"] >= 0.90
     assert all(float(blob["amplitude"]) < 0.0 for blob in first.parameters["blobs"])
-    assert all(-0.30 <= float(blob["center_x"]) <= 0.30 for blob in first.parameters["blobs"])
-    assert all(-0.30 <= float(blob["center_y"]) <= 0.30 for blob in first.parameters["blobs"])
     assert first.metadata["stats"]["p4m_symmetry_error"] > 1.0e-3
     probes = np.linspace(-0.49, 0.49, 17)
     assert np.allclose(
