@@ -25,7 +25,7 @@
 \acmDOI{}
 \acmISBN{}
 
-\title[BISON for Solver-Verified Photonic-Crystal Inverse Design]{BISON: A Band-Informed Spectral Operator Network for Solver-Verified Inverse Design of Two-Dimensional Photonic Crystals}
+\title[BISON for Photonic-Crystal Inverse Design]{BISON: A Band-Informed Spectral Operator Network for Solver-Verified Inverse Design of Two-Dimensional Photonic Crystals}
 
 \author{Xiao Fang}
 \affiliation{%
@@ -96,29 +96,25 @@
 \begin{document}
 
 \begin{abstract}
-Inverse band-structure design seeks periodic material layouts whose photonic
-dispersion matches a prescribed target. The task is expensive because every
-candidate ultimately requires an eigensolver, and it is non-unique because
-different layouts can realize similar spectra. We present \method{}, a
-project-native, band-informed Fourier neural operator that maps a periodic
-permittivity field to the complete sampled band matrix. BISON combines two
-truncated spectral kernels, a band gate, a low-rank global branch, and residual
-updates. In inverse design, a single-mode latent conditional decoder generates
-candidate structures without mixture-of-experts routing; frozen BISON scores
-the candidates, an independent query operator audits consistency, and a fixed
-Top-5 budget is replayed with MIT Photonic Bands (MPB). On a 10,000-structure
-dataset, BISON attains a three-seed bands-2--10 test MRE of
-\(1.0299\%\pm0.0545\%\), a 22.6\% relative reduction from the strongest
-non-operator forward baseline. The query operator reaches \(1.0470\%\) MRE on
-held-out wave-vector interpolation, but rises to \(3.6747\%\) on an unseen path
-segment, exposing a clear extrapolation limit. On the complete 625-target test
-split, the seed-0 no-expert inverse pipeline obtains \(2.2614\%\) real-MPB MRE
-with a \(0.118\) percentage-point surrogate--replay gap. Under the same
-candidate and replay budget, it is 0.130 percentage points lower than the
-mode-conditioned baseline (paired 95\% bootstrap interval: 0.090--0.171). These
-results show that an FNO-derived full-band operator can support efficient and
-auditable photonic-crystal inverse design, while solver replay remains
-indispensable for physical claims.
+Inverse photonic band-structure design is computationally expensive and
+non-unique. Learned surrogates can amortize eigensolver calls, but inverse
+search can exploit their prediction errors. We introduce \method{}, a
+project-specific, FNO-inspired spectral surrogate that jointly predicts a
+complete sampled band matrix from a periodic permittivity field. A single-mode
+routing-free latent generator proposes candidate structures, and frozen BISON
+ranks them. An independent query operator audits cross-surrogate consistency,
+after which a fixed Top-5 budget is replayed with MIT Photonic Bands (MPB).
+On a 10,000-structure dataset, BISON achieves a bands-2--10 test MRE of
+\(1.0299\%\pm0.0545\%\) across three seeds. This error is 22.6\% lower than
+that of the strongest non-operator forward baseline. The query operator's MRE
+increases from \(1.0470\%\) on held-out interpolation points to \(3.6747\%\)
+on an unseen path segment. Across all 625 test targets, the seed-0 inverse
+evaluation achieves \(2.2614\%\) real-MPB MRE with a \(0.118\)
+percentage-point surrogate--replay gap. Under identical candidate and replay
+budgets, its MRE is 0.130 percentage points below the four-mode embedding
+baseline (paired 95\% bootstrap interval: 0.090--0.171). These results support
+BISON as a full-band surrogate within a budgeted inverse-design workflow;
+MPB replay remains the basis for physical evaluation.
 \end{abstract}
 
 \ccsdesc[500]{Computing methodologies~Machine learning}
@@ -136,7 +132,6 @@ crystal, band structure, scientific machine learning, MPB}
 \input{sections/05_experimental_protocol}
 \input{sections/06_results}
 \input{sections/07_limitations}
-\input{sections/08_genai_usage}
 \input{sections/09_conclusion}
 
 \bibliographystyle{ACM-Reference-Format}

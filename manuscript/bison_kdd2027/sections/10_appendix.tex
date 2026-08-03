@@ -8,8 +8,8 @@
 \subsection{BISON Configuration}
 
 \begin{table}[H]
-  \caption{Architecture and training configuration used for the formal forward
-  BISON result. Output dimensions are supplied by the dataset schema.}
+  \caption{BISON architecture and training configuration for the formal
+  three-seed forward evaluation. Output dimensions come from the data schema.}
   \label{tab:bison-config}
   \centering
   \small
@@ -35,7 +35,7 @@
 \subsection{Per-Band Forward Error}
 
 \begin{table}[H]
-  \caption{BISON test MRE by evaluated band, averaged over three seeds.}
+  \caption{BISON test MRE (\%) by band, averaged over seeds 0, 1, and 2.}
   \label{tab:per-band}
   \centering
   \small
@@ -52,7 +52,7 @@
 \subsection{Inverse Candidate and Replay Settings}
 
 \begin{table}[H]
-  \caption{Frozen seed-0 inverse protocol.}
+  \caption{Frozen seed-0 inverse protocol for all 625 test targets.}
   \label{tab:inverse-config}
   \centering
   \small
@@ -87,18 +87,17 @@ are listed separately to preserve readable two-column typesetting:
   \item paired qualitative inverse figure: \texttt{62830e47306e}.
 \end{itemize}
 
-The forward result is \emph{formal completed} with three seeds. The inverse
-result is \emph{single-seed complete-test replay}: it covers all 625 held-out
-targets but uses only seed 0. The experiment does not authorize claims of
-cross-seed inverse stability, universal superiority, PINO/field inverse gain,
-or causal attribution against an unmatched historical seed-2 run.
+The forward evaluation is formally completed over three seeds. The inverse
+evaluation is a \emph{single-seed complete-test replay}: it covers all 625
+held-out targets at seed 0. This protocol does not assess cross-seed inverse
+stability, universal architectural superiority, PINO/field inverse gains, or
+causal differences from an unmatched historical seed-2 run.
 
 \section{Additional Interpretation}
 
-The single-mode generator's MPB MRE interval is [2.2263, 2.2965]\%, whereas
-the four-mode interval is [2.3485, 2.4341]\%. The paired interval reported in
-the main paper is more informative for the same targets because it removes much
-of the target-to-target difficulty variation. Even so, it remains conditional
-on one trained pair of inverse models. A stronger follow-up would repeat the
-entire objective-bridge training and replay protocol for multiple seeds while
-preserving the same target pool and MPB budget.
+The single-mode generator's MPB MRE interval is [2.2263, 2.2965]\%; the
+four-mode interval is [2.3485, 2.4341]\%. The paired interval controls for
+target-specific difficulty because both methods evaluate the same targets.
+However, it remains conditional on one trained pair of inverse models. A
+multi-seed follow-up should repeat the objective-bridge training and replay
+protocol while preserving the target pool and MPB budget.

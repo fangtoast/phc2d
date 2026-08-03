@@ -7,90 +7,83 @@
 
 \subsection{From Solver-Based Photonic Design to Learned Search}
 
-Numerical photonic design has a mature physical foundation. MPB solves the
-frequency-domain Maxwell eigenproblem in a plane-wave basis
-~\cite{johnson2001mpb}, while topology optimization exposes many material
-degrees of freedom to gradient-based search~\cite{molesky2018inverse}. Early photonic-crystal work
-demonstrated systematic low-loss bends~\cite{jensen2004systematic}; subsequent
-work extended the framework to nano-photonic components and dispersion-shaped,
-manufacturing-robust waveguides~\cite{jensen2011topology,wang2011robust}.
-Inverse-designed grating couplers, wavelength demultiplexers, and explicitly
-fabrication-constrained devices further established the practical value of
-solver-coupled optimization~\cite{piggott2014grating,piggott2015demultiplexer,
-piggott2017fabrication}. These methods retain physical fidelity during search,
-but each new objective can require many expensive solves.
+MPB solves the frequency-domain Maxwell eigenproblem in a plane-wave basis
+~\cite{johnson2001mpb}. Topology optimization couples such physical models to
+gradient-based search over many material degrees of freedom
+~\cite{molesky2018inverse}. This approach has produced low-loss photonic-crystal
+bends~\cite{jensen2004systematic}, nanophotonic components, and
+dispersion-shaped or manufacturing-robust waveguides
+~\cite{jensen2011topology,wang2011robust}. Grating couplers, wavelength
+demultiplexers, and fabrication-constrained devices further demonstrate the
+scope of solver-coupled optimization
+~\cite{piggott2014grating,piggott2015demultiplexer,piggott2017fabrication}.
+Its main computational cost is the repeated solution of a new physical problem
+for each objective and design iterate.
 
-Data-driven methods move part of that cost into an offline dataset. Learned
-forward models have accelerated nanoparticle simulation, power-splitter design,
-and exploration of global component design spaces
+Learned surrogates shift part of this cost to dataset generation and training.
+They have accelerated nanoparticle simulation, power-splitter design, and
+global design-space exploration
 ~\cite{peurifoy2018nanophotonic,tahersima2019splitters,melati2019mapping}.
-Tandem networks train an inverse map through a frozen forward surrogate to
-reduce geometry averaging under non-uniqueness~\cite{liu2018tandem}. Conditional
-generators and physics-driven global-optimization networks instead search over
-multiple candidates~\cite{jiang2019glonet}. Reviews of the field distinguish
-direct inverse regression, iterative surrogate optimization, and generative
-design, and consistently identify non-uniqueness, data coverage, and physical
-validation as central challenges~\cite{so2020inverse,ma2021deep,
-wiecha2021deep,jiang2021evaluation}. Ren et al. further show that inverse models
-should be compared under a time or candidate budget rather than by one
-unqualified output~\cite{ren2020benchmarking}. This motivates our fixed
-\(K=128\) candidate pool and equal Top-5 solver budget.
+Tandem networks address inverse non-uniqueness by training through a frozen
+forward surrogate~\cite{liu2018tandem}, whereas conditional generators and
+global-optimization networks search over multiple candidates
+~\cite{jiang2019glonet}. Across direct, iterative, and generative approaches,
+the recurring concerns are non-uniqueness, data coverage, surrogate bias, and
+physical validation~\cite{so2020inverse,ma2021deep,wiecha2021deep,
+jiang2021evaluation}. Budget-aware evaluation is therefore essential
+~\cite{ren2020benchmarking}. Our protocol fixes both the \(K=128\) candidate
+pool and the Top-5 MPB replay budget.
 
 \subsection{Neural Operators and Fourier-Space Inductive Bias}
 
-DeepONet represents a nonlinear operator through branch and trunk networks
-~\cite{lu2021deeponet}. FNO instead alternates pointwise transformations with
-global convolutions parameterized by learned Fourier modes
-~\cite{li2021fno}. A broader operator-learning formulation explains how these
-models approximate maps between function spaces and distinguishes graph,
-low-rank, and Fourier parameterizations~\cite{kovachki2023neuraloperator}.
-Later variants adapt Fourier mixing, geometry handling, or non-uniform data:
-AFNO introduces adaptive sparsification and channel structure
-~\cite{guibas2022afno}, Geo-FNO learns a deformation to a uniform latent grid
-~\cite{li2023geofno}, and NUNO decomposes non-uniform domains into grid-aligned
-subdomains~\cite{liu2023nuno}. BISON does not attempt these generalizations. It
-uses the stronger prior available in our task---a fixed periodic Cartesian
-cell---and specializes the spectral block to two configured mode rectangles and
-a joint band-matrix output.
+DeepONet represents nonlinear operators with branch and trunk networks
+~\cite{lu2021deeponet}. FNO alternates pointwise transformations with global
+convolutions parameterized by learned Fourier modes~\cite{li2021fno}. Both fit
+within the broader framework of learning maps between function spaces
+~\cite{kovachki2023neuraloperator}. Subsequent variants extend Fourier mixing
+or geometry handling. AFNO adds adaptive sparsification and channel structure
+~\cite{guibas2022afno}, Geo-FNO deforms irregular domains to a uniform latent
+grid~\cite{li2023geofno}, and NUNO decomposes non-uniform domains into
+grid-aligned subdomains~\cite{liu2023nuno}.
 
-Physics-informed neural operators can add equation residuals during training
-~\cite{li2021pino}, while Neural Inverse Operators learn compositions for PDE
-inverse problems~\cite{molinaro2023nio}. Our use of ``operator'' is narrower:
-BISON is the implemented data-driven map from a permittivity function to a
-finite sampled eigenspectrum. It is neither a faithful Maxwell solver nor a
-claim that residual minimization alone verifies an inverse design.
+BISON addresses a narrower setting with a stronger structural prior: a fixed
+periodic Cartesian cell. It specializes Fourier mixing to two configured mode
+rectangles and jointly predicts an ordered band matrix. Unlike
+physics-informed neural operators, which can incorporate equation residuals
+~\cite{li2021pino}, BISON is trained on paired permittivity and eigenspectrum
+data. Neural Inverse Operators instead learn operator compositions for PDE
+inverse problems~\cite{molinaro2023nio}. In this paper, ``operator'' denotes the
+learned functional map from a permittivity field to a finite sampled
+eigenspectrum.
 
 \subsection{Learned Electromagnetics and Photonic Band Surrogates}
 
-Learned electromagnetic models span different outputs and evidence types.
-MaxwellNet embeds Maxwell-equation residuals in field prediction
-~\cite{lim2022maxwellnet}; NeurOLight and PACE develop neural operators for
-parametric photonic-device field simulation~\cite{gu2022neurolight,
-zhu2024pace}; and a neural-operator surrogate has been used inside free-form
-electromagnetic inverse design~\cite{augenstein2023emno}. These studies support
-operator learning as a photonic surrogate strategy, but a field solution, a
-port response, and an ordered eigenfrequency matrix are different learning
-targets.
+Learned electromagnetic models differ in both prediction target and validation
+evidence. MaxwellNet incorporates Maxwell-equation residuals into field
+prediction~\cite{lim2022maxwellnet}. NeurOLight and PACE use neural operators
+for parametric photonic-device field simulation
+~\cite{gu2022neurolight,zhu2024pace}, and an operator surrogate has supported
+free-form electromagnetic inverse design~\cite{augenstein2023emno}. Field
+solutions, port responses, and ordered eigenfrequency matrices nevertheless
+define different learning tasks and require different evaluation protocols.
 
-The closest task-level precedent is the predictive and generative study of
-two-dimensional photonic crystals by Christensen et al., which learns complete
-band structures and generates band-gap candidates
-~\cite{christensen2020predictive}. The recent POD--DeepONet work likewise
-studies forward and inverse band design on binary, symmetric two-dimensional
-cells~\cite{wang2026poddeeponet}. We do not claim a direct state-of-the-art
-comparison because dataset construction, discretization, targets, and replay
-protocols differ. BISON's contribution is the combination of a project-native
-band-informed FNO, a no-expert latent candidate generator, an independent query
-audit, and a controlled same-pool, same-MPB-budget evaluation.
+Christensen et al. predict complete band structures and generate band-gap
+candidates for two-dimensional photonic crystals
+~\cite{christensen2020predictive}. POD--DeepONet similarly studies forward and
+inverse band design on binary, symmetric two-dimensional cells
+~\cite{wang2026poddeeponet}. Direct accuracy comparisons are not warranted
+because the datasets, discretizations, targets, and replay protocols differ.
+BISON instead combines joint full-band prediction with a routing-free latent
+generator, an independent query audit, and equal candidate and MPB budgets.
 
 \begin{table*}[t]
-  \caption{Positioning of BISON relative to the main methodological families.
-  ``Physical check'' describes the evidence normally available in the cited
-  workflow, not a claim that every paper uses the same solver or budget.}
+  \caption{Positioning of BISON among photonic inverse-design methods.
+  ``Physical check'' summarizes the typical evidence type; solvers and budgets
+  differ across the cited studies.}
   \label{tab:positioning}
   \centering
   \small
-  \begin{tabular}{p{0.18\textwidth}p{0.20\textwidth}p{0.20\textwidth}p{0.17\textwidth}p{0.17\textwidth}}
+  \begin{tabular}{@{}p{0.18\textwidth}p{0.20\textwidth}p{0.20\textwidth}p{0.17\textwidth}p{0.17\textwidth}@{}}
     \toprule
     Family & Learned or optimized object & Main advantage & Main risk or cost & Physical check \\
     \midrule
@@ -98,7 +91,7 @@ audit, and a controlled same-pool, same-MPB-budget evaluation.
     Direct/tandem learning & Target response $\rightarrow$ structure & Fast amortized inference & One-to-many ambiguity; surrogate bias & Often post-hoc simulation \\
     Generative/search learning & Candidate distribution or latent search & Multiple feasible designs & Budget-sensitive ranking & Candidate-dependent \\
     Photonic neural operators & Geometry/conditions $\rightarrow$ fields or response & Global functional mapping & Distribution shift & Field/response solver \\
-    BISON workflow & Periodic cell $\rightarrow$ full bands; latent candidates & Joint band ranking with explicit budgets & Fixed task family; learned-objective gap & Top-5 MPB replay per target \\
+    BISON workflow & Periodic cell $\rightarrow$ full bands; latent candidates & Joint band ranking with explicit budgets & Fixed task family; surrogate error & Top-5 MPB replay per target \\
     \bottomrule
   \end{tabular}
 \end{table*}

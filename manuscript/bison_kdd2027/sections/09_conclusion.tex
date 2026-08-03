@@ -5,18 +5,14 @@
 
 \section{Conclusion}
 
-We presented BISON, a band-informed FNO-derived network for predicting complete
-two-dimensional photonic-crystal band matrices and guiding inverse candidate
-selection. Its dual spectral kernels, channel gate, low-rank global branch,
-and residual updates reduce three-seed forward MRE to
-\(1.0299\%\pm0.0545\%\). Coupled to a single-mode latent generator, BISON
-ranks 128 candidates per target before fixed-budget Top-5 MPB replay. The
-complete seed-0 test split reaches 2.2614\% real-MPB MRE and outperforms the
-same decoder with four mode embeddings by 0.1302 percentage points. Just as
-importantly, query extrapolation and per-target replay expose the remaining
-failure modes. BISON is therefore best viewed as an efficient neural operator
-inside a solver-verified workflow, not as a replacement for the physical
-eigensolver. More broadly, the study argues for a specific standard in learned
-photonic inverse design: define the learned objective, expose the candidate
-budget, retain an independent diagnostic where possible, and reserve physical
-claims for candidates recomputed by the governing numerical solver.
+We presented BISON, a project-specific, FNO-inspired spectral surrogate for
+joint prediction of two-dimensional photonic-crystal band matrices. Across
+three seeds, BISON achieved \(1.0299\%\pm0.0545\%\) forward MRE. In the
+inverse workflow, a single-mode routing-free generator proposed 128 candidates
+per target, BISON ranked them, and MPB replayed the Top-5 candidates. Evaluation
+over all 625 test targets at seed 0 achieved 2.2614\% real-MPB MRE. This value
+was 0.1302 percentage points below that of the four-mode embedding baseline
+under the same budget. Query extrapolation error and the nonzero
+surrogate--replay gap delimit the scope of the learned models. The results
+support BISON as a ranking surrogate within this fixed dataset and replay
+protocol, while MPB remains the final evaluator of the selected structures.
