@@ -183,6 +183,7 @@ def full_cell_structure_stats(spec: FullCellStructureSpec, *, audit_resolution: 
         "material_weight_p50": float(np.quantile(weight, 0.50)),
         "material_weight_p90": float(np.quantile(weight, 0.90)),
         "dense_material_fraction": float(np.mean(weight >= 0.60)),
+        "near_air_fraction": float(np.mean(weight <= 0.10)),
         "air_fraction": float(np.mean(binary_air)),
         "gray_fraction": float(np.mean((weight > 0.05) & (weight < 0.95))),
         "p4m_symmetry_error": _p4m_symmetry_error(weight),
@@ -213,9 +214,10 @@ def generate_graded_rbf_fourier(
     cutoff = int(cfg.get("fourier_cutoff", 3))
     audit_resolution = int(cfg.get("audit_resolution", 256))
     max_attempts = int(cfg.get("max_attempts", 256))
-    target_range = _float_range(cfg, "graded_target_material_fraction_range", (0.60, 0.82))
-    temperature_range = _float_range(cfg, "graded_temperature_range", (0.20, 0.36))
-    strength_range = _float_range(cfg, "graded_fourier_strength_range", (0.03, 0.14))
+    target_range = _float_range(cfg, "graded_target_material_fraction_range", (0.60, 0.78))
+    temperature_range = _float_range(cfg, "graded_temperature_range", (0.08, 0.16))
+    strength_range = _float_range(cfg, "graded_fourier_strength_range", (0.03, 0.10))
+    core_magnitude_range = _float_range(cfg, "graded_air_well_magnitude_range", (0.90, 1.40))
     for attempt in range(max_attempts):
         blobs: list[dict[str, float]] = []
         for _ in range(int(core_count)):
@@ -228,7 +230,9 @@ def generate_graded_rbf_fourier(
                     "sigma_x": float(base * np.sqrt(aspect)),
                     "sigma_y": float(base / np.sqrt(aspect)),
                     "angle": float(rng.uniform(0.0, 2.0 * np.pi)),
-                    "amplitude": float(rng.uniform(0.8, 1.2)),
+                    # Negative radial kernels are smooth air wells in a
+                    # material-rich background, rather than material peaks.
+                    "amplitude": -float(rng.uniform(*core_magnitude_range)),
                 }
             )
         modes = _real_fourier_modes(rng, cutoff=cutoff, envelope_power=2.5)
@@ -280,6 +284,9 @@ def generate_graded_rbf_fourier(
         if (
             target_range[0] - 0.01 <= stats["material_fraction"] <= target_range[1] + 0.01
             and stats["dense_material_fraction"] >= 0.35
+            and stats["near_air_fraction"] >= 0.01
+            and stats["minimum"] <= 0.05
+            and stats["maximum"] >= 0.90
             and stats["gray_fraction"] >= 0.20
             and stats["high_frequency_energy_ratio"] <= 0.05
         ):
