@@ -6,6 +6,14 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 """
 
 from phc2d.data.forward_dataset import ForwardDatasetBundle, load_forward_dataset, save_forward_dataset
+from phc2d.data.full_cell import (
+    FULL_CELL_SCHEMA_VERSION,
+    FullCellDatasetBundle,
+    FullCellStructureSpec,
+    build_full_bz_grid,
+    load_full_cell_hdf5,
+    write_full_cell_hdf5,
+)
 from phc2d.data.query_dataset import (
     BandQueryDataset,
     BandQuerySpec,
@@ -69,6 +77,9 @@ __all__ = [
     "FieldEigenRecord",
     "FieldFeasibility",
     "ForwardDatasetBundle",
+    "FULL_CELL_SCHEMA_VERSION",
+    "FullCellDatasetBundle",
+    "FullCellStructureSpec",
     "InputRepresentation",
     "KPathInfo",
     "KPathMetadata",
@@ -81,6 +92,7 @@ __all__ = [
     "SampleMetadata",
     "TargetSpec",
     "build_query_dataset",
+    "build_full_bz_grid",
     "build_field_eigen_selection_manifest",
     "build_field_eigen_operator_selection_manifest",
     "build_query_masks",
@@ -105,6 +117,7 @@ __all__ = [
     "load_k_path_spec",
     "lift_rho_to_grid",
     "load_forward_dataset",
+    "load_full_cell_hdf5",
     "make_input",
     "make_target",
     "recover_k_path",
@@ -118,6 +131,7 @@ __all__ = [
     "validate_verified_k_path_reference",
     "validate_representation_compatibility",
     "write_field_eigen_hdf5",
+    "write_full_cell_hdf5",
     "wedge_index_for_pixel",
     "wedge_indices",
 ]

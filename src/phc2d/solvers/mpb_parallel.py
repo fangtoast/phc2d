@@ -130,6 +130,7 @@ class MPBWorkerJob:
     rho_hash: str = ""
     geometry_hash: str = ""
     stored: np.ndarray | None = None
+    solver_input: Any | None = None
 
 
 @dataclass
@@ -236,7 +237,8 @@ def _solve_worker(job: MPBWorkerJob, solver_fn: SolverFn, worker_env: Mapping[st
     started = time.perf_counter()
     try:
         with _silence_process_output(bool(suppress_output)):
-            bands, metadata = solver_fn(job.rho, k_points=job.k_points, config=job.solver_config)
+            solver_input = job.rho if job.solver_input is None else job.solver_input
+            bands, metadata = solver_fn(solver_input, k_points=job.k_points, config=job.solver_config)
         raw = np.asarray(bands)
         # Band-frequency workers use float32, while the field-eigen adapter
         # legitimately returns native-complex E/H tensors.  Never erase the

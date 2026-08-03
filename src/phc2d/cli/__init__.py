@@ -153,13 +153,39 @@ def build_parser() -> argparse.ArgumentParser:
 
     data = sub.add_parser("data", help="Dataset generation and data-schema utilities.")
     data_sub = data.add_subparsers(dest="action", required=True)
-    data_sub.add_parser(
+    generate = data_sub.add_parser(
         "generate",
-        help="Generate a forward dataset.",
-        description="Generate a forward dataset.",
-    ).set_defaults(
-        command="data generate"
+        help="Generate an evidence-gated dataset from a research config.",
+        description="Generate a full-cell dataset with real MPB, or run its solver preflight.",
     )
+    generate.add_argument("--config", type=Path, required=True)
+    generate.add_argument("--run-dir", type=Path, default=None)
+    generate.add_argument("--max-samples", type=int, default=None)
+    generate.add_argument(
+        "--workers",
+        type=str,
+        default=None,
+        help="Worker count or 'auto'; the config is used when omitted.",
+    )
+    generate.add_argument(
+        "--skip-environment-check",
+        action="store_true",
+        help="Test-only escape hatch; never use this to claim accepted MPB validation.",
+    )
+    generate.set_defaults(command="data generate")
+    converge = data_sub.add_parser(
+        "converge",
+        help="Run the full-cell 64/96/128 real-MPB resolution gate.",
+        description="Re-solve a stratified subset of both full-cell lanes at higher resolutions.",
+    )
+    converge.add_argument("--config", type=Path, required=True)
+    converge.add_argument("--run-dir", type=Path, default=None)
+    converge.add_argument(
+        "--skip-environment-check",
+        action="store_true",
+        help="Test-only escape hatch; results are never acceptance eligible.",
+    )
+    converge.set_defaults(command="data converge")
     inspect = data_sub.add_parser(
         "inspect",
         help="Inspect a dataset schema without running solvers.",
@@ -379,6 +405,38 @@ def main(argv: Sequence[str] | None = None) -> None:
         return
     if ns.command == "data inspect":
         print(json.dumps(infer_dataset_schema(ns.path), ensure_ascii=False, indent=2))
+        return
+    if ns.command == "data generate":
+        from phc2d.data.full_cell_generation import run_full_cell_generation
+
+        worker_override: int | str | None = ns.workers
+        if isinstance(worker_override, str) and worker_override.lower() != "auto":
+            try:
+                worker_override = int(worker_override)
+            except ValueError as exc:
+                raise SystemExit("--workers must be a positive integer or 'auto'.") from exc
+        if isinstance(worker_override, int) and worker_override <= 0:
+            raise SystemExit("--workers must be positive.")
+        print(
+            run_full_cell_generation(
+                ns.config,
+                run_dir=ns.run_dir,
+                max_samples=ns.max_samples,
+                workers=worker_override,
+                skip_environment_check=ns.skip_environment_check,
+            )
+        )
+        return
+    if ns.command == "data converge":
+        from phc2d.data.full_cell_convergence import run_full_cell_resolution_convergence
+
+        print(
+            run_full_cell_resolution_convergence(
+                ns.config,
+                run_dir=ns.run_dir,
+                skip_environment_check=ns.skip_environment_check,
+            )
+        )
         return
     if ns.command == "models list":
         from phc2d.models import list_model_specs, model_spec_to_dict
