@@ -186,6 +186,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Test-only escape hatch; results are never acceptance eligible.",
     )
     converge.set_defaults(command="data converge")
+    finalize = data_sub.add_parser(
+        "finalize",
+        help="Wait for two fixed full-cell pilot runs, then converge and promote.",
+        description="Fail closed unless both real-MPB pilots and the resolution gate pass.",
+    )
+    finalize.add_argument("--graded-run-dir", type=Path, required=True)
+    finalize.add_argument("--binary-run-dir", type=Path, required=True)
+    finalize.add_argument("--convergence-config", type=Path, required=True)
+    finalize.add_argument("--combined-manifest", type=Path, required=True)
+    finalize.add_argument("--poll-seconds", type=float, default=60.0)
+    finalize.add_argument("--timeout-hours", type=float, default=8.0)
+    finalize.set_defaults(command="data finalize")
     inspect = data_sub.add_parser(
         "inspect",
         help="Inspect a dataset schema without running solvers.",
@@ -435,6 +447,20 @@ def main(argv: Sequence[str] | None = None) -> None:
                 ns.config,
                 run_dir=ns.run_dir,
                 skip_environment_check=ns.skip_environment_check,
+            )
+        )
+        return
+    if ns.command == "data finalize":
+        from phc2d.data.full_cell_convergence import await_full_cell_pilots_and_finalize
+
+        print(
+            await_full_cell_pilots_and_finalize(
+                graded_run_dir=ns.graded_run_dir,
+                binary_run_dir=ns.binary_run_dir,
+                convergence_config=ns.convergence_config,
+                combined_manifest=ns.combined_manifest,
+                poll_interval_s=ns.poll_seconds,
+                timeout_s=ns.timeout_hours * 60.0 * 60.0,
             )
         )
         return

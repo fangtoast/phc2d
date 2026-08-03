@@ -27,6 +27,7 @@ from phc2d.data.full_cell_generation import (
     _repo_path,
     _solver_config,
     _validate_execution_boundary,
+    write_combined_full_cell_manifest,
 )
 from phc2d.runs import (
     ensure_figures_dir,
@@ -405,7 +406,76 @@ def run_full_cell_resolution_convergence(
     return out
 
 
+def await_full_cell_pilots_and_finalize(
+    *,
+    graded_run_dir: str | Path,
+    binary_run_dir: str | Path,
+    convergence_config: str | Path,
+    combined_manifest: str | Path,
+    poll_interval_s: float = 60.0,
+    timeout_s: float = 8.0 * 60.0 * 60.0,
+    convergence_runner: Callable[..., Path] = run_full_cell_resolution_convergence,
+    sleep_fn: Callable[[float], None] = time.sleep,
+) -> Path:
+    """Wait for two fixed pilot runs, then run convergence and gated collection promotion."""
+
+    runs = {
+        "graded_medium": _repo_path(graded_run_dir),
+        "binary_air_holes": _repo_path(binary_run_dir),
+    }
+    if float(poll_interval_s) < 0.0 or float(timeout_s) <= 0.0:
+        raise ValueError("poll_interval_s must be non-negative and timeout_s must be positive")
+    deadline = time.monotonic() + float(timeout_s)
+    expected_status = "pilot_generated_pending_convergence"
+    while True:
+        statuses: dict[str, str] = {}
+        for lane, run in runs.items():
+            result_path = run / "results.json"
+            if result_path.is_file():
+                payload = json.loads(result_path.read_text(encoding="utf-8"))
+                statuses[lane] = str(payload.get("status", ""))
+                if statuses[lane] != expected_status:
+                    raise RuntimeError(f"{lane} pilot stopped with status={statuses[lane]!r}: {result_path}")
+        if len(statuses) == len(runs):
+            break
+        if time.monotonic() >= deadline:
+            missing = sorted(set(runs) - set(statuses))
+            raise TimeoutError(f"timed out waiting for full-cell pilots: {missing}")
+        sleep_fn(float(poll_interval_s))
+
+    for lane, run in runs.items():
+        manifest_path = run / "dataset_manifest.yaml"
+        if not manifest_path.is_file():
+            raise FileNotFoundError(f"{lane} pilot manifest is missing: {manifest_path}")
+    convergence_run = convergence_runner(_repo_path(convergence_config))
+    evidence_path = Path(convergence_run) / "convergence_metrics.json"
+    if not evidence_path.is_file():
+        raise FileNotFoundError(f"convergence evidence is missing: {evidence_path}")
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    if str(evidence.get("status", "")) != "resolution_convergence_pass":
+        raise RuntimeError(f"resolution convergence did not pass: {evidence_path}")
+    collection_path = write_combined_full_cell_manifest(
+        combined_manifest,
+        graded_manifest=runs["graded_medium"] / "dataset_manifest.yaml",
+        binary_manifest=runs["binary_air_holes"] / "dataset_manifest.yaml",
+        convergence_evidence=evidence_path,
+        status="pilot_pass",
+    )
+    write_json(
+        Path(convergence_run) / "finalization.json",
+        {
+            "status": "pilot_pass",
+            "graded_run_dir": _relative(runs["graded_medium"]),
+            "binary_run_dir": _relative(runs["binary_air_holes"]),
+            "combined_manifest": _relative(collection_path),
+            "combined_manifest_sha256": _file_hash(collection_path),
+        },
+    )
+    return Path(convergence_run)
+
+
 __all__ = [
+    "await_full_cell_pilots_and_finalize",
     "compute_convergence_summary",
     "representative_k_indices",
     "run_full_cell_resolution_convergence",

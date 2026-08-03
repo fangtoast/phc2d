@@ -7,10 +7,16 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
+import pytest
+import yaml
 
 from phc2d.data.full_cell import FullCellStructureSpec, build_full_bz_grid
 from phc2d.data.full_cell_convergence import (
+    await_full_cell_pilots_and_finalize,
     compute_convergence_summary,
     representative_k_indices,
     select_convergence_indices,
@@ -95,3 +101,73 @@ def test_convergence_summary_excludes_first_band_and_applies_gates() -> None:
     assert summary["bands_in_gate"] == [2, 3, 4]
     assert summary["median_mre_64_96"] < 0.005
     assert summary["median_mre_96_128"] < 0.0025
+
+
+def _write_completed_lane(run_dir: Path) -> None:
+    run_dir.mkdir(parents=True)
+    (run_dir / "results.json").write_text(
+        json.dumps({"status": "pilot_generated_pending_convergence"}),
+        encoding="utf-8",
+    )
+    (run_dir / "dataset_manifest.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "status": "pilot_generated_pending_convergence",
+                "dataset_path": "data/lane.h5",
+                "dataset_sha256": "abc",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_finalize_waiter_runs_convergence_and_writes_gated_collection(tmp_path: Path) -> None:
+    graded = tmp_path / "graded_run"
+    binary = tmp_path / "binary_run"
+    convergence = tmp_path / "convergence_run"
+    _write_completed_lane(graded)
+    _write_completed_lane(binary)
+    convergence.mkdir()
+    (convergence / "convergence_metrics.json").write_text(
+        json.dumps({"status": "resolution_convergence_pass"}),
+        encoding="utf-8",
+    )
+    calls: list[Path] = []
+
+    def fake_convergence_runner(config_path: Path) -> Path:
+        calls.append(config_path)
+        return convergence
+
+    combined = tmp_path / "combined.yaml"
+    result = await_full_cell_pilots_and_finalize(
+        graded_run_dir=graded,
+        binary_run_dir=binary,
+        convergence_config=tmp_path / "convergence.yaml",
+        combined_manifest=combined,
+        poll_interval_s=0.0,
+        timeout_s=1.0,
+        convergence_runner=fake_convergence_runner,
+    )
+
+    assert result == convergence
+    assert len(calls) == 1
+    assert yaml.safe_load(combined.read_text(encoding="utf-8"))["status"] == "pilot_pass"
+    assert json.loads((convergence / "finalization.json").read_text(encoding="utf-8"))["status"] == "pilot_pass"
+
+
+def test_finalize_waiter_stops_on_nonpassing_lane(tmp_path: Path) -> None:
+    graded = tmp_path / "graded_run"
+    binary = tmp_path / "binary_run"
+    _write_completed_lane(graded)
+    _write_completed_lane(binary)
+    (binary / "results.json").write_text(json.dumps({"status": "solver_execution_failed"}), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="binary_air_holes"):
+        await_full_cell_pilots_and_finalize(
+            graded_run_dir=graded,
+            binary_run_dir=binary,
+            convergence_config=tmp_path / "convergence.yaml",
+            combined_manifest=tmp_path / "combined.yaml",
+            poll_interval_s=0.0,
+            timeout_s=1.0,
+        )
