@@ -7,6 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 
@@ -126,3 +127,19 @@ def test_worker_dispatches_explicit_solver_input(tmp_path: Path) -> None:
     assert summary["completed_count"] == 1
     assert results[0].status == "computed"
     assert np.all(results[0].bands == 1.0)
+
+
+def test_resume_rejects_a_shard_with_mismatched_identity(tmp_path: Path) -> None:
+    config = MPBParallelConfig(workers=1, min_workers=1, max_workers=1, worker_backend="thread")
+    shard_dir = tmp_path / "worker_shards"
+    run_mpb_worker_jobs(_jobs(2), config=config, shard_dir=shard_dir, solver_fn=sleepy_fake_solver)
+    payload_path = shard_dir / "unit_000000.json"
+    payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    payload["geometry_hash"] = "wrong-geometry"
+    payload_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    _, summary = run_mpb_worker_jobs(_jobs(2), config=config, shard_dir=shard_dir, solver_fn=sleepy_fake_solver)
+
+    assert summary["resumed_count"] == 1
+    repaired = json.loads(payload_path.read_text(encoding="utf-8"))
+    assert repaired["geometry_hash"] == "geom0"

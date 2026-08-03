@@ -289,7 +289,19 @@ def _load_completed_shard(job: MPBWorkerJob, shard_dir: Path) -> MPBWorkerResult
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
     if str(payload.get("status")) != "computed":
         return None
+    expected_rho_hash = job.rho_hash or hash_array(job.rho)
+    identity_matches = (
+        str(payload.get("sample_id", "")) == job.sample_id
+        and int(payload.get("sample_index", -1)) == int(job.sample_index)
+        and str(payload.get("split", "")) == job.split
+        and str(payload.get("rho_hash", "")) == expected_rho_hash
+        and str(payload.get("geometry_hash", "")) == job.geometry_hash
+    )
+    if not identity_matches:
+        return None
     bands = np.load(bands_path)
+    if str(payload.get("Wh_hash", "")) != hash_array(bands):
+        return None
     return _result_from_payload(payload, bands, resumed=True)
 
 
