@@ -1,0 +1,49 @@
+# B4 dense-k admission re-evaluation with real-MPB resolution calibration.
+# Thresholds are deliberately identical to the original B4 contract.
+experiment:
+  experiment_id: field_eigen_te_b4_dense_k_solver_floor_gate
+  execution: field_eigen_te_b4_dense_k_gate
+  stage: b4_dense_k_solver_floor_recalibration
+dataset:
+  field_hdf5_path: runs/20260720/field_eigen_te_b3_9216_202607201608/field_eigen_te_b3_9216.h5
+  field_hdf5_sha256: c51e656cc021502b925d54667e0ad356195fe755d1afa7c91752eed10ed9c85c
+  v2_frequency_dataset_path: data/query_dataset_v2_pilot_10000_mpb.npz
+  v2_frequency_dataset_sha256: 991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4
+  k_path_sidecar_path: runs/20260628/query_dataset_v2_pilot_10000_202606281038/k_path_sidecar.json
+  k_path_sidecar_sha256: e92d62d475b46e534ee74c11bd3a587b45d43781ae89863337b7d978c3616e57
+normalization: {epsilon_range: [1.0, 8.9], k_scale: 0.5, band_range_one_based: [2, 10]}
+runtime: {device: "cuda:0", require_accelerator: true, precision: fp32, deterministic: true}
+admission_contract: {evaluation_split: test, required_seeds: [0, 1, 2]}
+promotion_thresholds:
+  frequency: {mean_fno_factor_max: 1.02, per_seed_fno_factor_max: 1.05}
+  field: {seen_k_e_relative_l2_fno_factor_max: 1.02}
+  residual: {per_seed_fno_factor_max: 0.85, mean_reduction_min_pct: 20.0}
+  residual_calibration: {spearman_ci_lower_min_exclusive: 0.0, quartile_frequency_mre_reduction_min_pct: 10.0}
+  resolution_transfer: {base_resolution: 64, evaluation_resolutions: [96, 128], frequency_mre_degradation_max_pct: 2.0, residual_median_degradation_max_pct: 20.0}
+dense_k:
+  path_index_count: 31
+  unique_coordinate_count: 30
+  seen_k_indices: [0, 4, 8, 12, 16, 20, 24, 29]
+  seen_k_count: 8
+  structures_per_split: 32
+  resolutions: [64, 96, 128]
+statistics: {bootstrap_seed: 20260721, bootstrap_repeats: 1000}
+residual_solver_floor_reference:
+  status: calibration_from_real_mpb_validation_only
+  audit_run: runs/20260722/field_eigen_te_b4_resolution_reference_audit_202607221300
+  audit_decision_sha256: fee4d0628b5acfced46228d5f60ad3812b7981e9aa49dcdf2920bf827d742459
+  source_split: val
+  source_structure_count: 8
+  metric: maxwell_relative_residual
+  factors: {"64": 1.0, "96": 1.6675113730849558, "128": 2.479351271327766}
+fno:
+  cases:
+    - {name: fno_seed0, kind: fno, seed: 0, checkpoint_path: runs/20260720/field_eigen_te_v2_baseline_9216_202607201723/cases/fno_field_v2_seed0/model.pt, checkpoint_sha256: fc297d401fbfe372df7f2b28b3bcc4710e54fdc0865ea4457d812be0d6dcf55d, model_name: fno_field_v2, model_params: {grid_channels: 5, context_dim: 3, field_channels: 6, width: 48, depth: 4, modes: [16, 16], corrected_spectral_modes: true}}
+    - {name: fno_seed1, kind: fno, seed: 1, checkpoint_path: runs/20260720/field_eigen_te_v2_baseline_9216_202607201723/cases/fno_field_v2_seed1/model.pt, checkpoint_sha256: 77389b3167c69527b4407661f7bad059d112e4b70d8d6ddcbd5b42ff4fffaaae, model_name: fno_field_v2, model_params: {grid_channels: 5, context_dim: 3, field_channels: 6, width: 48, depth: 4, modes: [16, 16], corrected_spectral_modes: true}}
+    - {name: fno_seed2, kind: fno, seed: 2, checkpoint_path: runs/20260720/field_eigen_te_v2_baseline_9216_202607201723/cases/fno_field_v2_seed2/model.pt, checkpoint_sha256: d31968ab43311c6c4cc077077d5fb342e5a3088875093e3e0de3653ef6b25761, model_name: fno_field_v2, model_params: {grid_channels: 5, context_dim: 3, field_channels: 6, width: 48, depth: 4, modes: [16, 16], corrected_spectral_modes: true}}
+pino:
+  checkpoint_manifest: runs/20260721/field_eigen_te_pino_frequency_guard_9216_202607211039/frozen_candidate_manifest.json
+  checkpoint_manifest_sha256: ab6281490270fd23dfb30567df9e39f277ce01579147d9320801461a92ba5773
+output:
+  runs_dir: runs
+  resume_run_dir: runs/20260722/field_eigen_te_b4_dense_k_solver_floor_gate_202607221440

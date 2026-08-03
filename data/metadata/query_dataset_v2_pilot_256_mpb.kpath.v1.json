@@ -1,0 +1,350 @@
+{
+  "schema_version": "phc2d.k_path.v1",
+  "k_path_id": "query_dataset_v2_pilot_square_gxm_mpb_reduced_v1",
+  "coordinate_system": "mpb_reduced_reciprocal_coordinates",
+  "coordinate_dimension": 2,
+  "reciprocal_basis_convention": "square lattice MPB reduced coordinates; historical physical radians multiplied by a/(2*pi)",
+  "nodes": [
+    {
+      "label": "Gamma",
+      "coordinate": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "label": "X",
+      "coordinate": [
+        0.5,
+        0.0
+      ]
+    },
+    {
+      "label": "M",
+      "coordinate": [
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "label": "Gamma_end",
+      "coordinate": [
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "start_node": "Gamma",
+      "end_node": "X",
+      "start_index": 0,
+      "end_index": 10,
+      "number_of_points": 11,
+      "endpoint_policy": "include_start_and_end"
+    },
+    {
+      "start_node": "X",
+      "end_node": "M",
+      "start_index": 10,
+      "end_index": 20,
+      "number_of_points": 11,
+      "endpoint_policy": "share_start_node_without_duplicate_new_row"
+    },
+    {
+      "start_node": "M",
+      "end_node": "Gamma_end",
+      "start_index": 20,
+      "end_index": 30,
+      "number_of_points": 11,
+      "endpoint_policy": "share_start_node_without_duplicate_new_row; closed_path_duplicates_gamma"
+    }
+  ],
+  "k_points": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.05,
+      0.0
+    ],
+    [
+      0.1,
+      0.0
+    ],
+    [
+      0.15000000000000002,
+      0.0
+    ],
+    [
+      0.2,
+      0.0
+    ],
+    [
+      0.25,
+      0.0
+    ],
+    [
+      0.30000000000000004,
+      0.0
+    ],
+    [
+      0.35000000000000003,
+      0.0
+    ],
+    [
+      0.4,
+      0.0
+    ],
+    [
+      0.45,
+      0.0
+    ],
+    [
+      0.5,
+      0.0
+    ],
+    [
+      0.5,
+      0.05
+    ],
+    [
+      0.5,
+      0.1
+    ],
+    [
+      0.5,
+      0.15000000000000002
+    ],
+    [
+      0.5,
+      0.2
+    ],
+    [
+      0.5,
+      0.25
+    ],
+    [
+      0.5,
+      0.30000000000000004
+    ],
+    [
+      0.5,
+      0.35000000000000003
+    ],
+    [
+      0.5,
+      0.4
+    ],
+    [
+      0.5,
+      0.45
+    ],
+    [
+      0.5,
+      0.5
+    ],
+    [
+      0.45,
+      0.45
+    ],
+    [
+      0.4,
+      0.4
+    ],
+    [
+      0.35,
+      0.35
+    ],
+    [
+      0.3,
+      0.3
+    ],
+    [
+      0.25,
+      0.25
+    ],
+    [
+      0.19999999999999996,
+      0.19999999999999996
+    ],
+    [
+      0.14999999999999997,
+      0.14999999999999997
+    ],
+    [
+      0.09999999999999998,
+      0.09999999999999998
+    ],
+    [
+      0.04999999999999999,
+      0.04999999999999999
+    ],
+    [
+      0.0,
+      0.0
+    ]
+  ],
+  "k_index": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30
+  ],
+  "path_s": [
+    0.0,
+    0.05,
+    0.1,
+    0.15000000000000002,
+    0.2,
+    0.25,
+    0.30000000000000004,
+    0.35000000000000003,
+    0.4,
+    0.45,
+    0.5,
+    0.55,
+    0.6000000000000001,
+    0.6500000000000001,
+    0.7000000000000002,
+    0.7500000000000002,
+    0.8000000000000003,
+    0.8500000000000003,
+    0.9000000000000004,
+    0.9500000000000004,
+    1.0000000000000004,
+    1.0707106781186553,
+    1.1414213562373101,
+    1.212132034355965,
+    1.2828427124746198,
+    1.3535533905932746,
+    1.4242640687119295,
+    1.4949747468305843,
+    1.5656854249492391,
+    1.636396103067894,
+    1.7071067811865488
+  ],
+  "segment_id": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2,
+    2
+  ],
+  "segment_local_t": [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    1.0
+  ],
+  "node_indices": {
+    "Gamma": 0,
+    "X": 10,
+    "M": 20,
+    "Gamma_end": 30
+  },
+  "duplicate_coordinate_groups": [
+    [
+      0,
+      30
+    ]
+  ],
+  "Nk": 31,
+  "metadata": {
+    "source_type": "generated_from_KPathSpec",
+    "source_path": "configs/research/query_dataset_v2_pilot_256.yaml",
+    "source_commit": "567854e5a64cee14ce579f04b8ba7b53a19f7cfa",
+    "source_run_id": "query_dataset_v2_pilot_256_202606201232",
+    "source_config_hash": "caa9e81e0b7d69d77be5ffdc13cb25499096c7e5a6e2ad4274c48a117a34ad55",
+    "verification_status": "physically_verified_with_documented_numerical_tolerance",
+    "verification_run_id": "k_path_physical_validation_v2_256_202606201454",
+    "notes": [
+      "Generated for Query Dataset V2 pilot; not a Formal Full-2A benchmark.",
+      "endpoint_policy=explicit",
+      "Promoted by physical validation run k_path_physical_validation_v2_256_202606201454.",
+      "decision=physically_verified_with_documented_numerical_tolerance; accepted_tolerance=9.212543833347908e-06"
+    ]
+  },
+  "k_points_hash": "6bb7168392d1c36275362dcf1f2dae0d9e2aaeef6f3bcd5c843032489111b19d"
+}

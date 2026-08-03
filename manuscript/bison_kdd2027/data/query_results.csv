@@ -1,0 +1,10 @@
+method,protocol,mre_mean_pct,mre_std_pct,ordering_violation_pct
+FNO query,All-k,1.1004,0.0218,2.96
+FNO query,Interpolation,1.0470,0.0240,2.16
+FNO query,Held segment,3.6747,0.1730,9.22
+DeepONet,All-k,1.7937,,1.35
+DeepONet,Interpolation,1.6308,,0.41
+DeepONet,Held segment,3.7604,,0.99
+MLP query,All-k,2.1800,,0.83
+MLP query,Interpolation,2.2079,,0.42
+MLP query,Held segment,4.2548,,1.00

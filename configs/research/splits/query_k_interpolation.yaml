@@ -1,0 +1,7 @@
+protocol: unseen_structure_k_interpolation
+dataset: data/paper_like_50k_mpb.npz
+structure_split_source: fixed_npz_idx_train_idx_val_idx_test
+train_k_policy: deterministic internal k-index complement
+eval_k_policy: deterministic internal held-out k indices
+leakage_rule: held-out eval k indices are absent from training query labels
+coordinate_boundary: index-query only until physical k_points are added

@@ -1,0 +1,49 @@
+# Purpose: MaxwellNet residual feasibility gate; not a supervised rho-to-band task.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: maxwellnet_feasibility
+  family: research
+  stage: eigenfield_adaptation_boundary
+  gate: driven_field_contract_required
+  execution: report_only_no_training
+dataset:
+  path: runs/20260720/field_eigen_te_b1_1000_202607201058/field_eigen_te_b1_1000.h5
+  current_task: source_free_te_bloch_eigenfield
+  available_for_adapted_pino:
+    - epsilon
+    - complex_efield
+    - complex_hfield
+    - eigenfrequency
+    - physical_k_points
+    - bloch_boundary
+    - grid_spacing
+    - residual_units_and_normalization
+  missing_for_faithful_maxwellnet_task:
+    - driven_source_definition
+    - source_frequency_and_phase
+    - incident_field_convention
+    - pml_or_open_boundary_metadata
+    - driven_field_reference
+model:
+  name: maxwellnet_residual_pilot
+  implementation_status: blocked_for_faithful_task
+  decision_gate: separate_driven_field_contract
+  constraints:
+    - do_not_simplify_to_rho_to_Wh
+    - do_not_report_as_complete_MaxwellNet_without_residual_context
+physics:
+  residual_available: source_free_te_bloch_curl_curl
+  faithful_target_residual: driven_frequency_domain_maxwell_with_source
+  toy_problem_allowed: false
+  reason_toy_disabled: current B3 task is a source-free Bloch eigenproblem and must not be relabeled as the driven MaxwellNet problem.
+metrics:
+  include:
+    - residual_smoke_loss
+    - wall_time_total_s
+    - residual_eval_time_s
+output:
+  runs_dir: runs
+  report: docs/planning/near_field_feasibility_20260617.md

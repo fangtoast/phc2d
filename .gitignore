@@ -1,0 +1,58 @@
+# Local editor overrides
+.vscode/settings.local.json
+
+# Environment secrets
+.env
+.env.*.local
+
+# Operating systems
+Thumbs.db
+.DS_Store
+
+# Python caches and environments
+*.egg-info/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+
+# Large local experiment artifacts
+data/
+**/data/
+!src/phc2d/data/
+!src/phc2d/data/**/*.py
+checkpoints/
+**/checkpoints/
+runs/*
+**/runs/*
+!runs/README.md
+!**/runs/README.md
+!src/phc2d/runs/
+!src/phc2d/runs/**/*.py
+
+# Generated scientific artifacts
+*.h5
+*.hdf5
+*.npz
+*.pdf
+!configs/*.yaml
+!configs/**/*.yaml
+!legacy/reproduction/configs/*.yaml
+!research/ai4phc/configs/*.yaml
+*.pt
+*.pth
+*.ckpt
+*.log
+wandb/
+
+# Local literature and rendering scratch files
+/reference/
+/tmp/
+
+.cursor
+.agent/

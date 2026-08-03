@@ -1,0 +1,111 @@
+# No-train V2 mixture inverse sampling for the complete 625-target pure test split.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: inverse_mixture_generator_v2_10000_test625_sample
+  stage: inverse_sample_surrogate_side_no_mpb_meep_pure_test625_candidate_separation
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  condition_target: Wh
+  output_repr: rho_wedge
+  target_split: test
+  target_limit: null
+  target_selection_seed: null
+
+model:
+  name: mixture_conditional_generator
+
+inverse:
+  n_candidates: 128
+  surrogate_top_m: 5
+  seed: 2
+  seeds: [2]
+  train_epochs: 200
+  checkpoint_epochs: [10, 30, 50, 100, 150, 200]
+  train_batch_size: 64
+  learning_rate: 1.0e-04
+  learning_rates: [1.0e-04]
+  optimizer: adamw
+  weight_decay: 1.0e-05
+  latent_dim: 32
+  hidden_dim: 256
+  depth: 4
+  mode_count: 4
+  generator_checkpoint_path: runs/20260704/inverse_mixture_generator_v2_10000_objective_202607041740/objective_model_seed2_lr1em04.pt
+  candidate_seed_offset: 0
+  surrogate_seed_offset: 0
+  replay_seed_offset: 0
+  candidate_value_range: [0.0, 1.0]
+  threshold: 0.5
+  morphology_filters: {}
+  candidate_separation:
+    enabled: true
+    deduplicate_binary: true
+    min_hamming: auto_1_over_dim
+  ranking:
+    error_metric: bands_2_10_mre
+    objective:
+      surrogate_weight: 1.0
+      reconstruction_weight: 0.03
+      diversity_weight: 0.2
+      binary_diversity_weight: 0.5
+      latent_response_weight: 0.25
+      collision_weight: 0.9
+      cross_surrogate_weight: 0.2
+      gap_weight: 0.2
+      band_start_one_based: 2
+      n_objective_candidates: 16
+      target_diversity_hamming: 0.05
+      target_binary_diversity_hamming: 0.08
+      target_latent_response_std: 0.04
+      target_nearest_neighbor_hamming: 0.05
+      secondary_surrogate:
+        kind: forward
+        forward_experiment_id: forward_formal_retrain_v2_10000
+        model_name: fno2d_band_v2
+        input_repr: epsilon_grid
+        seed: 2
+        selection_metric: avg_MRE_bands_2_10_pct
+        runs_dir: runs
+        checkpoint_path: runs/20260702/forward_formal_retrain_v2_10000_202607021842/cases/epsilon_grid_fno2d_band_v2_2_lr1em03_seed2/train/model.pt
+        learning_rate: 1.0e-03
+        frozen_manifest_path: runs/20260704/frozen_surrogate_manifest_v2_10000_202607041715/frozen_surrogates.json
+  allow_mock_generator: false
+  allow_mock_surrogate: false
+
+surrogate:
+  kind: query
+  config_path: configs/research/query_formal_retrain_v2_10000.yaml
+  scaling_experiment_id: query_formal_retrain_v2_10000
+  scale_n: 10000
+  runs_dir: runs
+  seed: 1
+  checkpoint_path: runs/20260702/query_formal_retrain_v2_10000_202607022213/cases/unseen_structure_all_k_fno2d_query_v2_seed1_lr1em03.pt
+  model_name: fno2d_query_v2
+  protocol: unseen_structure_all_k
+  learning_rate: 1.0e-03
+  frozen_manifest_path: runs/20260704/frozen_surrogate_manifest_v2_10000_202607041715/frozen_surrogates.json
+
+rerank: {}
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  amp_dtype: fp16
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+output:
+  runs_dir: runs
+
+replay:
+  enabled: false

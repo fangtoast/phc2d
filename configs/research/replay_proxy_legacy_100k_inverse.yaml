@@ -1,0 +1,46 @@
+# Legacy 100k inverse replay proxy sanity config.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: generative_inverse_legacy_100k
+  family: research
+  stage: replay_proxy_sanity
+
+dataset:
+  path: data/dataset_100k_mpb_train70000_val25000_test5000.npz
+  condition_target: Wh
+  output_repr: rho_wedge
+  target_split: test
+
+model:
+  name: conditional_vae_rho
+  seed: 0
+
+inverse:
+  n_candidates: 16
+  surrogate_top_m: 3
+  candidate_value_range: [0.0, 1.0]
+  threshold: 0.5
+  morphology_filters:
+    min_fill_fraction: 0.05
+    max_fill_fraction: 0.95
+  ranking:
+    morphology_weight: 0.0
+    diversity_weight: 0.1
+
+replay:
+  enabled: true
+  n_targets: 32
+  replay_top_m: 3
+  timeout_seconds: 900
+  note: current phc2d replay backend is pilot_mpb_replay_proxy, not formal real MPB validation.
+
+runtime:
+  device: auto
+  require_accelerator: false
+  precision: fp32
+
+output:
+  runs_dir: runs

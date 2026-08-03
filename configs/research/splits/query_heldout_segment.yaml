@@ -1,0 +1,8 @@
+protocol: unseen_structure_heldout_segment
+fallback_protocol: contiguous_index_holdout
+dataset: data/paper_like_50k_mpb.npz
+structure_split_source: fixed_npz_idx_train_idx_val_idx_test
+train_k_policy: complement of held-out segment or contiguous index range
+eval_k_policy: physical segment only when segment metadata exists
+leakage_rule: held-out eval k indices are absent from training query labels
+coordinate_boundary: current NPZ lacks segment metadata, so formal segment benchmark is blocked

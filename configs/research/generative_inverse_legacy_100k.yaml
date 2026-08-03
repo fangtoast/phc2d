@@ -1,0 +1,85 @@
+# Legacy 100k surrogate-side generative inverse benchmark.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: generative_inverse_legacy_100k
+  family: research
+  stage: inverse_train_sample
+
+dataset:
+  path: data/dataset_100k_mpb_train70000_val25000_test5000.npz
+  condition_target: Wh
+  output_repr: rho_wedge
+  target_split: test
+
+model:
+  name: conditional_vae_rho
+  seed: 0
+  seeds:
+    - 0
+    - 1
+    - 2
+  hidden_dim: 128
+  latent_dim: 8
+
+surrogate:
+  kind: forward
+  forward_experiment_id: forward_band_benchmark_legacy_100k
+  runs_dir: runs
+  selection_metric: avg_MRE_bands_2_10_pct
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+inverse:
+  train_epochs: 10
+  train_batch_size: 64
+  learning_rate: 0.001
+  n_candidates: 16
+  surrogate_top_m: 3
+  candidate_value_range:
+    - 0.0
+    - 1.0
+  threshold: 0.5
+  allow_mock_generator: false
+  allow_mock_surrogate: false
+  morphology_filters:
+    min_fill_fraction: 0.05
+    max_fill_fraction: 0.95
+  ranking:
+    morphology_weight: 0.0
+    diversity_weight: 0.1
+
+replay:
+  enabled: false
+  note: surrogate-side only; real or proxy replay must use an explicit replay config.
+
+metrics:
+  include:
+    - validity_rate
+    - unique_rate
+    - diversity_hamming
+    - fill_fraction
+    - morphology_score
+    - best_of_k_surrogate_mre
+    - candidate_sampling_time_s
+    - candidate_sampling_time_per_target_ms
+    - surrogate_ranking_time_s
+    - inference_time_per_sample_ms
+    - wall_time_total_s
+    - resolved_device
+    - peak_gpu_memory_mb
+
+output:
+  runs_dir: runs

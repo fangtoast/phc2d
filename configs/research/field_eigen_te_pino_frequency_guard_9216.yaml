@@ -1,0 +1,59 @@
+# B4 validation-only frequency-guarded PINO ablation on the frozen FNO v2 task.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: field_eigen_te_pino_frequency_guard_9216
+  execution: field_eigen_v2
+  stage: b4_pino_frequency_guard_validation
+dataset:
+  path: runs/20260720/field_eigen_te_b3_9216_202607201608/field_eigen_te_b3_9216.h5
+  expected_split_records: {train: 6912, val: 1152, test: 1152}
+normalization: {epsilon_range: [1.0, 8.9], k_scale: 0.5, band_range_one_based: [2, 10]}
+representation: {periodic_coordinates: true}
+model:
+  name: fno_field_v2
+  params: {grid_channels: 5, context_dim: 3, field_channels: 6, width: 48, depth: 4, modes: [16, 16], corrected_spectral_modes: true}
+training:
+  regime: pino_adapted
+  seed: 0
+  epochs: 200
+  batch_size: 16
+  learning_rate: 0.0003
+  minimum_learning_rate: 0.000001
+  weight_decay: 0.00001
+  lr_warmup_epochs: 5
+  early_stopping_patience: 0
+  gradient_clip_norm: 1.0
+  physics_warmup_epochs: 20
+  physics_ramp_epochs: 20
+  lambda_pde: 0.01
+  loss_weights: {field: 1.0, frequency: 0.1, e: 0.5, h: 0.5}
+  physics_frequency_gradient: full
+  checkpoint_epochs: [40, 80, 120, 160, 200]
+  gradient_audit_epochs: [40, 80, 120, 160, 200]
+  select_model: final_epoch
+runtime: {device: "cuda:0", require_accelerator: true, precision: fp32, deterministic: true}
+evaluation: {split: val}
+benchmark:
+  table_filename: ablation.csv
+  selection_rule: pino_frequency_guard_validation
+  formal_selected_seeds: [0, 1, 2]
+  cases:
+    - name: fno_data_only_reference
+      train: false
+      checkpoint_path: runs/20260720/field_eigen_te_v2_baseline_9216_202607201723/cases/fno_field_v2_seed0/model.pt
+      training: {regime: data_only, lambda_pde: 0.0}
+    - name: P0_historical_full_frequency_0p1
+      train: false
+      b4_audited: false
+      checkpoint_path: runs/20260721/field_eigen_te_pino_lambda_sweep_9216_202607210044/cases/pino_lambda_1e-2/model.pt
+      training: {regime: pino_adapted, seed: 0, lambda_pde: 0.01, physics_frequency_gradient: full, loss_weights: {field: 1.0, frequency: 0.1, e: 0.5, h: 0.5}}
+    - name: P1_detach_frequency_0p1
+      training: {regime: pino_adapted, seed: 0, lambda_pde: 0.01, physics_frequency_gradient: detach, loss_weights: {field: 1.0, frequency: 0.1, e: 0.5, h: 0.5}}
+    - name: P2_full_frequency_0p5
+      training: {regime: pino_adapted, seed: 0, lambda_pde: 0.01, physics_frequency_gradient: full, loss_weights: {field: 1.0, frequency: 0.5, e: 0.5, h: 0.5}}
+    - name: P3_detach_frequency_0p5
+      training: {regime: pino_adapted, seed: 0, lambda_pde: 0.01, physics_frequency_gradient: detach, loss_weights: {field: 1.0, frequency: 0.5, e: 0.5, h: 0.5}}
+output: {runs_dir: runs}

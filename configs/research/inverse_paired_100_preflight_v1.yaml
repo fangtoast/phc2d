@@ -1,0 +1,92 @@
+# Non-executing preflight for the next fair 100-target inverse comparison.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+protocol:
+  id: inverse_paired_100_preflight_v1
+  version: 1
+  status: blocked_pending_b4_dense_k_and_separate_inverse_authorization
+  execution: protocol_only_no_training_sampling_or_replay
+  authoritative_baseline_protocol: configs/research/baseline_protocol_v1.yaml
+  purpose: freeze_lineage_and_fairness_checks_without_starting_inverse_work
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  expected_sha256: 991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4
+  target_split: test
+  target_manifest_path: configs/research/target_manifests/inverse_paired_test100_v1.json
+  selection_unit: target_index
+  expected_target_count: 100
+  headline_band_range_one_based: [2, 10]
+
+comparison:
+  methods:
+    - retrieval
+    - direct_inverse
+    - single_mode_generator
+    - mixture_generator
+  seeds: [0, 1, 2]
+  raw_candidates_per_target: 128
+  replay_top_m_per_target: 5
+  mpb_solves_per_method_per_seed: 500
+  candidate_postprocessing:
+    threshold: 0.5
+    binary_deduplication: true
+    minimum_normalized_hamming_distance: auto_1_over_geometry_dof_count
+    ranking_policy: shared_declared_strategy_unless_ranking_is_the_ablated_variable
+  statistics:
+    paired_target_requirement: all_methods_use_identical_target_indices_per_seed
+    required_tests:
+      - paired_bootstrap_confidence_interval
+      - wilcoxon_or_sign_test
+    required_summary_statistics: [mean, std, median, p10, p90, min, max]
+
+lineage:
+  required_resolved_fields:
+    - protocol_config_sha256
+    - baseline_protocol_sha256
+    - dataset_sha256
+    - target_manifest_sha256
+    - target_manifest_dataset_sha256
+    - target_indices_sha256
+    - generator_checkpoint_path
+    - generator_checkpoint_sha256
+    - forward_ranking_checkpoint_path
+    - forward_ranking_checkpoint_sha256
+    - ranking_config_sha256
+    - solver_protocol_sha256
+    - k_path_sha256
+    - band_order_policy
+    - code_revision
+  reject_if:
+    - dataset_sha256_mismatch
+    - target_manifest_sha256_mismatch
+    - target_split_not_test
+    - target_indices_not_unique
+    - method_seed_budget_mismatch
+    - missing_checkpoint_sha256
+    - auto_or_implicit_checkpoint_selection
+    - surrogate_metric_presented_as_real_mpb_replay
+
+required_future_artifacts:
+  - preflight_decision.json
+  - lineage.json
+  - target_manifest_copy.json
+  - candidates.json
+  - ranked_candidates.csv
+  - per_target_replay_metrics.csv
+  - per_band_replay_metrics.csv
+  - metrics.json
+
+boundaries:
+  inverse_status: blocked
+  forbid_before_authorization:
+    - training
+    - candidate_sampling
+    - surrogate_ranking
+    - mpb_or_meep_replay
+  prohibit_claims:
+    - fair_inverse_superiority
+    - physics_aware_inverse_gain
+    - real_solver_validation_from_surrogate_only_metrics

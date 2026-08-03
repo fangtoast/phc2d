@@ -1,0 +1,69 @@
+# Purpose: NeurOLight-adapted field/operator feasibility gate.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: neurolight_field_feasibility
+  family: research
+  stage: operator_feasibility
+  gate: field_operator_pilot
+  execution: schema_only
+dataset:
+  path: data/field_tiny_mpb.h5
+  input_repr: field_conditioned
+  output_target: near_field_te_tm
+  source_repr: missing_explicit_source
+  smoke: true
+  required_for_adapted_field_operator:
+    - epsilon
+    - efield
+    - hfield
+    - freqs
+    - k_points
+    - source
+    - boundary_condition
+    - domain_metadata
+  known_available:
+    - epsilon
+    - rho
+    - k_points
+    - freqs
+    - efield
+    - hfield
+    - polarization_metadata_if_present
+  known_missing:
+    - source
+    - boundary_condition
+    - grid_spacing
+    - domain_metadata
+    - large_field_dataset
+model:
+  name: neurolight_adapted_field
+  decision_gate: feasibility_first
+  constraints:
+    - source_frequency_conditioned_field_operator_only
+    - do_not_use_as_plain_band_predictor
+    - do_not_train_large_model
+training:
+  enabled: false
+  smallest_future_smoke: schema_to_one_batch_condition_dict_then_cpu_shape_only
+  epochs: 0
+  batch_size: 1
+  device: auto
+runtime:
+  device: auto
+  require_accelerator: false
+  precision: fp32
+  amp_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+metrics:
+  include:
+    - relative_l2_field_error
+    - wall_time_total_s
+    - field_inference_time_s
+    - field_inference_time_per_sample_ms
+output:
+  runs_dir: runs
+  report: docs/planning/near_field_feasibility_20260617.md

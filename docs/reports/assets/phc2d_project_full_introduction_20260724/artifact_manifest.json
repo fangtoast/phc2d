@@ -1,0 +1,285 @@
+{
+  "version": 1,
+  "created_at": "2026-08-03T12:03:13",
+  "status": "project_result_figure_package_completed",
+  "inventory_path": "docs/reports/phc2d_model_inventory_v1.yaml",
+  "inventory_sha256": "09769ef0c0003acb6b29231f6cfef8aa3e6365961dd02e79c33f626c69db9c7a",
+  "figure_series": {
+    "model_inventory_overview": [
+      "MLP",
+      "ResMLP",
+      "Lifted CNN",
+      "FNO band v2",
+      "res_mlp",
+      "fno_lite",
+      "fno2d_band",
+      "pod_res_mlp",
+      "MLP query",
+      "DeepONet-style",
+      "FNO query v2",
+      "deep_onet_query",
+      "fno2d_query",
+      "U-Net field v2",
+      "FNO field v2",
+      "unet_field",
+      "fno_field",
+      "neurolight_adapted_field",
+      "maxwellnet_residual_pilot",
+      "Adapted PINO",
+      "Single-mode",
+      "Mixture",
+      "Train retrieval",
+      "Direct inverse",
+      "conditional_vae_rho",
+      "conditional_diffusion_grid",
+      "glonet_style_pilot",
+      "cinn_flow",
+      "adjoint_diffusion"
+    ],
+    "a1_forward_model_comparison": [
+      "mlp",
+      "res_mlp_wide",
+      "lifted_cnn",
+      "fno2d_band_v2"
+    ],
+    "a1_query_model_comparison": [
+      "mlp_query",
+      "deep_onet_query_v2",
+      "fno2d_query_v2"
+    ],
+    "b3_field_model_comparison": [
+      "unet_field_v2",
+      "fno_field_v2",
+      "adapted_pino"
+    ],
+    "a2_100_model_comparison": [
+      "train_only_nearest_neighbor",
+      "direct_inverse_mlp",
+      "single_mode_generator",
+      "mixture_conditional_generator"
+    ],
+    "a2_bridge_625_comparison": [
+      "single_mode_generator",
+      "mixture_conditional_generator",
+      "historical_objective_mixture"
+    ]
+  },
+  "curated_lineage": [],
+  "artifacts": [
+    {
+      "path": "figure_5_1_mlp_residual.png",
+      "size_bytes": 71066,
+      "sha256": "51b73e478b88b2f7f4190390d74a5710a49145234e7602818ff9c9858c1f1ef9"
+    },
+    {
+      "path": "figure_5_1_mlp_residual.svg",
+      "size_bytes": 7544,
+      "sha256": "2ee4d227e6dcb29af59ff5a1b3234a2895843879023090bafd74ee89e9f2b310"
+    },
+    {
+      "path": "figure_5_2_lifted_cnn.png",
+      "size_bytes": 44282,
+      "sha256": "db8bc258afa305521ef131769123d17ae60cb411b081aa515c80aad18dda0e3f"
+    },
+    {
+      "path": "figure_5_2_lifted_cnn.svg",
+      "size_bytes": 5361,
+      "sha256": "559452bbedc0eb9c4cef52a064e9aae94d8fd49bdb6bd60a3d8da01b698e1894"
+    },
+    {
+      "path": "figure_5_3_fno2d_band.png",
+      "size_bytes": 75580,
+      "sha256": "5c571efad9d51a4bd80dc4147900201b9be41262339560a597e105b6037df5a0"
+    },
+    {
+      "path": "figure_5_3_fno2d_band.svg",
+      "size_bytes": 7741,
+      "sha256": "aa336cc1fc8ee68c588e28c87b62b3455989d7c73431cf241d648c30bda8090a"
+    },
+    {
+      "path": "figure_5_4_query_models.png",
+      "size_bytes": 102294,
+      "sha256": "e8005eb932e465145c8277ff21c492c1a05efd10d3a311e83e563298f8098169"
+    },
+    {
+      "path": "figure_5_4_query_models.svg",
+      "size_bytes": 9691,
+      "sha256": "e938e2396ce02cdb3754e326faaa117f9f9f30c12b86e03d4df1c6bb78113dbd"
+    },
+    {
+      "path": "figure_5_5_unet_field.png",
+      "size_bytes": 75730,
+      "sha256": "a0104ac908798c964f90220c2ed6b1ada623c2ebfe2ce429f11e479560241629"
+    },
+    {
+      "path": "figure_5_5_unet_field.svg",
+      "size_bytes": 8768,
+      "sha256": "82d1ebb71d916705249dd5473ecf1eda3d929c2ff31ede7784549f9961846817"
+    },
+    {
+      "path": "figure_5_6_fno_field.png",
+      "size_bytes": 78181,
+      "sha256": "021ef61197dfc49f5cfee8039457eb425ec2a9d0652d47e03251a2e692dbb4a4"
+    },
+    {
+      "path": "figure_5_6_fno_field.svg",
+      "size_bytes": 7834,
+      "sha256": "db147bc652399a6e0d2acaa5a9fd6ed400c6d755392f02a8b193a8e89c010a6f"
+    },
+    {
+      "path": "figure_6_1_inverse_generators.png",
+      "size_bytes": 105490,
+      "sha256": "b49564e28f2c8393fd5bf5c40a777260bb550ee7ef9f2ffcd27e6d56d79d4678"
+    },
+    {
+      "path": "figure_6_1_inverse_generators.svg",
+      "size_bytes": 10328,
+      "sha256": "0487effe9838e4aeb7981442b927212c96691d9aca674b1257ebabfefa7fa10b"
+    },
+    {
+      "path": "figure_8_1_candidate_physics_loop.svg",
+      "size_bytes": 11343,
+      "sha256": "abcc370688fe997b53a82a98402921bbb4f2dfc39a7496f5762f9acce66f462e"
+    },
+    {
+      "path": "figure_index.md",
+      "size_bytes": 3773,
+      "sha256": "8a29b7e075c1847ca54c6ace695341974c12022895c877a6ccfa4236cbb4b46c"
+    },
+    {
+      "path": "inverse/paired_main4.png",
+      "size_bytes": 2280497,
+      "sha256": "29f5b546187ee7e9d3c508a2013355a5c3e92f21e7850fd04307476fbe0355eb"
+    },
+    {
+      "path": "inverse/paired_main4.svg",
+      "size_bytes": 353358,
+      "sha256": "62830e47306e865476c7b87fffeb9a7a85ea80b259f5fed78090397881d96607"
+    },
+    {
+      "path": "learning_curves/a1_forward_learning_curves.png",
+      "size_bytes": 878435,
+      "sha256": "16b5b3d6b1e7a026b0bcaa87c40a609108566d52afd87e4476278ca94c7c8602"
+    },
+    {
+      "path": "learning_curves/a1_forward_learning_curves.svg",
+      "size_bytes": 442171,
+      "sha256": "a370efe5cec5a72ea4205943ad3e544548446f1c047c6f5ce3b82fb010069638"
+    },
+    {
+      "path": "learning_curves/a2_objective_bridge_learning_curves.png",
+      "size_bytes": 379130,
+      "sha256": "11544bd12f0291bb03a8825bb9c9205c3184f72de0e3a263e296acb78b2ce348"
+    },
+    {
+      "path": "learning_curves/a2_objective_bridge_learning_curves.svg",
+      "size_bytes": 67336,
+      "sha256": "3d9ad58a96c36ac14f3057a91285b84fd77ee8d7220f6fae914c6cb842ec3324"
+    },
+    {
+      "path": "learning_curves/a2_original_learning_curves.png",
+      "size_bytes": 321376,
+      "sha256": "7d992e5b6f19d15cf21493149e32a60ce0c271b9d6344693545388b911c4e651"
+    },
+    {
+      "path": "learning_curves/a2_original_learning_curves.svg",
+      "size_bytes": 70516,
+      "sha256": "73a156b70f6aee6507c04ccde5cf2c0f184ecea4c37498e89c89d9c9509ed0d8"
+    },
+    {
+      "path": "learning_curves/b3_field_learning_curves.png",
+      "size_bytes": 208829,
+      "sha256": "03997d6c726109f05a3b29e0ecccaab3241628a70d267bd21be62f7bd3a21a51"
+    },
+    {
+      "path": "learning_curves/b3_field_learning_curves.svg",
+      "size_bytes": 54495,
+      "sha256": "23bfcdb51c9b3596a41a41fbce55a27cb88588e7ca324b6862ed646e6ca8efa9"
+    },
+    {
+      "path": "learning_curves/p4_p5_learning_curves.png",
+      "size_bytes": 555396,
+      "sha256": "b269fcb2602b2908e517a3124334d432c90827c13e7256dd47e6a3a97488a81e"
+    },
+    {
+      "path": "learning_curves/p4_p5_learning_curves.svg",
+      "size_bytes": 209817,
+      "sha256": "78399597b483b17ee886110101661a5855a47a8b5545188d0aa48e2f2c0f2e0f"
+    },
+    {
+      "path": "learning_curves/p6_learning_curves.png",
+      "size_bytes": 509290,
+      "sha256": "ba3358dc246fd08092dd2ee910b117bf97a953074f8b98de6c2e8f0d9800fbb1"
+    },
+    {
+      "path": "learning_curves/p6_learning_curves.svg",
+      "size_bytes": 212129,
+      "sha256": "fd537390f8d298bbb2269a5ef3453983bf8c41939def47bcdb9742c9fe5a025a"
+    },
+    {
+      "path": "results/a1_forward_model_comparison.png",
+      "size_bytes": 355122,
+      "sha256": "267c0f202a5983112deac13a2906f06860dff5bb6b87d86ba3317e417c675c83"
+    },
+    {
+      "path": "results/a1_forward_model_comparison.svg",
+      "size_bytes": 108270,
+      "sha256": "2387b79ec7491f43decd1a15898c606a797e85689bef19d4aab44c1a3ffd96c8"
+    },
+    {
+      "path": "results/a1_query_model_comparison.png",
+      "size_bytes": 251857,
+      "sha256": "ce7a1c65d9f3101e7fb14f7d34617e6dbfaa9fd0120052de2689b28c9fceee23"
+    },
+    {
+      "path": "results/a1_query_model_comparison.svg",
+      "size_bytes": 25746,
+      "sha256": "e906d3456cf47a9dab744bc832b845e577bf2c7e1f93b97bc433b35324c1a8b0"
+    },
+    {
+      "path": "results/a2_100_model_comparison.png",
+      "size_bytes": 284462,
+      "sha256": "6722943627eacc73d1030edeefedeb6957ffba7d76f6d1521ba11a00c5b3c392"
+    },
+    {
+      "path": "results/a2_100_model_comparison.svg",
+      "size_bytes": 97599,
+      "sha256": "6b964c26a4f1ee3a4fb4f2b0094d1bfb409acd670b8ef781e09ffce832852eb2"
+    },
+    {
+      "path": "results/a2_bridge_625_comparison.png",
+      "size_bytes": 237676,
+      "sha256": "d6eec57a6e3a4fa2431dcf6b2a2f29b0baf97b6c13e2c20af3b74dd3297db839"
+    },
+    {
+      "path": "results/a2_bridge_625_comparison.svg",
+      "size_bytes": 84075,
+      "sha256": "8f31de663cec05e1fd66d5996ca5df0d9da3d67d88c892b989f4fa9fa3a6dee5"
+    },
+    {
+      "path": "results/b3_field_model_comparison.png",
+      "size_bytes": 328541,
+      "sha256": "d3c458ee4fe4af9e6470b451df268a30456b600764c4a669d587f45d19c89b1e"
+    },
+    {
+      "path": "results/b3_field_model_comparison.svg",
+      "size_bytes": 42981,
+      "sha256": "28d1c7e85375485f73c946170759bce86e7ba792df7be969fbf60b44287d61be"
+    },
+    {
+      "path": "results/model_inventory_overview.png",
+      "size_bytes": 259732,
+      "sha256": "ffc99cdc148e141977b46dcf66266e1660aadc3d960caf188cab7ee6b4f13d25"
+    },
+    {
+      "path": "results/model_inventory_overview.svg",
+      "size_bytes": 12431,
+      "sha256": "f8747cb6d627b91c15e7135373779532550eaf3678d6fea9c4242bd8dfa987f6"
+    },
+    {
+      "path": "source_index.csv",
+      "size_bytes": 5308,
+      "sha256": "f65c923a7dfca0aa456712f6167fa12c389c1b3dc8ec413534a6b543698bca27"
+    }
+  ]
+}

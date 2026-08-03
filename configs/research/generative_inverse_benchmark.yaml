@@ -1,0 +1,54 @@
+experiment:
+  experiment_id: generative_inverse_benchmark
+  family: research
+  stage: inverse_sample
+  status: prepared_not_run
+dataset:
+  path: data/paper_like_50k_mpb.npz
+  condition_target: Wh
+  output_repr: rho_wedge
+  target_split: test
+model:
+  name: conditional_vae_rho
+  seed: 42
+runtime:
+  device: auto
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+inverse:
+  n_candidates: 64
+  surrogate_top_m: 5
+  candidate_value_range:
+    - 0.0
+    - 1.0
+  threshold: 0.5
+  morphology_filters:
+    min_fill_fraction: 0.05
+    max_fill_fraction: 0.95
+  ranking:
+    morphology_weight: 0.0
+    diversity_weight: 0.1
+replay:
+  enabled: false
+  note: formal MPB replay must be launched by an explicit replay config, not this GPU neural sampler profile
+metrics:
+  include:
+    - validity_rate
+    - unique_rate
+    - diversity_hamming
+    - fill_fraction
+    - morphology_score
+    - best_of_k_surrogate_mre
+    - candidate_sampling_time_s
+    - surrogate_ranking_time_s
+    - inference_time_per_sample_ms
+    - wall_time_total_s
+    - resolved_device
+    - peak_gpu_memory_mb
+output:
+  runs_dir: runs

@@ -1,0 +1,7 @@
+protocol: unseen_structure_all_k
+dataset: data/paper_like_50k_mpb.npz
+structure_split_source: fixed_npz_idx_train_idx_val_idx_test
+train_k_policy: all_available_k_indices
+eval_k_policy: all_available_k_indices
+leakage_rule: split structures before generating query rows
+coordinate_boundary: requires physical k_points for formal physical query benchmark

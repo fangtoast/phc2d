@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="866.021812pt" height="511.055719pt" viewBox="0 0 866.021812 511.055719" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-08-03T12:03:10.350166</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.9, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 511.055719
+L 866.021813 511.055719
+L 866.021813 0
+L 0 0
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 79.061813 456.768
+L 274.361813 456.768
+L 274.361813 356.976
+L 79.061813 356.976
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #ddeaf7; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 274.361813 456.768
+L 469.661813 456.768
+L 469.661813 356.976
+L 274.361813 356.976
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #e8f2e2; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 469.661812 456.768
+L 664.961812 456.768
+L 664.961812 356.976
+L 469.661812 356.976
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #f5e5d4; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 664.961813 456.768
+L 860.261813 456.768
+L 860.261813 356.976
+L 664.961813 356.976
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #f4dada; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 79.061813 356.976
+L 274.361813 356.976
+L 274.361813 257.184
+L 79.061813 257.184
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #ddeaf7; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 274.361813 356.976
+L 469.661813 356.976
+L 469.661813 257.184
+L 274.361813 257.184
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #e8f2e2; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 469.661812 356.976
+L 664.961812 356.976
+L 664.961812 257.184
+L 469.661812 257.184
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #f5e5d4; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 664.961813 356.976
+L 860.261813 356.976
+L 860.261813 257.184
+L 664.961813 257.184
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #f4dada; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 79.061813 257.184
+L 274.361813 257.184
+L 274.361813 157.392
+L 79.061813 157.392
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #ddeaf7; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_11">
+    <path d="M 274.361813 257.184
+L 469.661813 257.184
+L 469.661813 157.392
+L 274.361813 157.392
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #e8f2e2; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_12">
+    <path d="M 469.661812 257.184
+L 664.961812 257.184
+L 664.961812 157.392
+L 469.661812 157.392
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #f5e5d4; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_13">
+    <path d="M 664.961813 257.184
+L 860.261813 257.184
+L 860.261813 157.392
+L 664.961813 157.392
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #f4dada; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_14">
+    <path d="M 79.061813 157.392
+L 274.361813 157.392
+L 274.361813 57.6
+L 79.061813 57.6
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #ddeaf7; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_15">
+    <path d="M 274.361813 157.392
+L 469.661813 157.392
+L 469.661813 57.6
+L 274.361813 57.6
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #e8f2e2; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_16">
+    <path d="M 469.661812 157.392
+L 664.961812 157.392
+L 664.961812 57.6
+L 469.661812 57.6
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #f5e5d4; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_17">
+    <path d="M 664.961813 157.392
+L 860.261813 157.392
+L 860.261813 57.6
+L 664.961813 57.6
+z
+" clip-path="url(#p3c9ffb9944)" style="fill: #f4dada; stroke: #ffffff; stroke-width: 2; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="63.437812" y="409.907312" transform="rotate(-0 63.437812 409.907312)">Inverse</text>
+   </g>
+   <g id="text_2">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(160.722516 404.458398)">Mixture</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(150.059 413.976539)">Single-mode</text>
+   </g>
+   <g id="text_3">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(342.357438 404.458398)">Direct inverse</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(342.690133 413.976539)">Train retrieval</text>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(516.928063 394.585648)">conditional_diffusion_gr</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(563.433023 404.340195)">id</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(524.924703 413.858336)">conditional_vae_rho</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(530.090445 423.612883)">glonet_style_pilot</text>
+   </g>
+   <g id="text_5">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(727.609742 404.221992)">adjoint_diffusion</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(742.829391 413.976539)">cinn_flow</text>
+   </g>
+   <g id="text_6">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="63.437812" y="310.115312" transform="rotate(-0 63.437812 310.115312)">Field</text>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(150.65068 304.666398)">FNO field v2</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(147.515641 314.184539)">U-Net field v2</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(353.92607 304.429992)">fno_field</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(351.048023 314.184539)">unet_field</text>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(513.877359 299.670922)">maxwellnet_residual_pilo</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(565.64568 309.425469)">t</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(514.633727 318.943609)">neurolight_adapted_field</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: middle" x="762.611813" y="309.425469" transform="rotate(-0 762.611813 309.425469)">Adapted PINO</text>
+   </g>
+   <g id="text_11">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="63.437812" y="210.237375" transform="rotate(-0 63.437812 210.237375)">Query</text>
+   </g>
+   <g id="text_12">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(142.980094 200.115328)">DeepONet-style</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(147.552164 209.633469)">FNO query v2</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(154.494273 219.151609)">MLP query</text>
+   </g>
+   <g id="text_13">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(335.291148 204.637992)">deep_onet_query</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(345.425406 214.392539)">fno2d_query</text>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: middle" x="567.311812" y="209.633469" transform="rotate(-0 567.311812 209.633469)">—</text>
+   </g>
+   <g id="text_15">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: middle" x="762.611813" y="209.633469" transform="rotate(-0 762.611813 209.633469)">—</text>
+   </g>
+   <g id="text_16">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: end" x="63.437812" y="110.531312" transform="rotate(-0 63.437812 110.531312)">Full Band</text>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(149.12732 95.564258)">FNO band v2</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(154.084547 105.082398)">Lifted CNN</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(168.114195 114.600539)">MLP</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(160.523297 124.11868)">ResMLP</text>
+   </g>
+   <g id="text_18">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(347.000563 99.968719)">fno2d_band</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(356.454156 109.723266)">fno_lite</text>
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'" transform="translate(355.387672 119.477812)">res_mlp</text>
+   </g>
+   <g id="text_19">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: middle" x="567.311812" y="109.723266" transform="rotate(-0 567.311812 109.723266)">pod_res_mlp</text>
+   </g>
+   <g id="text_20">
+    <text style="font-size: 8.5px; font-family: 'DejaVu Sans'; text-anchor: middle" x="762.611813" y="109.841469" transform="rotate(-0 762.611813 109.841469)">—</text>
+   </g>
+   <g id="text_21">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="176.711813" y="47.328984" transform="rotate(-0 176.711813 47.328984)">Current</text>
+   </g>
+   <g id="text_22">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="372.011813" y="47.328984" transform="rotate(-0 372.011813 47.328984)">Historical</text>
+   </g>
+   <g id="text_23">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="567.311812" y="47.243046" transform="rotate(-0 567.311812 47.243046)">Placeholder/Config</text>
+   </g>
+   <g id="text_24">
+    <text style="font-weight: 700; font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle" x="762.611813" y="47.328984" transform="rotate(-0 762.611813 47.328984)">Blocked/Reference</text>
+   </g>
+  </g>
+  <g id="text_25">
+   <text style="font-weight: 700; font-size: 15px; font-family: 'DejaVu Sans'; text-anchor: middle" x="457.061812" y="17.223281" transform="rotate(-0 457.061812 17.223281)">phc2d model and method inventory | implementation is not evidence</text>
+  </g>
+  <g id="text_26">
+   <text style="font-size: 9px; font-family: 'DejaVu Sans'; text-anchor: middle" x="457.061812" y="503.424" transform="rotate(-0 457.061812 503.424)">Current includes formal or explicitly qualified single-seed evidence. Withdrawn results are historical lineage, not current evidence.</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p3c9ffb9944">
+   <rect x="79.061813" y="57.6" width="781.2" height="399.168"/>
+  </clipPath>
+ </defs>
+</svg>

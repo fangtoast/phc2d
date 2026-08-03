@@ -1,0 +1,21 @@
+experiment:
+  experiment_id: dataset_split_audit
+  family: research
+  stage: data_audit
+dataset:
+  paths:
+    - data/tiny.npz
+    - data/paper_like_64_mpb.npz
+    - data/paper_like_50k_mpb.npz
+    - data/field_tiny_mpb.h5
+  split_checks:
+    require_split_fields: true
+    require_reproducibility: true
+  metadata_checks:
+    require_metadata_jsonl: false
+    require_sample_id: false
+    require_generator_metadata: false
+  seed: 0
+output:
+  runs_dir: runs
+  report_name: dataset_split_audit

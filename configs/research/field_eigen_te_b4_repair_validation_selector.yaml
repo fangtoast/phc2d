@@ -1,0 +1,46 @@
+# Validation-only dense-k selection between completed P4 and P5 three-seed checkpoints.
+experiment: {experiment_id: field_eigen_te_b4_repair_validation_selector, execution: field_eigen_te_b4_validation_selector, stage: b4_repair_dense_k_selection}
+dataset:
+  field_hdf5_path: runs/20260720/field_eigen_te_b3_9216_202607201608/field_eigen_te_b3_9216.h5
+  field_hdf5_sha256: c51e656cc021502b925d54667e0ad356195fe755d1afa7c91752eed10ed9c85c
+  v2_frequency_dataset_path: data/query_dataset_v2_pilot_10000_mpb.npz
+  v2_frequency_dataset_sha256: 991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4
+  k_path_sidecar_path: runs/20260628/query_dataset_v2_pilot_10000_202606281038/k_path_sidecar.json
+  k_path_sidecar_sha256: e92d62d475b46e534ee74c11bd3a587b45d43781ae89863337b7d978c3616e57
+normalization: {epsilon_range: [1.0, 8.9], k_scale: 0.5, band_range_one_based: [2, 10]}
+runtime: {device: "cuda:0", require_accelerator: true, precision: fp32, deterministic: true}
+validation_contract: {evaluation_split: val, allow_test: false, required_seeds: [0, 1, 2]}
+promotion_thresholds:
+  frequency: {mean_fno_factor_max: 1.02, per_seed_fno_factor_max: 1.05}
+  field: {seen_k_e_relative_l2_fno_factor_max: 1.02}
+  residual: {per_seed_fno_factor_max: 0.85, mean_reduction_min_pct: 20.0}
+  residual_calibration: {spearman_ci_lower_min_exclusive: 0.0, quartile_frequency_mre_reduction_min_pct: 10.0}
+  resolution_transfer: {base_resolution: 64, evaluation_resolutions: [96, 128], frequency_mre_degradation_max_pct: 2.0, residual_median_degradation_max_pct: 20.0}
+dense_k: {path_index_count: 31, unique_coordinate_count: 30, seen_k_indices: [0, 4, 8, 12, 16, 20, 24, 29], seen_k_count: 8, structures_per_split: 32, resolutions: [64, 96, 128]}
+statistics: {bootstrap_seed: 20260721, bootstrap_repeats: 1000}
+residual_solver_floor_reference:
+  status: calibration_from_real_mpb_validation_only
+  audit_run: runs/20260722/field_eigen_te_b4_resolution_reference_audit_202607221300
+  audit_decision_sha256: fee4d0628b5acfced46228d5f60ad3812b7981e9aa49dcdf2920bf827d742459
+  source_split: val
+  source_structure_count: 8
+  metric: maxwell_relative_residual
+  factors: {"64": 1.0, "96": 1.6675113730849558, "128": 2.479351271327766}
+candidate_model: {name: fno_field_v2, params: {grid_channels: 5, context_dim: 3, field_channels: 6, width: 48, depth: 4, modes: [16, 16], corrected_spectral_modes: true}}
+fno:
+  cases:
+    - {name: fno_seed0, kind: fno, seed: 0, checkpoint_path: runs/20260720/field_eigen_te_v2_baseline_9216_202607201723/cases/fno_field_v2_seed0/model.pt, checkpoint_sha256: fc297d401fbfe372df7f2b28b3bcc4710e54fdc0865ea4457d812be0d6dcf55d, model_name: fno_field_v2, model_params: {grid_channels: 5, context_dim: 3, field_channels: 6, width: 48, depth: 4, modes: [16, 16], corrected_spectral_modes: true}}
+    - {name: fno_seed1, kind: fno, seed: 1, checkpoint_path: runs/20260720/field_eigen_te_v2_baseline_9216_202607201723/cases/fno_field_v2_seed1/model.pt, checkpoint_sha256: 77389b3167c69527b4407661f7bad059d112e4b70d8d6ddcbd5b42ff4fffaaae, model_name: fno_field_v2, model_params: {grid_channels: 5, context_dim: 3, field_channels: 6, width: 48, depth: 4, modes: [16, 16], corrected_spectral_modes: true}}
+    - {name: fno_seed2, kind: fno, seed: 2, checkpoint_path: runs/20260720/field_eigen_te_v2_baseline_9216_202607201723/cases/fno_field_v2_seed2/model.pt, checkpoint_sha256: d31968ab43311c6c4cc077077d5fb342e5a3088875093e3e0de3653ef6b25761, model_name: fno_field_v2, model_params: {grid_channels: 5, context_dim: 3, field_channels: 6, width: 48, depth: 4, modes: [16, 16], corrected_spectral_modes: true}}
+candidates:
+  P4:
+    cases:
+      - {name: P4_seed0, seed: 0, checkpoint_path: runs/20260722/field_eigen_te_pino_b4_repair_validation_9216_202607221421/cases/P4_dense_k_multires_seed0/model.pt, checkpoint_sha256: 6c35d23f4e3fbe5c3445020e0c90d2e566696be3db4e57d42daf6d0df5dbf598}
+      - {name: P4_seed1, seed: 1, checkpoint_path: runs/20260722/field_eigen_te_pino_b4_repair_validation_9216_202607221421/cases/P4_dense_k_multires_seed1/model.pt, checkpoint_sha256: a6854c750ddbd502fc2db0e8ebd1fbb4ea10cacfd49e471aafcc14ac19eab423}
+      - {name: P4_seed2, seed: 2, checkpoint_path: runs/20260722/field_eigen_te_pino_b4_repair_validation_9216_202607221421/cases/P4_dense_k_multires_seed2/model.pt, checkpoint_sha256: f00774c73dd94094a33ac3596b3e4fa5dae355a27b00eb3e0a18198ef142c9b9}
+  P5:
+    cases:
+      - {name: P5_seed0, seed: 0, checkpoint_path: runs/20260722/field_eigen_te_pino_b4_repair_validation_9216_202607221421/cases/P5_rayleigh_consistent_seed0/model.pt, checkpoint_sha256: ec31cda1039c488d4b989404067c9c9450744a1bbcd215ba0080047b372298d4}
+      - {name: P5_seed1, seed: 1, checkpoint_path: runs/20260722/field_eigen_te_pino_b4_repair_validation_9216_202607221421/cases/P5_rayleigh_consistent_seed1/model.pt, checkpoint_sha256: 8e41a0f149a18f298d422329aae08a27cf7173402f4a0056f65998ab0d75c057}
+      - {name: P5_seed2, seed: 2, checkpoint_path: runs/20260722/field_eigen_te_pino_b4_repair_validation_9216_202607221421/cases/P5_rayleigh_consistent_seed2/model.pt, checkpoint_sha256: b4e24c27a3231b322c6559ea29f7a193c75202582c840409aba2c4d501d8cad3}
+output: {runs_dir: runs, resume_run_dir: runs/20260723/field_eigen_te_b4_repair_validation_selector_202607231500}

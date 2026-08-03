@@ -1,0 +1,138 @@
+# Frozen A0 baseline protocol for the 10k V2 fair-comparison lane.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+protocol:
+  id: baseline_protocol_v1
+  version: 1
+  status: frozen_for_a1_a2
+  execution: protocol_only_no_training_or_replay
+  authoritative_document: docs/planning/0718-0801/09_phase1_a0_b0_protocol.md
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  sha256: 991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4
+  sample_count: 10000
+  split_sizes:
+    train: 6875
+    val: 2500
+    test: 625
+  metric_domain:
+    headline_band_range_one_based: [2, 10]
+    full_band_role: denominator_risk_diagnostic_only
+
+common_training:
+  seeds: [0, 1, 2]
+  optimizer: adamw
+  max_epochs: 200
+  batch_size: 64
+  learning_rate_trials: [0.001, 0.0003, 0.0001]
+  checkpoint_selection_split: val
+  final_evaluation_split: test
+  runtime:
+    device: cuda:0
+    require_accelerator: true
+    precision: fp32
+    amp_enabled: false
+    tf32_enabled: false
+    record_peak_memory: true
+  required_runtime_metrics:
+    - wall_time_total_s
+    - train_time_s
+    - eval_time_s
+    - inference_time_per_sample_ms
+    - throughput_samples_per_s
+    - parameter_count
+    - peak_gpu_memory_mb
+
+forward:
+  source_config: configs/research/forward_formal_retrain_v2_10000.yaml
+  models:
+    - id: res_mlp_wide
+      display_name: project-native vector baseline
+      input_repr: rho_wedge
+      reproduction_grade: project_native
+    - id: lifted_cnn
+      display_name: project-native grid baseline
+      input_repr: epsilon_grid
+      reproduction_grade: project_native
+    - id: fno2d_band_v2
+      display_name: FNO-inspired band-aware spectral encoder
+      input_repr: epsilon_grid
+      reproduction_grade: paper_inspired_adaptation
+  required_metrics:
+    - avg_MRE_bands_2_10_pct
+    - mae
+    - rmse
+    - per_band_metrics
+    - gap_metrics
+    - seed_stability
+
+query:
+  source_config: configs/research/query_formal_retrain_v2_10000.yaml
+  models:
+    - id: mlp_query
+      display_name: project-native query baseline
+      reproduction_grade: project_native
+    - id: deep_onet_query_v2
+      display_name: DeepONet-style query baseline
+      reproduction_grade: paper_inspired_adaptation
+    - id: fno2d_query_v2
+      display_name: query spectral encoder
+      reproduction_grade: paper_inspired_adaptation
+  required_protocols:
+    - unseen_structure_all_k
+    - unseen_structure_k_interpolation
+    - unseen_structure_heldout_segment
+  required_metrics:
+    - query_mre_bands_2_10_pct
+    - query_mae
+    - query_rmse
+    - ordering_violation_rate
+    - per_k_metrics
+    - seed_stability
+
+inverse:
+  target_manifest_path: configs/research/target_manifests/inverse_paired_test100_v1.json
+  target_count: 100
+  target_split: test
+  training_and_sampling_seeds: [0, 1, 2]
+  n_raw_candidates_per_target: 128
+  replay_top_m_per_target: 5
+  mpb_solves_per_method_per_seed: 500
+  primary_metric: best_of_k_replay_mre_bands_2_10_pct
+  candidate_handling:
+    threshold: 0.5
+    binary_deduplication: true
+    minimum_hamming: auto_1_over_dim
+    ranking_strategy: declared_shared_strategy_unless_ablated
+  required_metrics:
+    - best_of_k_surrogate_mre_bands_2_10_pct
+    - best_of_k_replay_mre_bands_2_10_pct
+    - surrogate_replay_gap_bands_2_10_pct
+    - validity_rate
+    - unique_rate
+    - diversity_hamming
+    - candidate_sampling_time_s
+    - surrogate_ranking_time_s
+    - mpb_replay_time_s
+    - wall_time_total_s
+  required_artifacts:
+    - target_manifest
+    - candidates.json
+    - ranked_candidates.csv
+    - per_target_replay_metrics.csv
+    - per_band_replay_metrics.csv
+    - metrics.json
+
+reporting:
+  status_columns:
+    - implementation_status
+    - reproduction_grade
+    - evidence_status
+  prohibit:
+    - compare_models_with_different_target_manifests
+    - compare_models_with_different_candidate_or_solver_budgets
+    - call_surrogate_only_metrics_physical_validation
+    - call_adapted_models_faithful_reproductions

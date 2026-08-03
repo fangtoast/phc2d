@@ -1,0 +1,181 @@
+# Frozen TE Bloch eigenfield contract with B1-B3 evidence bindings.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+contract:
+  id: field_eigen_te_contract
+  version: 6
+  status: b3_supervised_and_adapted_pino_gates_passed
+  execution: b3_9216_operator_data_plus_supervised_v2_plus_adapted_pino_three_seed
+  authoritative_document: docs/planning/0718-0801/09_phase1_a0_b0_protocol.md
+  experiment_description: experiments/research/field_eigen_te.md
+
+task:
+  task_type: bloch_eigenfield
+  lattice: square
+  polarization: TE
+  structure_source:
+    dataset_path: data/query_dataset_v2_pilot_10000_mpb.npz
+    dataset_sha256: 991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4
+    representation: epsilon_grid
+  k_path:
+    family: square_gxm
+    k_path_id: query_dataset_v2_pilot_square_gxm_mpb_reduced_v1
+    coordinate_system: mpb_reduced_reciprocal_coordinates
+    points_policy: derive_from_dataset_metadata
+    coordinate_verification_policy: source_sidecar_or_exact_match_to_verified_reference
+  band_selection:
+    range_one_based: [2, 10]
+    count_policy: derive_from_solver_output
+  record_unit: one_record_per_structure_k_point_band
+
+solver:
+  backend: mpb
+  environment: WSL Ubuntu + conda meep_env
+  lattice_constant: 1.0
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 64
+  eigensolver_tolerance: 1.0e-07
+  frequency_normalization: mpb_dimensionless_a_over_lambda
+  band_order_policy: frequency_ascending
+
+record_schema:
+  required_fields:
+    - record_id
+    - source_sample_id
+    - source_sample_hash
+    - source_split
+    - rho
+    - epsilon
+    - k_point
+    - k_path_id
+    - band_index_one_based
+    - eigenfrequency
+    - efield_complex
+    - hfield_complex
+    - polarization
+    - boundary_condition
+    - bloch_phase
+    - lattice_constant
+    - domain_extent
+    - dx
+    - dy
+    - field_normalization
+    - solver_provenance
+  tensor_shape_policy: derive_from_serialized_field_schema
+  complex_storage: explicit_real_imag_channels_or_native_complex_with_schema_tag
+  boundary_condition: bloch_periodic
+  solver_provenance_required:
+    - solver_backend
+    - solver_version
+    - eigensolver_tolerance
+    - resolution
+    - material_parameters
+    - geometry_hash
+    - k_path_hash
+
+normalization:
+  field_l2: cell_volume_epsilon_weighted_l2_equals_one
+  electric_inner_product: integral_conjugate_e1_dot_epsilon_e2_dv
+  global_phase: largest_magnitude_component_real_and_nonnegative
+  frequency_to_angular_frequency: omega_equals_2pi_times_solver_frequency
+
+physics:
+  unit_convention:
+    lattice_constant_a: 1.0
+    speed_of_light_c: 1.0
+  residual_form: curl_mu_inverse_curl_e_minus_omega_squared_epsilon_e
+  boundary_condition: bloch_periodic
+  residual_gate:
+    training_allowed_only_when:
+      - record_schema_complete
+      - residual_unit_tests_pass
+      - solver_reference_beats_random_field
+      - boundary_and_normalization_traceable
+
+b1_handoff:
+  initial_real_sample_count: 64
+  sample_coverage: stratify_structure_k_point_and_band
+  required_artifacts:
+    - dataset_manifest.yaml
+    - sample_metadata.jsonl
+    - solver_provenance.json
+    - worker_summary.json
+    - failed_case_ledger.jsonl
+  prohibited_before_gate:
+    - pino_training
+    - maxwellnet_training
+    - field_inverse_integration
+    - driven_field_or_pml_task_merging
+  scaleup:
+    target_real_sample_count: 1000
+    requires_b2_residual_status: b2_residual_gate_pass
+    training_still_prohibited: false
+
+b3_handoff:
+  source_structure_split_counts: {train: 192, val: 32, test: 32}
+  k_strata: 8
+  k_per_structure: 4
+  band_range_one_based: [2, 10]
+  expected_record_count: 9216
+  solver_shard_unit: structure_k_all_bands
+  allowed_training_regimes: [data_only_v2, pino_adapted]
+  operator_dataset:
+    run: runs/20260720/field_eigen_te_b3_9216_202607201608
+    hdf5_sha256: c51e656cc021502b925d54667e0ad356195fe755d1afa7c91752eed10ed9c85c
+    completed_records: 9216
+    failed_records: 0
+  data_only_v2_gate:
+    status: passed
+    run: runs/20260720/field_eigen_te_v2_baseline_9216_202607201723
+    models: [unet_field_v2, fno_field_v2]
+    seeds: [0, 1, 2]
+    all_test_e_h_relative_l2_below_one: true
+  pino_adapted_gate:
+    status: pino_field_adapted_pilot_pass
+    lambda_sweep_run: runs/20260721/field_eigen_te_pino_lambda_sweep_9216_202607210044
+    lambda_selection_sha256: da02388da3beb574b4404c602e91863ef8a8fa2b3869c7b525bb2bcd2693e847
+    selected_lambda_pde: 0.01
+    formal_run: runs/20260721/field_eigen_te_pino_9216_202607210812
+    seeds: [0, 1, 2]
+    residual_median_reduction_pct: 37.48204398778275
+    mean_e_relative_change_pct: -0.9931872043183909
+  prohibited_claims: [faithful_pino_reproduction, faithful_maxwellnet_reproduction, field_inverse_benefit]
+
+b4_handoff:
+  status: running
+  frequency_guard_config: configs/research/field_eigen_te_pino_frequency_guard_9216.yaml
+  dense_k_config: configs/research/field_eigen_te_b4_dense_k_gate.yaml
+  allowed_statuses: [physics_frequency_crosscheck_ready, physics_residual_rerank_ready, cross_resolution_zero_shot_pass]
+  prohibited_until_formal_completion: [field_inverse, inverse_sampling, inverse_replay, real_solver_benefit]
+  frequency_gradient_modes: [full, detach]
+  frequency_guard_thresholds:
+    frequency_mre_factor: 1.02
+    field_e_relative_l2_factor: 1.02
+    residual_median_reduction_pct: 20.0
+  dense_k:
+    path_index_count: 31
+    unique_coordinate_count: 30
+    seen_k_indices: [0, 4, 8, 12, 16, 20, 24, 29]
+    resolutions: [64, 96, 128]
+  dense_k_admission_contract:
+    evaluation_split: test
+    required_seeds: [0, 1, 2]
+    frozen_manifest_required: true
+    frozen_manifest_auto_discovery_allowed: false
+    checkpoint_sha256_required: true
+    dataset_lineage_sha256_required: true
+    partial_artifact_unit: case_x_split_x_resolution
+    resume_policy: only_missing_partials_with_matching_input_fingerprint
+  dense_k_promotion_thresholds:
+    frequency: {mean_fno_factor_max: 1.02, per_seed_fno_factor_max: 1.05}
+    field: {seen_k_e_relative_l2_fno_factor_max: 1.02}
+    residual: {per_seed_fno_factor_max: 0.85, mean_reduction_min_pct: 20.0}
+    residual_calibration: {spearman_ci_lower_min_exclusive: 0.0, quartile_frequency_mre_reduction_min_pct: 10.0}
+    resolution_transfer:
+      base_resolution: 64
+      evaluation_resolutions: [96, 128]
+      frequency_mre_degradation_max_pct: 2.0
+      residual_median_degradation_max_pct: 20.0

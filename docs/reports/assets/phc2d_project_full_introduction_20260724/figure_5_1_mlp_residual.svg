@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="620" viewBox="0 0 1440 620" role="img" aria-labelledby="title desc">
+  <title id="title">同容量 MLP 残差消融网络架构</title>
+  <desc id="desc">横向比较 mlp 与 res_mlp_wide。二者层数、宽度与参数量一致，差异仅为 block 是否包含 identity shortcut。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#34454f"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f6f9f"/>
+    </marker>
+    <style>
+      .title{font:700 28px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#17252d}
+      .sub{font:500 17px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .label{font:600 17px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#23343e}
+      .small{font:500 14px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .tiny{font:500 12px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .panel{fill:#f7f9fa;stroke:#c7d0d6;stroke-width:1.5}
+      .layer{fill:#e8edf0;stroke:#52636d;stroke-width:1.4}
+      .blue{fill:#d8ebf8;stroke:#2f6f9f;stroke-width:1.6}
+      .deep{fill:#5e9fca;stroke:#245b80;stroke-width:1.7}
+      .line{fill:none;stroke:#34454f;stroke-width:1.7;marker-end:url(#arrow)}
+      .res{fill:none;stroke:#2f6f9f;stroke-width:2.4;marker-end:url(#arrow-blue)}
+    </style>
+  </defs>
+  <rect width="1440" height="620" fill="#ffffff"/>
+  <text x="52" y="48" class="title">同容量 MLP 残差消融：横向总数据流与竖向 block 内部</text>
+  <text x="52" y="77" class="sub">A1.1：输入、输出、宽度、深度、激活、Dropout 与参数量完全一致</text>
+
+  <rect x="38" y="111" width="1364" height="210" rx="16" class="panel"/>
+  <text x="58" y="142" class="label">mlp</text>
+  <g transform="translate(62 176)">
+    <rect x="10" y="10" width="86" height="72" fill="#b9c1c7" stroke="#52636d"/>
+    <rect x="5" y="5" width="86" height="72" fill="#d8dde1" stroke="#52636d"/>
+    <rect x="0" y="0" width="86" height="72" fill="#f3f5f6" stroke="#52636d"/>
+    <path d="M17 0v72M34 0v72M51 0v72M68 0v72" stroke="#9aa7af"/>
+    <text x="43" y="100" text-anchor="middle" class="small">ρ_wedge [B,36]</text>
+  </g>
+  <path d="M176 216H238" class="line"/>
+  <rect x="240" y="176" width="160" height="74" rx="7" class="layer"/>
+  <text x="320" y="205" text-anchor="middle" class="label">输入投影</text>
+  <text x="320" y="230" text-anchor="middle" class="small">Linear 36→256 + GELU</text>
+  <path d="M400 216H458" class="line"/>
+  <rect x="460" y="163" width="320" height="100" rx="9" class="blue"/>
+  <text x="620" y="191" text-anchor="middle" class="label">6 × PlainBlock</text>
+  <rect x="482" y="207" width="68" height="34" rx="4" class="layer"/>
+  <rect x="562" y="207" width="68" height="34" rx="4" class="layer"/>
+  <rect x="642" y="207" width="68" height="34" rx="4" class="layer"/>
+  <text x="516" y="229" text-anchor="middle" class="tiny">Linear</text>
+  <text x="596" y="229" text-anchor="middle" class="tiny">GELU</text>
+  <text x="676" y="229" text-anchor="middle" class="tiny">Dropout</text>
+  <text x="746" y="229" text-anchor="middle" class="small">… Linear</text>
+  <path d="M780 216H838" class="line"/>
+  <rect x="840" y="176" width="160" height="74" rx="7" class="layer"/>
+  <text x="920" y="205" text-anchor="middle" class="label">输出头</text>
+  <text x="920" y="230" text-anchor="middle" class="small">Linear 256→310</text>
+  <path d="M1000 216H1060" class="line"/>
+  <rect x="1062" y="176" width="122" height="74" rx="7" class="layer"/>
+  <text x="1123" y="205" text-anchor="middle" class="label">reshape</text>
+  <text x="1123" y="230" text-anchor="middle" class="small">[B,31,10]</text>
+  <path d="M1184 216H1240" class="line"/>
+  <g transform="translate(1244 173)">
+    <rect x="8" y="8" width="96" height="78" fill="#b9c1c7" stroke="#52636d"/>
+    <rect x="4" y="4" width="96" height="78" fill="#d8dde1" stroke="#52636d"/>
+    <rect width="96" height="78" fill="#edf4f8" stroke="#2f6f9f" stroke-width="1.7"/>
+    <path d="M0 16h96M0 32h96M0 48h96M0 64h96M19 0v78M38 0v78M57 0v78M76 0v78" stroke="#a5b7c2" stroke-width=".8"/>
+    <text x="48" y="109" text-anchor="middle" class="small">W_h</text>
+  </g>
+
+  <rect x="38" y="342" width="1364" height="210" rx="16" class="panel"/>
+  <text x="58" y="373" class="label">res_mlp_wide</text>
+  <g transform="translate(62 407)">
+    <rect x="10" y="10" width="86" height="72" fill="#b9c1c7" stroke="#52636d"/>
+    <rect x="5" y="5" width="86" height="72" fill="#d8dde1" stroke="#52636d"/>
+    <rect width="86" height="72" fill="#f3f5f6" stroke="#52636d"/>
+    <path d="M17 0v72M34 0v72M51 0v72M68 0v72" stroke="#9aa7af"/>
+    <text x="43" y="100" text-anchor="middle" class="small">ρ_wedge [B,36]</text>
+  </g>
+  <path d="M176 447H238" class="line"/>
+  <rect x="240" y="407" width="160" height="74" rx="7" class="layer"/>
+  <text x="320" y="436" text-anchor="middle" class="label">输入投影</text>
+  <text x="320" y="461" text-anchor="middle" class="small">Linear 36→256 + GELU</text>
+  <path d="M400 447H458" class="line"/>
+  <rect x="460" y="394" width="320" height="100" rx="9" class="blue"/>
+  <text x="620" y="422" text-anchor="middle" class="label">6 × ResidualBlock</text>
+  <rect x="482" y="438" width="68" height="34" rx="4" class="layer"/>
+  <rect x="562" y="438" width="68" height="34" rx="4" class="layer"/>
+  <rect x="642" y="438" width="68" height="34" rx="4" class="layer"/>
+  <circle cx="742" cy="455" r="17" class="deep"/>
+  <text x="742" y="462" text-anchor="middle" font-size="23" font-weight="700" fill="#fff">+</text>
+  <text x="516" y="460" text-anchor="middle" class="tiny">Linear</text>
+  <text x="596" y="460" text-anchor="middle" class="tiny">GELU</text>
+  <text x="676" y="460" text-anchor="middle" class="tiny">Linear</text>
+  <path d="M478 455 C478 365,742 365,742 436" class="res"/>
+  <text x="610" y="383" text-anchor="middle" class="small" fill="#2f6f9f">identity shortcut：唯一结构差异</text>
+  <path d="M780 447H838" class="line"/>
+  <rect x="840" y="407" width="160" height="74" rx="7" class="layer"/>
+  <text x="920" y="436" text-anchor="middle" class="label">输出头</text>
+  <text x="920" y="461" text-anchor="middle" class="small">Linear 256→310</text>
+  <path d="M1000 447H1060" class="line"/>
+  <rect x="1062" y="407" width="122" height="74" rx="7" class="layer"/>
+  <text x="1123" y="436" text-anchor="middle" class="label">reshape</text>
+  <text x="1123" y="461" text-anchor="middle" class="small">[B,31,10]</text>
+  <path d="M1184 447H1240" class="line"/>
+  <g transform="translate(1244 404)">
+    <rect x="8" y="8" width="96" height="78" fill="#b9c1c7" stroke="#52636d"/>
+    <rect x="4" y="4" width="96" height="78" fill="#d8dde1" stroke="#52636d"/>
+    <rect width="96" height="78" fill="#edf4f8" stroke="#2f6f9f" stroke-width="1.7"/>
+    <path d="M0 16h96M0 32h96M0 48h96M0 64h96M19 0v78M38 0v78M57 0v78M76 0v78" stroke="#a5b7c2" stroke-width=".8"/>
+    <text x="48" y="109" text-anchor="middle" class="small">W_h</text>
+  </g>
+  <rect x="340" y="574" width="760" height="30" rx="15" fill="#eef5f9"/>
+  <text x="720" y="595" text-anchor="middle" class="small">shared：hidden_dim=256 · depth=6 · dropout=0.05 · 878,646 parameters</text>
+</svg>

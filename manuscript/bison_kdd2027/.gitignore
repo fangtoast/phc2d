@@ -1,0 +1,18 @@
+# Generated LaTeX artifacts for the BISON manuscript.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+build/
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.pdf
+
+# Reproducible manuscript table inputs.
+!data/
+!data/*.csv

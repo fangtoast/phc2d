@@ -1,0 +1,67 @@
+# Neutral reconstruction warm start for the seven-arm A2 surrogate ablation.
+# This checkpoint is initialization only and is never an inverse-result claim.
+
+experiment:
+  experiment_id: a2_inverse_surrogate_neutral_pretrain_v1
+  family: research
+  stage: a2_surrogate_neutral_reconstruction_pretrain
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  condition_target: Wh
+  output_repr: rho_wedge
+  target_split: val
+
+model:
+  name: mixture_conditional_generator
+  seed: 0
+  seeds: [0]
+  mode_count: 4
+  latent_dim: 32
+  hidden_dim: 256
+  depth: 4
+
+# Required by the unified inverse-training contract, but reconstruction
+# pretraining does not optimize or select against this surrogate.
+surrogate:
+  kind: forward
+  checkpoint_path: runs/20260724/a1_forward_fair_v1_202607240020/cases/epsilon_grid_fno2d_band_v2_3_lr1em03_seed0/train/model.pt
+  model_name: fno2d_band_v2
+  input_repr: epsilon_grid
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+inverse:
+  train_epochs: 200
+  checkpoint_epochs: [10, 30, 50, 100, 150, 200]
+  train_batch_size: 64
+  learning_rates: [0.0003]
+  learning_rate: 0.0003
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  n_candidates: 128
+  surrogate_top_m: 5
+  threshold: 0.5
+  candidate_separation:
+    enabled: true
+    deduplicate_binary: true
+    min_hamming: auto_1_over_geometry_dof_count
+  allow_mock_generator: false
+  allow_mock_surrogate: false
+
+replay:
+  enabled: false
+
+output:
+  runs_dir: runs
+  run_dir: runs/20260731/a2_inverse_surrogate_neutral_pretrain_v1_202607311900

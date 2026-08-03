@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "selection_unit": "target_index",
+  "selection_policy": "complete_frozen_test_split_in_dataset_order",
+  "dataset_sha256": "991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4",
+  "dataset_split": "test",
+  "source_target_count": 625,
+  "target_index_range": {
+    "start": 9375,
+    "stop_exclusive": 10000,
+    "step": 1
+  }
+}

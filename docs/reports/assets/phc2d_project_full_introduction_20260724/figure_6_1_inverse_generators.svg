@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="880" viewBox="0 0 1500 880" role="img" aria-labelledby="title desc">
+  <title id="title">逆向设计中三种可训练生成网络架构</title>
+  <desc id="desc">横向比较确定性逆向 MLP、单模式隐变量生成器和四模式条件生成器。每行展示目标能带到候选结构的实际神经网络路径。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#34454f"/>
+    </marker>
+    <marker id="blue-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#2f6f9f"/>
+    </marker>
+    <style>
+      .title{font:700 28px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#17252d}
+      .sub{font:500 17px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .label{font:600 16px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#23343e}
+      .small{font:500 13px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .tiny{font:500 11px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .panel{fill:#f8fafb;stroke:#cad3d8;stroke-width:1.4}
+      .box{fill:#edf1f3;stroke:#52636d;stroke-width:1.5}
+      .blue{fill:#d8ebf8;stroke:#2f6f9f;stroke-width:1.7}
+      .deep{fill:#5e9fca;stroke:#245b80;stroke-width:1.7}
+      .line{fill:none;stroke:#34454f;stroke-width:1.8;marker-end:url(#arrow)}
+      .blue-line{fill:none;stroke:#2f6f9f;stroke-width:2;marker-end:url(#blue-arrow)}
+    </style>
+  </defs>
+  <rect width="1500" height="880" fill="#fff"/>
+  <text x="50" y="48" class="title">逆向设计：从目标 W_h 到 ρ_wedge 的三种可训练网络</text>
+  <text x="50" y="78" class="sub">整体数据流横向；模块内部竖向列出真实层级。train-only retrieval 为非参数方法，因此不画成神经网络。</text>
+
+  <rect x="34" y="108" width="1432" height="204" rx="16" class="panel"/>
+  <text x="58" y="140" class="label">direct_inverse_mlp · 确定性单解回归</text>
+  <g transform="translate(76 178)">
+    <rect x="6" y="6" width="92" height="92" fill="#bec6cb" stroke="#52636d"/>
+    <rect width="92" height="92" fill="#edf4f8" stroke="#2f6f9f" stroke-width="1.6"/>
+    <path d="M0 23h92M0 46h92M0 69h92M23 0v92M46 0v92M69 0v92" stroke="#a5b7c2"/>
+    <text x="46" y="120" text-anchor="middle" class="small">目标 W_h*：C</text>
+  </g>
+  <path d="M180 224H318" class="line"/>
+  <g transform="translate(332 161)">
+    <rect width="380" height="130" rx="9" class="blue"/>
+    <text x="190" y="26" text-anchor="middle" class="label">竖向 MLP</text>
+    <rect x="38" y="41" width="304" height="24" rx="4" class="box"/>
+    <rect x="38" y="72" width="304" height="24" rx="4" class="box"/>
+    <rect x="38" y="103" width="304" height="20" rx="4" class="box"/>
+    <text x="190" y="58" text-anchor="middle" class="tiny">Linear C→256 + GELU</text>
+    <text x="190" y="89" text-anchor="middle" class="tiny">Linear 256→256 + GELU</text>
+    <text x="190" y="118" text-anchor="middle" class="tiny">Linear 256→R + Sigmoid</text>
+  </g>
+  <path d="M712 224H840" class="line"/>
+  <rect x="854" y="180" width="200" height="88" rx="8" class="box"/>
+  <text x="954" y="213" text-anchor="middle" class="label">连续 ρ_wedge</text>
+  <text x="954" y="241" text-anchor="middle" class="small">[B,R] · 每目标仅一个输出</text>
+  <path d="M1054 224H1138" class="line"/>
+  <rect x="1152" y="180" width="194" height="88" rx="8" class="blue"/>
+  <text x="1249" y="213" text-anchor="middle" class="label">threshold 0.5</text>
+  <text x="1249" y="241" text-anchor="middle" class="small">确定性二值候选</text>
+  <text x="1382" y="229" class="small">无 z · 无 mode</text>
+
+  <rect x="34" y="330" width="1432" height="224" rx="16" class="panel"/>
+  <text x="58" y="362" class="label">single-mode latent generator · 连续噪声形成一对多候选</text>
+  <g transform="translate(76 408)">
+    <rect x="6" y="6" width="92" height="92" fill="#bec6cb" stroke="#52636d"/>
+    <rect width="92" height="92" fill="#edf4f8" stroke="#2f6f9f" stroke-width="1.6"/>
+    <path d="M0 23h92M0 46h92M0 69h92M23 0v92M46 0v92M69 0v92" stroke="#a5b7c2"/>
+    <text x="46" y="120" text-anchor="middle" class="small">目标 W_h*：C</text>
+  </g>
+  <path d="M180 454H214" class="line"/>
+  <g transform="translate(228 386)">
+    <rect width="210" height="136" rx="9" class="blue"/>
+    <text x="105" y="25" text-anchor="middle" class="label">condition encoder</text>
+    <rect x="24" y="42" width="162" height="30" rx="4" class="box"/>
+    <rect x="24" y="86" width="162" height="30" rx="4" class="box"/>
+    <text x="105" y="62" text-anchor="middle" class="tiny">Linear C→256 + GELU</text>
+    <text x="105" y="106" text-anchor="middle" class="tiny">Linear 256→256 + GELU</text>
+  </g>
+  <rect x="462" y="388" width="148" height="38" rx="7" class="blue"/>
+  <text x="536" y="412" text-anchor="middle" class="tiny">Embedding(1,256)</text>
+  <rect x="462" y="502" width="148" height="38" rx="7" class="blue"/>
+  <text x="536" y="526" text-anchor="middle" class="tiny">z~N(0,I)：32</text>
+  <path d="M438 454H620V436H650" class="line"/>
+  <path d="M536 426V434H620V452H650" class="blue-line"/>
+  <path d="M536 502V468H650" class="blue-line"/>
+  <circle cx="675" cy="454" r="25" class="deep"/>
+  <text x="675" y="460" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">concat</text>
+  <text x="675" y="490" text-anchor="middle" class="small">544</text>
+  <path d="M700 454H734" class="line"/>
+  <g transform="translate(748 379)">
+    <rect width="274" height="150" rx="9" class="blue"/>
+    <text x="137" y="26" text-anchor="middle" class="label">conditional MLP decoder</text>
+    <rect x="30" y="43" width="214" height="28" rx="4" class="box"/>
+    <rect x="30" y="84" width="214" height="28" rx="4" class="box"/>
+    <rect x="30" y="125" width="214" height="19" rx="4" class="box"/>
+    <text x="137" y="62" text-anchor="middle" class="tiny">Linear 544→256 + GELU</text>
+    <text x="137" y="103" text-anchor="middle" class="tiny">共 4 × Linear→GELU</text>
+    <text x="137" y="139" text-anchor="middle" class="tiny">Linear 256→R + Sigmoid</text>
+  </g>
+  <path d="M1022 454H1060" class="line"/>
+  <g transform="translate(1074 406)">
+    <rect x="14" y="-14" width="116" height="102" fill="#b7c0c6" stroke="#52636d"/>
+    <rect x="7" y="-7" width="116" height="102" fill="#d8dde1" stroke="#52636d"/>
+    <rect width="116" height="102" fill="#eef4f7" stroke="#2f6f9f" stroke-width="1.7"/>
+    <text x="58" y="44" text-anchor="middle" class="label">ρ_1 … ρ_K</text>
+    <text x="58" y="69" text-anchor="middle" class="small">连续候选堆叠</text>
+  </g>
+  <path d="M1206 454H1246" class="line"/>
+  <rect x="1260" y="409" width="176" height="90" rx="8" class="blue"/>
+  <text x="1348" y="443" text-anchor="middle" class="label">threshold + ranking</text>
+  <text x="1348" y="471" text-anchor="middle" class="small">不同 z；单一 mode</text>
+
+  <rect x="34" y="572" width="1432" height="268" rx="16" class="panel"/>
+  <text x="58" y="604" class="label">mixture_conditional_generator · 离散 mode 与连续 latent 联合形成多候选</text>
+  <g transform="translate(76 654)">
+    <rect x="6" y="6" width="92" height="92" fill="#bec6cb" stroke="#52636d"/>
+    <rect width="92" height="92" fill="#edf4f8" stroke="#2f6f9f" stroke-width="1.6"/>
+    <path d="M0 23h92M0 46h92M0 69h92M23 0v92M46 0v92M69 0v92" stroke="#a5b7c2"/>
+    <text x="46" y="120" text-anchor="middle" class="small">目标 W_h*：C</text>
+  </g>
+  <path d="M180 700H246" class="line"/>
+  <g transform="translate(260 632)">
+    <rect width="238" height="138" rx="9" class="blue"/>
+    <text x="119" y="26" text-anchor="middle" class="label">condition encoder</text>
+    <rect x="28" y="43" width="182" height="31" rx="4" class="box"/>
+    <rect x="28" y="87" width="182" height="31" rx="4" class="box"/>
+    <text x="119" y="64" text-anchor="middle" class="tiny">Linear C→256 + GELU</text>
+    <text x="119" y="108" text-anchor="middle" class="tiny">Linear 256→256 + GELU</text>
+  </g>
+  <rect x="526" y="620" width="174" height="42" rx="7" class="blue"/>
+  <text x="613" y="646" text-anchor="middle" class="small">mode m∈{0,1,2,3}</text>
+  <rect x="526" y="767" width="174" height="42" rx="7" class="blue"/>
+  <text x="613" y="793" text-anchor="middle" class="small">z~N(0,I)：32</text>
+  <path d="M498 700H724V681H760" class="line"/>
+  <path d="M613 662V677H724V697H760" class="blue-line"/>
+  <path d="M613 767V719H760" class="blue-line"/>
+  <circle cx="785" cy="700" r="25" class="deep"/>
+  <text x="785" y="706" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">concat</text>
+  <text x="785" y="736" text-anchor="middle" class="small">256+256+32=544</text>
+  <path d="M810 700H858" class="line"/>
+  <g transform="translate(872 625)">
+    <rect width="292" height="152" rx="9" class="blue"/>
+    <text x="146" y="27" text-anchor="middle" class="label">conditional MLP decoder</text>
+    <rect x="33" y="44" width="226" height="30" rx="4" class="box"/>
+    <rect x="33" y="87" width="226" height="30" rx="4" class="box"/>
+    <rect x="33" y="128" width="226" height="18" rx="4" class="box"/>
+    <text x="146" y="64" text-anchor="middle" class="tiny">Linear 544→256 + GELU</text>
+    <text x="146" y="107" text-anchor="middle" class="tiny">共 4 × Linear→GELU</text>
+    <text x="146" y="142" text-anchor="middle" class="tiny">Linear 256→R + Sigmoid</text>
+  </g>
+  <path d="M1164 700H1206" class="line"/>
+  <g transform="translate(1220 648)">
+    <rect x="16" y="-16" width="118" height="108" fill="#b7c0c6" stroke="#52636d"/>
+    <rect x="8" y="-8" width="118" height="108" fill="#d8dde1" stroke="#52636d"/>
+    <rect width="118" height="108" fill="#eef4f7" stroke="#2f6f9f" stroke-width="1.7"/>
+    <text x="59" y="46" text-anchor="middle" class="label">ρ_1 … ρ_K</text>
+    <text x="59" y="72" text-anchor="middle" class="small">mode + z 候选</text>
+  </g>
+  <text x="1377" y="685" class="small">不是 cVAE</text>
+  <text x="1377" y="710" class="small">不是 MDN</text>
+  <text x="1377" y="735" class="small">不是 diffusion</text>
+</svg>

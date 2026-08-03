@@ -1,0 +1,22 @@
+# B2 residual gate for the valid 64-record real-MPB field-data pilot.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: field_eigen_te_b2_residual
+  family: research
+  stage: b2_residual_gate_no_training
+
+contract_path: configs/research/field_eigen_te_contract.yaml
+field_dataset_path: runs/20260720/field_eigen_te_b1_64_202607201021/field_eigen_te_b1_64.h5
+source_manifest_path: runs/20260720/field_eigen_te_b1_64_202607201021/dataset_manifest.yaml
+
+gate:
+  random_baseline: deterministic_complex_gaussian_per_record
+  minimum_solver_win_rate: 0.90
+  require_solver_median_below_random: true
+  require_complete_contract_fields: true
+
+output:
+  runs_dir: runs

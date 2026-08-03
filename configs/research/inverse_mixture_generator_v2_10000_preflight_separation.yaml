@@ -1,0 +1,120 @@
+experiment:
+  experiment_id: inverse_mixture_generator_v2_10000_objective_sample_separation
+  family: research
+  stage: inverse_sample_surrogate_side_no_mpb_meep_preflight_candidate_separation
+  freeze_manifest_run_dir: runs/20260704/frozen_surrogate_manifest_v2_10000_202607041715
+  pretrain_run_dir: runs/20260704/inverse_mixture_generator_v2_10000_pretrain_202607041725
+  pretrain_best_checkpoint: runs/20260704/inverse_mixture_generator_v2_10000_pretrain_202607041725/model_seed0_lr3em04.pt
+  objective_run_dir: runs/20260704/inverse_mixture_generator_v2_10000_objective_202607041740
+  objective_best_checkpoint: runs/20260704/inverse_mixture_generator_v2_10000_objective_202607041740/objective_model_seed2_lr1em04.pt
+  preflight_target_policy: fixed_seed_test_split_40
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  condition_target: Wh
+  output_repr: rho_wedge
+  target_split: test
+  target_limit: 40
+  target_selection_seed: 20260702
+model:
+  name: mixture_conditional_generator
+  seed: 2
+  seeds:
+    - 2
+  mode_count: 4
+  latent_dim: 32
+  hidden_dim: 256
+  depth: 4
+surrogate:
+  kind: query
+  config_path: configs/research/query_formal_retrain_v2_10000.yaml
+  scaling_experiment_id: query_formal_retrain_v2_10000
+  scale_n: 10000
+  runs_dir: runs
+  seed: 1
+  checkpoint_path: runs/20260702/query_formal_retrain_v2_10000_202607022213/cases/unseen_structure_all_k_fno2d_query_v2_seed1_lr1em03.pt
+  model_name: fno2d_query_v2
+  protocol: unseen_structure_all_k
+  learning_rate: 0.001
+  frozen_manifest_path: runs/20260704/frozen_surrogate_manifest_v2_10000_202607041715/frozen_surrogates.json
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+inverse:
+  train_epochs: 200
+  checkpoint_epochs:
+    - 10
+    - 30
+    - 50
+    - 100
+    - 150
+    - 200
+  learning_rates:
+    - 0.0001
+  train_batch_size: 64
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  learning_rate: 0.0001
+  generator_checkpoint_path: runs/20260704/inverse_mixture_generator_v2_10000_objective_202607041740/objective_model_seed2_lr1em04.pt
+  n_candidates: 128
+  surrogate_top_m: 5
+  threshold: 0.5
+  allow_mock_generator: false
+  allow_mock_surrogate: false
+  candidate_separation:
+    enabled: true
+    deduplicate_binary: true
+    min_hamming: auto_1_over_dim
+  ranking:
+    error_metric: bands_2_10_mre
+    objective:
+      surrogate_weight: 1.0
+      reconstruction_weight: 0.03
+      diversity_weight: 0.2
+      binary_diversity_weight: 0.5
+      latent_response_weight: 0.25
+      collision_weight: 0.9
+      cross_surrogate_weight: 0.2
+      gap_weight: 0.2
+      band_start_one_based: 2
+      n_objective_candidates: 16
+      target_diversity_hamming: 0.05
+      target_binary_diversity_hamming: 0.08
+      target_latent_response_std: 0.04
+      target_nearest_neighbor_hamming: 0.05
+      secondary_surrogate:
+        kind: forward
+        forward_experiment_id: forward_formal_retrain_v2_10000
+        model_name: fno2d_band_v2
+        input_repr: epsilon_grid
+        seed: 2
+        selection_metric: avg_MRE_bands_2_10_pct
+        runs_dir: runs
+        checkpoint_path: runs/20260702/forward_formal_retrain_v2_10000_202607021842/cases/epsilon_grid_fno2d_band_v2_2_lr1em03_seed2/train/model.pt
+        learning_rate: 0.001
+        frozen_manifest_path: runs/20260704/frozen_surrogate_manifest_v2_10000_202607041715/frozen_surrogates.json
+replay:
+  enabled: false
+  note: surrogate-side preflight only; formal MPB replay requires all preflight gates to pass.
+metrics:
+  include:
+    - validity_rate
+    - unique_rate
+    - nearest_neighbor_hamming_p10
+    - largest_duplicate_cluster_fraction
+    - best_of_k_surrogate_mre_bands_2_10
+    - cross_surrogate_disagreement_bands_2_10
+    - candidate_sampling_time_s
+    - surrogate_ranking_time_s
+    - wall_time_total_s
+    - peak_gpu_memory_mb
+output:
+  runs_dir: runs
+  run_dir: runs/20260706/inverse_mixture_generator_v2_10000_objective_sample_separation_202607060848

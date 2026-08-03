@@ -1,0 +1,41 @@
+experiment:
+  experiment_id: fno_forward_profile
+  family: research
+  stage: forward_train
+  profile_only: true
+dataset:
+  path: data/tiny.npz
+  input_repr: epsilon_grid
+  output_target: Wh
+  smoke: true
+model:
+  name: fno_lite
+  defaults_from_registry: true
+  overrides:
+    width: 12
+    depth: 2
+    modes: [4, 5]
+training:
+  epochs: 1
+  batch_size: 4
+  device: auto
+  formal_training: false
+runtime:
+  device: auto
+  require_accelerator: false
+  precision: fp32
+  amp_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+metrics:
+  include:
+    - avg_MRE_bands_2_10_pct
+    - gap_f1
+    - ordering_violation
+    - wall_time_total_s
+    - train_time_s
+    - inference_time_per_sample_ms
+    - throughput_samples_per_s
+output:
+  runs_dir: runs
+  expected_layout: runs/{yyyymmdd}/{experiment_id}_{YYYYMMDDHHmm}

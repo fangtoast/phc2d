@@ -1,0 +1,65 @@
+experiment:
+  experiment_id: forward_model_matrix_gpu_preflight
+  family: smoke
+  stage: forward_benchmark
+dataset:
+  path: data/tiny.npz
+  input_repr: rho_wedge
+  output_target: Wh
+model:
+  candidates:
+    - res_mlp
+    - lifted_cnn
+    - fno_lite
+    - fno2d_band
+  overrides:
+    hidden_dim: 16
+    depth: 1
+    channels: 8
+    width: 8
+    modes: [3, 3]
+    band_modes: [2, 2]
+    fourier_rank: 2
+training:
+  epochs: 1
+  batch_size: 2
+  learning_rate: 0.001
+  seed: 0
+  seeds:
+    - 0
+  device: cuda:0
+  enabled: true
+  execution: train
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+evaluation:
+  split: test
+benchmark:
+  - input_repr: rho_wedge
+    output_target: Wh
+    model: res_mlp
+  - input_repr: rho_grid
+    output_target: Wh
+    model: lifted_cnn
+  - input_repr: epsilon_grid
+    output_target: Wh
+    model: lifted_cnn
+  - input_repr: epsilon_grid
+    output_target: Wh
+    model: fno_lite
+  - input_repr: epsilon_grid
+    output_target: Wh
+    model: fno2d_band
+metrics:
+  relative_error_floor: 1.0e-8
+output:
+  runs_dir: runs

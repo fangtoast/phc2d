@@ -1,0 +1,99 @@
+# 10k guarded V2 query surrogate CUDA neural-only full benchmark.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: query_data_scaling_v2_10000_full
+  family: research
+  stage: query_data_scaling_full_neural_only
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  paths_by_scale:
+    10000: data/query_dataset_v2_pilot_10000_mpb.npz
+  representation: epsilon_grid
+  input_repr: epsilon_grid
+  target: band_query
+  output_target: band_query
+  lazy_queries: true
+
+query:
+  requires_physical_k_coordinates: false
+  allow_index_query: false
+  boundary: neural_surrogate_no_mpb_meep_generated_not_replayed
+  query_id_format: "<sample_id>:<k_path_id>:k_<zero_padded_k_index>"
+
+scaling:
+  sizes:
+    - 10000
+  only_sizes:
+    - 10000
+  require_exact_dataset_size: true
+  pending_gate: complete_full_n10000_query_scaling_neural_only
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  record_peak_memory: true
+  non_blocking_transfer: true
+  num_workers: 0
+  pin_memory: true
+
+training:
+  epochs: 2
+  batch_size: 64
+  learning_rate: 0.001
+  device: cuda:0
+  seeds:
+    - 0
+    - 1
+    - 2
+
+protocols:
+  - unseen_structure_all_k
+  - unseen_structure_k_interpolation
+  - unseen_structure_heldout_segment
+
+model:
+  candidates:
+    - mlp_query
+    - deep_onet_query
+    - fno2d_query
+  overrides:
+    hidden_dim: 64
+    branch_width: 64
+    trunk_width: 64
+    latent_dim: 32
+    width: 16
+    depth: 2
+    modes: [6, 7]
+    query_hidden_dim: 32
+
+metrics:
+  include:
+    - query_mae
+    - query_rmse
+    - query_mre_pct
+    - query_mre_bands_2_10_pct
+    - ordering_violation_rate
+    - first_difference_mae
+    - second_difference_mae
+    - band_continuity_error
+    - wall_time_total_s
+    - train_time_s
+    - eval_time_s
+    - query_inference_time_per_query_ms
+    - throughput_queries_per_s
+    - peak_gpu_memory_mb
+    - parameter_count
+    - trainable_parameter_count
+
+output:
+  runs_dir: runs
+  write_query_report: false
+  write_dataset_audit_report: false

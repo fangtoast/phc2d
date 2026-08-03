@@ -1,0 +1,41 @@
+experiment_id: k_path_physical_validation_5sample
+
+dataset:
+  path: data/paper_like_50k_mpb.npz
+  manifest: data/metadata/paper_like_50k_mpb.manifest.yaml
+  k_path_sidecar: paper_like_square_lattice_gxm_kpath_v1.json
+
+sample_selection:
+  strategy: deterministic_stratified
+  train_count: 2
+  val_count: 1
+  test_count: 2
+  seed: 0
+  rule: first_n_from_embedded_fixed_split_when_strata_metadata_unavailable
+
+solver:
+  backend: mpb
+  environment: wsl_meep_env
+  use_proxy: false
+  lattice: from_dataset_config
+  epsilon_air: from_dataset_config
+  epsilon_material: from_dataset_config
+  geometry_lifting_convention: from_dataset_config_and_historical_generator
+  resolution: from_dataset_config
+  polarization: from_dataset_config
+  num_bands: from_dataset_config
+  eigensolver_tolerance:
+    value:
+    source_path: missing_in_embedded_config_run_meta_and_source_commit_search
+    required: true
+
+comparison:
+  compare_domain: physical_frequency
+  band_1_separate: true
+  record_per_k: true
+  record_per_band: true
+  repeat_first_sample_count: 2
+  accepted_tolerance:
+
+output:
+  runs_dir: runs

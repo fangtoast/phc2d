@@ -1,0 +1,58 @@
+# Validation-only B4 repair candidates.  Test is intentionally absent here.
+experiment:
+  experiment_id: field_eigen_te_pino_b4_repair_validation_9216
+  execution: field_eigen_v2
+  stage: b4_repair_validation_only
+dataset:
+  path: runs/20260720/field_eigen_te_b3_9216_202607201608/field_eigen_te_b3_9216.h5
+  expected_split_records: {train: 6912, val: 1152, test: 1152}
+normalization: {epsilon_range: [1.0, 8.9], k_scale: 0.5, band_range_one_based: [2, 10]}
+representation: {periodic_coordinates: true}
+model:
+  name: fno_field_v2
+  params: {grid_channels: 5, context_dim: 3, field_channels: 6, width: 48, depth: 4, modes: [16, 16], corrected_spectral_modes: true}
+training:
+  regime: pino_adapted
+  epochs: 200
+  batch_size: 16
+  learning_rate: 0.0003
+  minimum_learning_rate: 0.000001
+  weight_decay: 0.00001
+  lr_warmup_epochs: 5
+  early_stopping_patience: 0
+  gradient_clip_norm: 1.0
+  physics_warmup_epochs: 20
+  physics_ramp_epochs: 20
+  lambda_pde: 0.01
+  loss_weights: {field: 1.0, frequency: 0.1, e: 0.5, h: 0.5}
+  physics_frequency_gradient: detach
+  physics_resolutions: [64, 96, 128]
+  # Validation-only calibration from real MPB fields, not model predictions.
+  physics_solver_floor_factors: {"64": 1.0, "96": 1.6675113730849558, "128": 2.479351271327766}
+  physics_solver_floor_reference:
+    audit_run: runs/20260722/field_eigen_te_b4_resolution_reference_audit_202607221300
+    audit_decision_sha256: fee4d0628b5acfced46228d5f60ad3812b7981e9aa49dcdf2920bf827d742459
+    source_split: val
+    source_structure_count: 8
+  dense_frequency_supervision:
+    enabled: true
+    v2_frequency_dataset_path: data/query_dataset_v2_pilot_10000_mpb.npz
+    v2_frequency_dataset_sha256: 991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4
+    k_path_sidecar_path: runs/20260628/query_dataset_v2_pilot_10000_202606281038/k_path_sidecar.json
+    k_path_sidecar_sha256: e92d62d475b46e534ee74c11bd3a587b45d43781ae89863337b7d978c3616e57
+    batch_size: 16
+  checkpoint_epochs: [40, 80, 120, 160, 200]
+  gradient_audit_epochs: [40, 80, 120, 160, 200]
+  select_model: final_epoch
+runtime: {device: "cuda:0", require_accelerator: true, precision: fp32, deterministic: true}
+evaluation: {split: val}
+benchmark:
+  table_filename: repair_validation.csv
+  cases:
+    - {name: P4_dense_k_multires_seed0, training: {seed: 0, rayleigh_consistency_weight: 0.0}}
+    - {name: P4_dense_k_multires_seed1, training: {seed: 1, rayleigh_consistency_weight: 0.0}}
+    - {name: P4_dense_k_multires_seed2, training: {seed: 2, rayleigh_consistency_weight: 0.0}}
+    - {name: P5_rayleigh_consistent_seed0, training: {seed: 0, rayleigh_consistency_weight: 0.05}}
+    - {name: P5_rayleigh_consistent_seed1, training: {seed: 1, rayleigh_consistency_weight: 0.05}}
+    - {name: P5_rayleigh_consistent_seed2, training: {seed: 2, rayleigh_consistency_weight: 0.05}}
+output: {runs_dir: runs}

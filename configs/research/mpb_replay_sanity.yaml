@@ -1,0 +1,23 @@
+experiment:
+  experiment_id: mpb_replay_sanity
+  family: research
+  stage: replay_sanity
+dataset:
+  path: data/paper_like_64_mpb.npz
+  condition_target: Wh
+  target_split: test
+inverse:
+  replay_top_m: 1
+  n_targets: 5
+  target_strata:
+    - easy
+    - hard
+    - high_gap
+    - low_gap
+    - surrogate_disagreement
+replay:
+  candidates_path: ""
+  enabled: true
+  timeout_seconds: 900
+output:
+  runs_dir: runs

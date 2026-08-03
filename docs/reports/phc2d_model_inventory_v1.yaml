@@ -1,0 +1,615 @@
+# Canonical model, method, and evidence inventory for project-wide phc2d reports.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+version: 1
+updated_at: "2026-07-29"
+authority:
+  registry_command: phc2d models list
+  master_report: docs/reports/phc2d_project_full_introduction_20260724.md
+  evidence_index: docs/results/README.md
+status_fields:
+  implementation_status: [implemented, placeholder, configured_only, reference_only]
+  evidence_status: [formal, single_seed, historical, pilot, blocked, no_result]
+notes:
+  - Registration, implementation, training, evaluation, and formal admission are separate claims.
+  - Headline metrics are frozen evidence snapshots; source artifacts remain under ignored runs directories.
+  - Adapted PINO is a training regime on fno_field_v2, not a separate faithful architecture.
+
+entries:
+  - id: mlp
+    display_name: mlp
+    category: neural_model
+    family: mlp
+    task: full_band
+    input_output: rho_wedge -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`mlp`"]
+    implementation: src/phc2d/models/baselines.py
+    configs: [configs/research/a1_forward_mlp_ablation_v1.yaml]
+    result_report: docs/results/forward/a1_forward_query_fair_v1_20260726.md
+    data: {records: 10000, split: "6875/2500/625", seeds: [0, 1, 2]}
+    headline_metrics: {bands_2_10_mre_pct_mean: 2.4763816198, bands_2_10_mre_pct_std: 0.0241266481, parameter_count: 878646, train_time_s_mean: 65.6554197210, inference_ms_per_sample_mean: 0.0073872523}
+    source_artifacts:
+      - {path: runs/20260726/a1_forward_mlp_ablation_v1_202607261605/leaderboard.csv, sha256: 4a7eb27bcd03430ec54e74c2809ddf2f8bb23bb5daa63ee130c0174c4bba2a39}
+    claim_boundary: Formal three-seed neural-surrogate result; not a real-MPB replay result.
+
+  - id: res_mlp
+    display_name: res_mlp
+    category: neural_model
+    family: resmlp
+    task: full_band
+    input_output: rho_wedge -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: historical
+    report_scope: appendix
+    report_tokens: ["`res_mlp`"]
+    implementation: src/phc2d/models/baselines.py
+    configs: [configs/research/forward_band_benchmark_v2_10000.yaml]
+    result_report: docs/results/forward/forward_benchmark_v2_10000_20260629.md
+    data: {records: 10000, split: "6875/2500/625", seeds: [0, 1, 2]}
+    headline_metrics: {bands_2_10_mre_pct_mean_approx: 2.8871}
+    source_artifacts:
+      - {path: runs/20260629/forward_band_benchmark_v2_10000_202606291012/leaderboard.csv, sha256: 285a3b85e509ec36694cd083246c6d59fa297424177b5ce2e8e7e4c0536063e3}
+    claim_boundary: Historical 10k baseline; superseded by the A1 fair protocol.
+
+  - id: res_mlp_wide
+    display_name: res_mlp_wide
+    category: neural_model
+    family: resmlp
+    task: full_band
+    input_output: rho_wedge -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`res_mlp_wide`"]
+    implementation: src/phc2d/models/baselines.py
+    configs: [configs/research/a1_forward_fair_v1.yaml]
+    result_report: docs/results/forward/a1_forward_query_fair_v1_20260726.md
+    data: {records: 10000, split: "6875/2500/625", seeds: [0, 1, 2]}
+    headline_metrics: {bands_2_10_mre_pct_mean: 1.3309294780, bands_2_10_mre_pct_std: 0.0122021975, parameter_count: 878646, train_time_s_mean: 80.9607594660, inference_ms_per_sample_mean: 0.0063616571}
+    source_artifacts:
+      - {path: runs/20260724/a1_forward_fair_v1_202607240020/leaderboard.csv, sha256: 0209f5a3dfad7c802f94b396be60302181ad63bf5e4bfb10027dca72dbb83a65}
+    claim_boundary: Formal three-seed neural-surrogate result; matched residual baseline for mlp.
+
+  - id: pod_res_mlp
+    display_name: pod_res_mlp
+    category: neural_model
+    family: pod_mlp
+    task: full_band
+    input_output: rho_wedge -> Wh
+    registry_status: registered
+    implementation_status: placeholder
+    evidence_status: no_result
+    report_scope: appendix
+    report_tokens: ["`pod_res_mlp`"]
+    implementation: src/phc2d/models/baselines.py
+    configs: []
+    result_report:
+    data: {}
+    headline_metrics: {}
+    source_artifacts: []
+    claim_boundary: POD basis and projection contract are not implemented; never report as trained.
+
+  - id: lifted_cnn
+    display_name: lifted_cnn
+    category: neural_model
+    family: cnn
+    task: full_band
+    input_output: epsilon_grid -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`lifted_cnn`", "Lifted CNN"]
+    implementation: src/phc2d/models/baselines.py
+    configs: [configs/research/a1_forward_fair_v1.yaml]
+    result_report: docs/results/forward/a1_forward_query_fair_v1_20260726.md
+    data: {records: 10000, split: "6875/2500/625", seeds: [0, 1, 2]}
+    headline_metrics: {bands_2_10_mre_pct_mean: 2.2233671347, bands_2_10_mre_pct_std: 0.0366193827, parameter_count: 5458, train_time_s_mean: 39.9717939257, inference_ms_per_sample_mean: 0.0101585845}
+    source_artifacts:
+      - {path: runs/20260724/a1_forward_fair_v1_202607240020/leaderboard.csv, sha256: 0209f5a3dfad7c802f94b396be60302181ad63bf5e4bfb10027dca72dbb83a65}
+    claim_boundary: Formal shallow-CNN baseline; does not generalize to all CNN architectures.
+
+  - id: fno_lite
+    display_name: fno_lite
+    category: neural_model
+    family: neural_operator
+    task: full_band
+    input_output: epsilon_grid -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: historical
+    report_scope: appendix
+    report_tokens: ["`fno_lite`"]
+    implementation: src/phc2d/models/baselines.py
+    configs: [configs/research/forward_band_benchmark_v2_10000.yaml]
+    result_report: docs/results/forward/forward_benchmark_v2_10000_20260629.md
+    data: {records: 10000, split: "6875/2500/625", seeds: [0, 1, 2]}
+    headline_metrics: {bands_2_10_mre_pct_mean_approx: 3.1322}
+    source_artifacts:
+      - {path: runs/20260629/forward_band_benchmark_v2_10000_202606291012/leaderboard.csv, sha256: 285a3b85e509ec36694cd083246c6d59fa297424177b5ce2e8e7e4c0536063e3}
+    claim_boundary: Historical FNO-style baseline; not the current A1 architecture.
+
+  - id: fno2d_band
+    display_name: fno2d_band
+    category: neural_model
+    family: neural_operator
+    task: full_band
+    input_output: epsilon_grid -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: historical
+    report_scope: appendix
+    report_tokens: ["`fno2d_band`"]
+    implementation: src/phc2d/models/baselines.py
+    configs: [configs/research/forward_band_benchmark_v2_10000.yaml]
+    result_report: docs/results/forward/forward_benchmark_v2_10000_20260629.md
+    data: {records: 10000, split: "6875/2500/625", seeds: [0, 1, 2]}
+    headline_metrics: {bands_2_10_mre_pct_mean_approx: 3.0807}
+    source_artifacts:
+      - {path: runs/20260629/forward_band_benchmark_v2_10000_202606291012/leaderboard.csv, sha256: 285a3b85e509ec36694cd083246c6d59fa297424177b5ce2e8e7e4c0536063e3}
+    claim_boundary: Historical project-native band FNO; not the v2 A1 result.
+
+  - id: fno2d_band_v2
+    display_name: fno2d_band_v2
+    category: neural_model
+    family: neural_operator
+    task: full_band
+    input_output: epsilon_grid -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`fno2d_band_v2`"]
+    implementation: src/phc2d/models/baselines.py
+    configs: [configs/research/a1_forward_fair_v1.yaml]
+    result_report: docs/results/forward/a1_forward_query_fair_v1_20260726.md
+    data: {records: 10000, split: "6875/2500/625", seeds: [0, 1, 2]}
+    headline_metrics: {bands_2_10_mre_pct_mean: 1.0299367110, bands_2_10_mre_pct_std: 0.0544646183, parameter_count: 389718, train_time_s_mean: 272.7087238667, inference_ms_per_sample_mean: 0.5266904784}
+    source_artifacts:
+      - {path: runs/20260724/a1_forward_fair_v1_202607240020/leaderboard.csv, sha256: 0209f5a3dfad7c802f94b396be60302181ad63bf5e4bfb10027dca72dbb83a65}
+    claim_boundary: Current formal A1 FNO-inspired spectral encoder; not a faithful standard-FNO reproduction.
+
+  - id: mlp_query
+    display_name: mlp_query
+    category: neural_model
+    family: mlp_query
+    task: query
+    input_output: structure + k -> bands
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`mlp_query`"]
+    implementation: src/phc2d/models/baselines.py
+    configs: [configs/research/a1_query_fair_v1.yaml]
+    result_report: docs/results/forward/a1_forward_query_fair_v1_20260726.md
+    data: {records: 10000, split: "6875/2500/625", seeds: [0, 1, 2]}
+    headline_metrics: {all_k_mre_pct: 2.1800311406, all_k_ordering_violation_pct: 0.8313500597, interpolation_mre_pct: 2.2079047362, interpolation_ordering_violation_pct: 0.4232804233, heldout_mre_pct: 4.2548329035, heldout_ordering_violation_pct: 1.0034567901, parameter_count: 21386, all_k_train_time_s_mean: 842.3900120880, all_k_inference_ms_per_query_mean: 0.0055744630}
+    source_artifacts:
+      - {path: runs/20260724/a1_query_fair_v1_202607240803/leaderboard.csv, sha256: 4fb1a6e7ef11db305d7a7bcd4f5e1b98e12a28f33f9f84367003b7c222c955c5}
+    claim_boundary: Formal three-protocol, three-seed query baseline; no per-epoch history was retained.
+
+  - id: deep_onet_query
+    display_name: deep_onet_query
+    category: neural_model
+    family: deeponet
+    task: query
+    input_output: structure + k -> bands
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: historical
+    report_scope: appendix
+    report_tokens: ["`deep_onet_query`"]
+    implementation: src/phc2d/models/baselines.py
+    configs: [configs/research/query_band_benchmark_gpu_v2.yaml]
+    result_report: docs/results/query/query_benchmark_gpu_v2_20260619.md
+    data: {records: 64, seeds: [0]}
+    headline_metrics: {}
+    source_artifacts:
+      - {path: runs/20260619/query_band_benchmark_gpu_v2_202606191632/leaderboard.csv, sha256: 750791183af90d0923225fa3275a7598ef343616fa9c72e2ea4c0ffae5eac9c1}
+    claim_boundary: Historical small-data query implementation; current main table uses v2.
+
+  - id: deep_onet_query_v2
+    display_name: deep_onet_query_v2
+    category: neural_model
+    family: deeponet
+    task: query
+    input_output: structure + k -> bands
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`deep_onet_query_v2`"]
+    implementation: src/phc2d/models/baselines.py
+    configs: [configs/research/a1_query_fair_v1.yaml]
+    result_report: docs/results/forward/a1_forward_query_fair_v1_20260726.md
+    data: {records: 10000, split: "6875/2500/625", seeds: [0, 1, 2]}
+    headline_metrics: {all_k_mre_pct: 1.7937249740, all_k_ordering_violation_pct: 1.3507287933, interpolation_mre_pct: 1.6307587226, interpolation_ordering_violation_pct: 0.4088888889, heldout_mre_pct: 3.7603993416, heldout_ordering_violation_pct: 0.9896296296, parameter_count: 166666, all_k_train_time_s_mean: 1734.57, all_k_inference_ms_per_query_mean: 0.0097}
+    source_artifacts:
+      - {path: runs/20260724/a1_query_fair_v1_202607240803/leaderboard.csv, sha256: 4fb1a6e7ef11db305d7a7bcd4f5e1b98e12a28f33f9f84367003b7c222c955c5}
+    claim_boundary: DeepONet-style project adaptation, not a faithful literature reproduction.
+
+  - id: fno2d_query
+    display_name: fno2d_query
+    category: neural_model
+    family: neural_operator_query
+    task: query
+    input_output: structure + k -> bands
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: historical
+    report_scope: appendix
+    report_tokens: ["`fno2d_query`"]
+    implementation: src/phc2d/models/baselines.py
+    configs: [configs/research/query_band_benchmark_gpu_v2.yaml]
+    result_report: docs/results/query/query_benchmark_gpu_v2_20260619.md
+    data: {records: 64, seeds: [0]}
+    headline_metrics: {}
+    source_artifacts:
+      - {path: runs/20260619/query_band_benchmark_gpu_v2_202606191632/leaderboard.csv, sha256: 750791183af90d0923225fa3275a7598ef343616fa9c72e2ea4c0ffae5eac9c1}
+    claim_boundary: Historical small-data query implementation; current main table uses v2.
+
+  - id: fno2d_query_v2
+    display_name: fno2d_query_v2
+    category: neural_model
+    family: neural_operator_query
+    task: query
+    input_output: structure + k -> bands
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`fno2d_query_v2`"]
+    implementation: src/phc2d/models/baselines.py
+    configs: [configs/research/a1_query_fair_v1.yaml]
+    result_report: docs/results/forward/a1_forward_query_fair_v1_20260726.md
+    data: {records: 10000, split: "6875/2500/625", seeds: [0, 1, 2]}
+    headline_metrics: {all_k_mre_pct: 1.1004460653, all_k_ordering_violation_pct: 2.9614336918, interpolation_mre_pct: 1.0469709237, interpolation_ordering_violation_pct: 2.1604232804, heldout_mre_pct: 3.6746980349, heldout_ordering_violation_pct: 9.2174485597, parameter_count: 273514, all_k_train_time_s_mean: 3782.5025036947, all_k_inference_ms_per_query_mean: 0.0258756701}
+    source_artifacts:
+      - {path: runs/20260724/a1_query_fair_v1_202607240803/leaderboard.csv, sha256: 4fb1a6e7ef11db305d7a7bcd4f5e1b98e12a28f33f9f84367003b7c222c955c5}
+    claim_boundary: Current formal project-native query spectral encoder; lowest MRE but not lowest ordering violation.
+
+  - id: unet_field
+    display_name: unet_field
+    category: neural_model
+    family: unet
+    task: field
+    input_output: epsilon_grid + context -> TE field
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: historical
+    report_scope: appendix
+    report_tokens: ["`unet_field`"]
+    implementation: src/phc2d/models/field.py
+    configs: [configs/research/near_field_surrogate.yaml]
+    result_report: docs/results/field-physics/field_eigen_te_supervised_baseline_20260720.md
+    data: {records: 1000, split: "750/125/125", seeds: [0, 1, 2]}
+    headline_metrics: {}
+    source_artifacts:
+      - {path: runs/20260720/field_eigen_te_supervised_baseline_202607201328/leaderboard.csv, sha256: 02471295897b53613f09c32dadaface050218a2c737b6635c82d8795311e8749}
+    claim_boundary: Historical v1 field baseline; current main table uses conditioned v2.
+
+  - id: unet_field_v2
+    display_name: unet_field_v2
+    category: neural_model
+    family: unet
+    task: field
+    input_output: periodic grid + (kx,ky,band) -> field + frequency
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`unet_field_v2`"]
+    implementation: src/phc2d/models/field.py
+    configs: [configs/research/field_eigen_te_v2_baseline_9216.yaml]
+    result_report: docs/results/field-physics/field_eigen_te_b3_v2_pino_20260720.md
+    data: {records: 9216, split: "6912/1152/1152", seeds: [0, 1, 2]}
+    headline_metrics: {e_relative_l2_mean: 0.5015, e_relative_l2_std: 0.0091, h_relative_l2_mean: 0.4765, h_relative_l2_std: 0.0079, frequency_mre_pct_mean: 1.7591, frequency_mre_pct_std: 0.0475, maxwell_residual_mean: 2.7183, maxwell_residual_std: 0.2413, parameter_count: 4592263, train_time_s_mean: 6934.2554, inference_ms_per_sample_mean: 2.3000}
+    source_artifacts:
+      - {path: runs/20260720/field_eigen_te_v2_baseline_9216_202607201723/leaderboard.csv, sha256: 035bff2d799e775de33a0873e0281734e274ea1ea5007633bafab4bdf2c7fefc}
+    claim_boundary: Current formal supervised field baseline; not a Full-Wh surrogate and not connected to inverse.
+
+  - id: fno_field
+    display_name: fno_field
+    category: neural_model
+    family: neural_operator
+    task: field
+    input_output: epsilon_grid + context -> TE field
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: historical
+    report_scope: appendix
+    report_tokens: ["`fno_field`"]
+    implementation: src/phc2d/models/field.py
+    configs: [configs/research/near_field_surrogate.yaml]
+    result_report: docs/results/field-physics/field_eigen_te_supervised_baseline_20260720.md
+    data: {records: 1000, split: "750/125/125", seeds: [0, 1, 2]}
+    headline_metrics: {}
+    source_artifacts:
+      - {path: runs/20260720/field_eigen_te_supervised_baseline_202607201328/leaderboard.csv, sha256: 02471295897b53613f09c32dadaface050218a2c737b6635c82d8795311e8749}
+    claim_boundary: Historical v1 field baseline; current main table uses conditioned v2.
+
+  - id: fno_field_v2
+    display_name: fno_field_v2
+    category: neural_model
+    family: neural_operator
+    task: field
+    input_output: periodic grid + (kx,ky,band) -> field + frequency
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`fno_field_v2`"]
+    implementation: src/phc2d/models/field.py
+    configs: [configs/research/field_eigen_te_v2_baseline_9216.yaml]
+    result_report: docs/results/field-physics/field_eigen_te_b3_v2_pino_20260720.md
+    data: {records: 9216, split: "6912/1152/1152", seeds: [0, 1, 2]}
+    headline_metrics: {e_relative_l2_mean: 0.6925, e_relative_l2_std: 0.0048, h_relative_l2_mean: 0.6494, h_relative_l2_std: 0.0023, frequency_mre_pct_mean: 2.8627, frequency_mre_pct_std: 0.3955, maxwell_residual_mean: 6.9342, maxwell_residual_std: 1.1039, parameter_count: 4735399, train_time_s_mean: 1362.8207, inference_ms_per_sample_mean: 0.7134}
+    source_artifacts:
+      - {path: runs/20260720/field_eigen_te_v2_baseline_9216_202607201723/leaderboard.csv, sha256: 035bff2d799e775de33a0873e0281734e274ea1ea5007633bafab4bdf2c7fefc}
+    claim_boundary: Current formal data-only field FNO and shared backbone for adapted PINO.
+
+  - id: train_only_nearest_neighbor
+    display_name: train-only nearest-neighbor retrieval
+    category: inverse_method
+    family: retrieval
+    task: inverse
+    input_output: target Wh -> train-split structures
+    registry_status: not_registered
+    implementation_status: implemented
+    evidence_status: result_withdrawn
+    report_scope: main
+    report_tokens: ["train-only retrieval", "train-only nearest-neighbor"]
+    implementation: src/phc2d/inverse/benchmark.py
+    configs: [configs/research/a2_inverse_single_seed_v1.yaml]
+    result_report: docs/results/inverse/a2_inverse_single_seed_formal_20260727.md
+    data: {targets: 100, split: test, seed: 0}
+    headline_metrics: {replay_mre_pct_mean: 1.5214011879, replay_mre_pct_median: 1.4281320173, surrogate_mre_pct_mean: 1.5170445998, effective_k_mean: 128.0}
+    source_artifacts:
+      - {path: runs/20260726/a2_inverse_single_seed_v1_202607261911/aggregate/results.json, sha256: 71352e6383dbec5b04562b1fda724209de68c90a390e9899544b16c6ad3b144f}
+    claim_boundary: The original reconstruction-only A2 result is withdrawn and may be cited only as historical lineage; the implemented train-split retrieval method still requires a new fair result under the corrected protocol.
+
+  - id: direct_inverse_mlp
+    display_name: direct inverse MLP
+    category: inverse_method
+    family: mlp
+    task: inverse
+    input_output: target Wh -> one structure
+    registry_status: not_registered
+    implementation_status: implemented
+    evidence_status: result_withdrawn
+    report_scope: main
+    report_tokens: ["direct inverse MLP", "`direct_inverse_mlp`"]
+    implementation: src/phc2d/inverse/runner.py
+    configs: [configs/research/a2_inverse_single_seed_v1.yaml]
+    result_report: docs/results/inverse/a2_inverse_single_seed_formal_20260727.md
+    data: {targets: 100, split: test, seed: 0}
+    headline_metrics: {replay_mre_pct_mean: 18.1186831061, replay_mre_pct_median: 17.8247076379, surrogate_mre_pct_mean: 16.9006967788, effective_k_mean: 1.0, parameter_count: 154660}
+    source_artifacts:
+      - {path: runs/20260726/a2_inverse_single_seed_v1_202607261911/aggregate/results.json, sha256: 71352e6383dbec5b04562b1fda724209de68c90a390e9899544b16c6ad3b144f}
+    claim_boundary: The original reconstruction-only A2 result is withdrawn and may be cited only as historical lineage; the implemented deterministic baseline still requires retraining and replay under the corrected protocol.
+
+  - id: single_mode_generator
+    display_name: single-mode latent generator
+    category: inverse_method
+    family: conditional_generator
+    task: inverse
+    input_output: target Wh + z -> candidate structures
+    registry_status: not_registered
+    implementation_status: implemented
+    evidence_status: single_seed_bridge
+    report_scope: main
+    report_tokens: ["single-mode generator", "single-mode latent generator"]
+    implementation: src/phc2d/inverse/runner.py
+    configs: [configs/research/a2_inverse_objective_bridge_seed0_v1.yaml, configs/research/a2_inverse_objective_bridge_seed0_test625_v1.yaml]
+    result_report: docs/results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md
+    data: {adjustment_targets: 100, test_targets: 625, seed: 0}
+    headline_metrics:
+      bridge_100: {replay_mre_pct_mean: 2.3986, replay_mre_pct_median: 2.3195, surrogate_mre_pct_mean: 2.2772, effective_k_mean: 111.55}
+      bridge_625: {replay_mre_pct_mean: 2.2613865905, replay_mre_pct_median: 2.2195924964, surrogate_mre_pct_mean: 2.1434135255, effective_k_mean: 112.0176}
+      withdrawn_a2_100: {replay_mre_pct_mean: 13.1832676135, surrogate_mre_pct_mean: 12.5606176698, effective_k_mean: 18.32}
+    source_artifacts:
+      - {path: runs/20260727/a2_inverse_objective_bridge_seed0_v1_202607271804/aggregate/results.json, sha256: 88fdd16e8f6e70449ff4cb31a85b1f39fae6cd76ade7b0d5faf15a76d9c1ffd8}
+      - {path: runs/20260728/a2_inverse_objective_bridge_seed0_test625_v1_202607280842/aggregate/results.json, sha256: af97717abbd5bc200846aaef583e95d5dfee23cea0370d510e9faa93b593f9e9}
+    withdrawn_source_artifacts:
+      - {path: runs/20260726/a2_inverse_single_seed_v1_202607261911/aggregate/results.json, sha256: 71352e6383dbec5b04562b1fda724209de68c90a390e9899544b16c6ad3b144f}
+    claim_boundary: Current evidence is limited to the corrected objective-bridge seed0 100-target adjustment and test625 replay; the original reconstruction-only A2 metrics are withdrawn and cross-seed stability is not established.
+
+  - id: mixture_conditional_generator
+    display_name: mixture conditional generator
+    category: inverse_method
+    family: conditional_generator
+    task: inverse
+    input_output: target Wh + mode + z -> candidate structures
+    registry_status: not_registered
+    implementation_status: implemented
+    evidence_status: single_seed_bridge
+    report_scope: main
+    report_tokens: ["mixture conditional generator", "mixture generator"]
+    implementation: src/phc2d/inverse/runner.py
+    configs: [configs/research/a2_inverse_objective_bridge_seed0_v1.yaml, configs/research/a2_inverse_objective_bridge_seed0_test625_v1.yaml]
+    result_report: docs/results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md
+    data: {adjustment_targets: 100, test_targets: 625, seed: 0}
+    headline_metrics:
+      bridge_100: {replay_mre_pct_mean: 2.5105, replay_mre_pct_median: 2.4034, surrogate_mre_pct_mean: 2.3534, effective_k_mean: 107.86}
+      bridge_625: {replay_mre_pct_mean: 2.3916195067, replay_mre_pct_median: 2.3281115982, surrogate_mre_pct_mean: 2.2476680984, effective_k_mean: 109.2352}
+      bridge_625_historical_reference: {replay_mre_pct_mean: 3.0775461764, replay_mre_pct_median: 2.6542856515, surrogate_mre_pct_mean: 1.6321535030, effective_k_mean: 115.16, seed: 2}
+      withdrawn_a2_100: {replay_mre_pct_mean: 11.5582368604, surrogate_mre_pct_mean: 10.9433578623, effective_k_mean: 19.68}
+    source_artifacts:
+      - {path: runs/20260727/a2_inverse_objective_bridge_seed0_v1_202607271804/aggregate/results.json, sha256: 88fdd16e8f6e70449ff4cb31a85b1f39fae6cd76ade7b0d5faf15a76d9c1ffd8}
+      - {path: runs/20260728/a2_inverse_objective_bridge_seed0_test625_v1_202607280842/aggregate/results.json, sha256: af97717abbd5bc200846aaef583e95d5dfee23cea0370d510e9faa93b593f9e9}
+    withdrawn_source_artifacts:
+      - {path: runs/20260726/a2_inverse_single_seed_v1_202607261911/aggregate/results.json, sha256: 71352e6383dbec5b04562b1fda724209de68c90a390e9899544b16c6ad3b144f}
+    claim_boundary: Current evidence is limited to the corrected objective-bridge seed0 100-target adjustment and test625 replay; the original reconstruction-only A2 metrics are withdrawn, cross-seed stability is not established, and the model is not a cVAE, diffusion model, normalizing flow, or faithful GLOnet.
+
+  - id: adapted_pino
+    display_name: adapted PINO
+    category: training_regime
+    family: physics_informed_operator
+    task: field
+    input_output: same fno_field_v2 backbone -> field + frequency
+    registry_status: not_registered
+    implementation_status: implemented
+    evidence_status: blocked
+    report_scope: main
+    report_tokens: ["adapted PINO"]
+    implementation: src/phc2d/forward/field_eigen_v2.py
+    configs: [configs/research/field_eigen_te_pino_9216.yaml]
+    result_report: docs/results/field-physics/field_eigen_te_b3_v2_pino_20260720.md
+    data: {records: 9216, split: "6912/1152/1152", seeds: [0, 1, 2]}
+    headline_metrics: {e_relative_l2_mean: 0.6856, e_relative_l2_std: 0.0045, h_relative_l2_mean: 0.6462, h_relative_l2_std: 0.0016, frequency_mre_pct_mean: 3.5716, frequency_mre_pct_std: 0.3507, maxwell_residual_mean: 4.3301, maxwell_residual_std: 0.8327, parameter_count: 4735399, newly_trained_seed_time_s_mean: 1428.5358}
+    source_artifacts:
+      - {path: runs/20260721/field_eigen_te_pino_9216_202607210812/leaderboard.csv, sha256: 369514858c39b0bf5126078bdc77ec223cacee583e6bf84fe787d88cd8b57069}
+    claim_boundary: B3 adapted pilot exists, but B4/P6 inverse admission and physics-aware reranking remain blocked.
+
+  - id: conditional_vae_rho
+    display_name: conditional_vae_rho
+    category: historical_config_alias
+    family: conditional_generator
+    task: inverse
+    input_output: target Wh + z -> structure
+    registry_status: not_registered
+    implementation_status: configured_only
+    evidence_status: historical
+    report_scope: appendix
+    report_tokens: ["`conditional_vae_rho`"]
+    implementation: src/phc2d/inverse/runner.py
+    configs: [configs/research/generative_inverse_v2_10000.yaml]
+    result_report: docs/results/inverse/inverse_retrain_v2_10000_20260706.md
+    data: {}
+    headline_metrics: {}
+    source_artifacts: []
+    claim_boundary: Misleading historical config name; implementation has no posterior encoder or KL loss and is not a cVAE.
+
+  - id: conditional_diffusion_grid
+    display_name: conditional_diffusion_grid
+    category: configured_model
+    family: diffusion
+    task: inverse
+    input_output: target Wh -> candidate grid
+    registry_status: not_registered
+    implementation_status: configured_only
+    evidence_status: no_result
+    report_scope: appendix
+    report_tokens: ["`conditional_diffusion_grid`"]
+    implementation:
+    configs: [configs/research/generative_inverse_diffusion_pilot.yaml]
+    result_report:
+    data: {}
+    headline_metrics: {}
+    source_artifacts: []
+    claim_boundary: Decision-gate configuration only; no formal training and real-MPB replay evidence.
+
+  - id: glonet_style_pilot
+    display_name: GLOnet-style pilot
+    category: training_recipe
+    family: objective_driven_inverse
+    task: inverse
+    input_output: conditional generator + surrogate objective
+    registry_status: not_registered
+    implementation_status: configured_only
+    evidence_status: pilot
+    report_scope: appendix
+    report_tokens: ["GLOnet-style pilot"]
+    implementation: src/phc2d/inverse/runner.py
+    configs: [configs/research/inverse_glonet_pilot_v2_10000.yaml]
+    result_report:
+    data: {}
+    headline_metrics: {}
+    source_artifacts: []
+    claim_boundary: Training recipe reusing the conditional generator; not an independent faithful GLOnet reproduction.
+
+  - id: neurolight_adapted_field
+    display_name: NeurOLight-adapted field
+    category: feasibility_config
+    family: neurolight
+    task: field
+    input_output: grid + context -> field
+    registry_status: not_registered
+    implementation_status: configured_only
+    evidence_status: blocked
+    report_scope: appendix
+    report_tokens: ["NeurOLight"]
+    implementation:
+    configs: [configs/research/neurolight_field_pilot.yaml]
+    result_report:
+    data: {}
+    headline_metrics: {}
+    source_artifacts: []
+    claim_boundary: Feasibility contract only; no result comparable with B3.
+
+  - id: maxwellnet_residual_pilot
+    display_name: MaxwellNet residual pilot
+    category: feasibility_config
+    family: maxwellnet
+    task: field
+    input_output: geometry + source -> driven field
+    registry_status: not_registered
+    implementation_status: configured_only
+    evidence_status: blocked
+    report_scope: appendix
+    report_tokens: ["MaxwellNet"]
+    implementation:
+    configs: [configs/research/maxwellnet_feasibility.yaml]
+    result_report:
+    data: {}
+    headline_metrics: {}
+    source_artifacts: []
+    claim_boundary: Current source-free Bloch eigenproblem cannot be relabelled as the driven MaxwellNet task.
+
+  - id: cinn_flow
+    display_name: cINN / normalizing flow
+    category: reference_model
+    family: normalizing_flow
+    task: inverse
+    input_output: target response + latent -> structure
+    registry_status: not_registered
+    implementation_status: reference_only
+    evidence_status: no_result
+    report_scope: appendix
+    report_tokens: ["cINN/flow", "cINN"]
+    implementation:
+    configs: []
+    result_report:
+    data: {}
+    headline_metrics: {}
+    source_artifacts: []
+    claim_boundary: Literature/reference direction only; no unified-runtime implementation.
+
+  - id: adjoint_diffusion
+    display_name: AdjointDiffusion
+    category: reference_model
+    family: diffusion
+    task: inverse
+    input_output: target response + adjoint guidance -> structure
+    registry_status: not_registered
+    implementation_status: reference_only
+    evidence_status: no_result
+    report_scope: appendix
+    report_tokens: ["AdjointDiffusion"]
+    implementation:
+    configs: []
+    result_report:
+    data: {}
+    headline_metrics: {}
+    source_artifacts: []
+    claim_boundary: Literature/reference direction only; no unified-runtime implementation.
+
+pipeline_components:
+  status: not_counted_as_neural_models
+  registry: src/phc2d/generators/registry.py
+  families:
+    - legacy_random_generator
+    - paper_like_compact_generator
+    - paper_like_parametric_generator
+    - photonic_crystal_unit_cell_generator
+    - morphology_filtered_generator
+    - mixed_dataset_generator

@@ -1,0 +1,28 @@
+# One-record real-MPB preflight for the frozen B1 TE Bloch-eigenfield contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: field_eigen_te_preflight
+  family: research
+  stage: b1_real_mpb_eigenfield_preflight
+
+contract_path: configs/research/field_eigen_te_contract.yaml
+
+source_dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+
+# The 10k source sidecar is a shard-merge record.  Its sampled coordinates are
+# required to match this independently verified physical-k reference exactly.
+k_path_validation:
+  verified_reference_dataset_path: data/query_dataset_v2_pilot_1000_mpb.npz
+
+records:
+  - source_sample_index: 9375
+    k_index: 5
+    band_index_one_based: 2
+
+output:
+  runs_dir: runs
+  field_filename: field_eigen_te_preflight.h5

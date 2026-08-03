@@ -1,0 +1,39 @@
+# Data-only supervised TE eigenfield baseline; no PDE loss or inverse use.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: field_eigen_te_supervised_baseline
+  execution: field_eigen_supervised
+  stage: supervised_field_baseline_pilot
+dataset:
+  path: runs/20260720/field_eigen_te_b1_1000_202607201058/field_eigen_te_b1_1000.h5
+normalization:
+  epsilon_range: [1.0, 8.9]
+  k_scale: 0.5
+  band_range_one_based: [2, 10]
+benchmark:
+  models: [unet_field, fno_field]
+  model_params:
+    unet_field: {input_channels: 4, field_channels: 12, width: 32, depth: 2}
+    fno_field: {input_channels: 4, field_channels: 12, width: 32, depth: 4, modes: [12, 12]}
+model:
+  name: unet_field
+  params: {input_channels: 4, field_channels: 12, width: 32, depth: 2}
+training:
+  seeds: [0, 1, 2]
+  seed: 0
+  epochs: 200
+  batch_size: 64
+  learning_rate: 0.0003
+  weight_decay: 0.00001
+  lambda_pde: 0.0
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  precision: fp32
+evaluation:
+  split: test
+output:
+  runs_dir: runs

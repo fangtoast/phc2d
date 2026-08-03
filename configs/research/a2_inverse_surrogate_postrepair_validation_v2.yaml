@@ -1,0 +1,281 @@
+# Post-repair validation protocol for seven inverse recipes using frozen checkpoints only.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+protocol:
+  id: a2_inverse_surrogate_postrepair_validation_v2
+  version: 2
+  lane: postrepair_validation
+  status: approved_config_ready
+  evidence_status: config_ready_postrepair_validation
+  requested_k: 128
+  smoke_top_m: 2
+  replay_top_m: 5
+  threshold: 0.5
+  minimum_normalized_hamming: auto_1_over_geometry_dof_count
+  selection_split: val
+  final_evaluation_split: val
+  forbid_test_access: true
+  seed: 0
+  prohibit_claims:
+    - pure_surrogate_architecture_ablation
+    - formal_inverse_superiority
+    - cross_seed_stability
+    - pino_or_field_inverse_gain
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  expected_sha256: 991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4
+  expected_split_sizes: {train: 6875, val: 2500, test: 625}
+  target_manifest_path: configs/research/target_manifests/inverse_surrogate_val100_v1.json
+  target_manifest_sha256: 2c8881cd6877b89c72f6793a45af7f8d637b86ff1c167fdb9e099a7276dbd3f3
+  expected_target_count: 100
+  k_path_sha256: c93a2bd90cab1ded0d0d475f52f01b27876850b453f764814ed7bb83a82899a3
+  require_physical_k_coordinates: true
+  require_repeated_gamma_endpoint: true
+  allow_index_query_fallback: false
+
+candidate_protocol:
+  latent_seed: 0
+  latent_id_policy: target_index_plus_candidate_index
+  target_id_policy: manifest_target_index
+  binarization: threshold
+  deduplicate_binary: true
+  hamming_rule: auto_1_over_geometry_dof_count
+  require_shared_target_ids: true
+  require_shared_latent_ids: true
+  require_candidate_lineage: true
+
+withdrawn_checkpoint_denylist:
+  sha256:
+    - 58548c09f995846692201baed26407cfb4486fc5292ddb3d8951c851c21a6aae
+  path_prefixes:
+    - runs/20260726/a2_inverse_single_seed_v1_202607261911
+  reason: first_a2_checkpoint_and_results_withdrawn_lineage_only
+
+common_diagnostic_ranker:
+  id: fno2d_band_v2
+  kind: forward
+  model_name: fno2d_band_v2
+  input_repr: epsilon_grid
+  checkpoint_path: runs/20260724/a1_forward_fair_v1_202607240020/cases/epsilon_grid_fno2d_band_v2_3_lr1em03_seed0/train/model.pt
+  sha256: f82a3add5fce4b95b952cdd26d3fbe3915f0a245ac581ba702e682c0cf13b9ed
+  seed: 0
+  read_only: true
+
+surrogate_matrix:
+  reference_id: fno2d_band_v2
+  comparison_interpretation: seven_inverse_recipes_not_pure_surrogate_architecture_ablation
+  variants:
+    - id: mlp
+      role_group: challenger
+      source_lane: stabilized_cross_surrogate_repair
+      training_config_path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/mlp/config.resolved.yaml
+      training_config_sha256: 76995c6117bf09d97959b69cd544ca6715afdb40b8f19a1f4a1b34ba71cd3737
+      primary_ranker:
+        kind: forward
+        model_name: mlp
+        input_repr: rho_wedge
+        checkpoint_path: runs/20260726/a1_forward_mlp_ablation_v1_202607261605/cases/rho_wedge_mlp_1_lr3em04_seed0/train/model.pt
+        sha256: 78068422aff00819fdc62646cde0ec8d731d45238b2e932779054e9e386c0e65
+        seed: 0
+      generator_checkpoints:
+        - {epoch: 10, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/mlp/objective_checkpoint_epoch_10_seed0.pt, sha256: 3e7a7b78fc54d29fed8ac3c9029fa074d4f698f8338d07e2ef9f4f6512de3779}
+        - {epoch: 30, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/mlp/objective_checkpoint_epoch_30_seed0.pt, sha256: aec007dcaa418ef139a2c35cf47517aa9050655a294f6dd42e1437ace10db702}
+        - {epoch: 50, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/mlp/objective_checkpoint_epoch_50_seed0.pt, sha256: 67822ab75ea8acd480fa5718948de3139a47754d0d06ffdef16def8839a4c70a}
+    - id: res_mlp_wide
+      role_group: challenger
+      source_lane: stabilized_cross_surrogate_repair
+      training_config_path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/res_mlp_wide/config.resolved.yaml
+      training_config_sha256: 1dbdfbfd7fc8944134e2bde39f20b56f490ab763e700b1c7b01036b4593b7472
+      primary_ranker:
+        kind: forward
+        model_name: res_mlp_wide
+        input_repr: rho_wedge
+        checkpoint_path: runs/20260724/a1_forward_fair_v1_202607240020/cases/rho_wedge_res_mlp_wide_1_lr3em04_seed0/train/model.pt
+        sha256: be024b6d3ba9af474cda4088fbaccab78f324449888660e37f18f4e59ad8a4f9
+        seed: 0
+      generator_checkpoints:
+        - {epoch: 10, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/res_mlp_wide/objective_checkpoint_epoch_10_seed0.pt, sha256: a2f4b3446303abd19fcf265f4585076500f5bb8c1bcf13109b2e29a0ec020c69}
+        - {epoch: 30, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/res_mlp_wide/objective_checkpoint_epoch_30_seed0.pt, sha256: 8230a03eee432532ed1940964d409eaca9d1d44c60ad929541f49cd464bb9b25}
+        - {epoch: 50, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/res_mlp_wide/objective_checkpoint_epoch_50_seed0.pt, sha256: ad60938d758d733a9089a4299a2c29337df45c570bd3d4be61099dcdf39476e0}
+    - id: lifted_cnn
+      role_group: challenger
+      source_lane: stabilized_cross_surrogate_repair
+      training_config_path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/lifted_cnn/config.resolved.yaml
+      training_config_sha256: bc5b5a4be09326e6536c4b36aa7698544422d8edfa6623b7375c045b73c41d87
+      primary_ranker:
+        kind: forward
+        model_name: lifted_cnn
+        input_repr: epsilon_grid
+        checkpoint_path: runs/20260724/a1_forward_fair_v1_202607240020/cases/epsilon_grid_lifted_cnn_2_lr1em03_seed0/train/model.pt
+        sha256: 0a6116311cc1d96d4f0efeedd217c0cfa73513f569583c51f5cc27a6a147d16a
+        seed: 0
+      generator_checkpoints:
+        - {epoch: 10, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/lifted_cnn/objective_checkpoint_epoch_10_seed0.pt, sha256: 88fdc3e0ac17ff99a1c7a416a50ae80a5af21a05e32259f8c38e3ec3a36e960f}
+        - {epoch: 30, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/lifted_cnn/objective_checkpoint_epoch_30_seed0.pt, sha256: d93fd70086dfc05bb22f121f9de297b1e82602ea0e8959bf3b1bfaf33fc8b7a0}
+        - {epoch: 50, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/lifted_cnn/objective_checkpoint_epoch_50_seed0.pt, sha256: be22fa0279bfdbdc36090f0265e3b0059b56158ec82de2ab33c89009f9e21e3b}
+    - id: fno2d_band_v2
+      role_group: reference
+      source_lane: primary_only_objective
+      training_config_path: runs/20260731/a2_inverse_all_surrogates_objective_v1_202607311840/objective/fno2d_band_v2/config.resolved.yaml
+      training_config_sha256: c1b7ed32a89530b18752365835339e61a10a3a8da8b9510fd2028558116a71e6
+      primary_ranker:
+        kind: forward
+        model_name: fno2d_band_v2
+        input_repr: epsilon_grid
+        checkpoint_path: runs/20260724/a1_forward_fair_v1_202607240020/cases/epsilon_grid_fno2d_band_v2_3_lr1em03_seed0/train/model.pt
+        sha256: f82a3add5fce4b95b952cdd26d3fbe3915f0a245ac581ba702e682c0cf13b9ed
+        seed: 0
+      generator_checkpoints:
+        - {epoch: 10, path: runs/20260731/a2_inverse_all_surrogates_objective_v1_202607311840/objective/fno2d_band_v2/objective_checkpoint_epoch_10_seed0_lr1em04.pt, sha256: a191f92e297a78e5d0065fab45f2ccc12f1cf522e9ecd4b6ca3bffb95939cc26}
+        - {epoch: 30, path: runs/20260731/a2_inverse_all_surrogates_objective_v1_202607311840/objective/fno2d_band_v2/objective_checkpoint_epoch_30_seed0_lr1em04.pt, sha256: 3d865ae5f1f69614315f56e97beed547705a5eba9d5d30e77439ea32d85bcd2b}
+        - {epoch: 50, path: runs/20260731/a2_inverse_all_surrogates_objective_v1_202607311840/objective/fno2d_band_v2/objective_checkpoint_epoch_50_seed0_lr1em04.pt, sha256: 3a23219ba2fcdd4e991de4b9fd25bd58888fca6a3651268f36b99ed3bcf67740}
+    - id: mlp_query
+      role_group: challenger
+      source_lane: stabilized_cross_surrogate_repair
+      training_config_path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/mlp_query/config.resolved.yaml
+      training_config_sha256: ab4085cf1c0f680952d92adf0f41c20dc26026c689d4b99c57447c3bf53a2188
+      primary_ranker:
+        kind: query
+        model_name: mlp_query
+        input_repr: epsilon_grid
+        protocol: unseen_structure_all_k
+        k_path_sha256: c93a2bd90cab1ded0d0d475f52f01b27876850b453f764814ed7bb83a82899a3
+        checkpoint_path: runs/20260724/a1_query_fair_v1_202607240803/cases/unseen_structure_all_k_mlp_query_seed0_lr3em04.pt
+        sha256: 58159ea377466da172f79c45b04d5921747e8a159bd5a33e70c0602a435bba9f
+        seed: 0
+      generator_checkpoints:
+        - {epoch: 10, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/mlp_query/objective_checkpoint_epoch_10_seed0.pt, sha256: 7286461e47d2772c0329b4d7aa6a6a3c0b3fc46d45784db207b74d2bb557184c}
+        - {epoch: 30, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/mlp_query/objective_checkpoint_epoch_30_seed0.pt, sha256: af9520d3b36ca434cc3d2fe3e69dd97996d5e0758afaa15c1ffd3dd706d58335}
+        - {epoch: 50, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/mlp_query/objective_checkpoint_epoch_50_seed0.pt, sha256: bfd2fef97d6723c6268a2ed04860e16047ffb6ef110896e495765b0e395f9570}
+    - id: deep_onet_query_v2
+      role_group: challenger
+      source_lane: stabilized_cross_surrogate_repair
+      training_config_path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/deep_onet_query_v2/config.resolved.yaml
+      training_config_sha256: 2957a46ea7c7cb53c10081e1caed046f9b6bd31a2b890886e16a54dd2f9d081f
+      primary_ranker:
+        kind: query
+        model_name: deep_onet_query_v2
+        input_repr: epsilon_grid
+        protocol: unseen_structure_all_k
+        k_path_sha256: c93a2bd90cab1ded0d0d475f52f01b27876850b453f764814ed7bb83a82899a3
+        checkpoint_path: runs/20260724/a1_query_fair_v1_202607240803/cases/unseen_structure_all_k_deep_onet_query_v2_seed0_lr3em04.pt
+        sha256: 7548cd41fa78152a274b2cbaadd7d436b0c11953279c409fbfb905e58ca477f8
+        seed: 0
+      generator_checkpoints:
+        - {epoch: 10, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/deep_onet_query_v2/objective_checkpoint_epoch_10_seed0.pt, sha256: d30a37e9eac8ee14d9e5e710f58ed9a3d111f0ab07a0a638a4fa421715d38d1d}
+        - {epoch: 30, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/deep_onet_query_v2/objective_checkpoint_epoch_30_seed0.pt, sha256: be5837a314756b9f64762c37fd4e2a65d76d16cccc0d577544fbc27bace2505e}
+        - {epoch: 50, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/deep_onet_query_v2/objective_checkpoint_epoch_50_seed0.pt, sha256: bc8fea18fd3359f1f27ae76ae51ddc24e887ad46b78b5a05ea7056a62f51ab29}
+    - id: fno2d_query_v2
+      role_group: challenger
+      source_lane: stabilized_cross_surrogate_repair
+      training_config_path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/fno2d_query_v2/config.resolved.yaml
+      training_config_sha256: a91c1dfc0711b2dc4b029f5c53ab196ad7d44dd35b0b1afd5f9eff214b9f6d15
+      primary_ranker:
+        kind: query
+        model_name: fno2d_query_v2
+        input_repr: epsilon_grid
+        protocol: unseen_structure_all_k
+        k_path_sha256: c93a2bd90cab1ded0d0d475f52f01b27876850b453f764814ed7bb83a82899a3
+        checkpoint_path: runs/20260724/a1_query_fair_v1_202607240803/cases/unseen_structure_all_k_fno2d_query_v2_seed0_lr1em03.pt
+        sha256: cda70e75e46085ae4e75906d05e897b0011f714352ac9b0203e01275313a63cc
+        seed: 0
+      generator_checkpoints:
+        - {epoch: 10, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/fno2d_query_v2/objective_checkpoint_epoch_10_seed0.pt, sha256: 194a5d76ad75370fa6a6e3cc01316ee63b282c91eec7c3978404fe52d4fec811}
+        - {epoch: 30, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/fno2d_query_v2/objective_checkpoint_epoch_30_seed0.pt, sha256: ecda5bc1eeb7cc6e7f362916d5cd0d855d3b375452c8b4887519cf259cfd82f2}
+        - {epoch: 50, path: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630/arms/fno2d_query_v2/objective_checkpoint_epoch_50_seed0.pt, sha256: 40643ff261ad6cd93e2c1ee8395c4428d262d268f382d214c376bdea1a617a64}
+
+checkpoint_selection:
+  epochs: [10, 30, 50]
+  hard_gates:
+    validity_rate_min: 1.0
+    effective_k_mean_min: 64
+    effective_k_p10_min: 32
+    continuous_candidate_std_min: 0.04
+    threshold_margin_fraction_max: 0.15
+    latent_gradient_norm_min: 1.0e-12
+    mode_coverage_fraction_min: 1.0
+    require_finite_training_metrics: true
+    require_cuda_no_fallback: true
+  order:
+    - minimum_max_primary_common_mre
+    - minimum_threshold_margin_fraction
+    - minimum_sampling_plus_ranking_time
+    - earliest_epoch
+  blocked_status: blocked_candidate_health
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+solver:
+  num_bands: 10
+  resolution: 64
+  polarization: TE
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  lattice_constant: 1.0
+  eigensolver_tolerance: 1.0e-7
+  grid_shape: [16, 16]
+  band_guard_count: 0
+  band_order_policy: frequency_ascending
+  protocol_sha256: 7cf88f3cddfc6611fa1809b6515ed71b040c86865c1ab7ac97ac62acd1e0388b
+
+smoke:
+  backend: real_mpb
+  target_positions: [0, 25]
+  top_m: 2
+  solver_failure_max: 0
+  require_finite_metrics: true
+  mean_surrogate_replay_gap_max_pct: 5.0
+  conclusion_scope: pipeline_and_obvious_surrogate_exploit_only
+
+pilot:
+  backend: real_mpb
+  target_positions: [0, 1, 2, 3, 4, 25, 26, 27, 28, 29, 50, 51, 52, 53, 54, 75, 76, 77, 78, 79]
+  top_m: 5
+  timeout_seconds: 900
+  theoretical_solve_cap: 700
+  deduplicate_union_by_structure_sha256: true
+  evidence_status_max: single_seed_20_target_pilot
+
+statistics:
+  bootstrap_iterations: 10000
+  bootstrap_seed: 0
+  confidence_level: 0.95
+  paired_by_target: true
+
+promotion:
+  retain_reference: true
+  reference_id: fno2d_band_v2
+  challenger_metric: real_mpb_replay_mean_mre
+  ci_overlap_tie_breaks:
+    - smaller_replay_gap
+    - higher_solver_success
+    - lower_total_runtime
+  no_replacement_message: 暂无证据支持替换 FNO
+
+boundaries:
+  old_screen_status: historical_diagnostic_only
+  old_smoke_status: historical_diagnostic_only
+  first_a2_status: result_withdrawn
+  test100_access_allowed: false
+  test625_access_allowed: false
+  pino_status: blocked
+  field_inverse_status: blocked
+  b4_checkpoint_allowed: false
+  automatic_100_target_or_multiseed_expansion: false
+
+output:
+  runs_dir: runs
+  run_dir: null

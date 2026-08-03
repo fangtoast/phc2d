@@ -1,0 +1,72 @@
+% Problem formulation for the BISON manuscript.
+% Author: fangtoast
+% Email: fangtoast@foxmail.com
+% Copyright (c) 2026 fangtoast. All rights reserved.
+
+\section{Problem Formulation}
+
+Let \(\design\in\{0,1\}^{H\times W}\) denote a binary material layout on a
+square periodic unit cell. The dataset enforces \(\pgroup\) symmetry, and the
+permittivity is
+\begin{equation}
+  \permittivity(\mathbf{x})=\epsilon_{\mathrm{air}}+
+  (\epsilon_{\mathrm{mat}}-\epsilon_{\mathrm{air}})\design(\mathbf{x}).
+  \label{eq:permittivity}
+\end{equation}
+For sampled Bloch vectors
+\(\kpath=\{\mathbf{k}_i\}_{i=1}^{N_k}\), an MPB eigensolve defines the
+forward map
+\begin{equation}
+  \mathcal{F}^{\star}:\permittivity\longmapsto
+  \mathbf{W}=[\omega_{i,b}]\in\mathbb{R}^{N_k\times N_b},
+  \label{eq:physical-forward}
+\end{equation}
+where frequencies are normalized by \(a/(2\pi c)\). BISON learns
+\(\bandop\approx\mathcal{F}^{\star}\) from paired structures and band
+matrices. The implementation reads \(H,W,N_k,N_b\) from the data schema; the
+reported dataset instance has \(H=W=16\), \(N_k=31\), and \(N_b=10\).
+
+Predicting \(\mathbf{W}\) jointly matters for inverse design. A target can
+specify a local gap, a band slope, or a multi-band profile, but each objective
+is evaluated within one ordered eigenspectrum. Independent scalar regressors
+would discard correlations across neighboring wave vectors and bands. BISON
+therefore produces the full \(N_k\times N_b\) matrix in one pass, even though
+the frozen inverse metric later excludes band 1 for numerical reasons.
+
+Given a target \(\bandtarget\), inverse design seeks one or more legal
+structures whose solver response matches that target. A latent conditional
+generator produces
+\begin{equation}
+  \widehat{\design}_{j}=\generator(\bandtarget,\mathbf{z}_j),
+  \qquad \mathbf{z}_j\sim\mathcal{N}(\mathbf{0},\mathbf{I}),
+  \quad j=1,\ldots,K.
+  \label{eq:inverse-generation}
+\end{equation}
+Because multiple structures can realize similar spectra, recovery of the
+paired training geometry is not the objective. We instead evaluate spectral
+realization. For bands \(\mathcal{B}=\{2,\ldots,N_b\}\), the per-target mean
+relative error is
+\begin{equation}
+  \mre(\mathbf{A},\mathbf{B})=
+  \frac{100}{N_k|\mathcal{B}|}
+  \sum_{i=1}^{N_k}\sum_{b\in\mathcal{B}}
+  \frac{|A_{i,b}-B_{i,b}|}{|B_{i,b}|}.
+  \label{eq:mre}
+\end{equation}
+Band 1 is excluded by the frozen protocol because its near-zero values make a
+relative metric ill-conditioned.
+
+The inverse problem is thus not posed as estimating a unique
+\(\mathcal{F}^{\star-1}\). It is a constrained selection problem: sample a set
+of legal geometries, rank them cheaply with learned operators, and spend a
+limited solver budget on the most promising distinct candidates. This
+formulation makes the candidate count \(K\), deduplication rule, and replay
+count part of the experimental definition rather than hidden implementation
+details.
+
+The evaluation has three distinct evidence levels. A
+\emph{surrogate-only} value compares \(\bandop(\widehat{\design})\) with the
+target. A \emph{cross-surrogate audit} additionally compares a second model
+queried at physical \(\mathbf{k}\) coordinates. A \emph{solver-verified}
+value evaluates \(\mpb(\widehat{\design})\). The first two guide search and
+diagnose distribution shift; only the third supports a physical claim.

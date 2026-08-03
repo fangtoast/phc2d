@@ -1,0 +1,51 @@
+# Purpose: Layer-5 near-field feasibility smoke-only pass for HDF5 field data.
+# Author: fangtoast
+
+experiment:
+  experiment_id: near_field_tiny_unet
+  family: smoke
+  stage: field_feasibility
+  gate: field_operator_pilot
+  execution: schema_only
+
+dataset:
+  path: data/field_tiny_mpb.h5
+  input_repr: field_conditioned
+  output_target: near_field_te_tm
+
+model:
+  name: unet_field
+  params:
+    # No active implementation in this layer; this config intentionally runs schema-only.
+    enabled: false
+
+training:
+  enabled: false
+  execution: schema_only
+  epochs: 0
+  batch_size: 1
+  device: auto
+
+runtime:
+  device: auto
+  require_accelerator: false
+  precision: fp32
+  amp_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+
+evaluation:
+  split: test
+
+metrics:
+  relative_error_floor: 1.0e-8
+  include:
+    - relative_l2_field_error
+    - te_relative_l2_field_error
+    - tm_relative_l2_field_error
+    - field_inference_time_s
+    - field_inference_time_per_sample_ms
+
+output:
+  runs_dir: runs
+  report: docs/planning/near_field_feasibility_20260617.md

@@ -1,0 +1,28 @@
+dataset_path: data/query_dataset_v2_pilot_10000_mpb.npz
+dataset_id: query_dataset_v2_pilot_10000_mpb
+dataset_file_hash: 991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4
+Wh_shape:
+- 10000
+- 31
+- 10
+rho_shape:
+- 10000
+- 36
+split:
+  train: 6875
+  val: 2500
+  test: 625
+k_path_sidecar: query_dataset_v2_pilot_10000_mpb.kpath.v1.json
+k_path_hash: c93a2bd90cab1ded0d0d475f52f01b27876850b453f764814ed7bb83a82899a3
+k_points_hash: 6bb7168392d1c36275362dcf1f2dae0d9e2aaeef6f3bcd5c843032489111b19d
+config_hash: b7789fd4520dda8dcc9f31f03c91ec125dee103b3aff711fe387b21b2b9b0c22
+sample_id_policy: stable_generated_id
+sample_metadata: runs/20260628/query_dataset_v2_pilot_10000_sharded_202606281127/merge/sample_metadata.jsonl
+provenance_status: shards_merged
+physical_verification_status: physically_verified_with_documented_numerical_tolerance
+formal_full_2a_allowed: true
+association_note: Merged from independent Query Dataset V2 MPB shards; replay validation
+  is still separate.
+physical_verification_run_id: k_path_physical_validation_v2_10000_a1_202607240017
+physical_verification_run: runs/20260724/k_path_physical_validation_v2_10000_a1_202607240017
+accepted_tolerance: 3.417718090759081e-06

@@ -1,0 +1,78 @@
+# 10k guarded V2 direct inverse baseline: Wh -> rho_wedge.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: direct_inverse_baseline_v2_10000
+  family: research
+  stage: direct_inverse_train_neural_only
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  condition_target: Wh
+  output_repr: rho_wedge
+  target_split: test
+
+model:
+  name: direct_inverse_mlp
+  seed: 0
+  seeds:
+    - 0
+    - 1
+    - 2
+  hidden_dim: 128
+  latent_dim: 1
+
+surrogate:
+  kind: query
+  config_path: configs/research/data_scaling_benchmark_v2_10000_full.yaml
+  scaling_experiment_id: query_data_scaling_v2_10000_full
+  scale_n: 10000
+  runs_dir: runs
+  seed: 0
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+inverse:
+  train_epochs: 10
+  train_batch_size: 64
+  learning_rate: 0.001
+  n_candidates: 1
+  surrogate_top_m: 1
+  candidate_value_range:
+    - 0.0
+    - 1.0
+  threshold: 0.5
+  allow_mock_generator: false
+  allow_mock_surrogate: false
+  morphology_filters:
+    min_fill_fraction: 0.05
+    max_fill_fraction: 0.95
+  ranking:
+    error_metric: bands_2_10_mre
+
+replay:
+  enabled: false
+  note: direct inverse baseline only; real MPB replay must use a separate replay config.
+
+metrics:
+  include:
+    - final_train_loss_mean
+    - train_time_s
+    - wall_time_total_s
+    - resolved_device
+    - peak_gpu_memory_mb
+
+output:
+  runs_dir: runs

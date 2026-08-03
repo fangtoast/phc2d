@@ -1,0 +1,66 @@
+# 10k guarded V2 mixture conditional generator reconstruction pretrain.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: inverse_mixture_generator_v2_10000_pretrain
+  family: research
+  stage: inverse_reconstruction_pretrain_surrogate_free
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  condition_target: Wh
+  output_repr: rho_wedge
+  target_split: test
+
+model:
+  name: mixture_conditional_generator
+  seed: 0
+  seeds: [0, 1, 2]
+  mode_count: 4
+  latent_dim: 32
+  hidden_dim: 256
+  depth: 4
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+inverse:
+  train_epochs: 200
+  checkpoint_epochs: [10, 30, 50, 100, 150, 200]
+  learning_rates: [0.001, 0.0003, 0.0001]
+  train_batch_size: 64
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  learning_rate: 0.001
+  n_candidates: 64
+  surrogate_top_m: 3
+  threshold: 0.5
+  allow_mock_generator: false
+  allow_mock_surrogate: false
+  ranking:
+    error_metric: bands_2_10_mre
+
+replay:
+  enabled: false
+  note: reconstruction pretrain only; no MPB/Meep replay.
+
+metrics:
+  include:
+    - reconstruction_mse
+    - train_time_s
+    - wall_time_total_s
+    - peak_gpu_memory_mb
+
+output:
+  runs_dir: runs

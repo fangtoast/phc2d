@@ -1,0 +1,46 @@
+# Query Dataset V2 N=256 physical validation config.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment_id: k_path_physical_validation_v2_256
+
+dataset:
+  path: data/query_dataset_v2_pilot_256_mpb.npz
+  manifest: data/metadata/query_dataset_v2_pilot_256_mpb.manifest.yaml
+  k_path_sidecar: query_dataset_v2_pilot_256_mpb.kpath.v1.json
+
+sample_selection:
+  strategy: deterministic_stratified
+  train_count: 2
+  val_count: 1
+  test_count: 2
+  seed: 0
+  rule: first_n_from_v2_256_fixed_split_train2_val1_test2
+
+solver:
+  backend: mpb
+  environment: wsl_meep_env
+  use_proxy: false
+  workers: 16
+  min_workers: 12
+  max_workers: 20
+  worker_backend: subprocess
+  fail_fast: true
+  band_order_policy: frequency_ascending
+  worker_thread_env:
+    OMP_NUM_THREADS: "1"
+    OPENBLAS_NUM_THREADS: "1"
+    MKL_NUM_THREADS: "1"
+
+comparison:
+  compare_domain: physical_frequency
+  band_1_separate: true
+  record_per_k: true
+  record_per_band: true
+  repeat_first_sample_count: 2
+  accepted_tolerance:
+
+output:
+  runs_dir: runs
+  promote_verified_sidecar: true

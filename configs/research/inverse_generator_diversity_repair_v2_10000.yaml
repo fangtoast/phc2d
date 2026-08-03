@@ -1,0 +1,114 @@
+# 10k guarded V2 inverse generator diversity and latent-response repair.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: inverse_generator_diversity_repair_v2_10000
+  family: research
+  stage: inverse_objective_train_surrogate_side_no_mpb_meep
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  condition_target: Wh
+  output_repr: rho_wedge
+  target_split: test
+
+model:
+  name: conditional_vae_rho
+  seed: 0
+  seeds:
+    - 0
+    - 1
+    - 2
+  hidden_dim: 128
+  latent_dim: 8
+
+surrogate:
+  kind: query
+  config_path: configs/research/data_scaling_benchmark_v2_10000_full.yaml
+  scaling_experiment_id: query_data_scaling_v2_10000_full
+  scale_n: 10000
+  runs_dir: runs
+  seed: 0
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+inverse:
+  train_epochs: 3
+  train_batch_size: 64
+  learning_rate: 0.0001
+  generator_checkpoint_path: runs/20260630/inverse_generator_anti_exploit_v2_10000_202606301951/model.pt
+  n_candidates: 64
+  surrogate_top_m: 3
+  candidate_value_range:
+    - 0.0
+    - 1.0
+  threshold: 0.5
+  allow_mock_generator: false
+  allow_mock_surrogate: false
+  morphology_filters:
+    min_fill_fraction: 0.05
+    max_fill_fraction: 0.95
+  ranking:
+    error_metric: bands_2_10_mre
+    objective:
+      surrogate_weight: 1.0
+      reconstruction_weight: 0.03
+      cross_surrogate_weight: 0.2
+      gap_weight: 0.2
+      diversity_weight: 0.1
+      binary_diversity_weight: 0.4
+      latent_response_weight: 0.2
+      fill_fraction_weight: 0.01
+      binarization_weight: 0.01
+      total_variation_weight: 0.0
+      band_start_one_based: 2
+      n_objective_candidates: 8
+      target_diversity_hamming: 0.035
+      target_binary_diversity_hamming: 0.06
+      soft_binary_temperature: 0.08
+      soft_binary_threshold: 0.5
+      target_latent_response_std: 0.035
+      gap_temperature: 0.05
+      secondary_surrogate:
+        kind: forward
+        forward_experiment_id: forward_band_benchmark_v2_10000
+        model_name: res_mlp
+        input_repr: rho_wedge
+        seed: 1
+        selection_metric: avg_MRE_bands_2_10_pct
+        runs_dir: runs
+
+replay:
+  enabled: false
+  note: surrogate-side diversity repair only; unique-target MPB replay must be run separately after preflight gates pass.
+
+metrics:
+  include:
+    - final_objective_total_loss_mean
+    - final_surrogate_objective_loss_mean
+    - final_cross_surrogate_disagreement_bands_2_10_mean
+    - final_gap_descriptor_error_mean
+    - final_diversity_hamming_mean
+    - final_binary_diversity_hamming_mean
+    - final_binary_diversity_loss_mean
+    - final_latent_response_std_mean
+    - final_latent_response_loss_mean
+    - train_time_s
+    - wall_time_total_s
+    - resolved_device
+    - peak_gpu_memory_mb
+
+output:
+  runs_dir: runs

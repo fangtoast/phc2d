@@ -1,0 +1,39 @@
+# B3 frozen data-only U-Net/FNO v2 three-seed comparison on 9,216 real-MPB records.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: field_eigen_te_v2_baseline_9216
+  execution: field_eigen_v2
+  stage: supervised_field_baseline_v2
+dataset:
+  path: runs/20260720/field_eigen_te_b3_9216_202607201608/field_eigen_te_b3_9216.h5
+  expected_split_records: {train: 6912, val: 1152, test: 1152}
+normalization: {epsilon_range: [1.0, 8.9], k_scale: 0.5, band_range_one_based: [2, 10]}
+representation: {periodic_coordinates: true}
+model:
+  name: unet_field_v2
+  params: {grid_channels: 5, context_dim: 3, field_channels: 6, width: 48, depth: 3}
+training:
+  regime: data_only
+  seeds: [0, 1, 2]
+  seed: 0
+  epochs: 200
+  batch_size: 16
+  learning_rate: 0.0003
+  minimum_learning_rate: 0.000001
+  weight_decay: 0.00001
+  lr_warmup_epochs: 5
+  early_stopping_patience: 30
+  gradient_clip_norm: 1.0
+  lambda_pde: 0.0
+runtime: {device: "cuda:0", require_accelerator: true, precision: fp32, deterministic: true}
+evaluation: {split: test}
+benchmark:
+  table_filename: leaderboard.csv
+  models: [unet_field_v2, fno_field_v2]
+  model_params:
+    unet_field_v2: {grid_channels: 5, context_dim: 3, field_channels: 6, width: 48, depth: 3}
+    fno_field_v2: {grid_channels: 5, context_dim: 3, field_channels: 6, width: 48, depth: 4, modes: [16, 16], corrected_spectral_modes: true}
+output: {runs_dir: runs}

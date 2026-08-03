@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1080" viewBox="0 0 1600 1080" role="img" aria-labelledby="title desc">
+  <title id="title">候选筛选与可信物理闭环</title>
+  <desc id="desc">从目标能带出发，生成128个连续候选，经二值化、去重、最小Hamming距离和候选健康检查后，使用fno2d_band_v2主代理排序，并用fno2d_query_v2进行交叉一致性门控，选择Top-5进入真实MPB回放，最终选择真实频谱误差最低的候选结构。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#34454f"/>
+    </marker>
+    <marker id="blue-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#2f6f9f"/>
+    </marker>
+    <marker id="orange-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#a85f26"/>
+    </marker>
+    <style>
+      .title{font:700 30px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#17252d}
+      .sub{font:500 17px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .section{font:700 18px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#23343e}
+      .label{font:600 16px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#23343e}
+      .small{font:500 13px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .tiny{font:500 11px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .white-label{font:700 16px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#fff}
+      .panel{fill:#f8fafb;stroke:#cad3d8;stroke-width:1.5}
+      .box{fill:#edf1f3;stroke:#52636d;stroke-width:1.5}
+      .blue{fill:#d8ebf8;stroke:#2f6f9f;stroke-width:1.8}
+      .deep{fill:#5e9fca;stroke:#245b80;stroke-width:1.8}
+      .orange{fill:#fae8cf;stroke:#a85f26;stroke-width:1.8}
+      .green{fill:#dff2e2;stroke:#3f7d4c;stroke-width:1.8}
+      .line{fill:none;stroke:#34454f;stroke-width:2;marker-end:url(#arrow)}
+      .blue-line{fill:none;stroke:#2f6f9f;stroke-width:2.2;marker-end:url(#blue-arrow)}
+      .dash-line{fill:none;stroke:#2f6f9f;stroke-width:2;stroke-dasharray:8 6;marker-end:url(#blue-arrow)}
+      .orange-line{fill:none;stroke:#a85f26;stroke-width:2.2;marker-end:url(#orange-arrow)}
+      .boundary{stroke:#b64342;stroke-width:2;stroke-dasharray:9 7}
+    </style>
+  </defs>
+
+  <rect width="1600" height="1080" fill="#fff"/>
+  <text x="48" y="50" class="title">候选筛选与可信物理闭环：K=128 → Top-5 → real-MPB replay</text>
+  <text x="48" y="82" class="sub">神经网络负责提出候选和缩小搜索空间；只有 Top-5 跨过物理边界，真实 MPB 保留为最终裁判。</text>
+
+  <rect x="36" y="112" width="1528" height="196" rx="16" class="panel"/>
+  <text x="58" y="144" class="section">A　多候选生成 · 每个目标只生成一次候选池</text>
+
+  <g transform="translate(76 178)">
+    <rect x="7" y="7" width="104" height="84" fill="#bdc7cd" stroke="#52636d"/>
+    <rect width="104" height="84" fill="#edf4f8" stroke="#2f6f9f" stroke-width="1.7"/>
+    <path d="M0 21h104M0 42h104M0 63h104M26 0v84M52 0v84M78 0v84" stroke="#a5b7c2"/>
+    <text x="52" y="113" text-anchor="middle" class="small">目标能带 W_h*</text>
+  </g>
+  <path d="M202 220H310" class="line"/>
+
+  <rect x="326" y="169" width="288" height="106" rx="10" class="blue"/>
+  <text x="470" y="202" text-anchor="middle" class="label">mixture conditional generator</text>
+  <text x="470" y="229" text-anchor="middle" class="small">condition encoder + mode + latent z</text>
+  <text x="470" y="253" text-anchor="middle" class="tiny">连续 Sigmoid 输出；训练阶段不调用 MPB</text>
+  <path d="M614 220H720" class="blue-line"/>
+
+  <g transform="translate(742 170)">
+    <rect x="18" y="-12" width="184" height="102" rx="7" fill="#bcc7cd" stroke="#52636d"/>
+    <rect x="9" y="-6" width="184" height="102" rx="7" fill="#d9e0e4" stroke="#52636d"/>
+    <rect width="184" height="102" rx="7" class="blue"/>
+    <text x="92" y="39" text-anchor="middle" class="label">连续候选 ρ_1 … ρ_128</text>
+    <text x="92" y="68" text-anchor="middle" class="small">requested K = 128</text>
+  </g>
+  <path d="M950 220H1054" class="line"/>
+
+  <rect x="1070" y="169" width="208" height="106" rx="10" class="box"/>
+  <text x="1174" y="202" text-anchor="middle" class="label">threshold = 0.5</text>
+  <text x="1174" y="229" text-anchor="middle" class="small">连续值 → 二值结构</text>
+  <text x="1174" y="253" text-anchor="middle" class="tiny">阈值不是 Bloch 波矢 k</text>
+  <path d="M1278 220H1382" class="line"/>
+
+  <g transform="translate(1400 180)">
+    <rect x="10" y="-8" width="112" height="88" fill="#c5cdd1" stroke="#52636d"/>
+    <rect width="112" height="88" fill="#f1f4f5" stroke="#52636d" stroke-width="1.6"/>
+    <path d="M0 22h112M0 44h112M0 66h112M28 0v88M56 0v88M84 0v88" stroke="#9cabb3"/>
+    <text x="56" y="111" text-anchor="middle" class="small">128 个二值候选</text>
+  </g>
+
+  <path d="M1456 304V338" class="line"/>
+
+  <rect x="36" y="342" width="1528" height="204" rx="16" class="panel"/>
+  <text x="58" y="374" class="section">B　候选健康与结构约束 · 先清理候选池，再使用代理模型</text>
+
+  <rect x="84" y="410" width="236" height="92" rx="10" class="box"/>
+  <text x="202" y="443" text-anchor="middle" class="label">binary de-duplication</text>
+  <text x="202" y="471" text-anchor="middle" class="small">删除完全重复的二值结构</text>
+  <path d="M320 456H394" class="line"/>
+
+  <rect x="410" y="410" width="250" height="92" rx="10" class="box"/>
+  <text x="535" y="443" text-anchor="middle" class="label">最小 Hamming 距离约束</text>
+  <text x="535" y="471" text-anchor="middle" class="small">抑制几乎相同的候选</text>
+  <path d="M660 456H734" class="line"/>
+
+  <rect x="750" y="410" width="250" height="92" rx="10" class="box"/>
+  <text x="875" y="443" text-anchor="middle" class="label">validity + morphology</text>
+  <text x="875" y="471" text-anchor="middle" class="small">范围、填充率与形态诊断</text>
+  <path d="M1000 456H1074" class="line"/>
+
+  <rect x="1090" y="398" width="392" height="116" rx="12" class="green"/>
+  <text x="1286" y="431" text-anchor="middle" class="label">effective-K 候选池</text>
+  <text x="1286" y="459" text-anchor="middle" class="small">记录 mean / P10 / min 与 Top-5 coverage</text>
+  <text x="1286" y="486" text-anchor="middle" class="tiny">不足 5 个有效候选时：blocked，不启动 real-MPB pilot</text>
+
+  <path d="M1286 514V570" class="line"/>
+
+  <rect x="36" y="574" width="1528" height="236" rx="16" class="panel"/>
+  <text x="58" y="606" class="section">C　冻结代理筛选 · 主代理负责排序，Query 代理负责交叉一致性</text>
+
+  <g transform="translate(74 642)">
+    <rect x="14" y="-10" width="150" height="100" rx="7" fill="#c5cdd1" stroke="#52636d"/>
+    <rect x="7" y="-5" width="150" height="100" rx="7" fill="#dde3e6" stroke="#52636d"/>
+    <rect width="150" height="100" rx="7" class="green"/>
+    <text x="75" y="42" text-anchor="middle" class="label">effective-K</text>
+    <text x="75" y="68" text-anchor="middle" class="small">合格二值候选</text>
+  </g>
+  <path d="M242 692H316" class="line"/>
+
+  <rect x="332" y="630" width="296" height="96" rx="10" class="blue"/>
+  <text x="480" y="662" text-anchor="middle" class="label">frozen fno2d_band_v2</text>
+  <text x="480" y="689" text-anchor="middle" class="small">主代理 · 预测完整 W_h</text>
+  <text x="480" y="713" text-anchor="middle" class="tiny">按 bands 2–10 MRE 形成主排名</text>
+  <path d="M628 678H724" class="blue-line"/>
+
+  <rect x="332" y="746" width="296" height="48" rx="9" class="blue"/>
+  <text x="480" y="776" text-anchor="middle" class="small">frozen fno2d_query_v2 · all-k 交叉诊断</text>
+  <path d="M628 770H680V728H724" class="dash-line"/>
+
+  <rect x="740" y="628" width="316" height="104" rx="10" class="blue"/>
+  <text x="898" y="659" text-anchor="middle" class="label">一致性、disagreement 与 gap 检查</text>
+  <text x="898" y="687" text-anchor="middle" class="small">抑制只对单一代理“看起来很好”的候选</text>
+  <text x="898" y="713" text-anchor="middle" class="tiny">Query 不是最终物理裁判，也不是等权主 ranker</text>
+  <path d="M1056 680H1140" class="blue-line"/>
+
+  <rect x="1156" y="622" width="326" height="116" rx="12" class="deep"/>
+  <text x="1319" y="660" text-anchor="middle" class="white-label">Top-5 selected candidates</text>
+  <text x="1319" y="690" text-anchor="middle" font-size="13" font-weight="500" fill="#fff">只保留主排名靠前且通过门控的结构</text>
+  <text x="1319" y="716" text-anchor="middle" font-size="11" font-weight="500" fill="#fff">其余候选不调用 MPB</text>
+
+  <path d="M1319 738V836" class="blue-line"/>
+
+  <rect x="36" y="838" width="1528" height="200" rx="16" class="panel"/>
+  <text x="58" y="870" class="section">D　真实物理裁决 · 只有 Top-5 进入 WSL meep_env real-MPB replay</text>
+
+  <g transform="translate(88 908)">
+    <rect x="12" y="-9" width="150" height="88" rx="7" fill="#c5cdd1" stroke="#52636d"/>
+    <rect x="6" y="-4" width="150" height="88" rx="7" fill="#dde3e6" stroke="#52636d"/>
+    <rect width="150" height="88" rx="7" class="blue"/>
+    <text x="75" y="38" text-anchor="middle" class="label">Top-5</text>
+    <text x="75" y="64" text-anchor="middle" class="small">5 个二值候选</text>
+  </g>
+  <path d="M252 950H372" class="blue-line"/>
+
+  <rect x="286" y="876" width="224" height="32" rx="7" fill="#fff5f4" stroke="#b64342" stroke-width="1.4"/>
+  <text x="398" y="897" text-anchor="middle" class="tiny" fill="#b64342">surrogate / physics boundary</text>
+  <line x1="398" y1="908" x2="398" y2="1018" class="boundary"/>
+
+  <rect x="458" y="900" width="272" height="104" rx="12" class="orange"/>
+  <text x="594" y="935" text-anchor="middle" class="label">real MPB × 5</text>
+  <text x="594" y="964" text-anchor="middle" class="small">重新求解每个候选的真实 W_h</text>
+  <text x="594" y="988" text-anchor="middle" class="tiny">solver failure 与运行时间独立记录</text>
+  <path d="M730 952H816" class="orange-line"/>
+
+  <rect x="832" y="900" width="288" height="104" rx="12" class="orange"/>
+  <text x="976" y="935" text-anchor="middle" class="label">比较 W_h^MPB 与目标 W_h*</text>
+  <text x="976" y="964" text-anchor="middle" class="small">计算 bands 2–10 replay MRE</text>
+  <text x="976" y="988" text-anchor="middle" class="tiny">同时报告 surrogate–replay gap</text>
+  <path d="M1120 952H1206" class="orange-line"/>
+
+  <rect x="1222" y="892" width="280" height="120" rx="12" class="green"/>
+  <text x="1362" y="928" text-anchor="middle" class="label">选择 replay 最优结构</text>
+  <text x="1362" y="958" text-anchor="middle" class="small">真实频谱误差最低的候选</text>
+  <text x="1362" y="985" text-anchor="middle" class="tiny">surrogate proposes ≠ physics accepts</text>
+
+  <text x="800" y="1060" text-anchor="middle" class="small">K=128 是候选采样预算；Top-5 是真实求解预算。real-MPB replay 不参与梯度反传。</text>
+</svg>

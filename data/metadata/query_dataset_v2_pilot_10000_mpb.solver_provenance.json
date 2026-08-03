@@ -1,0 +1,29 @@
+{
+  "schema_version": "phc2d.solver_provenance.v1",
+  "dataset_id": "query_dataset_v2_pilot_10000_mpb",
+  "dataset_file_hash": "991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4",
+  "source_code_commit": "241d9b18290dbba9316625a89e4423ed1d271ef0",
+  "source_run_id": "runs/20260628/query_dataset_v2_pilot_10000_sharded_202606281127",
+  "shard_consistency": {
+    "shard_count": 40,
+    "sample_count": 10000,
+    "evidence": "worker_shards sample solve_metadata agrees on solver-critical fields across shard_000 sample 000000 and shard_039 sample 009999; merged dataset config_yaml carries the same canonical solver configuration.",
+    "status": "documented_from_generation_artifacts"
+  },
+  "fields": {
+    "lattice": {"value": "square", "source": "embedded config_yaml solver.lattice", "status": "available"},
+    "reciprocal_basis": {"value": "square reciprocal basis; MPB reduced coordinates", "source": "data/metadata/query_dataset_v2_pilot_10000_mpb.kpath.v1.json", "status": "available"},
+    "epsilon_air": {"value": 1.0, "source": "embedded config_yaml solver.epsilon_air", "status": "available"},
+    "epsilon_material": {"value": 8.9, "source": "embedded config_yaml solver.epsilon_material", "status": "available"},
+    "geometry_lifting_convention": {"value": "p4m_wedge_binary_pixels_as_mpb_blocks_air_background", "source": "embedded config_yaml geometry.lifting and worker solve_metadata.geometry_convention", "status": "available"},
+    "grid_shape": {"value": [16, 16], "source": "embedded config_yaml geometry.grid_shape and worker solve_metadata.grid_shape", "status": "available"},
+    "n_wedge": {"value": 36, "source": "merged dataset rho schema", "status": "available"},
+    "resolution": {"value": 64, "source": "embedded config_yaml solver.resolution and worker solve_metadata.resolution", "status": "available"},
+    "polarization": {"value": "TE", "source": "embedded config_yaml solver.polarization and worker solve_metadata.polarization", "status": "available"},
+    "num_bands": {"value": 10, "source": "embedded config_yaml solver.num_bands and worker solve_metadata.num_bands", "status": "available"},
+    "band_guard_count": {"value": 4, "source": "embedded config_yaml solver.band_guard_count and worker solve_metadata.band_guard_count", "status": "available"},
+    "band_order_policy": {"value": "frequency_ascending", "source": "embedded config_yaml solver.band_order_policy and worker solve_metadata.band_order_policy", "status": "available"},
+    "eigensolver_tolerance": {"value": 1.0e-07, "source": "embedded config_yaml solver.eigensolver_tolerance and worker solve_metadata.eigensolver_tolerance", "status": "available"},
+    "frequency_normalization": {"value": "mpb_dimensionless_a_over_lambda", "source": "embedded config_yaml solver.frequency_normalization", "status": "available"}
+  }
+}

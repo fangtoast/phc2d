@@ -1,0 +1,98 @@
+# 10k guarded V2 full-Wh forward GPU neural-only benchmark.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: forward_band_benchmark_v2_10000
+  family: research
+  stage: forward_benchmark_neural_only
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  input_repr: rho_wedge
+  output_target: Wh
+
+model:
+  candidates:
+    - res_mlp
+    - lifted_cnn
+    - fno_lite
+    - fno2d_band
+  overrides:
+    hidden_dim: 32
+    depth: 2
+    channels: 12
+    width: 12
+    modes: [6, 7]
+    band_modes: [4, 5]
+    fourier_rank: 4
+
+training:
+  epochs: 2
+  batch_size: 8
+  learning_rate: 0.001
+  seed: 0
+  seeds:
+    - 0
+    - 1
+    - 2
+  device: cuda:0
+  enabled: true
+  execution: train
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+evaluation:
+  split: test
+
+benchmark:
+  - input_repr: rho_wedge
+    output_target: Wh
+    model: res_mlp
+  - input_repr: rho_grid
+    output_target: Wh
+    model: lifted_cnn
+  - input_repr: epsilon_grid
+    output_target: Wh
+    model: lifted_cnn
+  - input_repr: epsilon_grid
+    output_target: Wh
+    model: fno_lite
+  - input_repr: epsilon_grid
+    output_target: Wh
+    model: fno2d_band
+
+metrics:
+  include:
+    - mse
+    - mae
+    - rmse
+    - avg_MRE_pct
+    - avg_MRE_bands_2_10_pct
+    - ordering_violation
+    - gap_f1
+    - wall_time_total_s
+    - train_time_s
+    - eval_time_s
+    - inference_time_per_sample_ms
+    - throughput_samples_per_s
+    - peak_gpu_memory_mb
+    - parameter_count
+    - trainable_parameter_count
+    - effective_batch_size
+  relative_error_floor: 1.0e-8
+
+output:
+  runs_dir: runs
+  report: docs/results/forward_benchmark_v2_10000_20260629.md

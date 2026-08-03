@@ -1,0 +1,147 @@
+# A2 single-seed fair inverse benchmark with formal real-MPB replay.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+protocol:
+  id: a2_inverse_single_seed_v1
+  version: 1
+  status: approved_cost_compressed_derivative
+  evidence_status: single_seed_formal_replay
+  parent_protocol: configs/research/baseline_protocol_v1.yaml
+  preserves_parent_history: true
+  seeds: [0]
+  methods:
+    - retrieval
+    - direct_inverse
+    - single_mode_generator
+    - mixture_generator
+  requested_k: 128
+  replay_top_m: 5
+  threshold: 0.5
+  minimum_normalized_hamming: auto_1_over_geometry_dof_count
+  selection_split: val
+  final_evaluation_split: test
+  forbid_test_driven_selection: true
+  prohibit_claims:
+    - cross_seed_stability
+    - universal_significant_superiority
+    - pino_or_field_inverse_gain
+
+baseline_protocol:
+  path: configs/research/baseline_protocol_v1.yaml
+  sha256: 0cbf79013815c9e9e3a9a86124fdc044b88808a1950ae74e55c75ba887c11bd5
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  expected_sha256: 991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4
+  expected_split_sizes:
+    train: 6875
+    val: 2500
+    test: 625
+  target_manifest_path: configs/research/target_manifests/inverse_paired_test100_v1.json
+  target_manifest_sha256: 487dcb317d2cc3367ef514bac5d2b48d6196bdccc307927d2b9df7e053043ed3
+  expected_target_count: 100
+  k_path_sha256: c93a2bd90cab1ded0d0d475f52f01b27876850b453f764814ed7bb83a82899a3
+
+checkpoints:
+  ranking_forward:
+    role: primary_validation_selected_ranker
+    path: runs/20260724/a1_forward_fair_v1_202607240020/cases/epsilon_grid_fno2d_band_v2_3_lr1em03_seed0/train/model.pt
+    sha256: f82a3add5fce4b95b952cdd26d3fbe3915f0a245ac581ba702e682c0cf13b9ed
+    model_name: fno2d_band_v2
+    input_repr: epsilon_grid
+    seed: 0
+  diagnostic_query:
+    role: cross_surrogate_diagnostic_only
+    path: runs/20260724/a1_query_fair_v1_202607240803/cases/unseen_structure_all_k_fno2d_query_v2_seed0_lr1em03.pt
+    sha256: cda70e75e46085ae4e75906d05e897b0011f714352ac9b0203e01275313a63cc
+    model_name: fno2d_query_v2
+    input_repr: epsilon_grid
+    protocol: unseen_structure_all_k
+    seed: 0
+
+methods:
+  retrieval:
+    model_name: train_only_nearest_neighbor
+    library_split: train
+    parameter_count: 0
+  direct_inverse:
+    model_name: direct_inverse_mlp
+    mode_count: 1
+    latent_dim: 1
+    hidden_dim: 256
+    depth: 2
+  single_mode_generator:
+    model_name: mixture_conditional_generator
+    mode_count: 1
+    latent_dim: 32
+    hidden_dim: 256
+    depth: 4
+  mixture_generator:
+    model_name: mixture_conditional_generator
+    mode_count: 4
+    latent_dim: 32
+    hidden_dim: 256
+    depth: 4
+
+training:
+  epochs: 200
+  checkpoint_epochs: [10, 30, 50, 100, 150, 200]
+  learning_rates: [0.001, 0.0003, 0.0001]
+  batch_size: 64
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  validation_target_limit: null
+  serial_gpu_execution: true
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+solver:
+  num_bands: 10
+  resolution: 64
+  polarization: TE
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  lattice_constant: 1.0
+  eigensolver_tolerance: 1.0e-7
+  grid_shape: [16, 16]
+  band_guard_count: 0
+  band_order_policy: frequency_ascending
+  protocol_sha256: 7cf88f3cddfc6611fa1809b6515ed71b040c86865c1ab7ac97ac62acd1e0388b
+
+replay:
+  workers_requested: 8
+  worker_backend: isolated_subprocess
+  fail_fast: true
+  suppress_solver_output: true
+  per_method_solve_cap: 500
+  structure_sha256_cache: true
+  atomic_candidate_shards: true
+  do_not_run_concurrently_with_training: true
+
+statistics:
+  bootstrap_iterations: 10000
+  confidence_level: 0.95
+  paired_test: sign_test
+  mixture_comparisons_holm_corrected: true
+
+boundaries:
+  pino_status: blocked
+  field_inverse_status: blocked
+  physics_aware_rerank_status: blocked
+  b4_checkpoint_allowed: false
+
+output:
+  runs_dir: runs
+  run_dir: null

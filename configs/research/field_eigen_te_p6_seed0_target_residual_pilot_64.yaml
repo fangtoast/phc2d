@@ -1,0 +1,86 @@
+# Validation-only seed-0 target-residual admission diagnostic for frozen P6A/P6B checkpoints.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: field_eigen_te_p6_seed0_target_residual_pilot_64
+  execution: field_eigen_te_p6_seed0_target_residual_pilot
+  stage: p6_seed0_conditional_inverse_admission
+
+source_p6_training:
+  config_path: configs/research/field_eigen_te_pino_p6_target_frequency_9216.yaml
+  config_sha256: bd8e0da8386dfbeb0ff82859495c01fc7924752f086aa40ae68427a54282ad8d
+  run_dir: runs/20260728/field_eigen_te_pino_p6_target_frequency_9216_202607281816
+
+dataset:
+  field_hdf5_path: runs/20260720/field_eigen_te_b3_9216_202607201608/field_eigen_te_b3_9216.h5
+  field_hdf5_sha256: c51e656cc021502b925d54667e0ad356195fe755d1afa7c91752eed10ed9c85c
+  v2_frequency_dataset_path: data/query_dataset_v2_pilot_10000_mpb.npz
+  v2_frequency_dataset_sha256: 991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4
+  k_path_sidecar_path: runs/20260628/query_dataset_v2_pilot_10000_202606281038/k_path_sidecar.json
+  k_path_sidecar_sha256: e92d62d475b46e534ee74c11bd3a587b45d43781ae89863337b7d978c3616e57
+
+normalization:
+  epsilon_range: [1.0, 8.9]
+  k_scale: 0.5
+  band_range_one_based: [2, 10]
+
+runtime:
+  device: "cuda:0"
+  require_accelerator: true
+  precision: fp32
+  deterministic: true
+
+validation_contract:
+  evaluation_split: val
+  allow_test: false
+  required_seeds: [0]
+  pilot_only: true
+  single_seed_inverse_admission_allowed: true
+  formal_three_seed_claim_allowed: false
+
+evaluation:
+  resolution: 64
+  path_index_count: 31
+  unique_coordinate_count: 30
+  structures_per_split: 32
+  batch_size: 64
+  residual_solver_floor_scale: 1.0
+
+statistics:
+  bootstrap_seed: 20260729
+  bootstrap_repeats: 1000
+
+promotion_thresholds:
+  target_residual_calibration:
+    spearman_ci_lower_min_exclusive: 0.0
+    quartile_frequency_mre_reduction_min_pct: 10.0
+
+candidate_model:
+  name: fno_field_v2
+  params:
+    grid_channels: 5
+    context_dim: 3
+    field_channels: 6
+    width: 48
+    depth: 4
+    modes: [16, 16]
+    corrected_spectral_modes: true
+
+candidates:
+  P6A:
+    cases:
+      - name: P6A_target_pde_seed0
+        seed: 0
+        checkpoint_path: runs/20260728/field_eigen_te_pino_p6_target_frequency_9216_202607281816/cases/P6A_target_pde_seed0/model.pt
+        checkpoint_sha256: a6f72eec1e21b7ffb5a75190679a5eccc8da05f5a7beec59d347e8b17ac664b1
+  P6B:
+    cases:
+      - name: P6B_target_pde_rayleigh_seed0
+        seed: 0
+        checkpoint_path: runs/20260728/field_eigen_te_pino_p6_target_frequency_9216_202607281816/cases/P6B_target_pde_rayleigh_seed0/model.pt
+        checkpoint_sha256: 10fd058d4f9187d1367e52c1b9c3d07fb8ad9d20336e760e195b9ed59411f8dd
+
+output:
+  runs_dir: runs

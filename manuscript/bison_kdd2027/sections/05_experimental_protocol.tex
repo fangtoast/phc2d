@@ -1,0 +1,90 @@
+% Experimental protocol for the BISON manuscript.
+% Author: fangtoast
+% Email: fangtoast@foxmail.com
+% Copyright (c) 2026 fangtoast. All rights reserved.
+
+\section{Experimental Protocol}
+
+The experiments answer three questions in sequence. \textbf{RQ1:} Does BISON
+improve complete-band prediction over dense and local-convolution baselines on
+unseen structures? \textbf{RQ2:} Does a coordinate-conditioned operator remain
+reliable when queried between observed points or beyond an observed path
+segment? \textbf{RQ3:} When BISON becomes the inverse objective, do its
+top-ranked candidates retain their advantage after equal-budget MPB replay?
+This order prevents a solver-verified inverse conclusion from being inferred
+from forward validation alone.
+
+\subsection{Dataset and Physical Solver}
+
+We use the project's MPB-generated dataset of 10,000 binary,
+\(\pgroup\)-symmetric unit cells. The geometry grid is \(16\times16\). MPB
+supplies 10 transverse-electric bands at 31 ordered wave-vector points. The
+fixed split contains 6,875 training, 2,500 validation, and 625 test structures;
+all forward, query, and inverse experiments reuse these identities. The solver
+uses \(\epsilon_{\mathrm{air}}=1.0\),
+\(\epsilon_{\mathrm{mat}}=8.9\), lattice constant \(a=1\), resolution 64,
+10 bands, and eigensolver tolerance \(10^{-7}\).
+
+The unit of splitting is a complete structure and its associated band matrix;
+individual wave-vector rows are never distributed across training and test
+sets. The query experiments derive their query partitions within the fixed
+structure identities, so their interpolation and held-segment results test a
+different axis of generalization without changing the structural test set.
+
+\subsection{Forward and Query Comparisons}
+
+The formal forward comparison includes BISON, a wide residual MLP, a lifted
+CNN, and a plain MLP. All methods predict the complete \(31\times10\) band
+matrix from the same input representation or the representation fixed by the
+fair-comparison protocol. Learning rates are selected on the validation split.
+We report mean and standard deviation over seeds 0, 1, and 2, using bands
+2--10 test MRE. Parameter count, training time, inference latency, and peak
+memory are recorded from each run.
+
+For the query task, the input is the structure plus a physical wave vector and
+the output is a 10-band vector. We compare the FNO query model with DeepONet
+and an MLP under three protocols: queries from unseen structures over the full
+path (all-\(k\)); withheld interpolation points; and a held-out contiguous path
+segment. This distinguishes interpolation from geometric extrapolation.
+
+All model selection uses validation data. The test set is reserved for the
+reported estimates, and the same bands-2--10 MRE definition is applied whenever
+a full-band prediction is compared with a full-band target. Band-order
+violations are reported separately in the query task because a low pointwise
+error need not imply a physically ordered predicted spectrum.
+
+\subsection{Inverse Replay Protocol}
+
+The inverse evaluation reuses the frozen seed-0 BISON and query checkpoints.
+No test target is used for checkpoint selection. The complete set of 625 test
+band matrices is evaluated with a fixed pool of 128 candidates and a Top-5 MPB
+replay budget. We compare the proposed one-mode latent generator with the same
+implemented decoder configured with four cyclic mode embeddings. Both have
+latent width 32, hidden width 256, depth four, identical objective weights,
+identical checkpoints-selection rules, and identical replay budgets. Retrieval
+and direct inverse results from an earlier protocol are excluded because they
+were not replayed in this complete-test extension.
+
+This comparison isolates one question: whether multiple fixed mode embeddings
+improve the implemented latent decoder. It is not a comparison against every
+generative inverse-design family in the literature. In particular, the
+one-mode method is neither a deterministic direct inverse nor a mixture of
+experts; it samples a continuous latent distribution and relies on BISON for
+candidate ranking.
+
+MPB replay uses eight isolated worker processes, failure-on-error semantics,
+frequency-ascending band order, and structure-hash caching. We report the best
+of the five replayed candidates for each target. Confidence intervals are
+obtained from 10,000 bootstrap resamples; the paired comparison also uses a
+two-sided sign test.
+
+\subsection{Metrics and Reproducibility Boundary}
+
+Forward values are reported as percentages using Eq.~\eqref{eq:mre}. Inverse
+results include surrogate MRE, real-MPB MRE, their difference in percentage
+points, median replay MRE, and effective unique candidate count. Runtime
+quantities remain separated into candidate sampling, surrogate ranking, and
+solver replay. Formal runs were executed in WSL Ubuntu with the
+\texttt{meep\_env} Conda environment, PyTorch/CUDA in FP32 on an NVIDIA RTX
+4060 Laptop GPU; MPB was invoked through the same environment. Appendix
+\ref{app:provenance} records the artifact hashes and exact claim boundary.

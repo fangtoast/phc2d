@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="760" viewBox="0 0 1500 760" role="img" aria-labelledby="title desc">
+  <title id="title">fno2d_band_v2 网络架构</title>
+  <desc id="desc">上部是横向完整数据流，下部竖向展开单个 BandBlock 的频谱、局部、门控、低秩与残差分支。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#34454f"/>
+    </marker>
+    <marker id="blue-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#2f6f9f"/>
+    </marker>
+    <style>
+      .title{font:700 28px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#17252d}
+      .sub{font:500 17px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .label{font:600 16px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#23343e}
+      .small{font:500 13px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .box{fill:#edf1f3;stroke:#52636d;stroke-width:1.5}
+      .blue{fill:#d8ebf8;stroke:#2f6f9f;stroke-width:1.7}
+      .deep{fill:#5e9fca;stroke:#245b80;stroke-width:1.7}
+      .panel{fill:#f8fafb;stroke:#cbd4d9;stroke-width:1.4}
+      .line{fill:none;stroke:#34454f;stroke-width:1.8;marker-end:url(#arrow)}
+      .blue-line{fill:none;stroke:#2f6f9f;stroke-width:2;marker-end:url(#blue-arrow)}
+    </style>
+  </defs>
+  <rect width="1500" height="760" fill="#fff"/>
+  <text x="50" y="48" class="title">fno2d_band_v2：完整能带的频域结构编码器</text>
+  <text x="50" y="78" class="sub">横向主流程输出 W_h；下方竖向展开项目原生 BandBlock（FNO-inspired，不是标准 FNO 复现）</text>
+
+  <rect x="34" y="104" width="1432" height="260" rx="16" class="panel"/>
+  <g transform="translate(66 163)">
+    <rect x="11" y="-11" width="124" height="124" fill="#b4bcc2" stroke="#52636d"/>
+    <rect x="5" y="-5" width="124" height="124" fill="#d8dde1" stroke="#52636d"/>
+    <rect width="124" height="124" fill="#f5f7f8" stroke="#52636d"/>
+    <path d="M0 31h124M0 62h124M0 93h124M31 0v124M62 0v124M93 0v124" stroke="#a4afb6"/>
+    <rect x="62" y="31" width="31" height="31" fill="#95c0e2" stroke="#2f6f9f"/>
+    <text x="62" y="155" text-anchor="middle" class="label">epsilon_grid</text>
+    <text x="62" y="177" text-anchor="middle" class="small">[B,1,H,W]</text>
+  </g>
+  <path d="M214 226H287" class="line"/>
+  <rect x="300" y="164" width="150" height="122" rx="8" class="blue"/>
+  <text x="375" y="207" text-anchor="middle" class="label">Lifting</text>
+  <text x="375" y="234" text-anchor="middle" class="small">Conv 1×1</text>
+  <text x="375" y="258" text-anchor="middle" class="small">1→32 channels</text>
+  <path d="M450 226H520" class="line"/>
+
+  <g transform="translate(534 143)">
+    <rect x="52" y="-25" width="248" height="166" rx="9" fill="#b7c0c6" stroke="#52636d"/>
+    <rect x="39" y="-13" width="248" height="166" rx="9" fill="#cbd2d6" stroke="#52636d"/>
+    <rect x="26" y="-1" width="248" height="166" rx="9" fill="#dce1e4" stroke="#52636d"/>
+    <rect x="13" y="11" width="248" height="166" rx="9" fill="#e9edef" stroke="#52636d"/>
+    <rect y="23" width="248" height="166" rx="9" class="blue"/>
+    <text x="124" y="76" text-anchor="middle" class="label">BandBlock × 4</text>
+    <text x="124" y="106" text-anchor="middle" class="small">width=32 · H×W 不变</text>
+    <rect x="54" y="126" width="140" height="35" rx="5" class="deep"/>
+    <text x="124" y="149" text-anchor="middle" font-size="13" font-weight="600" fill="#fff">频谱 + 门控 + residual</text>
+  </g>
+  <path d="M847 226H918" class="line"/>
+  <rect x="930" y="164" width="145" height="122" rx="8" class="box"/>
+  <text x="1002" y="207" text-anchor="middle" class="label">Global Pool</text>
+  <text x="1002" y="234" text-anchor="middle" class="small">AdaptiveAvgPool</text>
+  <text x="1002" y="258" text-anchor="middle" class="small">[B,32]</text>
+  <path d="M1075 226H1132" class="line"/>
+  <rect x="1144" y="164" width="142" height="122" rx="8" class="box"/>
+  <text x="1215" y="207" text-anchor="middle" class="label">Band Head</text>
+  <text x="1215" y="234" text-anchor="middle" class="small">Linear 32→|W_h|</text>
+  <text x="1215" y="258" text-anchor="middle" class="small">reshape</text>
+  <path d="M1286 226H1332" class="line"/>
+  <g transform="translate(1342 169)">
+    <rect x="6" y="6" width="84" height="110" fill="#b9c2c7" stroke="#52636d"/>
+    <rect width="84" height="110" fill="#edf4f8" stroke="#2f6f9f" stroke-width="1.7"/>
+    <path d="M0 22h84M0 44h84M0 66h84M0 88h84M21 0v110M42 0v110M63 0v110" stroke="#a5b7c2"/>
+    <text x="42" y="143" text-anchor="middle" class="label">W_h [B,31,10]</text>
+  </g>
+
+  <rect x="112" y="398" width="1276" height="318" rx="16" class="panel"/>
+  <text x="144" y="433" class="label">单个 BandBlock（竖向模块展开）</text>
+  <rect x="160" y="481" width="118" height="72" rx="7" class="box"/>
+  <text x="219" y="510" text-anchor="middle" class="label">输入 X_l</text>
+  <text x="219" y="535" text-anchor="middle" class="small">[B,32,H,W]</text>
+
+  <path d="M278 517H340V475H388" class="line"/>
+  <path d="M278 517H340V559H388" class="line"/>
+  <path d="M278 517H340V650H388" class="line"/>
+
+  <rect x="400" y="447" width="210" height="57" rx="7" class="blue"/>
+  <text x="505" y="470" text-anchor="middle" class="label">SpectralConv</text>
+  <text x="505" y="490" text-anchor="middle" class="small">RFFT → 8×8 + 5×5 complex → iFFT</text>
+  <rect x="400" y="531" width="210" height="57" rx="7" class="box"/>
+  <text x="505" y="555" text-anchor="middle" class="label">Pointwise</text>
+  <text x="505" y="576" text-anchor="middle" class="small">Conv 1×1：32→32</text>
+  <rect x="400" y="622" width="210" height="57" rx="7" class="box"/>
+  <text x="505" y="646" text-anchor="middle" class="label">Low-rank global</text>
+  <text x="505" y="667" text-anchor="middle" class="small">GAP → Linear 32→8→32</text>
+
+  <path d="M610 475H666V515H708" class="line"/>
+  <path d="M610 559H666V515H708" class="line"/>
+  <circle cx="730" cy="515" r="22" class="deep"/>
+  <text x="730" y="523" text-anchor="middle" font-size="25" font-weight="700" fill="#fff">+</text>
+  <path d="M752 515H805" class="line"/>
+  <rect x="818" y="476" width="178" height="78" rx="8" class="blue"/>
+  <text x="907" y="505" text-anchor="middle" class="label">Band Gate</text>
+  <text x="907" y="529" text-anchor="middle" class="small">Conv 1×1 → Sigmoid</text>
+  <path d="M996 515H1043" class="line"/>
+  <circle cx="1065" cy="515" r="22" class="deep"/>
+  <text x="1065" y="522" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">×</text>
+  <path d="M1087 515H1148V569H1187" class="line"/>
+  <path d="M610 650H1148V592H1187" class="line"/>
+  <circle cx="1209" cy="580" r="22" class="deep"/>
+  <text x="1209" y="588" text-anchor="middle" font-size="25" font-weight="700" fill="#fff">+</text>
+  <path d="M1231 580H1276" class="line"/>
+  <rect x="1288" y="540" width="72" height="80" rx="8" class="blue"/>
+  <text x="1324" y="573" text-anchor="middle" class="label">1×1</text>
+  <text x="1324" y="598" text-anchor="middle" class="small">skip</text>
+  <path d="M1360 580H1374V479H1284" class="line"/>
+  <path d="M278 517H310V420H1324V528" class="blue-line"/>
+  <circle cx="1262" cy="479" r="22" class="deep"/>
+  <text x="1262" y="487" text-anchor="middle" font-size="25" font-weight="700" fill="#fff">+</text>
+  <text x="1110" y="444" text-anchor="middle" class="small" fill="#2f6f9f">block identity shortcut</text>
+  <text x="1262" y="516" text-anchor="middle" class="small">GELU 后输出 X_l+1</text>
+</svg>

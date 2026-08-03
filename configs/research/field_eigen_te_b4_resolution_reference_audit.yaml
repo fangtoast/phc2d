@@ -1,0 +1,13 @@
+# Real-MPB validation-only audit of residual comparability across grid resolutions.
+experiment:
+  experiment_id: field_eigen_te_b4_resolution_reference_audit
+  stage: b4_resolution_reference_audit
+b3_selection_manifest_path: runs/20260720/field_eigen_te_b3_9216_202607201608/field_selection_manifest.json
+generation_config_path: configs/research/field_eigen_te_b3_9216.yaml
+selection:
+  validation_source_count: 8
+resolutions: [64, 96, 128]
+decision:
+  base_resolution: 64
+  residual_median_degradation_max_pct: 20.0
+output: {runs_dir: runs}

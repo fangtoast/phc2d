@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="760" viewBox="0 0 1500 760" role="img" aria-labelledby="title desc">
+  <title id="title">fno_field_v2 条件频谱本征场网络架构</title>
+  <desc id="desc">横向展示五通道周期网格经 lifting 和四个条件频谱算子块后分为场头和频率头，下方展开算子块。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#34454f"/>
+    </marker>
+    <marker id="blue-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#2f6f9f"/>
+    </marker>
+    <style>
+      .title{font:700 28px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#17252d}
+      .sub{font:500 17px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .label{font:600 16px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#23343e}
+      .small{font:500 13px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .tiny{font:500 11px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .panel{fill:#f8fafb;stroke:#cad3d8;stroke-width:1.4}
+      .box{fill:#edf1f3;stroke:#52636d;stroke-width:1.5}
+      .blue{fill:#d8ebf8;stroke:#2f6f9f;stroke-width:1.7}
+      .deep{fill:#5e9fca;stroke:#245b80;stroke-width:1.7}
+      .line{fill:none;stroke:#34454f;stroke-width:1.8;marker-end:url(#arrow)}
+      .blue-line{fill:none;stroke:#2f6f9f;stroke-width:2;marker-end:url(#blue-arrow)}
+      .condition{fill:none;stroke:#5e9fca;stroke-width:1.6;stroke-dasharray:6 5;marker-end:url(#blue-arrow)}
+    </style>
+  </defs>
+  <rect width="1500" height="760" fill="#fff"/>
+  <text x="50" y="48" class="title">fno_field_v2：条件频谱算子本征场模型</text>
+  <text x="50" y="78" class="sub">横向主网络保持空间网格；adapted PINO 复用同一主干，只在训练损失中增加物理残差</text>
+
+  <rect x="34" y="104" width="1432" height="280" rx="16" class="panel"/>
+  <g transform="translate(66 174)">
+    <rect x="11" y="-11" width="126" height="126" fill="#b8c1c7" stroke="#52636d"/>
+    <rect x="5" y="-5" width="126" height="126" fill="#d9dee2" stroke="#52636d"/>
+    <rect width="126" height="126" fill="#f3f6f7" stroke="#52636d"/>
+    <path d="M0 31h126M0 63h126M0 94h126M31 0v126M63 0v126M94 0v126" stroke="#a4afb6"/>
+    <text x="63" y="157" text-anchor="middle" class="label">5-channel grid</text>
+    <text x="63" y="179" text-anchor="middle" class="small">[B,5,H,W]</text>
+  </g>
+  <path d="M210 237H282" class="line"/>
+  <rect x="296" y="175" width="150" height="124" rx="8" class="blue"/>
+  <text x="371" y="217" text-anchor="middle" class="label">Lifting</text>
+  <text x="371" y="245" text-anchor="middle" class="small">Conv 1×1：5→48</text>
+  <text x="371" y="270" text-anchor="middle" class="small">[B,48,H,W]</text>
+  <path d="M446 237H518" class="line"/>
+  <g transform="translate(532 154)">
+    <rect x="48" y="-24" width="286" height="164" rx="9" fill="#b8c1c7" stroke="#52636d"/>
+    <rect x="36" y="-12" width="286" height="164" rx="9" fill="#cbd2d6" stroke="#52636d"/>
+    <rect x="24" width="286" height="164" rx="9" fill="#dce2e5" stroke="#52636d"/>
+    <rect x="12" y="12" width="286" height="164" rx="9" fill="#e9edef" stroke="#52636d"/>
+    <rect y="24" width="286" height="164" rx="9" class="blue"/>
+    <text x="143" y="77" text-anchor="middle" class="label">OperatorBlock × 4</text>
+    <text x="143" y="106" text-anchor="middle" class="small">±x 方向 16×16 modes</text>
+    <text x="143" y="131" text-anchor="middle" class="small">local + GroupNorm + FiLM</text>
+    <text x="143" y="156" text-anchor="middle" class="small">residual；H×W 不变</text>
+  </g>
+  <path d="M866 237H934" class="line"/>
+  <circle cx="958" cy="237" r="23" class="deep"/>
+  <text x="958" y="244" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">split</text>
+  <path d="M981 237H1024V177H1068" class="line"/>
+  <path d="M981 237H1024V303H1068" class="line"/>
+  <rect x="1082" y="137" width="246" height="80" rx="8" class="blue"/>
+  <text x="1205" y="166" text-anchor="middle" class="label">field head</text>
+  <text x="1205" y="192" text-anchor="middle" class="small">Conv 1×1 48→48 + GELU + 48→6</text>
+  <rect x="1082" y="263" width="246" height="80" rx="8" class="box"/>
+  <text x="1205" y="292" text-anchor="middle" class="label">frequency head</text>
+  <text x="1205" y="318" text-anchor="middle" class="small">GAP + context：51→48→1</text>
+  <path d="M1328 177H1380" class="line"/>
+  <rect x="1390" y="143" width="60" height="68" rx="7" class="blue"/>
+  <text x="1420" y="172" text-anchor="middle" class="tiny">field</text>
+  <text x="1420" y="192" text-anchor="middle" class="tiny">6 ch</text>
+  <path d="M1328 303H1380" class="line"/>
+  <rect x="1390" y="269" width="60" height="68" rx="7" class="box"/>
+  <text x="1420" y="298" text-anchor="middle" class="tiny">freq</text>
+  <text x="1420" y="318" text-anchor="middle" class="tiny">1</text>
+  <rect x="592" y="340" width="314" height="34" rx="17" class="blue"/>
+  <text x="749" y="362" text-anchor="middle" class="small">context=(k_x,k_y,band) → 每个 FiLM 与 frequency head</text>
+  <path d="M749 340V325H675V319" class="condition"/>
+  <path d="M906 357H1038V303H1068" class="condition"/>
+
+  <rect x="76" y="418" width="1348" height="302" rx="16" class="panel"/>
+  <text x="104" y="453" class="label">单个 OperatorBlock（竖向模块展开）</text>
+  <rect x="112" y="526" width="118" height="72" rx="8" class="box"/>
+  <text x="171" y="555" text-anchor="middle" class="label">输入 X_l</text>
+  <text x="171" y="580" text-anchor="middle" class="small">[B,48,H,W]</text>
+  <path d="M230 562H290V510H338" class="line"/>
+  <path d="M230 562H290V610H338" class="line"/>
+  <rect x="352" y="478" width="276" height="64" rx="8" class="blue"/>
+  <text x="490" y="503" text-anchor="middle" class="label">SpectralConv</text>
+  <text x="490" y="526" text-anchor="middle" class="small">RFFT → positive/negative x modes → iFFT</text>
+  <rect x="352" y="578" width="276" height="64" rx="8" class="box"/>
+  <text x="490" y="603" text-anchor="middle" class="label">Local path</text>
+  <text x="490" y="626" text-anchor="middle" class="small">Conv 1×1：48→48</text>
+  <path d="M628 510H684V552H722" class="line"/>
+  <path d="M628 610H684V568H722" class="line"/>
+  <circle cx="746" cy="560" r="24" class="deep"/>
+  <text x="746" y="568" text-anchor="middle" font-size="25" font-weight="700" fill="#fff">+</text>
+  <path d="M770 560H824" class="line"/>
+  <rect x="838" y="520" width="176" height="80" rx="8" class="blue"/>
+  <text x="926" y="550" text-anchor="middle" class="label">GroupNorm</text>
+  <text x="926" y="576" text-anchor="middle" class="small">FiLM scale + shift</text>
+  <path d="M1014 560H1068" class="line"/>
+  <rect x="1082" y="530" width="110" height="60" rx="8" class="blue"/>
+  <text x="1137" y="567" text-anchor="middle" class="label">GELU</text>
+  <path d="M1192 560H1244" class="line"/>
+  <circle cx="1268" cy="560" r="24" class="deep"/>
+  <text x="1268" y="568" text-anchor="middle" font-size="25" font-weight="700" fill="#fff">+</text>
+  <path d="M230 562H270V448H1268V526" class="blue-line"/>
+  <path d="M1292 560H1346" class="line"/>
+  <rect x="1360" y="525" width="48" height="70" rx="7" class="box"/>
+  <text x="1384" y="554" text-anchor="middle" class="tiny">X</text>
+  <text x="1384" y="574" text-anchor="middle" class="tiny">l+1</text>
+  <rect x="710" y="651" width="432" height="43" rx="8" class="blue"/>
+  <text x="926" y="678" text-anchor="middle" class="small">context R³ → Linear 3→96 → scale/shift，各 block 独立参数</text>
+  <path d="M926 651V612" class="condition"/>
+</svg>

@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="900" viewBox="0 0 1500 900" role="img" aria-labelledby="title desc">
+  <title id="title">三种 Continuous-query 网络架构</title>
+  <desc id="desc">横向比较 mlp_query、deep_onet_query_v2 与 fno2d_query_v2 如何融合结构和二维波矢条件并输出十条能带。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#34454f"/>
+    </marker>
+    <marker id="blue-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#2f6f9f"/>
+    </marker>
+    <style>
+      .title{font:700 28px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#17252d}
+      .sub{font:500 17px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .label{font:600 16px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#23343e}
+      .small{font:500 13px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .tiny{font:500 12px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .panel{fill:#f8fafb;stroke:#cad3d8;stroke-width:1.4}
+      .box{fill:#edf1f3;stroke:#52636d;stroke-width:1.5}
+      .blue{fill:#d8ebf8;stroke:#2f6f9f;stroke-width:1.7}
+      .deep{fill:#5e9fca;stroke:#245b80;stroke-width:1.7}
+      .line{fill:none;stroke:#34454f;stroke-width:1.7;marker-end:url(#arrow)}
+      .blue-line{fill:none;stroke:#2f6f9f;stroke-width:1.9;marker-end:url(#blue-arrow)}
+    </style>
+  </defs>
+  <rect width="1500" height="900" fill="#fff"/>
+  <text x="50" y="48" class="title">Continuous-query：同一结构与 k 条件的三种融合位置</text>
+  <text x="50" y="78" class="sub">所有主流程从左至右；输出均为单个查询点的 ω(k)∈R¹⁰，而不是完整 W_h</text>
+
+  <rect x="34" y="108" width="1432" height="216" rx="16" class="panel"/>
+  <text x="58" y="140" class="label">mlp_query · 输入级早期融合</text>
+  <g transform="translate(72 178)">
+    <rect x="8" y="-8" width="112" height="94" fill="#bec6cb" stroke="#52636d"/>
+    <rect width="112" height="94" fill="#f4f6f7" stroke="#52636d"/>
+    <path d="M0 23h112M0 47h112M0 70h112M28 0v94M56 0v94M84 0v94" stroke="#a5afb5"/>
+    <text x="56" y="121" text-anchor="middle" class="small">vec(ε)：256</text>
+  </g>
+  <rect x="220" y="246" width="112" height="46" rx="6" class="blue"/>
+  <text x="276" y="275" text-anchor="middle" class="label">k=(k_x,k_y)</text>
+  <path d="M192 225H368V216H400" class="line"/>
+  <path d="M332 269H370V232H400" class="blue-line"/>
+  <circle cx="425" cy="224" r="24" class="deep"/>
+  <text x="425" y="230" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">concat</text>
+  <text x="425" y="263" text-anchor="middle" class="small">258</text>
+  <path d="M449 224H535" class="line"/>
+  <g transform="translate(548 158)">
+    <rect width="250" height="132" rx="9" class="blue"/>
+    <text x="125" y="26" text-anchor="middle" class="label">竖向 MLP 层级</text>
+    <rect x="35" y="41" width="180" height="24" rx="4" class="box"/>
+    <rect x="35" y="72" width="180" height="24" rx="4" class="box"/>
+    <rect x="35" y="103" width="180" height="20" rx="4" class="box"/>
+    <text x="125" y="58" text-anchor="middle" class="tiny">Linear 258→64 + GELU</text>
+    <text x="125" y="89" text-anchor="middle" class="tiny">Linear 64→64 + GELU</text>
+    <text x="125" y="118" text-anchor="middle" class="tiny">Linear 64→10</text>
+  </g>
+  <path d="M798 224H1030" class="line"/>
+  <rect x="1044" y="177" width="158" height="94" rx="8" class="box"/>
+  <text x="1123" y="213" text-anchor="middle" class="label">ω(k) band vector</text>
+  <text x="1123" y="242" text-anchor="middle" class="small">[B,10] · 21,386 params</text>
+  <text x="1248" y="215" class="small">无显式局部、频谱</text>
+  <text x="1248" y="238" class="small">或 branch/trunk 偏置</text>
+
+  <rect x="34" y="342" width="1432" height="240" rx="16" class="panel"/>
+  <text x="58" y="375" class="label">deep_onet_query_v2 · Branch/Trunk 乘积融合</text>
+  <g transform="translate(72 431)">
+    <rect x="8" y="-8" width="112" height="94" fill="#bec6cb" stroke="#52636d"/>
+    <rect width="112" height="94" fill="#f4f6f7" stroke="#52636d"/>
+    <path d="M0 23h112M0 47h112M0 70h112M28 0v94M56 0v94M84 0v94" stroke="#a5afb5"/>
+    <text x="56" y="121" text-anchor="middle" class="small">vec(ε)：256</text>
+  </g>
+  <path d="M192 478H282" class="line"/>
+  <g transform="translate(296 407)">
+    <rect width="248" height="142" rx="9" class="blue"/>
+    <text x="124" y="26" text-anchor="middle" class="label">Branch MLP</text>
+    <rect x="30" y="41" width="188" height="24" rx="4" class="box"/>
+    <rect x="30" y="72" width="188" height="24" rx="4" class="box"/>
+    <rect x="30" y="103" width="188" height="24" rx="4" class="box"/>
+    <text x="124" y="58" text-anchor="middle" class="tiny">Linear 256→128 + GELU</text>
+    <text x="124" y="89" text-anchor="middle" class="tiny">3 × Linear 128→128 + GELU</text>
+    <text x="124" y="120" text-anchor="middle" class="tiny">projection → 128</text>
+  </g>
+  <rect x="296" y="556" width="138" height="38" rx="6" class="blue"/>
+  <text x="365" y="581" text-anchor="middle" class="small">k=(k_x,k_y)</text>
+  <path d="M434 575H560" class="blue-line"/>
+  <g transform="translate(574 522)">
+    <rect width="212" height="72" rx="8" class="blue"/>
+    <text x="106" y="28" text-anchor="middle" class="label">Trunk MLP</text>
+    <text x="106" y="52" text-anchor="middle" class="small">2→128 · depth 4 · →128</text>
+  </g>
+  <path d="M544 478H836V489H872" class="line"/>
+  <path d="M786 558H836V505H872" class="blue-line"/>
+  <circle cx="897" cy="497" r="25" class="deep"/>
+  <text x="897" y="505" text-anchor="middle" font-size="25" font-weight="700" fill="#fff">⊙</text>
+  <text x="897" y="535" text-anchor="middle" class="small">Hadamard</text>
+  <path d="M922 497H1004" class="line"/>
+  <rect x="1018" y="453" width="156" height="88" rx="8" class="box"/>
+  <text x="1096" y="487" text-anchor="middle" class="label">band head</text>
+  <text x="1096" y="516" text-anchor="middle" class="small">Linear 128→10 + bias</text>
+  <path d="M1174 497H1238" class="line"/>
+  <rect x="1252" y="453" width="162" height="88" rx="8" class="box"/>
+  <text x="1333" y="487" text-anchor="middle" class="label">ω(k) [B,10]</text>
+  <text x="1333" y="516" text-anchor="middle" class="small">166,666 params</text>
+
+  <rect x="34" y="600" width="1432" height="264" rx="16" class="panel"/>
+  <text x="58" y="633" class="label">fno2d_query_v2 · 频谱结构编码 + query gate</text>
+  <g transform="translate(72 686)">
+    <rect x="8" y="-8" width="112" height="94" fill="#bec6cb" stroke="#52636d"/>
+    <rect width="112" height="94" fill="#f4f6f7" stroke="#52636d"/>
+    <path d="M0 23h112M0 47h112M0 70h112M28 0v94M56 0v94M84 0v94" stroke="#a5afb5"/>
+    <text x="56" y="121" text-anchor="middle" class="small">epsilon_grid</text>
+  </g>
+  <path d="M192 733H250" class="line"/>
+  <rect x="264" y="685" width="130" height="94" rx="8" class="blue"/>
+  <text x="329" y="721" text-anchor="middle" class="label">1×1 lift</text>
+  <text x="329" y="748" text-anchor="middle" class="small">1→32 channels</text>
+  <path d="M394 733H448" class="line"/>
+  <g transform="translate(462 671)">
+    <rect x="36" y="-16" width="220" height="118" rx="8" fill="#b9c1c7" stroke="#52636d"/>
+    <rect x="24" y="-6" width="220" height="118" rx="8" fill="#d0d6da" stroke="#52636d"/>
+    <rect x="12" y="4" width="220" height="118" rx="8" fill="#e3e7e9" stroke="#52636d"/>
+    <rect y="14" width="220" height="118" rx="8" class="blue"/>
+    <text x="110" y="58" text-anchor="middle" class="label">Query FNOBlock × 4</text>
+    <text x="110" y="84" text-anchor="middle" class="small">8×8 spectrum + local 1×1</text>
+    <text x="110" y="107" text-anchor="middle" class="small">GELU · 无 block residual</text>
+  </g>
+  <path d="M730 733H786" class="line"/>
+  <rect x="800" y="685" width="126" height="94" rx="8" class="box"/>
+  <text x="863" y="721" text-anchor="middle" class="label">GAP</text>
+  <text x="863" y="748" text-anchor="middle" class="small">p∈R³²</text>
+  <rect x="725" y="818" width="140" height="36" rx="6" class="blue"/>
+  <text x="795" y="842" text-anchor="middle" class="small">k=(k_x,k_y)</text>
+  <path d="M865 836H932" class="blue-line"/>
+  <rect x="946" y="801" width="202" height="70" rx="8" class="blue"/>
+  <text x="1047" y="828" text-anchor="middle" class="label">query encoder</text>
+  <text x="1047" y="852" text-anchor="middle" class="small">2→64→32 · Sigmoid gate g</text>
+  <path d="M926 733H982V742H1014" class="line"/>
+  <path d="M1148 836H1180V758H1062" class="blue-line"/>
+  <circle cx="1038" cy="742" r="24" class="deep"/>
+  <text x="1038" y="749" text-anchor="middle" font-size="22" font-weight="700" fill="#fff">×</text>
+  <path d="M1062 742H1110V704H1164" class="line"/>
+  <path d="M926 733H1110V720H1164" class="line"/>
+  <circle cx="1189" cy="712" r="25" class="deep"/>
+  <text x="1189" y="718" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">concat</text>
+  <text x="1189" y="747" text-anchor="middle" class="small">[p;p⊙g]：64</text>
+  <path d="M1214 712H1260" class="line"/>
+  <rect x="1274" y="666" width="154" height="92" rx="8" class="box"/>
+  <text x="1351" y="699" text-anchor="middle" class="label">head 64→64→10</text>
+  <text x="1351" y="727" text-anchor="middle" class="small">ω(k) [B,10]</text>
+  <text x="1351" y="750" text-anchor="middle" class="tiny">273,514 params</text>
+</svg>

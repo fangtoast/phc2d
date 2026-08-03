@@ -1,0 +1,58 @@
+experiment:
+  experiment_id: representation_ablation
+  family: research
+  stage: forward_benchmark
+  profile_only: true
+dataset:
+  path: data/paper_like_64_mpb.npz
+  raw_sample_id: index
+  input_repr: rho_wedge
+  output_target: Wh
+  smoke: true
+benchmark:
+  - input_repr: rho_wedge
+    model: res_mlp
+    output_target: Wh
+  - input_repr: rho_grid
+    model: lifted_cnn
+    output_target: Wh
+  - input_repr: epsilon_grid
+    model: lifted_cnn
+    output_target: Wh
+  - input_repr: epsilon_grid
+    model: fno_lite
+    output_target: Wh
+model:
+  candidates:
+    - res_mlp
+    - lifted_cnn
+    - fno_lite
+  overrides:
+    hidden_dim: 16
+    depth: 2
+    width: 12
+    channels: 8
+    modes: [6, 6]
+training:
+  epochs: 1
+  batch_size: 4
+  device: auto
+  formal_training: false
+runtime:
+  device: auto
+  require_accelerator: false
+  precision: fp32
+  amp_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+metrics:
+  include:
+    - avg_MRE_bands_2_10_pct
+    - wall_time_total_s
+    - train_time_s
+    - eval_time_s
+    - inference_time_per_sample_ms
+    - throughput_samples_per_s
+output:
+  runs_dir: runs
+  expected_layout: runs/{yyyymmdd}/{experiment_id}_{YYYYMMDDHHmm}

@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="520" viewBox="0 0 1440 520" role="img" aria-labelledby="title desc">
+  <title id="title">Lifted CNN 网络架构</title>
+  <desc id="desc">横向展示 epsilon_grid 经过两层三乘三卷积、全局平均池化和线性输出头得到完整能带矩阵。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#34454f"/>
+    </marker>
+    <style>
+      .title{font:700 28px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#17252d}
+      .sub{font:500 17px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .label{font:600 17px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#23343e}
+      .small{font:500 14px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .box{fill:#eef2f4;stroke:#52636d;stroke-width:1.5}
+      .blue{fill:#d6eaf8;stroke:#2f6f9f;stroke-width:1.7}
+      .line{fill:none;stroke:#34454f;stroke-width:1.8;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1440" height="520" fill="#fff"/>
+  <text x="52" y="50" class="title">lifted_cnn：浅层局部卷积基线</text>
+  <text x="52" y="80" class="sub">整体数据流横向展开；特征图用二维平面堆叠表示，空间分辨率始终保持 H × W</text>
+
+  <g transform="translate(62 176)">
+    <rect x="12" y="-12" width="150" height="150" fill="#b9c1c7" stroke="#52636d"/>
+    <rect x="6" y="-6" width="150" height="150" fill="#d9dee2" stroke="#52636d"/>
+    <rect width="150" height="150" fill="#f6f7f8" stroke="#52636d" stroke-width="1.6"/>
+    <path d="M0 30h150M0 60h150M0 90h150M0 120h150M30 0v150M60 0v150M90 0v150M120 0v150" stroke="#a3adb3"/>
+    <rect x="60" y="60" width="30" height="30" fill="#8ebbe0" stroke="#2f6f9f"/>
+    <text x="75" y="183" text-anchor="middle" class="label">epsilon_grid</text>
+    <text x="75" y="205" text-anchor="middle" class="small">[B,1,H,W]；A1 为 16×16</text>
+  </g>
+  <path d="M238 248H318" class="line"/>
+
+  <g transform="translate(335 158)">
+    <rect x="44" y="-22" width="168" height="168" fill="#aeb7bd" stroke="#52636d"/>
+    <rect x="36" y="-16" width="168" height="168" fill="#bdc5ca" stroke="#52636d"/>
+    <rect x="28" y="-10" width="168" height="168" fill="#cbd1d5" stroke="#52636d"/>
+    <rect x="20" y="-4" width="168" height="168" fill="#d9dee2" stroke="#52636d"/>
+    <rect x="12" y="2" width="168" height="168" fill="#e5e9ec" stroke="#52636d"/>
+    <rect x="4" y="8" width="168" height="168" fill="#f1f3f4" stroke="#2f6f9f" stroke-width="1.7"/>
+    <rect x="68" y="63" width="42" height="42" fill="#98c3e5" stroke="#2f6f9f"/>
+    <text x="107" y="209" text-anchor="middle" class="label">Conv2d 1→12</text>
+    <text x="107" y="231" text-anchor="middle" class="small">3×3 · padding 1 · GELU</text>
+  </g>
+  <path d="M565 248H630" class="line"/>
+
+  <g transform="translate(645 174)">
+    <rect x="34" y="-18" width="134" height="134" fill="#aeb7bd" stroke="#52636d"/>
+    <rect x="27" y="-12" width="134" height="134" fill="#bdc5ca" stroke="#52636d"/>
+    <rect x="20" y="-6" width="134" height="134" fill="#cbd1d5" stroke="#52636d"/>
+    <rect x="13" width="134" height="134" fill="#d9dee2" stroke="#52636d"/>
+    <rect x="6" y="6" width="134" height="134" fill="#e6eaec" stroke="#52636d"/>
+    <rect y="12" width="134" height="134" fill="#f2f4f5" stroke="#2f6f9f" stroke-width="1.7"/>
+    <rect x="82" y="82" width="36" height="36" fill="#98c3e5" stroke="#2f6f9f"/>
+    <text x="78" y="183" text-anchor="middle" class="label">Conv2d 12→12</text>
+    <text x="78" y="205" text-anchor="middle" class="small">3×3 · padding 1 · GELU</text>
+  </g>
+  <path d="M824 248H884" class="line"/>
+
+  <g transform="translate(900 153)">
+    <rect width="120" height="190" rx="8" class="blue"/>
+    <rect x="25" y="35" width="70" height="12" fill="#9cc7e5"/>
+    <rect x="25" y="57" width="70" height="12" fill="#9cc7e5"/>
+    <rect x="25" y="79" width="70" height="12" fill="#9cc7e5"/>
+    <circle cx="60" cy="118" r="7" fill="#2f6f9f"/>
+    <text x="60" y="147" text-anchor="middle" class="label">GAP</text>
+    <text x="60" y="171" text-anchor="middle" class="small">[B,12]</text>
+  </g>
+  <path d="M1020 248H1076" class="line"/>
+  <rect x="1090" y="184" width="150" height="126" rx="8" class="box"/>
+  <text x="1165" y="220" text-anchor="middle" class="label">线性输出头</text>
+  <text x="1165" y="248" text-anchor="middle" class="small">Linear 12→|W_h|</text>
+  <text x="1165" y="275" text-anchor="middle" class="small">A1：12→310</text>
+  <path d="M1240 248H1290" class="line"/>
+  <g transform="translate(1300 190)">
+    <rect x="7" y="7" width="88" height="112" fill="#bbc3c8" stroke="#52636d"/>
+    <rect x="3" y="3" width="88" height="112" fill="#d9dee2" stroke="#52636d"/>
+    <rect width="88" height="112" fill="#edf4f8" stroke="#2f6f9f" stroke-width="1.7"/>
+    <path d="M0 22h88M0 44h88M0 66h88M0 88h88M22 0v112M44 0v112M66 0v112" stroke="#a5b7c2"/>
+    <text x="44" y="145" text-anchor="middle" class="label">W_h</text>
+  </g>
+  <rect x="330" y="438" width="780" height="38" rx="19" fill="#f0f5f8"/>
+  <text x="720" y="463" text-anchor="middle" class="small">无下采样 · 无残差 · 无归一化 · 零填充 · 约 5×5 感受野 · 5,458 parameters</text>
+</svg>

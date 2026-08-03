@@ -1,0 +1,36 @@
+# Query Dataset V2 smoke physical validation config.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment_id: k_path_physical_validation_v2_smoke
+
+dataset:
+  path: runs/20260619/query_dataset_v2_pilot_64_202606191621/query_dataset_v2_pilot_64_mpb_smoke_5.npz
+  manifest: runs/20260619/query_dataset_v2_pilot_64_202606191621/metadata/query_dataset_v2_pilot_64_mpb_smoke_5.manifest.yaml
+  k_path_sidecar: query_dataset_v2_pilot_64_mpb_smoke_5.kpath.v1.json
+
+sample_selection:
+  strategy: all_available_smoke_samples
+  train_count: 4
+  val_count: 1
+  test_count: 0
+  seed: 0
+  rule: all_available_v2_smoke_samples_train4_val1_test0
+
+solver:
+  backend: mpb
+  environment: wsl_meep_env
+  use_proxy: false
+  provenance_path: runs/20260619/query_dataset_v2_pilot_64_202606191621/solver_provenance.json
+
+comparison:
+  compare_domain: physical_frequency
+  band_1_separate: true
+  record_per_k: true
+  record_per_band: true
+  repeat_first_sample_count: 2
+  accepted_tolerance:
+
+output:
+  runs_dir: runs

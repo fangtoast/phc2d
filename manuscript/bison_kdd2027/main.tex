@@ -1,0 +1,148 @@
+% KDD-style manuscript entry point for the BISON course-project paper.
+% Author: fangtoast
+% Email: fangtoast@foxmail.com
+% Copyright (c) 2026 fangtoast. All rights reserved.
+
+\documentclass[sigconf]{acmart}
+
+\setcopyright{none}
+\settopmatter{printfolios=true}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{mathtools}
+\usepackage{multirow}
+\usepackage{tikz}
+\usepackage{xcolor}
+\usetikzlibrary{arrows.meta,fit,positioning}
+
+\input{macros}
+
+\acmConference[KDD '27 AI4Sci]{KDD 2027 AI for Sciences Track}{August 1--5, 2027}{San Jose, CA, USA}
+\acmYear{2027}
+\acmDOI{}
+\acmISBN{}
+
+\title[BISON for Solver-Verified Photonic-Crystal Inverse Design]{BISON: A Band-Informed Spectral Operator Network for Solver-Verified Inverse Design of Two-Dimensional Photonic Crystals}
+
+\author{Xiao Fang}
+\affiliation{%
+  \institution{College of Advanced Interdisciplinary Studies, National University of Defense Technology}
+  \city{Changsha}
+  \postcode{410073}
+  \country{China}}
+\affiliation{%
+  \institution{College of Computer, Nanjing University of Posts and Telecommunications}
+  \city{Nanjing}
+  \postcode{210023}
+  \country{China}}
+
+\author{Ming L\"u}
+\authornote{Corresponding authors.}
+\affiliation{%
+  \institution{College of Advanced Interdisciplinary Studies, National University of Defense Technology}
+  \city{Changsha}
+  \postcode{410073}
+  \country{China}}
+\email{mingl24@nudt.edu.cn}
+
+\author{Hanwen Liang}
+\affiliation{%
+  \institution{College of Advanced Interdisciplinary Studies, National University of Defense Technology}
+  \city{Changsha}
+  \postcode{410073}
+  \country{China}}
+
+\author{Jinran Yu}
+\affiliation{%
+  \institution{College of Advanced Interdisciplinary Studies, National University of Defense Technology}
+  \city{Changsha}
+  \postcode{410073}
+  \country{China}}
+
+\author{Xingshen Song}
+\affiliation{%
+  \institution{College of Advanced Interdisciplinary Studies, National University of Defense Technology}
+  \city{Changsha}
+  \postcode{410073}
+  \country{China}}
+
+\author{Kele Xu}
+\affiliation{%
+  \institution{College of Computer Science and Technology, National University of Defense Technology}
+  \city{Changsha}
+  \postcode{410073}
+  \country{China}}
+
+\author{Hui Cai}
+\affiliation{%
+  \institution{College of Computer, Nanjing University of Posts and Telecommunications}
+  \city{Nanjing}
+  \postcode{210023}
+  \country{China}}
+
+\author{Chaofan Zhang}
+\authornotemark[1]
+\affiliation{%
+  \institution{College of Advanced Interdisciplinary Studies, National University of Defense Technology}
+  \city{Changsha}
+  \postcode{410073}
+  \country{China}}
+\email{c.zhang@nudt.edu.cn}
+\renewcommand{\shortauthors}{Fang et al.}
+
+\begin{document}
+
+\begin{abstract}
+Inverse band-structure design seeks periodic material layouts whose photonic
+dispersion matches a prescribed target. The task is expensive because every
+candidate ultimately requires an eigensolver, and it is non-unique because
+different layouts can realize similar spectra. We present \method{}, a
+project-native, band-informed Fourier neural operator that maps a periodic
+permittivity field to the complete sampled band matrix. BISON combines two
+truncated spectral kernels, a band gate, a low-rank global branch, and residual
+updates. In inverse design, a single-mode latent conditional decoder generates
+candidate structures without mixture-of-experts routing; frozen BISON scores
+the candidates, an independent query operator audits consistency, and a fixed
+Top-5 budget is replayed with MIT Photonic Bands (MPB). On a 10,000-structure
+dataset, BISON attains a three-seed bands-2--10 test MRE of
+\(1.0299\%\pm0.0545\%\), a 22.6\% relative reduction from the strongest
+non-operator forward baseline. The query operator reaches \(1.0470\%\) MRE on
+held-out wave-vector interpolation, but rises to \(3.6747\%\) on an unseen path
+segment, exposing a clear extrapolation limit. On the complete 625-target test
+split, the seed-0 no-expert inverse pipeline obtains \(2.2614\%\) real-MPB MRE
+with a \(0.118\) percentage-point surrogate--replay gap. Under the same
+candidate and replay budget, it is 0.130 percentage points lower than the
+mode-conditioned baseline (paired 95\% bootstrap interval: 0.090--0.171). These
+results show that an FNO-derived full-band operator can support efficient and
+auditable photonic-crystal inverse design, while solver replay remains
+indispensable for physical claims.
+\end{abstract}
+
+\ccsdesc[500]{Computing methodologies~Machine learning}
+\ccsdesc[300]{Applied computing~Physical sciences and engineering}
+
+\keywords{neural operator, Fourier neural operator, inverse design, photonic
+crystal, band structure, scientific machine learning, MPB}
+
+\maketitle
+
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_problem_formulation}
+\input{sections/04_method}
+\input{sections/05_experimental_protocol}
+\input{sections/06_results}
+\input{sections/07_limitations}
+\input{sections/08_genai_usage}
+\input{sections/09_conclusion}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+\appendix
+\input{sections/10_appendix}
+
+\end{document}

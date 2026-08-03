@@ -1,0 +1,78 @@
+# 10k guarded V2 formal query surrogate retrain matrix.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: query_formal_retrain_v2_10000
+  family: research
+  stage: query_formal_retrain_neural_only
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  representation: epsilon_grid
+  input_repr: epsilon_grid
+  target: band_query
+  output_target: band_query
+  lazy_queries: true
+
+query:
+  requires_physical_k_coordinates: false
+  allow_index_query: false
+  boundary: neural_surrogate_no_mpb_meep_generated_not_replayed
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  record_peak_memory: true
+  non_blocking_transfer: true
+  num_workers: 0
+  pin_memory: true
+
+training:
+  max_epochs: 200
+  checkpoint_epochs: [10, 30, 50, 100, 150, 200]
+  learning_rates: [0.001, 0.0003, 0.0001]
+  seeds: [0, 1, 2]
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  batch_size: 64
+  device: cuda:0
+
+protocols:
+  - unseen_structure_all_k
+  - unseen_structure_k_interpolation
+  - unseen_structure_heldout_segment
+
+model:
+  candidates:
+    - deep_onet_query_v2
+    - fno2d_query_v2
+  overrides:
+    branch_width: 128
+    trunk_width: 128
+    latent_dim: 128
+    width: 32
+    depth: 4
+    modes: [8, 8]
+    query_hidden_dim: 64
+
+metrics:
+  include:
+    - query_mre_bands_2_10_pct
+    - query_mae
+    - query_rmse
+    - ordering_violation_rate
+    - train_time_s
+    - eval_time_s
+    - query_inference_time_per_query_ms
+    - peak_gpu_memory_mb
+
+output:
+  runs_dir: runs
+  write_query_report: false
+  write_dataset_audit_report: false

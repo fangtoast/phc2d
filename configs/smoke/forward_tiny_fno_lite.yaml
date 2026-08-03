@@ -1,0 +1,34 @@
+experiment:
+  experiment_id: forward_tiny_fno_lite_smoke
+  family: smoke
+  stage: forward_train
+dataset:
+  path: data/tiny.npz
+  input_repr: epsilon_grid
+  output_target: Wh
+  smoke: true
+model:
+  name: fno_lite
+  params:
+    width: 8
+    depth: 2
+    modes: [6, 6]
+training:
+  epochs: 1
+  batch_size: 4
+  learning_rate: 0.001
+  seed: 7
+  device: auto
+runtime:
+  device: auto
+  require_accelerator: false
+  precision: fp32
+  amp_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+evaluation:
+  split: test
+metrics:
+  relative_error_floor: 1.0e-8
+output:
+  runs_dir: runs

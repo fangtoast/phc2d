@@ -1,0 +1,69 @@
+experiment:
+  experiment_id: forward_band_benchmark
+  family: research
+  stage: forward_benchmark
+dataset:
+  path: data/paper_like_50k_mpb.npz
+  output_target: Wh
+  # matrix execution for Full-1 forward band benchmark
+  input_repr: rho_wedge
+  # output_target can be overridden per benchmark item for future ablations.
+model:
+  candidates:
+    - res_mlp
+    - lifted_cnn
+    - fno_lite
+    - fno2d_band
+training:
+  epochs: 2
+  batch_size: 8
+  device: auto
+  # Full-1 seeds (smoke: local, non-MPB/Meep)
+  seeds:
+    - 0
+    - 1
+    - 2
+  enabled: true
+  execution: train
+runtime:
+  device: auto
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+benchmark:
+  - input_repr: rho_wedge
+    output_target: Wh
+    model: res_mlp
+  - input_repr: rho_grid
+    output_target: Wh
+    model: lifted_cnn
+  - input_repr: epsilon_grid
+    output_target: Wh
+    model: lifted_cnn
+  - input_repr: epsilon_grid
+    output_target: Wh
+    model: fno_lite
+  - input_repr: epsilon_grid
+    output_target: Wh
+    model: fno2d_band
+metrics:
+  include:
+    - mse
+    - mae
+    - rmse
+    - avg_MRE_pct
+    - avg_MRE_bands_2_10_pct
+    - ordering_violation
+    - gap_f1
+    - wall_time_total_s
+    - train_time_s
+    - eval_time_s
+    - inference_time_per_sample_ms
+    - throughput_samples_per_s
+    - parameter_count
+output:
+  runs_dir: runs

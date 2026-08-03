@@ -1,0 +1,91 @@
+% Introduction for the BISON manuscript.
+% Author: fangtoast
+% Email: fangtoast@foxmail.com
+% Copyright (c) 2026 fangtoast. All rights reserved.
+
+\section{Introduction}
+
+Two-dimensional photonic crystals control electromagnetic propagation through
+the geometry of a periodic unit cell. Periodicity organizes electromagnetic
+states into bands and can create frequency intervals in which propagation is
+suppressed~\cite{yablonovitch1987inhibited,john1987localization,
+joannopoulos2008photonic}. The resulting dispersion relation---the ordered
+eigenfrequencies evaluated along a path in the Brillouin zone---determines not
+only whether a band gap exists, but also its location, width, neighboring-band
+curvature, and slow-light behavior. Designing a useful unit cell is therefore
+usually a \emph{full-band} problem rather than a scalar-property regression
+problem.
+
+In the forward problem, a structure is given and a Maxwell eigensolver computes
+its bands. Plane-wave solvers such as MIT Photonic Bands (MPB) provide a
+well-established numerical route~\cite{johnson2001mpb}. In inverse design, a
+desired dispersion is given and the structure must be recovered. Classical
+topology optimization can search high-dimensional photonic geometries and has
+produced low-loss and fabrication-aware devices
+~\cite{jensen2004systematic,jensen2011topology,piggott2015demultiplexer,
+piggott2017fabrication}. Its repeated forward and adjoint solves, however,
+remain costly when many targets or many candidate designs must be considered.
+
+Learning-based inverse design amortizes part of this cost: a trained forward
+network can evaluate or differentiate many candidates much faster than a
+solver~\cite{peurifoy2018nanophotonic,tahersima2019splitters}. The difficulty is
+that the inverse map is one-to-many and the learned objective is imperfect.
+Direct regression can average incompatible geometries, whereas a generator or
+an optimizer can exploit surrogate error and return a structure that looks
+accurate only to the network. Tandem networks address the first issue by
+training an inverse model through a frozen forward network
+~\cite{liu2018tandem}; time- and budget-aware inverse benchmarks emphasize the
+second~\cite{ren2020benchmarking}. Consequently, a persuasive inverse result
+must specify both its candidate budget and its independent physical
+verification budget.
+
+Neural operators offer a particularly relevant forward representation. They
+learn maps between discretized functions, and Fourier neural operators (FNOs)
+parameterize global integral kernels through truncated Fourier modes
+~\cite{li2021fno,kovachki2023neuraloperator}. This global frequency-domain
+mixing matches the periodic input geometry more directly than a flattened
+vector regressor. Existing photonic neural operators have primarily targeted
+optical fields or device responses~\cite{gu2022neurolight,zhu2024pace,
+augenstein2023emno}. Learning the complete eigenfrequency table of a periodic
+unit cell, then testing that operator inside a solver-verified inverse loop,
+remains a distinct task.
+
+This work introduces \method{} (\textbf{B}and-\textbf{I}nformed
+\textbf{S}pectral \textbf{O}perator \textbf{N}etwork), the name we give to
+the project's implemented \texttt{fno2d\_\allowbreak band\_\allowbreak v2}
+model. BISON maps a periodic permittivity grid directly to the complete sampled
+band matrix. Each operator block combines two learned truncated Fourier
+kernels, a pointwise path, a data-dependent channel gate, a low-rank global
+summary, and a residual update. The full-band output makes BISON useful not
+only as a forward predictor, but also as the differentiable objective and
+candidate ranker in an inverse-design loop.
+
+Our inverse pipeline deliberately does not use experts. A single-mode latent
+conditional decoder samples multiple structures for each target; frozen BISON
+scores the candidate pool; an independently trained wave-vector query operator
+audits surrogate consistency; and only a fixed Top-5 subset is replayed with
+MPB. This separation is central: surrogate accuracy supports efficient search,
+whereas real-MPB replay is the only evidence used for physical inverse-design
+claims.
+
+Our contributions are fourfold:
+\begin{itemize}
+  \item We develop BISON, a compact FNO-derived architecture specialized for
+  complete photonic band matrices. Its two-scale spectral mixing, adaptive
+  gate, low-rank global branch, and residual path are documented as one
+  reproducible BandBlock rather than presented under a generic FNO label.
+  \item We integrate the frozen operator into an auditable, no-expert inverse
+  workflow with equal candidate and solver budgets, a separate query-model
+  diagnostic, and per-target solver replay.
+  \item We organize evaluation around three questions: whether BISON improves
+  held-out full-band prediction, whether coordinate-conditioned query models
+  interpolate and extrapolate reliably, and whether BISON-ranked inverse
+  candidates survive an identical MPB replay budget.
+  \item We report evidence at its actual strength: a formal three-seed forward
+  comparison on 10,000 structures, query interpolation and extrapolation
+  tests, and a seed-0 inverse replay over the complete 625-target test split.
+  BISON reaches \(1.0299\%\pm0.0545\%\) forward MRE; the inverse loop reaches
+  \(2.2614\%\) real-MPB MRE, while cross-seed inverse stability remains open.
+\end{itemize}
+
+\input{figures/architecture}

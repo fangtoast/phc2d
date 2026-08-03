@@ -1,0 +1,50 @@
+experiment:
+  experiment_id: inverse_mvp
+  family: research
+  stage: inverse_sample
+dataset:
+  path: data/paper_like_64_mpb.npz
+  condition_target: Wh
+  output_repr: rho_wedge
+  target_split: test
+model:
+  name: conditional_vae_rho
+  seed: 42
+runtime:
+  device: auto
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+inverse:
+  n_candidates: 16
+  surrogate_top_m: 3
+  candidate_value_range:
+    - 0.0
+    - 1.0
+  threshold: 0.5
+  morphology_filters:
+    min_fill_fraction: 0.05
+    max_fill_fraction: 0.95
+  ranking:
+    morphology_weight: 0.0
+    diversity_weight: 0.1
+replay:
+  enabled: false
+metrics:
+  include:
+    - validity_rate
+    - unique_rate
+    - diversity_hamming
+    - fill_fraction
+    - morphology_score
+    - best_of_k_surrogate_mre
+    - candidate_sampling_time_s
+    - surrogate_ranking_time_s
+    - candidate_sampling_time_per_target_ms
+    - wall_time_total_s
+output:
+  runs_dir: runs

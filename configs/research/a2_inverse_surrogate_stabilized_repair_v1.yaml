@@ -1,0 +1,85 @@
+# Stabilized repair for A2 arms blocked by threshold-margin or replay-gap gates.
+# The original primary-only ablation remains immutable evidence.
+
+protocol:
+  id: a2_inverse_surrogate_stabilized_repair_v1
+  version: 1
+  status: approved_repair_training
+  selection_split: val
+  test_access_forbidden: true
+  source_fair_run: runs/20260731/a2_inverse_all_surrogates_objective_v1_202607311840
+  source_health_run: runs/20260801/a2_inverse_all_surrogates_candidate_health_v1_202608011530
+
+repair_arms:
+  - mlp
+  - res_mlp_wide
+  - lifted_cnn
+  - mlp_query
+  - deep_onet_query_v2
+  - fno2d_query_v2
+
+training:
+  epochs: 50
+  checkpoint_epochs: [10, 30, 50]
+  learning_rate: 0.0001
+  batch_size: 64
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  warm_start:
+    path: runs/20260731/a2_inverse_surrogate_neutral_pretrain_v1_202607311900/checkpoint_epoch_200_seed0.pt
+    sha256: 54cd1def0d46cb39e621cd93bfa26e58d4c2735a4535eb36fe3ac2ba19cd87c6
+  objective:
+    surrogate_weight: 1.0
+    reconstruction_weight: 0.05
+    diversity_weight: 0.2
+    binary_diversity_weight: 0.5
+    latent_response_weight: 0.25
+    collision_weight: 0.9
+    gap_weight: 0.2
+    cross_surrogate_weight: 0.3
+    cross_surrogate_candidates_per_condition: 8
+    binarization_weight: 0.02
+    band_start_one_based: 2
+    n_objective_candidates: 16
+    target_diversity_hamming: 0.05
+    target_binary_diversity_hamming: 0.08
+    target_latent_response_std: 0.04
+    target_nearest_neighbor_hamming: 0.05
+    soft_binary_threshold: 0.5
+    soft_binary_temperature: 0.08
+    collision_threshold: 0.5
+    collision_soft_binary_temperature: 0.08
+    collision_quality_temperature: 0.03
+    collision_quality_detach: true
+    secondary_surrogate:
+      kind: forward
+      model_name: fno2d_band_v2
+      input_repr: epsilon_grid
+      checkpoint_path: runs/20260724/a1_forward_fair_v1_202607240020/cases/epsilon_grid_fno2d_band_v2_3_lr1em03_seed0/train/model.pt
+
+candidate_health_gates:
+  validity_rate_min: 1.0
+  effective_k_mean_min: 64
+  effective_k_p10_min: 32
+  continuous_candidate_std_min: 0.04
+  threshold_margin_fraction_max: 0.15
+  latent_weight_change_min: 1.0e-6
+  latent_gradient_norm_min: 1.0e-12
+  mode_coverage_fraction_min: 1.0
+  real_mpb_smoke_replay_gap_max_pct: 5.0
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+output:
+  runs_dir: runs
+  run_dir: runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630

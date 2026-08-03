@@ -1,0 +1,60 @@
+experiment:
+  experiment_id: query_band_benchmark
+  family: research
+  stage: query_band
+dataset:
+  path: data/paper_like_64_mpb.npz
+  input_repr: epsilon_grid
+  output_target: band_query
+  query:
+    use_k_points: true
+    use_band_index: true
+    k_query_step: 1
+    band_query_axes:
+      - k
+      - band
+      - query_value
+model:
+  # Full-2 placeholder: current runner exposes only forward matrix path.
+  # Keep candidate list here for config continuity; execution is not run in Full-1.
+  candidates:
+    - res_mlp
+    - lifted_cnn
+    - fno_lite
+    - fno2d_query
+training:
+  epochs: 2
+  batch_size: 8
+  device: auto
+  seeds:
+    - 0
+    - 1
+    - 2
+runtime:
+  device: auto
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+benchmark:
+  - input_repr: epsilon_grid
+    model: res_mlp
+    output_target: band_query
+    query:
+      type: held_out_segment
+      source: full_W_h_matrix
+      band_axis: band
+      k_axis: k
+metrics:
+  include:
+    - query_mae
+    - query_rmse
+    - ordering_violation
+    - wall_time_total_s
+    - inference_time_per_sample_ms
+    - throughput_samples_per_s
+output:
+  runs_dir: runs

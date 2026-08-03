@@ -1,0 +1,64 @@
+# A1 validation-selected 10k V2 forward fair-baseline protocol.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: a1_forward_fair_v1
+  family: research
+  stage: forward_a1_fair_selection
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  input_repr: rho_wedge
+  output_target: Wh
+
+fair_selection:
+  enabled: true
+  expected_dataset_sha256: 991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4
+  expected_split_sizes: {train: 6875, val: 2500, test: 625}
+  selection_split: val
+  final_evaluation_split: test
+  selection_metric: avg_MRE_bands_2_10_pct
+  require_exact_seed_count: 3
+
+benchmark:
+  - input_repr: rho_wedge
+    output_target: Wh
+    model: res_mlp_wide
+    model_params: {hidden_dim: 256, depth: 6, dropout: 0.05}
+  - input_repr: epsilon_grid
+    output_target: Wh
+    model: lifted_cnn
+    model_params: {channels: 12}
+  - input_repr: epsilon_grid
+    output_target: Wh
+    model: fno2d_band_v2
+    model_params: {width: 32, depth: 4, modes: [8, 8], band_modes: [5, 5], fourier_rank: 8}
+
+training:
+  max_epochs: 200
+  checkpoint_epochs: [10, 30, 50, 100, 150, 200]
+  learning_rates: [0.001, 0.0003, 0.0001]
+  seeds: [0, 1, 2]
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  batch_size: 64
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  record_peak_memory: true
+
+evaluation:
+  split: test
+
+metrics:
+  relative_error_floor: 1.0e-8
+
+output:
+  runs_dir: runs
+  report: docs/results/a1_forward_query_fair_v1_YYYYMMDD.md

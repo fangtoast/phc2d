@@ -1,0 +1,44 @@
+# B3 validation-only lambda sweep for adapted PINO on the frozen FNO v2 architecture.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: field_eigen_te_pino_lambda_sweep_9216
+  execution: field_eigen_v2
+  stage: pino_field_adapted_lambda_sweep
+dataset:
+  path: runs/20260720/field_eigen_te_b3_9216_202607201608/field_eigen_te_b3_9216.h5
+  expected_split_records: {train: 6912, val: 1152, test: 1152}
+normalization: {epsilon_range: [1.0, 8.9], k_scale: 0.5, band_range_one_based: [2, 10]}
+representation: {periodic_coordinates: true}
+model:
+  name: fno_field_v2
+  params: {grid_channels: 5, context_dim: 3, field_channels: 6, width: 48, depth: 4, modes: [16, 16], corrected_spectral_modes: true}
+training:
+  regime: pino_adapted
+  seed: 0
+  epochs: 200
+  batch_size: 16
+  learning_rate: 0.0003
+  minimum_learning_rate: 0.000001
+  weight_decay: 0.00001
+  lr_warmup_epochs: 5
+  early_stopping_patience: 30
+  gradient_clip_norm: 1.0
+  physics_warmup_epochs: 20
+  physics_ramp_epochs: 20
+runtime: {device: "cuda:0", require_accelerator: true, precision: fp32, deterministic: true}
+evaluation: {split: val}
+benchmark:
+  table_filename: lambda_sweep.csv
+  selection_rule: pino_validation_residual_with_max_2pct_e_degradation
+  cases:
+    - name: fno_data_only_reference
+      train: false
+      checkpoint_path: runs/20260720/field_eigen_te_v2_baseline_9216_202607201723/cases/fno_field_v2_seed0/model.pt
+      training: {regime: data_only, lambda_pde: 0.0}
+    - {name: pino_lambda_1e-4, training: {lambda_pde: 0.0001}}
+    - {name: pino_lambda_1e-3, training: {lambda_pde: 0.001}}
+    - {name: pino_lambda_1e-2, training: {lambda_pde: 0.01}}
+output: {runs_dir: runs}

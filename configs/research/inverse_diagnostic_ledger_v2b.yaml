@@ -1,0 +1,33 @@
+# Diagnostic ledger for 10k v2b uniqueness-repair inverse artifacts.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: inverse_diagnostic_ledger_v2b
+  family: research
+  stage: inverse_artifact_diagnostic_no_training_no_solver
+
+sample:
+  run_dir: runs/20260701/inverse_generator_uniqueness_repair_v2b_10000_sample_202607011254
+
+replay:
+  run_dir: runs/20260701/inverse_mpb_replay_uniqueness_repair_v2b_10000_unique24_diagnostic_202607011619
+
+gates:
+  candidate:
+    validity_rate_min: 1.0
+    unique_rate_min: 0.25
+    nearest_neighbor_hamming_p10_min: 0.027777777777777776
+    best_of_k_surrogate_mre_bands_2_10_max: 0.03
+  replay:
+    require_real_mpb: true
+    require_not_diagnostic_for_pass: true
+    mpb_replay_success_rate_min: 1.0
+
+failure_cases:
+  candidate_max_rows: 25
+  replay_max_rows: 25
+
+output:
+  runs_dir: runs

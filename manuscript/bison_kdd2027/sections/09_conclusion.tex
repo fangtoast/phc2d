@@ -1,0 +1,22 @@
+% Conclusion for the BISON manuscript.
+% Author: fangtoast
+% Email: fangtoast@foxmail.com
+% Copyright (c) 2026 fangtoast. All rights reserved.
+
+\section{Conclusion}
+
+We presented BISON, a band-informed FNO-derived network for predicting complete
+two-dimensional photonic-crystal band matrices and guiding inverse candidate
+selection. Its dual spectral kernels, channel gate, low-rank global branch,
+and residual updates reduce three-seed forward MRE to
+\(1.0299\%\pm0.0545\%\). Coupled to a single-mode latent generator, BISON
+ranks 128 candidates per target before fixed-budget Top-5 MPB replay. The
+complete seed-0 test split reaches 2.2614\% real-MPB MRE and outperforms the
+same decoder with four mode embeddings by 0.1302 percentage points. Just as
+importantly, query extrapolation and per-target replay expose the remaining
+failure modes. BISON is therefore best viewed as an efficient neural operator
+inside a solver-verified workflow, not as a replacement for the physical
+eigensolver. More broadly, the study argues for a specific standard in learned
+photonic inverse design: define the learned objective, expose the candidate
+budget, retain an independent diagnostic where possible, and reserve physical
+claims for candidates recomputed by the governing numerical solver.

@@ -1,0 +1,139 @@
+# Non-executing governance contract for any future band-only 100k launch.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+governance:
+  id: scale_100k_governance_preflight_v1
+  version: 1
+  status: frozen_protocol_pending_learning_curve_cost_and_launch_decision
+  execution: protocol_only_no_dataset_generation
+  scope: band_only_data_governance_not_full_field_generation
+  source_plan: docs/planning/0718-0801/03_dataset_100k_scaleup_plan.md
+
+protected_evaluation:
+  status: must_be_materialized_before_pool_sampling
+  required_manifests:
+    - validation_manifest
+    - id_test_manifest
+    - structured_ood_test_manifest
+  invariants:
+    - immutable_after_materialization
+    - reused_by_every_training_composition
+    - excluded_from_all_generation_pools
+
+ood_strata:
+  threshold_reference_population: frozen_v2_reference_training_metadata
+  threshold_materialization: record_exact_quantile_values_and_reference_manifest_sha256
+  pools:
+    reference_id:
+      rule: generator_family_and_symmetry_profile_match_frozen_v2_reference
+      required_metadata: [generator_family, generator_rule_version, symmetry_group, fill_fraction]
+    continuous:
+      rule: connected_component_count_equals_one_and_morphology_is_within_frozen_reference_bounds
+      required_metadata: [connected_component_count, hole_count, minimum_feature, morphology_rule_version]
+    fragmented:
+      rule: connected_component_count_or_hole_count_is_at_or_above_frozen_reference_upper_quartile
+      required_metadata: [connected_component_count, hole_count, minimum_feature, morphology_rule_version]
+      stress_or_ood_when: violates_manufacturability_constraints
+    boundary_hard:
+      rule: any_boundary_measure_crosses_a_frozen_reference_quantile_cutpoint
+      boundary_measures:
+        fill_fraction: [lower_0.05, upper_0.95]
+        minimum_feature: [lower_0.05]
+        target_difficulty: [upper_0.90]
+        model_disagreement: [upper_0.90]
+      required_metadata: [fill_fraction, minimum_feature, target_difficulty, disagreement, selection_reason]
+  common_invariants:
+    - same_solver_provenance
+    - same_k_path_hash
+    - same_band_order_policy
+    - pool_rule_version_recorded
+    - random_sampling_is_allowed_only_within_a_pool
+
+deduplication:
+  version: binary_structure_dedup_v1
+  canonicalization: use_the_registered_geometry_serialization_and_threshold_convention
+  exact_duplicate_key: structure_sha256
+  near_duplicate_metric: normalized_hamming_distance_over_geometry_dof_count
+  near_duplicate_if: distance_less_than_0.01
+  collision_policy: connected_components_under_exact_or_near_duplicate_edges
+  representative_policy: lexicographically_smallest_candidate_id_after_source_priority
+  split_policy: reject_any_exact_or_near_duplicate_pair_across_train_validation_or_test
+  required_audit_fields:
+    - structure_sha256
+    - canonicalization_version
+    - geometry_dof_count
+    - nearest_neighbor_distance
+    - duplicate_cluster_id
+    - duplicate_decision
+
+metadata_schema:
+  version: band_dataset_metadata_v1
+  required_fields:
+    sample_id: string
+    candidate_id: string
+    split: string
+    structure_sha256: string
+    canonicalization_version: string
+    generator_family: string
+    generator_rule_version: string
+    generator_seed: integer
+    symmetry_group: string
+    fill_fraction: number
+    connected_component_count: integer
+    hole_count: integer
+    minimum_feature: number
+    manufacturability_status: string
+    target_difficulty: number_or_null
+    disagreement: number_or_null
+    k_path_id: string
+    k_path_sha256: string
+    band_order_policy: string
+    solver_backend: string
+    solver_version: string
+    solver_resolution: integer
+    eigensolver_tolerance: number
+    solver_provenance_sha256: string
+    wh_shape: integer_array
+    label_nonfinite_count: integer
+    duplicate_cluster_id: string_or_null
+    nearest_neighbor_distance: number_or_null
+    stratum: string
+    stratum_rule_version: string
+    selection_reason: string
+  validation:
+    reject_if:
+      - missing_required_field
+      - invalid_split
+      - nonfinite_label
+      - k_path_or_band_order_mismatch
+      - solver_provenance_mismatch
+      - duplicate_crosses_protected_evaluation_boundary
+
+cost_calibration:
+  sample_count: 100
+  cost_record_template_path: configs/research/templates/scale_100_sample_cost_record_v1.csv
+  environment: WSL Ubuntu + conda meep_env
+  required_aggregates:
+    - success_rate
+    - median_wall_time_s
+    - p90_wall_time_s
+    - total_solver_time_s
+    - estimated_solver_hours_per_100k
+    - disk_bytes_per_sample
+    - failure_reason_counts
+  no_dataset_generation_until:
+    - learning_curve_decision_recorded
+    - cost_calibration_completed
+    - protected_evaluation_manifests_materialized
+    - pool_rule_values_materialized
+    - deduplication_audit_passed
+
+launch_decisions:
+  allowed_values: [launch_uniform_100k, launch_stratified_100k, launch_active_sampling, defer]
+  default_before_evidence: defer
+  prohibit:
+    - infer_full_field_budget_from_band_only_cost_calibration
+    - post_hoc_pool_or_threshold_changes
+    - dataset_generation_from_this_preflight_config

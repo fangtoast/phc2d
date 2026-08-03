@@ -1,0 +1,29 @@
+dataset_path: data/query_dataset_v2_pilot_256_mpb.npz
+dataset_id: query_dataset_v2_pilot_256_mpb
+dataset_file_hash: 67e022ee7e4865261317d7a6a2aa0215ddac83b5137d7c600ab9146fdfac8553
+Wh_shape:
+- 256
+- 31
+- 10
+rho_shape:
+- 256
+- 36
+split:
+  train: 176
+  val: 64
+  test: 16
+k_path_sidecar: query_dataset_v2_pilot_256_mpb.kpath.v1.json
+k_path_hash: 0dc6437403e067db66b76bf404a9b87bd577b86a8f4a1945a3ccfca06ff924c0
+k_points_hash: 6bb7168392d1c36275362dcf1f2dae0d9e2aaeef6f3bcd5c843032489111b19d
+solver_provenance: runs/20260620/query_dataset_v2_pilot_256_202606201232/solver_provenance.json
+config_hash: caa9e81e0b7d69d77be5ffdc13cb25499096c7e5a6e2ad4274c48a117a34ad55
+sample_id_policy: stable_generated_id
+sample_metadata: runs/20260620/query_dataset_v2_pilot_256_202606201232/sample_metadata.jsonl
+provenance_status: pilot_generated
+physical_verification_status: physically_verified_with_documented_numerical_tolerance
+formal_full_2a_allowed: true
+association_note: V2 pilot generated with real MPB provenance; not a Formal Full-2A
+  benchmark.
+physical_verification_run_id: k_path_physical_validation_v2_256_202606201454
+physical_verification_run: runs/20260620/k_path_physical_validation_v2_256_202606201454
+accepted_tolerance: 9.212543833347908e-06

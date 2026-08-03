@@ -1,0 +1,17 @@
+dataset_path: data/tiny.npz
+dataset_id: tiny
+dataset_file_hash: 4c8f73a03f22d24aef69a0e8dfab05deb4b8556772baf617f3dcf660939dd3dc
+Wh_shape:
+- 12
+- 31
+- 10
+k_path_sidecar: paper_like_square_lattice_gxm_kpath_v1.json
+k_path_hash: 6e91d2e0025c5caf1fa081f30c3628130f576c0b194b7fd53ceddd6278ff5e7c
+k_points_hash: 6bb7168392d1c36275362dcf1f2dae0d9e2aaeef6f3bcd5c843032489111b19d
+config_hash: ''
+sample_id_policy: derived_from_index_when_metadata_jsonl_absent
+split_manifest: embedded idx_train/idx_val/idx_test arrays
+provenance_status: candidate_unverified
+physical_verification_status: blocked_pending_5_sample_wsl_mpb_replay
+association_note: paper_like_50k is directly associated through the generation run;
+  paper_like_64 and tiny share shape/config family only and remain candidate references.

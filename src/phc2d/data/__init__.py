@@ -1,0 +1,123 @@
+"""Dataset contracts for forward photonic-crystal surrogate experiments.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
+
+from phc2d.data.forward_dataset import ForwardDatasetBundle, load_forward_dataset, save_forward_dataset
+from phc2d.data.query_dataset import (
+    BandQueryDataset,
+    BandQuerySpec,
+    KPathInfo,
+    QueryProtocolSpec,
+    build_query_dataset,
+    build_query_masks,
+    build_physical_query_masks,
+    inspect_query_dataset,
+    recover_k_path,
+    split_indices,
+    validate_query_split_integrity,
+)
+from phc2d.data.k_path import (
+    KPathMetadata,
+    KPathNode,
+    KPathSegment,
+    KPathSpec,
+    attach_k_path_metadata,
+    build_square_gxm_reduced_spec,
+    compare_k_paths,
+    cumulative_path_s,
+    detect_duplicate_coordinate_groups,
+    discover_k_path_sidecar,
+    expand_physical_holdout_indices,
+    generate_k_points_from_spec,
+    hash_k_path_points,
+    hash_k_path_spec,
+    load_dataset_k_path_spec,
+    load_k_path_spec,
+    physical_k_ids,
+    save_k_path_spec,
+    validate_k_path_spec,
+    validate_verified_k_path_reference,
+)
+from phc2d.data.field_dataset import (
+    CORE_FIELD_DATASETS,
+    OPERATOR_CONTEXT_FIELDS,
+    FieldDatasetSchema,
+    FieldFeasibility,
+    inspect_field_dataset,
+)
+from phc2d.data.field_eigen import FieldEigenRecord, canonicalize_eigenfields, hash_array, write_field_eigen_hdf5
+from phc2d.data.field_selection import build_field_eigen_operator_selection_manifest, build_field_eigen_selection_manifest, validate_field_eigen_selection_manifest
+from phc2d.data.lift import epsilon_from_rho, lift_rho_to_grid, wedge_index_for_pixel, wedge_indices
+from phc2d.data.representations import DataRepresentationSpec, SampleMetadata
+from phc2d.data.target_specs import InputRepresentation, OutputTarget, TargetSpec
+from phc2d.data.transforms import (
+    infer_dataset_schema,
+    make_input,
+    make_target,
+    validate_representation_compatibility,
+)
+
+__all__ = [
+    "DataRepresentationSpec",
+    "BandQueryDataset",
+    "BandQuerySpec",
+    "CORE_FIELD_DATASETS",
+    "FieldDatasetSchema",
+    "FieldEigenRecord",
+    "FieldFeasibility",
+    "ForwardDatasetBundle",
+    "InputRepresentation",
+    "KPathInfo",
+    "KPathMetadata",
+    "KPathNode",
+    "KPathSegment",
+    "KPathSpec",
+    "OPERATOR_CONTEXT_FIELDS",
+    "OutputTarget",
+    "QueryProtocolSpec",
+    "SampleMetadata",
+    "TargetSpec",
+    "build_query_dataset",
+    "build_field_eigen_selection_manifest",
+    "build_field_eigen_operator_selection_manifest",
+    "build_query_masks",
+    "build_physical_query_masks",
+    "build_square_gxm_reduced_spec",
+    "attach_k_path_metadata",
+    "compare_k_paths",
+    "cumulative_path_s",
+    "detect_duplicate_coordinate_groups",
+    "discover_k_path_sidecar",
+    "expand_physical_holdout_indices",
+    "epsilon_from_rho",
+    "infer_dataset_schema",
+    "inspect_query_dataset",
+    "inspect_field_dataset",
+    "canonicalize_eigenfields",
+    "hash_array",
+    "generate_k_points_from_spec",
+    "hash_k_path_points",
+    "hash_k_path_spec",
+    "load_dataset_k_path_spec",
+    "load_k_path_spec",
+    "lift_rho_to_grid",
+    "load_forward_dataset",
+    "make_input",
+    "make_target",
+    "recover_k_path",
+    "physical_k_ids",
+    "save_forward_dataset",
+    "save_k_path_spec",
+    "split_indices",
+    "validate_query_split_integrity",
+    "validate_k_path_spec",
+    "validate_field_eigen_selection_manifest",
+    "validate_verified_k_path_reference",
+    "validate_representation_compatibility",
+    "write_field_eigen_hdf5",
+    "wedge_index_for_pixel",
+    "wedge_indices",
+]

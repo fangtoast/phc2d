@@ -1,0 +1,102 @@
+# 10k guarded V2 mixture conditional generator surrogate-objective finetune.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: inverse_mixture_generator_v2_10000_objective
+  family: research
+  stage: inverse_objective_train_surrogate_side_no_mpb_meep
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  condition_target: Wh
+  output_repr: rho_wedge
+  target_split: test
+
+model:
+  name: mixture_conditional_generator
+  seed: 0
+  seeds: [0, 1, 2]
+  mode_count: 4
+  latent_dim: 32
+  hidden_dim: 256
+  depth: 4
+
+surrogate:
+  kind: query
+  config_path: configs/research/query_formal_retrain_v2_10000.yaml
+  scaling_experiment_id: query_formal_retrain_v2_10000
+  scale_n: 10000
+  runs_dir: runs
+  seed: 0
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+inverse:
+  train_epochs: 200
+  checkpoint_epochs: [10, 30, 50, 100, 150, 200]
+  learning_rates: [0.0001, 0.00005, 0.00001]
+  train_batch_size: 64
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  learning_rate: 0.0001
+  generator_checkpoint_path:
+  n_candidates: 128
+  surrogate_top_m: 5
+  threshold: 0.5
+  allow_mock_generator: false
+  allow_mock_surrogate: false
+  ranking:
+    error_metric: bands_2_10_mre
+    objective:
+      surrogate_weight: 1.0
+      reconstruction_weight: 0.03
+      diversity_weight: 0.2
+      binary_diversity_weight: 0.5
+      latent_response_weight: 0.25
+      collision_weight: 0.9
+      cross_surrogate_weight: 0.2
+      gap_weight: 0.2
+      band_start_one_based: 2
+      n_objective_candidates: 16
+      target_diversity_hamming: 0.05
+      target_binary_diversity_hamming: 0.08
+      target_latent_response_std: 0.04
+      target_nearest_neighbor_hamming: 0.05
+      secondary_surrogate:
+        kind: forward
+        forward_experiment_id: forward_formal_retrain_v2_10000
+        model_name: res_mlp_wide
+        input_repr: rho_wedge
+        seed: 0
+        selection_metric: avg_MRE_bands_2_10_pct
+        runs_dir: runs
+
+replay:
+  enabled: false
+  note: surrogate-side objective training only; use preflight before real MPB replay.
+
+metrics:
+  include:
+    - final_objective_total_loss_mean
+    - final_surrogate_objective_loss_mean
+    - final_cross_surrogate_disagreement_bands_2_10_mean
+    - final_diversity_hamming_mean
+    - final_nearest_neighbor_hamming_p10_mean
+    - train_time_s
+    - wall_time_total_s
+    - peak_gpu_memory_mb
+
+output:
+  runs_dir: runs

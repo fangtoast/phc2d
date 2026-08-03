@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="800" viewBox="0 0 1500 800" role="img" aria-labelledby="title desc">
+  <title id="title">unet_field_v2 条件 U-Net 网络架构</title>
+  <desc id="desc">U 形编码器解码器网络，包含三层 skip connection、FiLM context、场输出头和频率输出头。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#34454f"/>
+    </marker>
+    <marker id="blue-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0L10 5L0 10z" fill="#2f6f9f"/>
+    </marker>
+    <style>
+      .title{font:700 28px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#17252d}
+      .sub{font:500 17px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .label{font:600 15px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#23343e}
+      .small{font:500 13px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .tiny{font:500 11px "Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#52636d}
+      .panel{fill:#f8fafb;stroke:#cad3d8;stroke-width:1.4}
+      .box{fill:#edf1f3;stroke:#52636d;stroke-width:1.5}
+      .blue{fill:#d8ebf8;stroke:#2f6f9f;stroke-width:1.7}
+      .deep{fill:#5e9fca;stroke:#245b80;stroke-width:1.7}
+      .line{fill:none;stroke:#34454f;stroke-width:1.7;marker-end:url(#arrow)}
+      .skip{fill:none;stroke:#2f6f9f;stroke-width:2.1;marker-end:url(#blue-arrow)}
+      .condition{fill:none;stroke:#5e9fca;stroke-width:1.6;stroke-dasharray:6 5;marker-end:url(#blue-arrow)}
+    </style>
+  </defs>
+  <rect width="1500" height="800" fill="#fff"/>
+  <text x="50" y="48" class="title">unet_field_v2：周期边界、FiLM 条件化的 TE 本征场 U-Net</text>
+  <text x="50" y="78" class="sub">横向 U 形主网络；每个 stage 的内部层级在右下角竖向展开</text>
+
+  <rect x="34" y="104" width="1432" height="505" rx="16" class="panel"/>
+  <g transform="translate(66 190)">
+    <rect x="9" y="-9" width="108" height="108" fill="#b9c2c7" stroke="#52636d"/>
+    <rect width="108" height="108" fill="#f3f6f7" stroke="#52636d"/>
+    <path d="M0 27h108M0 54h108M0 81h108M27 0v108M54 0v108M81 0v108" stroke="#a4afb6"/>
+    <text x="54" y="135" text-anchor="middle" class="label">5-channel grid</text>
+    <text x="54" y="156" text-anchor="middle" class="small">[B,5,H,W]</text>
+  </g>
+  <path d="M184 244H230" class="line"/>
+
+  <g transform="translate(244 175)">
+    <rect x="24" y="-12" width="132" height="132" fill="#bdc5ca" stroke="#52636d"/>
+    <rect x="12" width="132" height="132" fill="#d9dee2" stroke="#52636d"/>
+    <rect y="12" width="132" height="132" fill="#eef3f6" stroke="#2f6f9f" stroke-width="1.6"/>
+    <text x="66" y="66" text-anchor="middle" class="label">Encoder 48</text>
+    <text x="66" y="91" text-anchor="middle" class="small">Residual + FiLM</text>
+  </g>
+  <path d="M400 252V337H455" class="line"/>
+  <text x="412" y="300" class="tiny">stride-2</text>
+  <g transform="translate(468 282)">
+    <rect x="22" y="-11" width="116" height="116" fill="#bdc5ca" stroke="#52636d"/>
+    <rect x="11" width="116" height="116" fill="#d9dee2" stroke="#52636d"/>
+    <rect y="11" width="116" height="116" fill="#eef3f6" stroke="#2f6f9f" stroke-width="1.6"/>
+    <text x="58" y="61" text-anchor="middle" class="label">Encoder 96</text>
+    <text x="58" y="85" text-anchor="middle" class="small">Residual + FiLM</text>
+  </g>
+  <path d="M606 343V419H661" class="line"/>
+  <text x="618" y="385" class="tiny">stride-2</text>
+  <g transform="translate(674 370)">
+    <rect x="20" y="-10" width="102" height="102" fill="#bdc5ca" stroke="#52636d"/>
+    <rect x="10" width="102" height="102" fill="#d9dee2" stroke="#52636d"/>
+    <rect y="10" width="102" height="102" fill="#eef3f6" stroke="#2f6f9f" stroke-width="1.6"/>
+    <text x="51" y="53" text-anchor="middle" class="label">Encoder 192</text>
+    <text x="51" y="76" text-anchor="middle" class="small">Residual + FiLM</text>
+  </g>
+  <path d="M796 424H842" class="line"/>
+  <text x="819" y="410" text-anchor="middle" class="tiny">stride-2</text>
+  <rect x="856" y="373" width="160" height="102" rx="8" class="deep"/>
+  <text x="936" y="414" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">Bottleneck 384</text>
+  <text x="936" y="442" text-anchor="middle" font-size="13" fill="#fff">Residual + FiLM</text>
+
+  <path d="M1016 424H1060" class="line"/>
+  <g transform="translate(1074 370)">
+    <rect x="20" y="-10" width="102" height="102" fill="#bdc5ca" stroke="#52636d"/>
+    <rect x="10" width="102" height="102" fill="#d9dee2" stroke="#52636d"/>
+    <rect y="10" width="102" height="102" fill="#e4f0f8" stroke="#2f6f9f" stroke-width="1.6"/>
+    <text x="51" y="51" text-anchor="middle" class="label">Decoder 192</text>
+    <text x="51" y="75" text-anchor="middle" class="tiny">up + 1×1 + concat</text>
+  </g>
+  <path d="M1196 424V343H1242" class="line"/>
+  <g transform="translate(1256 282)">
+    <rect x="22" y="-11" width="116" height="116" fill="#bdc5ca" stroke="#52636d"/>
+    <rect x="11" width="116" height="116" fill="#d9dee2" stroke="#52636d"/>
+    <rect y="11" width="116" height="116" fill="#e4f0f8" stroke="#2f6f9f" stroke-width="1.6"/>
+    <text x="58" y="59" text-anchor="middle" class="label">Decoder 96</text>
+    <text x="58" y="84" text-anchor="middle" class="tiny">up + 1×1 + concat</text>
+  </g>
+  <path d="M1394 343H1168V252H1198" class="line"/>
+  <g transform="translate(1198 175)">
+    <rect x="24" y="-12" width="132" height="132" fill="#bdc5ca" stroke="#52636d"/>
+    <rect x="12" width="132" height="132" fill="#d9dee2" stroke="#52636d"/>
+    <rect y="12" width="132" height="132" fill="#e4f0f8" stroke="#2f6f9f" stroke-width="1.6"/>
+    <text x="66" y="64" text-anchor="middle" class="label">Decoder 48</text>
+    <text x="66" y="89" text-anchor="middle" class="tiny">up + 1×1 + concat</text>
+  </g>
+  <path d="M1354 252H1392" class="line"/>
+  <rect x="1402" y="192" width="46" height="118" rx="7" class="blue"/>
+  <text x="1425" y="228" text-anchor="middle" class="tiny">1×1</text>
+  <text x="1425" y="248" text-anchor="middle" class="tiny">field</text>
+  <text x="1425" y="268" text-anchor="middle" class="tiny">head</text>
+  <text x="1425" y="295" text-anchor="middle" class="tiny">6 ch</text>
+
+  <path d="M310 159V126H1264V163" class="skip"/>
+  <path d="M526 271V145H1314V271" class="skip"/>
+  <path d="M725 359V166H1125V359" class="skip"/>
+  <text x="778" y="127" text-anchor="middle" class="small" fill="#2f6f9f">同分辨率 encoder feature → decoder concat（3 条 skip）</text>
+
+  <rect x="564" y="538" width="330" height="49" rx="8" class="blue"/>
+  <text x="729" y="568" text-anchor="middle" class="label">context = (k_x, k_y, band position) ∈ R³</text>
+  <path d="M650 538V492H725V482" class="condition"/>
+  <path d="M729 538V496H936V480" class="condition"/>
+  <path d="M808 538V492H1125V482" class="condition"/>
+
+  <path d="M936 475V520H1008" class="line"/>
+  <rect x="1022" y="489" width="202" height="80" rx="8" class="box"/>
+  <text x="1123" y="519" text-anchor="middle" class="label">frequency head</text>
+  <text x="1123" y="543" text-anchor="middle" class="small">GAP(384) + context</text>
+  <text x="1123" y="562" text-anchor="middle" class="tiny">Linear 387→384→1</text>
+
+  <rect x="62" y="636" width="1376" height="126" rx="14" class="panel"/>
+  <text x="86" y="669" class="label">单个 ResidualBlock（竖向层级）</text>
+  <rect x="278" y="654" width="162" height="88" rx="8" class="box"/>
+  <text x="359" y="679" text-anchor="middle" class="small">circular 3×3 Conv</text>
+  <text x="359" y="701" text-anchor="middle" class="small">GroupNorm + GELU</text>
+  <text x="359" y="723" text-anchor="middle" class="small">circular 3×3 Conv</text>
+  <path d="M440 698H492" class="line"/>
+  <rect x="506" y="662" width="146" height="72" rx="8" class="blue"/>
+  <text x="579" y="690" text-anchor="middle" class="label">GroupNorm</text>
+  <text x="579" y="715" text-anchor="middle" class="small">FiLM scale + shift</text>
+  <path d="M652 698H704" class="line"/>
+  <circle cx="728" cy="698" r="23" class="deep"/>
+  <text x="728" y="706" text-anchor="middle" font-size="25" font-weight="700" fill="#fff">+</text>
+  <path d="M751 698H804" class="line"/>
+  <rect x="818" y="668" width="116" height="60" rx="8" class="blue"/>
+  <text x="876" y="705" text-anchor="middle" class="label">GELU</text>
+  <path d="M278 698H246V624H728V664" class="skip"/>
+  <text x="1060" y="691" class="small">若通道改变，shortcut 使用 1×1 Conv；否则为 identity</text>
+  <text x="1060" y="718" class="small">场头：[B,6,H,W]；频率头：[B,1]</text>
+</svg>

@@ -1,0 +1,51 @@
+% Discussion, limitations, and ethics.
+% Author: fangtoast
+% Email: fangtoast@foxmail.com
+% Copyright (c) 2026 fangtoast. All rights reserved.
+
+\section{Discussion, Limitations, and Ethics}
+
+The experiments suggest two complementary conclusions. First, Fourier-space
+global coupling and joint full-band prediction provide a useful inductive bias:
+BISON is more accurate than substantially larger dense models. Second, forward
+accuracy is necessary but not sufficient for inverse design. The 0.118-point
+surrogate--replay gap is small relative to the final error, yet individual
+targets still fail more severely and the independent query model can disagree.
+Retaining the MPB boundary is therefore part of the method, not an optional
+post-processing detail.
+
+The results also clarify why the method should be described as a system rather
+than as a single forward benchmark. Full-band accuracy makes BISON useful for
+ranking objectives that depend on several bands and wave vectors at once. The
+query operator probes whether this score is consistent under a second output
+factorization, while MPB decides whether the selected geometry actually
+realizes the target. Removing either diagnostic would make the inverse claim
+less interpretable: surrogate-only optimization hides exploitation, whereas
+solver-only reporting hides how the replay budget was allocated.
+
+Several limitations constrain the claim. The inverse experiment uses one
+training seed, so its paired significance measures per-target consistency for
+that frozen run rather than reproducibility across retraining. All structures
+belong to one \(\pgroup\)-symmetric, binary, fixed-material design family on a
+single path and resolution. We do not demonstrate transfer to arbitrary
+lattices, multiple materials, three dimensions, alternative polarizations, or
+fabrication-aware minimum features. The query result also shows poor held-path
+extrapolation. Finally, no controlled ablation isolates every component of the
+BandBlock; the present evidence supports the implemented BISON system as a
+whole, not a causal claim for one gate or spectral branch.
+
+These limitations define concrete next experiments. A component ablation
+should remove the second spectral kernel, gate, and low-rank branch one at a
+time under the same three-seed forward protocol. A multi-seed inverse study
+should retrain both generator variants and repeat the complete 625-target
+replay with identical candidate hashes and solver budgets. Resolution and
+geometry transfer should compare schema-compatible grids without changing the
+reported test identities, while fabrication-aware work should add minimum
+feature and robustness constraints before any experimental realization claim.
+
+The dataset is simulated and contains no personal or human-subject data. The
+main broader risk is over-trusting a learned surrogate, which could waste
+solver, fabrication, or laboratory resources. We mitigate this by publishing
+surrogate and replay errors separately, reporting negative extrapolation and
+worst-case examples, and requiring physical replay before describing a design
+as realized.

@@ -1,0 +1,38 @@
+experiment:
+  experiment_id: generative_inverse_diffusion_pilot
+  family: research
+  stage: inverse_train
+dataset:
+  path: data/paper_like_64_mpb.npz
+  condition_target: Wh
+  output_repr: rho_grid
+  smoke: true
+model:
+  name: conditional_diffusion_grid
+  decision_gate: after_candidate_protocol
+runtime:
+  device: auto
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+inverse:
+  n_candidates: 8
+  surrogate_top_m: 2
+  require_candidate_protocol: true
+replay:
+  enabled: false
+metrics:
+  include:
+    - validity_rate
+    - unique_rate
+    - diversity_hamming
+    - morphology_score
+    - candidate_sampling_time_s
+    - surrogate_ranking_time_s
+    - wall_time_total_s
+output:
+  runs_dir: runs

@@ -1,0 +1,59 @@
+% BISON architecture and solver-verified inverse-design workflow.
+% Author: fangtoast
+% Email: fangtoast@foxmail.com
+% Copyright (c) 2026 fangtoast. All rights reserved.
+
+\begin{figure*}[t]
+  \centering
+  \resizebox{\textwidth}{!}{%
+  \begin{tikzpicture}[
+    node distance=5mm and 7mm,
+    box/.style={draw, rounded corners=2pt, align=center, minimum height=10mm,
+      minimum width=24mm, inner sep=4pt, font=\small},
+    data/.style={box, fill=blue!9, draw=blue!55!black},
+    operator/.style={box, fill=violet!10, draw=violet!60!black},
+    inverse/.style={box, fill=orange!11, draw=orange!65!black},
+    solver/.style={box, fill=green!10, draw=green!55!black},
+    note/.style={align=center, font=\scriptsize, text=black!75},
+    arrow/.style={-{Latex[length=2.2mm]}, thick},
+    audit/.style={-{Latex[length=2.2mm]}, thick, dashed, draw=black!60}
+  ]
+    \node[data] (eps) {periodic permittivity\\\(\permittivity(\mathbf{x})\)};
+    \node[operator, right=of eps] (lift) {\(1\!\times\!1\) lift\\\(1\rightarrow32\) channels};
+    \node[operator, right=of lift, minimum width=43mm] (blocks) {four BISON BandBlocks\\dual Fourier kernels $+$ pointwise map\\band gate $+$ low-rank global branch $+$ residual};
+    \node[operator, right=of blocks] (pool) {global pooling\\and linear head};
+    \node[data, right=of pool] (bands) {full band matrix\\\(\bandpred\in\mathbb{R}^{N_k\times N_b}\)};
+
+    \draw[arrow] (eps) -- (lift);
+    \draw[arrow] (lift) -- (blocks);
+    \draw[arrow] (blocks) -- (pool);
+    \draw[arrow] (pool) -- (bands);
+    \node[note, above=2mm of blocks] {forward operator: structure field $\rightarrow$ complete sampled dispersion};
+
+    \node[data, below=17mm of eps] (target) {target bands\\\(\bandtarget\)};
+    \node[inverse, right=of target] (gen) {single-mode latent decoder\\\(\generator(\bandtarget,z)\)\\no expert routing};
+    \node[inverse, right=of gen] (cand) {\(K=128\) candidates\\legality and duplicate checks};
+    \node[operator, right=of cand] (rank) {frozen BISON\\primary objective and ranker};
+    \node[operator, right=of rank] (query) {query-operator audit\\physical \(\mathbf{k}\) consistency};
+    \node[solver, right=of query] (replay) {Top-5 real-MPB replay\\solver-verified bands};
+
+    \draw[arrow] (target) -- (gen);
+    \draw[arrow] (gen) -- (cand);
+    \draw[arrow] (cand) -- (rank);
+    \draw[arrow] (rank) -- (query);
+    \draw[arrow] (query) -- (replay);
+    \draw[audit] (bands.south) |- (rank.north);
+    \node[note, below=2mm of cand] {surrogate quantities guide search; only replay quantities support physical claims};
+  \end{tikzpicture}}
+  \caption{BISON and the evidence-separated inverse-design loop. The upper row
+  is the implemented full-band FNO-derived surrogate (registered in the code as
+  \texttt{fno2d\_band\_v2}). The lower row uses the frozen operator to guide a
+  no-expert latent candidate generator. The independent query model is an audit
+  rather than a second equal-weight ranker, and MPB remains outside training.}
+  \Description{Two-row workflow diagram. The upper row maps a periodic
+  permittivity field through a lift, four BISON spectral blocks, pooling, and a
+  linear head to a full band matrix. The lower row maps target bands through a
+  single-mode latent generator, candidate checks, frozen BISON ranking, a query
+  audit, and Top-5 MPB replay.}
+  \label{fig:architecture}
+\end{figure*}

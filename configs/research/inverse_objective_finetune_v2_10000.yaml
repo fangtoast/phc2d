@@ -1,0 +1,89 @@
+# 10k guarded V2 objective-driven inverse generator fine-tuning.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: inverse_objective_finetune_v2_10000
+  family: research
+  stage: inverse_objective_train_surrogate_side_no_mpb_meep
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  condition_target: Wh
+  output_repr: rho_wedge
+  target_split: test
+
+model:
+  name: conditional_vae_rho
+  seed: 0
+  seeds:
+    - 0
+    - 1
+    - 2
+  hidden_dim: 128
+  latent_dim: 8
+
+surrogate:
+  kind: query
+  config_path: configs/research/data_scaling_benchmark_v2_10000_full.yaml
+  scaling_experiment_id: query_data_scaling_v2_10000_full
+  scale_n: 10000
+  runs_dir: runs
+  seed: 0
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+inverse:
+  train_epochs: 5
+  train_batch_size: 64
+  learning_rate: 0.0003
+  n_candidates: 16
+  surrogate_top_m: 3
+  candidate_value_range:
+    - 0.0
+    - 1.0
+  threshold: 0.5
+  allow_mock_generator: false
+  allow_mock_surrogate: false
+  # Fill this with a prior direct/generative inverse checkpoint when running a true fine-tune.
+  # If omitted, objective-train starts from a fresh conditional generator.
+  generator_checkpoint_path:
+  morphology_filters:
+    min_fill_fraction: 0.05
+    max_fill_fraction: 0.95
+  ranking:
+    error_metric: bands_2_10_mre
+    objective:
+      surrogate_weight: 1.0
+      reconstruction_weight: 0.05
+      fill_fraction_weight: 0.01
+      binarization_weight: 0.01
+      total_variation_weight: 0.0
+      band_start_one_based: 2
+
+replay:
+  enabled: false
+  note: surrogate-side objective training only; MPB replay must be run separately from selected candidates.
+
+metrics:
+  include:
+    - final_objective_total_loss_mean
+    - final_surrogate_objective_loss_mean
+    - train_time_s
+    - wall_time_total_s
+    - resolved_device
+    - peak_gpu_memory_mb
+
+output:
+  runs_dir: runs

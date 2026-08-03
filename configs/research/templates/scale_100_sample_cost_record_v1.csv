@@ -1,0 +1,1 @@
+sample_id,candidate_id,shard_id,attempt_index,started_at_utc,finished_at_utc,wall_time_s,solver_time_s,queue_time_s,status,failure_reason,worker_id,solver_backend,solver_version,solver_resolution,eigensolver_tolerance,k_path_sha256,band_order_policy,structure_sha256,output_bytes,solver_provenance_sha256

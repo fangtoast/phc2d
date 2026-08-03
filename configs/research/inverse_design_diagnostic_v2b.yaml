@@ -1,0 +1,36 @@
+# Inverse design target-candidate diagnostic for 10k v2b artifacts.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: inverse_design_diagnostic_v2b
+  family: research
+  stage: inverse_design_artifact_diagnostic_no_training_no_solver
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  condition_target: Wh
+
+objective_train:
+  run_dir: runs/20260701/inverse_generator_uniqueness_repair_v2b_10000_202607011248
+
+sample:
+  run_dir: runs/20260701/inverse_generator_uniqueness_repair_v2b_10000_sample_202607011254
+
+replay:
+  run_dir: runs/20260701/inverse_mpb_replay_uniqueness_repair_v2b_10000_unique24_diagnostic_202607011619
+
+diagnostics:
+  design_bounds:
+    - 0.0
+    - 1.0
+  threshold: 0.5
+  check_training_distribution: true
+  include_design_variables: true
+  include_target_output: true
+  include_prediction_output: true
+  max_targets:
+
+output:
+  runs_dir: runs

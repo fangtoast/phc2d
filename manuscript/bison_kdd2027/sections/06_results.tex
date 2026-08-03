@@ -1,0 +1,167 @@
+% Results for the BISON manuscript.
+% Author: fangtoast
+% Email: fangtoast@foxmail.com
+% Copyright (c) 2026 fangtoast. All rights reserved.
+
+\section{Results}
+
+We present results in the same order as the evidence chain: forward surrogate
+quality (RQ1), query-space robustness (RQ2), and solver-verified inverse design
+(RQ3). Each subsection closes with what the measurement establishes and what
+it leaves unresolved.
+
+\subsection{BISON Improves Full-Band Prediction}
+
+Table~\ref{tab:forward} shows the formal three-seed comparison. BISON obtains
+\(1.0299\%\pm0.0545\%\) test MRE, compared
+with \(1.3309\%\pm0.0122\%\) for the strongest non-operator baseline,
+ResMLP-wide. This is a 22.6\% relative reduction. The lifted CNN and plain MLP
+are less accurate at 2.2234\% and 2.4764\%, respectively. The improvement is
+not explained by parameter count alone: BISON uses 389,718 parameters, less
+than half the 878,646 parameters of either MLP model.
+
+\begin{table}[t]
+  \caption{Formal forward comparison on the 625-structure test split. MRE and
+  training time are mean\(\pm\)standard deviation over three seeds; latency and
+  peak memory are means across seeds.}
+  \label{tab:forward}
+  \centering
+  \small
+  \resizebox{\columnwidth}{!}{%
+  \begin{tabular}{lrrrr}
+    \toprule
+    Model & MRE (\%) $\downarrow$ & Params & Train (s) & ms/sample \\
+    \midrule
+    \method{} & $\mathbf{1.0299\pm0.0545}$ & 389,718 & 272.71 & 0.5267 \\
+    ResMLP-wide & $1.3309\pm0.0122$ & 878,646 & 80.96 & 0.0064 \\
+    Lifted CNN & $2.2234\pm0.0366$ & 5,458 & 39.97 & 0.0102 \\
+    MLP & $2.4764\pm0.0241$ & 878,646 & 65.66 & 0.0074 \\
+    \bottomrule
+  \end{tabular}}
+\end{table}
+
+BISON's best per-band result is band 4 (0.9028\% MRE), while band 10 is the
+hardest (1.2765\%). Thus, the gain is distributed across the band matrix rather
+than arising from a single easy output. The cost is higher training and
+inference time than the small dense baselines, although sub-millisecond
+inference remains negligible relative to eigensolver replay.
+
+RQ1 is therefore answered within the fixed dataset and metric: the implemented
+spectral operator gives the lowest three-seed held-out full-band MRE among the
+four tested models. This comparison does not isolate which BandBlock component
+causes the gain, nor does it establish resolution or lattice transfer.
+
+\subsection{Query Interpolation Works Better than Extrapolation}
+
+The FNO query model records \(1.1004\%\pm0.0218\%\) MRE on unseen structures
+over all sampled wave vectors and \(1.0470\%\pm0.0240\%\) on withheld
+interpolation queries. On a held-out path segment, its error rises to
+\(3.6747\%\pm0.1730\%\) and its band-order violation rate rises from 2.16\%
+under interpolation to 9.22\%. This is an important negative result: physical
+coordinates allow flexible queries, but they do not by themselves guarantee
+reliable extrapolation.
+
+\begin{table}[t]
+  \caption{Three-seed query prediction. Values are MRE (\%) and band-order
+  violation rate (\%).}
+  \label{tab:query}
+  \centering
+  \small
+  \resizebox{\columnwidth}{!}{%
+  \begin{tabular}{lrrrrrr}
+    \toprule
+     & \multicolumn{2}{c}{All-$k$} & \multicolumn{2}{c}{Interpolation}
+     & \multicolumn{2}{c}{Held segment} \\
+    Model & MRE & Viol. & MRE & Viol. & MRE & Viol. \\
+    \midrule
+    FNO query & \textbf{1.1004} & 2.96 & \textbf{1.0470} & 2.16 & \textbf{3.6747} & 9.22 \\
+    DeepONet & 1.7937 & 1.35 & 1.6308 & \textbf{0.41} & 3.7604 & \textbf{0.99} \\
+    MLP query & 2.1800 & \textbf{0.83} & 2.2079 & 0.42 & 4.2548 & 1.00 \\
+    \bottomrule
+  \end{tabular}}
+\end{table}
+
+DeepONet has lower ordering-violation rates despite higher MRE, showing that
+point accuracy and physical ordering are distinct. For this reason the query
+network is retained as an audit signal, not treated as an unquestionable
+second oracle.
+
+RQ2 has a mixed answer. The coordinate-conditioned FNO interpolates held-out
+points accurately, but neither the coordinate input nor the operator backbone
+prevents a large error increase on an unseen path segment. The negative result
+supports using the query model as a distribution-shift diagnostic rather than
+as a substitute for MPB.
+
+\subsection{No-Expert Inverse Design Survives MPB Replay}
+
+On all 625 test targets, the one-mode generator reaches 2.1434\% BISON MRE and
+2.2614\% real-MPB MRE (Table~\ref{tab:inverse}). The resulting
+surrogate--replay gap is 0.118 percentage points. Its replay distribution has
+median 2.2196\%, 10th percentile 1.7264\%, and 90th percentile 2.8262\%; the
+95\% bootstrap interval for its mean is [2.2263, 2.2965]\%.
+
+\begin{table}[t]
+  \caption{Seed-0 inverse evaluation on the complete 625-target test split.
+  Both methods use $K=128$ and Top-5 MPB replay. CI is the 95\% bootstrap
+  interval of mean MPB MRE. Gap is MPB minus BISON MRE in percentage points.}
+  \label{tab:inverse}
+  \centering
+  \small
+  \resizebox{\columnwidth}{!}{%
+  \begin{tabular}{lrrrrr}
+    \toprule
+    Generator & BISON & MPB (\%) & 95\% CI & Gap (pp) & Eff. $K$ \\
+    \midrule
+    Single mode (ours) & \textbf{2.1434} & \textbf{2.2614} & [2.2263,2.2965] & \textbf{0.1180} & \textbf{112.02} \\
+    Four modes & 2.2477 & 2.3916 & [2.3485,2.4341] & 0.1440 & 109.24 \\
+    \bottomrule
+  \end{tabular}}
+\end{table}
+
+Under the identical candidate and solver budget, the four-mode baseline has
+2.3916\% MPB MRE. The paired difference (four-mode minus one-mode) is 0.1302
+percentage points, with bootstrap interval [0.0905, 0.1705] and two-sided sign
+test \(p=0.0010\). The result supports the narrower conclusion that expert-like
+mode routing was unnecessary in this seed-0 protocol. It does not establish a
+universal architectural advantage or cross-seed stability.
+
+RQ3 is answered only at the strength of this protocol: for the complete
+625-target split and one training seed, BISON-ranked single-mode candidates
+retain a statistically consistent paired advantage after the same five MPB
+replays per target. The solver gap is nonzero, so the result validates the
+budgeted workflow rather than certifying BISON as an exact physical model.
+Figure~\ref{fig:inverse-examples} complements the aggregate result with four
+paired examples selected jointly from the same complete replay.
+
+\begin{figure*}[t]
+  \centering
+  % Canonical editable source: docs/.../inverse/paired_main4.svg
+  \includegraphics[width=\textwidth]{../../docs/reports/assets/phc2d_project_full_introduction_20260724/inverse/paired_main4.pdf}
+  \caption{Paired qualitative comparison between the single-mode no-expert
+  generator and the four-mode mixture baseline in the seed-0, 625-target
+  replay. Rows show the jointly selected best target, median target, largest
+  between-method disagreement, and worst target. For each method, the figure
+  displays the generated structure and the target, BISON-surrogate, and
+  real-MPB band curves; the header reports MPB MRE, surrogate MRE, and their
+  signed gap. These cases expose both ordinary paired behavior and difficult
+  targets, but remain qualitative single-seed evidence.}
+  \Description{Four rows compare single-mode and four-mode inverse-design
+  candidates for jointly selected best, median, largest-disagreement, and
+  worst targets. Each method column includes a generated binary unit cell,
+  target and predicted band curves, MPB replay curves, and error summaries.}
+  \label{fig:inverse-examples}
+\end{figure*}
+
+\subsection{Runtime and Evidence Boundary}
+
+For the one-mode method, generating candidates for all 625 targets takes
+1.408~s in total (2.25~ms/target), while BISON ranking takes 221.333~s
+(354.13~ms/target). The effective pool contains 112.02 candidates on average
+after binary deduplication. The query audit returns 2.1254\% MRE and differs
+from BISON by 0.8457 percentage points under its own diagnostic definition;
+this disagreement is retained rather than hidden.
+
+The forward table is a formal three-seed result. The inverse table is a
+complete-test but single-seed result. Earlier retrieval and direct-inverse
+numbers, field/PINO residuals, and historical seed-2 comparisons are not used
+as current inverse claims because they lack the same accepted replay protocol.

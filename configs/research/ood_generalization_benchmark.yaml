@@ -1,0 +1,39 @@
+experiment:
+  experiment_id: ood_generalization_benchmark
+  family: research
+  stage: ood_generalization
+dataset:
+  path: data/paper_like_50k_mpb.npz
+  input_repr: rho_wedge
+  output_target: Wh
+training:
+  epochs: 2
+  batch_size: 8
+  device: auto
+  seeds:
+    - 0
+    - 1
+    - 2
+runtime:
+  device: auto
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+model:
+  candidates:
+    - res_mlp
+    - lifted_cnn
+    - fno_lite
+notes:
+  blocked:
+    - generator_family_metadata_missing
+    - fill_ratio_metadata_missing
+    - morphology_complexity_axis_pending
+    - non_p4m_axis_pending
+  status: pending_full_axis_preparation
+output:
+  runs_dir: runs

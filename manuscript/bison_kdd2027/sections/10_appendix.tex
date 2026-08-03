@@ -1,0 +1,104 @@
+% Reproducibility appendix for the BISON manuscript.
+% Author: fangtoast
+% Email: fangtoast@foxmail.com
+% Copyright (c) 2026 fangtoast. All rights reserved.
+
+\section{Reproducibility Details}
+
+\subsection{BISON Configuration}
+
+\begin{table}[H]
+  \caption{Architecture and training configuration used for the formal forward
+  BISON result. Output dimensions are supplied by the dataset schema.}
+  \label{tab:bison-config}
+  \centering
+  \small
+  \begin{tabular}{ll}
+    \toprule
+    Item & Value \\
+    \midrule
+    Input representation & periodic permittivity grid \\
+    Lift width / BandBlocks & 32 / 4 \\
+    Spectral modes / band modes & $8\times8$ / $5\times5$ \\
+    Global low-rank width & 8 \\
+    Activation & GELU \\
+    Pooling / head & adaptive average / linear \\
+    Output in this dataset & $31\times10$ bands \\
+    Trainable parameters & 389,718 \\
+    Selected learning rate & $10^{-3}$ \\
+    Seeds & 0, 1, 2 \\
+    Evaluation bands & 2--10 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Per-Band Forward Error}
+
+\begin{table}[H]
+  \caption{BISON test MRE by evaluated band, averaged over three seeds.}
+  \label{tab:per-band}
+  \centering
+  \small
+  \resizebox{\columnwidth}{!}{%
+  \begin{tabular}{lrrrrrrrrr}
+    \toprule
+    Band & 2 & 3 & 4 & 5 & 6 & 7 & 8 & 9 & 10 \\
+    \midrule
+    MRE (\%) & 1.020 & 0.916 & 0.903 & 0.994 & 1.002 & 0.990 & 1.024 & 1.144 & 1.276 \\
+    \bottomrule
+  \end{tabular}}
+\end{table}
+
+\subsection{Inverse Candidate and Replay Settings}
+
+\begin{table}[H]
+  \caption{Frozen seed-0 inverse protocol.}
+  \label{tab:inverse-config}
+  \centering
+  \small
+  \begin{tabular}{ll}
+    \toprule
+    Item & Value \\
+    \midrule
+    Conditional generator & one fixed mode, no routing \\
+    Latent / hidden / depth & 32 / 256 / 4 \\
+    Objective fine-tuning & 50 epochs, AdamW, $10^{-4}$ \\
+    Candidates per target & 128 \\
+    Objective candidates in training & 16 \\
+    Binary threshold & 0.5 \\
+    Primary ranker & frozen seed-0 BISON \\
+    Cross-surrogate diagnostic & frozen seed-0 FNO query model \\
+    MPB replay budget & Top 5 per target \\
+    Test targets & complete 625-sample split \\
+    Bootstrap samples & 10,000 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Artifact Provenance and Claim Status}
+\label{app:provenance}
+
+The source manifest retains complete paths and digests. Its SHA-256 prefixes
+are listed separately to preserve readable two-column typesetting:
+\begin{itemize}
+  \item dataset: \texttt{991cb3810e88};
+  \item complete-test aggregate: \texttt{af97717abbd5};
+  \item per-target replay table: \texttt{716bb6f426c4};
+  \item paired qualitative inverse figure: \texttt{62830e47306e}.
+\end{itemize}
+
+The forward result is \emph{formal completed} with three seeds. The inverse
+result is \emph{single-seed complete-test replay}: it covers all 625 held-out
+targets but uses only seed 0. The experiment does not authorize claims of
+cross-seed inverse stability, universal superiority, PINO/field inverse gain,
+or causal attribution against an unmatched historical seed-2 run.
+
+\section{Additional Interpretation}
+
+The single-mode generator's MPB MRE interval is [2.2263, 2.2965]\%, whereas
+the four-mode interval is [2.3485, 2.4341]\%. The paired interval reported in
+the main paper is more informative for the same targets because it removes much
+of the target-to-target difficulty variation. Even so, it remains conditional
+on one trained pair of inverse models. A stronger follow-up would repeat the
+entire objective-bridge training and replay protocol for multiple seeds while
+preserving the same target pool and MPB budget.

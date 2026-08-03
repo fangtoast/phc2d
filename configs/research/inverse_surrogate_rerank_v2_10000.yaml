@@ -1,0 +1,133 @@
+# 10k V2 inverse candidate multi-surrogate rerank benchmark.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: inverse_surrogate_rerank_v2_10000
+  family: research
+  stage: inverse_surrogate_rerank_no_mpb_meep
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  condition_target: Wh
+  output_repr: rho_wedge
+  target_split: test
+
+model:
+  name: conditional_vae_rho
+  seed: 0
+  seeds:
+    - 0
+
+surrogate:
+  kind: query
+  config_path: configs/research/data_scaling_benchmark_v2_10000_full.yaml
+  scaling_experiment_id: query_data_scaling_v2_10000_full
+  scale_n: 10000
+  runs_dir: runs
+  seed: 0
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+inverse:
+  n_candidates: 16
+  surrogate_top_m: 3
+  candidate_value_range:
+    - 0.0
+    - 1.0
+  threshold: 0.5
+  allow_mock_generator: false
+  allow_mock_surrogate: false
+  morphology_filters:
+    min_fill_fraction: 0.05
+    max_fill_fraction: 0.95
+  ranking:
+    error_metric: bands_2_10_mre
+    morphology_weight: 0.0
+    diversity_weight: 0.1
+
+rerank:
+  candidates_path: runs/20260629/generative_inverse_v2_10000_202606291030/candidates.json
+  forward_leaderboard_path: runs/20260629/forward_band_benchmark_v2_10000_202606291012/leaderboard.csv
+  top_m: 3
+  primary_strategy: query_only
+  strategies:
+    - id: query_only
+      kind: query
+      config_path: configs/research/data_scaling_benchmark_v2_10000_full.yaml
+      scaling_experiment_id: query_data_scaling_v2_10000_full
+      scale_n: 10000
+      runs_dir: runs
+      seed: 0
+    - id: forward_res_mlp_rho_wedge
+      kind: forward
+      forward_experiment_id: forward_band_benchmark_v2_10000
+      model_name: res_mlp
+      input_repr: rho_wedge
+      seed: 1
+      selection_metric: avg_MRE_bands_2_10_pct
+      runs_dir: runs
+    - id: forward_fno2d_band_epsilon_grid
+      kind: forward
+      forward_experiment_id: forward_band_benchmark_v2_10000
+      model_name: fno2d_band
+      input_repr: epsilon_grid
+      seed: 0
+      selection_metric: avg_MRE_bands_2_10_pct
+      runs_dir: runs
+    - id: forward_fno_lite_epsilon_grid
+      kind: forward
+      forward_experiment_id: forward_band_benchmark_v2_10000
+      model_name: fno_lite
+      input_repr: epsilon_grid
+      seed: 0
+      selection_metric: avg_MRE_bands_2_10_pct
+      runs_dir: runs
+    - id: hybrid_query_forward
+      kind: hybrid
+      components:
+        - kind: query
+          weight: 0.5
+          config_path: configs/research/data_scaling_benchmark_v2_10000_full.yaml
+          scaling_experiment_id: query_data_scaling_v2_10000_full
+          scale_n: 10000
+          runs_dir: runs
+          seed: 0
+        - kind: forward
+          weight: 0.5
+          forward_experiment_id: forward_band_benchmark_v2_10000
+          model_name: res_mlp
+          input_repr: rho_wedge
+          seed: 1
+          selection_metric: avg_MRE_bands_2_10_pct
+          runs_dir: runs
+
+replay:
+  enabled: false
+  note: rerank only; real MPB replay must use a separate replay config pointing at strategy_candidates.json.
+
+metrics:
+  include:
+    - best_of_k_surrogate_mre_bands_2_10_pct
+    - best_of_k_surrogate_mre_bands_1_10_pct
+    - best_of_k_surrogate_mre_full
+    - selection_overlap_with_primary
+    - surrogate_ranking_time_s
+    - inference_time_per_sample_ms
+    - wall_time_total_s
+    - resolved_device
+    - peak_gpu_memory_mb
+
+output:
+  runs_dir: runs

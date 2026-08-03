@@ -1,0 +1,66 @@
+# Purpose: Near-field surrogate feasibility skeleton; no large training by default.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: near_field_surrogate_feasibility
+  family: research
+  stage: schema_inspect
+  gate: field_operator_pilot
+  execution: schema_only
+dataset:
+  path: data/field_tiny_mpb.h5
+  input_repr: field_conditioned
+  output_target: near_field_te_tm
+  smoke: true
+  required_fields:
+    - epsilon
+    - efield
+    - hfield
+    - freqs
+    - k_points
+  optional_metadata:
+    - polarization
+    - band_index
+  known_missing_for_full_operator:
+    - source
+    - boundary_condition
+    - grid_spacing
+    - domain_metadata
+    - field_normalization
+  split_policy: tiny_schema_only
+model:
+  candidates:
+    - unet_field
+    - fno_field
+  constraints:
+    - do_not_train_large_model
+    - do_not_reduce_to_rho_to_Wh
+    - infer_shapes_from_hdf5_schema
+training:
+  enabled: false
+  smallest_future_smoke: one_batch_cpu_shape_and_relative_l2_only
+  epochs: 0
+  batch_size: 1
+  device: auto
+runtime:
+  device: auto
+  require_accelerator: false
+  precision: fp32
+  amp_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+metrics:
+  include:
+    - relative_l2_field_error
+    - te_relative_l2_field_error
+    - tm_relative_l2_field_error
+    - wall_time_total_s
+    - field_inference_time_s
+    - field_inference_time_per_sample_ms
+  not_replay_metrics:
+    - no_mpb_replay_in_this_config
+output:
+  runs_dir: runs
+  report: docs/planning/near_field_feasibility_20260617.md

@@ -1,0 +1,69 @@
+# Query Dataset V2 physical-k pilot generation config for N=256.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment_id: query_dataset_v2_pilot_256
+
+dataset:
+  output_path: data/query_dataset_v2_pilot_256_mpb.npz
+  sample_count: 256
+  split:
+    train: 176
+    val: 64
+    test: 16
+  sample_id_policy: stable_generated_id
+  seed: 20260619
+  structure_generator:
+    name: legacy_random
+    prob_high: 0.32
+
+geometry:
+  representation: rho_wedge
+  grid_shape_source: config
+  grid_shape: [16, 16]
+  n_wedge: from_grid_shape
+  lifting: p4m_wedge_binary_pixels_as_mpb_blocks_air_background
+
+solver:
+  backend: mpb
+  environment: wsl_meep_env
+  use_proxy: false
+  lattice: square
+  lattice_constant: 1.0
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 64
+  polarization: TE
+  num_bands: 10
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+  eigensolver_tolerance: 1.0e-7
+  frequency_normalization: mpb_dimensionless_a_over_lambda
+  # MPB ModeSolver is fastest on this host with one active solver process.
+  # Increase with --workers/--max-workers only after a small max-samples sweep.
+  workers: 1
+  min_workers: 1
+  max_workers: 20
+  worker_backend: processpool
+  suppress_solver_output: true
+  fail_fast: true
+  worker_thread_env:
+    OMP_NUM_THREADS: "1"
+    OPENBLAS_NUM_THREADS: "1"
+    MKL_NUM_THREADS: "1"
+
+k_path:
+  source: generated_from_KPathSpec
+  family: square_gxm
+  k_path_id: query_dataset_v2_pilot_square_gxm_mpb_reduced_v1
+  n_total: 31
+  coordinate_system: mpb_reduced_reciprocal_coordinates
+  endpoint_policy: explicit
+
+output:
+  runs_dir: runs
+  write_manifest: true
+  write_k_path_sidecar: true
+  write_solver_provenance: true
+  write_metadata_jsonl: true

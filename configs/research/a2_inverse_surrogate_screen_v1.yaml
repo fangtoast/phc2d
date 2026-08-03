@@ -1,0 +1,158 @@
+# A2 seven-surrogate frozen-candidate validation screen.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+protocol:
+  id: a2_inverse_surrogate_screen_v1
+  version: 1
+  lane: surrogate_screen
+  status: approved_config_ready
+  evidence_status: config_ready_surrogate_screen
+  requested_k: 128
+  replay_top_m: 5
+  threshold: 0.5
+  minimum_normalized_hamming: auto_1_over_geometry_dof_count
+  selection_split: val
+  final_evaluation_split: test
+  forbid_test_driven_selection: true
+  prohibit_claims:
+    - formal_inverse_superiority
+    - cross_seed_stability
+    - pino_or_field_inverse_gain
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  expected_sha256: 991cb3810e881938755495ad0bccfa5b091194c2b74451842a9a50ddce974ad4
+  expected_split_sizes: {train: 6875, val: 2500, test: 625}
+  target_manifest_path: configs/research/target_manifests/inverse_surrogate_val100_v1.json
+  target_manifest_sha256: 2c8881cd6877b89c72f6793a45af7f8d637b86ff1c167fdb9e099a7276dbd3f3
+  expected_target_count: 100
+  k_path_sha256: c93a2bd90cab1ded0d0d475f52f01b27876850b453f764814ed7bb83a82899a3
+
+candidate_generation:
+  source_training_mode: reconstruction
+  n_candidates: 128
+  model:
+    name: mixture_conditional_generator
+    mode_count: 4
+    latent_dim: 32
+    hidden_dim: 256
+    depth: 4
+  generator_checkpoint:
+    path: runs/20260726/a2_inverse_single_seed_v1_202607261911/train/mixture_generator/checkpoint_epoch_200_seed0_lr3em04.pt
+    sha256: 58548c09f995846692201baed26407cfb4486fc5292ddb3d8951c851c21a6aae
+    seed: 0
+
+surrogate_matrix:
+  reference_id: fno2d_band_v2
+  variants:
+    - id: mlp
+      kind: forward
+      model_name: mlp
+      input_repr: rho_wedge
+      checkpoint_path: runs/20260726/a1_forward_mlp_ablation_v1_202607261605/cases/rho_wedge_mlp_1_lr3em04_seed0/train/model.pt
+      sha256: 78068422aff00819fdc62646cde0ec8d731d45238b2e932779054e9e386c0e65
+      seed: 0
+      role_group: forward_challenger
+    - id: res_mlp_wide
+      kind: forward
+      model_name: res_mlp_wide
+      input_repr: rho_wedge
+      checkpoint_path: runs/20260724/a1_forward_fair_v1_202607240020/cases/rho_wedge_res_mlp_wide_1_lr3em04_seed0/train/model.pt
+      sha256: be024b6d3ba9af474cda4088fbaccab78f324449888660e37f18f4e59ad8a4f9
+      seed: 0
+      role_group: forward_challenger
+    - id: lifted_cnn
+      kind: forward
+      model_name: lifted_cnn
+      input_repr: epsilon_grid
+      checkpoint_path: runs/20260724/a1_forward_fair_v1_202607240020/cases/epsilon_grid_lifted_cnn_2_lr1em03_seed0/train/model.pt
+      sha256: 0a6116311cc1d96d4f0efeedd217c0cfa73513f569583c51f5cc27a6a147d16a
+      seed: 0
+      role_group: forward_challenger
+    - id: fno2d_band_v2
+      kind: forward
+      model_name: fno2d_band_v2
+      input_repr: epsilon_grid
+      checkpoint_path: runs/20260724/a1_forward_fair_v1_202607240020/cases/epsilon_grid_fno2d_band_v2_3_lr1em03_seed0/train/model.pt
+      sha256: f82a3add5fce4b95b952cdd26d3fbe3915f0a245ac581ba702e682c0cf13b9ed
+      seed: 0
+      role_group: reference
+    - id: mlp_query
+      kind: query
+      model_name: mlp_query
+      input_repr: epsilon_grid
+      protocol: unseen_structure_all_k
+      k_path_sha256: c93a2bd90cab1ded0d0d475f52f01b27876850b453f764814ed7bb83a82899a3
+      checkpoint_path: runs/20260724/a1_query_fair_v1_202607240803/cases/unseen_structure_all_k_mlp_query_seed0_lr3em04.pt
+      sha256: 58159ea377466da172f79c45b04d5921747e8a159bd5a33e70c0602a435bba9f
+      seed: 0
+      role_group: query_challenger
+    - id: deep_onet_query_v2
+      kind: query
+      model_name: deep_onet_query_v2
+      input_repr: epsilon_grid
+      protocol: unseen_structure_all_k
+      k_path_sha256: c93a2bd90cab1ded0d0d475f52f01b27876850b453f764814ed7bb83a82899a3
+      checkpoint_path: runs/20260724/a1_query_fair_v1_202607240803/cases/unseen_structure_all_k_deep_onet_query_v2_seed0_lr3em04.pt
+      sha256: 7548cd41fa78152a274b2cbaadd7d436b0c11953279c409fbfb905e58ca477f8
+      seed: 0
+      role_group: query_challenger
+    - id: fno2d_query_v2
+      kind: query
+      model_name: fno2d_query_v2
+      input_repr: epsilon_grid
+      protocol: unseen_structure_all_k
+      k_path_sha256: c93a2bd90cab1ded0d0d475f52f01b27876850b453f764814ed7bb83a82899a3
+      checkpoint_path: runs/20260724/a1_query_fair_v1_202607240803/cases/unseen_structure_all_k_fno2d_query_v2_seed0_lr1em03.pt
+      sha256: cda70e75e46085ae4e75906d05e897b0011f714352ac9b0203e01275313a63cc
+      seed: 0
+      role_group: query_challenger
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+solver:
+  num_bands: 10
+  resolution: 64
+  polarization: TE
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  lattice_constant: 1.0
+  eigensolver_tolerance: 1.0e-7
+  grid_shape: [16, 16]
+  band_guard_count: 0
+  band_order_policy: frequency_ascending
+  protocol_sha256: 7cf88f3cddfc6611fa1809b6515ed71b040c86865c1ab7ac97ac62acd1e0388b
+
+pilot:
+  backend: real_mpb
+  target_positions: [0, 1, 2, 3, 4, 25, 26, 27, 28, 29, 50, 51, 52, 53, 54, 75, 76, 77, 78, 79]
+  timeout_seconds: 900
+  theoretical_solve_cap: 700
+  deduplicate_union_by_structure_sha256: true
+
+statistics:
+  bootstrap_iterations: 10000
+  bootstrap_seed: 0
+  confidence_level: 0.95
+
+boundaries:
+  pino_status: blocked
+  field_inverse_status: blocked
+  physics_aware_rerank_status: blocked
+  b4_checkpoint_allowed: false
+
+output:
+  runs_dir: runs
+  run_dir: null

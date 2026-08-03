@@ -1,0 +1,72 @@
+# 10k guarded V2 formal full-Wh forward retrain matrix.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: forward_formal_retrain_v2_10000
+  family: research
+  stage: forward_formal_retrain_neural_only
+
+dataset:
+  path: data/query_dataset_v2_pilot_10000_mpb.npz
+  input_repr: rho_wedge
+  output_target: Wh
+
+model:
+  candidates:
+    - res_mlp_wide
+    - fno2d_band_v2
+  overrides:
+    hidden_dim: 256
+    depth: 6
+    dropout: 0.05
+    width: 32
+    modes: [8, 8]
+    band_modes: [5, 5]
+    fourier_rank: 8
+
+training:
+  max_epochs: 200
+  checkpoint_epochs: [10, 30, 50, 100, 150, 200]
+  learning_rates: [0.001, 0.0003, 0.0001]
+  seeds: [0, 1, 2]
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  batch_size: 64
+  device: cuda:0
+  loss:
+    name: band_aware
+    relative_weight: 0.5
+    ordering_weight: 0.05
+    smoothness_weight: 0.02
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+  num_workers: 0
+  pin_memory: true
+
+evaluation:
+  split: test
+
+benchmark:
+  - input_repr: rho_wedge
+    output_target: Wh
+    model: res_mlp_wide
+  - input_repr: epsilon_grid
+    output_target: Wh
+    model: fno2d_band_v2
+
+metrics:
+  relative_error_floor: 1.0e-8
+
+output:
+  runs_dir: runs
+  report: docs/results/forward_retrain_v2_10000_20260702.md

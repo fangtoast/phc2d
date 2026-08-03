@@ -1,0 +1,33 @@
+experiment:
+  experiment_id: query_band_mvp
+  family: research
+  stage: query_band
+dataset:
+  path: data/paper_like_64_mpb.npz
+  input_repr: rho_wedge
+  output_target: band_query
+model:
+  candidates:
+    - res_mlp
+training:
+  epochs: 2
+  batch_size: 8
+  device: auto
+runtime:
+  device: auto
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  non_blocking_transfer: true
+  record_peak_memory: true
+metrics:
+  include:
+    - mae
+    - rmse
+    - wall_time_total_s
+    - inference_time_per_sample_ms
+    - throughput_samples_per_s
+output:
+  runs_dir: runs
