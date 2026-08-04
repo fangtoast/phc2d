@@ -23,6 +23,7 @@ import yaml
 
 from phc2d.data.full_cell import FullCellStructureSpec, build_full_bz_grid, write_full_cell_hdf5
 from phc2d.generators.full_cell import (
+    _build_spec,
     full_cell_structure_stats,
     generate_binary_polar_holes,
     generate_binary_spectral_threshold,
@@ -301,6 +302,58 @@ def _write_jsonl(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
     path.write_text("".join(_canonical_json(row) + "\n" for row in rows), encoding="utf-8")
 
 
+def _load_frozen_sample_plan(
+    path: Path,
+    cfg: Mapping[str, Any],
+    *,
+    effective_count: int,
+) -> tuple[list[FullCellStructureSpec], list[str], list[str]]:
+    """Reconstruct a validated structure schedule without resampling geometry."""
+
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if len(rows) != effective_count:
+        raise ValueError(f"Frozen sample plan has {len(rows)} rows; expected {effective_count}")
+    experiment_id = str(dict(cfg["experiment"])["experiment_id"])
+    generator_cfg = dict(cfg.get("generator") or {})
+    epsilon_air = float(generator_cfg.get("epsilon_air", 1.0))
+    epsilon_material = float(generator_cfg.get("epsilon_material", 8.9))
+    expected_schedule = _structure_schedule(str(dict(cfg["dataset"])["lane"]), effective_count)
+    structures: list[FullCellStructureSpec] = []
+    strata: list[str] = []
+    splits: list[str] = []
+    for index, (row, (expected_family, _variant, expected_stratum)) in enumerate(zip(rows, expected_schedule)):
+        sample_id = f"{experiment_id}_{index:06d}"
+        if int(row.get("sample_index", -1)) != index or str(row.get("sample_id")) != sample_id:
+            raise ValueError(f"Frozen sample plan identity mismatch at row {index}")
+        family = str(row.get("generator_family"))
+        stratum = str(row.get("stratum"))
+        if family != expected_family or stratum != expected_stratum:
+            raise ValueError(f"Frozen sample plan schedule mismatch at row {index}")
+        split = str(row.get("split"))
+        if split not in {"train", "val", "test"}:
+            raise ValueError(f"Frozen sample plan split mismatch at row {index}")
+        structure = _build_spec(
+            sample_id=sample_id,
+            family=family,
+            material_kind="continuous" if family == "graded_rbf_fourier" else "binary",
+            payload=dict(row.get("parameters") or {}),
+            metadata={"stats": dict(row.get("stats") or {}), "resumed_from_sample_plan": True},
+            epsilon_air=epsilon_air,
+            epsilon_material=epsilon_material,
+        )
+        if structure.geometry_hash != str(row.get("geometry_hash")):
+            raise ValueError(f"Frozen sample plan geometry hash mismatch at row {index}")
+        structures.append(structure)
+        strata.append(stratum)
+        splits.append(split)
+    expected_ids = [item.sample_id for item in structures]
+    split_counts = _effective_split_counts(dict(dict(cfg["dataset"])["split"]), int(dict(cfg["dataset"])["sample_count"]), effective_count)
+    _, _, _, expected_splits = _stable_stratified_splits(expected_ids, strata, split_counts)
+    if splits != expected_splits:
+        raise ValueError("Frozen sample plan split assignments do not match the configured stable split")
+    return structures, strata, splits
+
+
 def _write_history(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=["stage", "status", "reason"])
@@ -395,10 +448,19 @@ def run_full_cell_generation(
     full_count = int(dataset_cfg["sample_count"])
     effective_count = min(full_count, int(max_samples)) if max_samples is not None else full_count
     split_counts = _effective_split_counts(dict(dataset_cfg["split"]), full_count, effective_count)
-    structures, strata = _generate_structures(cfg, effective_count=effective_count)
-    sample_ids = [structure.sample_id for structure in structures]
-    idx_train, idx_val, idx_test, split_labels = _stable_stratified_splits(sample_ids, strata, split_counts)
-    history.append({"stage": "structure_generation", "status": "passed", "reason": ""})
+    sample_plan_path = out / "sample_plan.jsonl"
+    if sample_plan_path.is_file():
+        structures, strata, split_labels = _load_frozen_sample_plan(sample_plan_path, cfg, effective_count=effective_count)
+        sample_ids = [structure.sample_id for structure in structures]
+        idx_train, idx_val, idx_test, expected_labels = _stable_stratified_splits(sample_ids, strata, split_counts)
+        if split_labels != expected_labels:
+            raise ValueError("Frozen sample plan split assignments changed during resume")
+        history.append({"stage": "structure_generation", "status": "resumed", "reason": "validated frozen sample_plan.jsonl"})
+    else:
+        structures, strata = _generate_structures(cfg, effective_count=effective_count)
+        sample_ids = [structure.sample_id for structure in structures]
+        idx_train, idx_val, idx_test, split_labels = _stable_stratified_splits(sample_ids, strata, split_counts)
+        history.append({"stage": "structure_generation", "status": "passed", "reason": ""})
     k_points, k_grid_index = build_full_bz_grid(int(dict(cfg["k_grid"])["n_side"]))
     solver_cfg = _solver_config(dict(cfg["solver"]))
     worker_payload = dict(cfg.get("workers") or {})
@@ -419,22 +481,23 @@ def run_full_cell_generation(
         )
         for index, structure in enumerate(structures)
     ]
-    _write_jsonl(
-        out / "sample_plan.jsonl",
-        [
-            {
-                "sample_id": structure.sample_id,
-                "sample_index": index,
-                "split": split_labels[index],
-                "stratum": strata[index],
-                "generator_family": structure.generator_family,
-                "geometry_hash": structure.geometry_hash,
-                "parameters": structure.parameters,
-                "stats": structure.metadata.get("stats", {}),
-            }
-            for index, structure in enumerate(structures)
-        ],
-    )
+    if not sample_plan_path.is_file():
+        _write_jsonl(
+            sample_plan_path,
+            [
+                {
+                    "sample_id": structure.sample_id,
+                    "sample_index": index,
+                    "split": split_labels[index],
+                    "stratum": strata[index],
+                    "generator_family": structure.generator_family,
+                    "geometry_hash": structure.geometry_hash,
+                    "parameters": structure.parameters,
+                    "stats": structure.metadata.get("stats", {}),
+                }
+                for index, structure in enumerate(structures)
+            ],
+        )
     results, worker_summary = run_mpb_worker_jobs(jobs, config=parallel, shard_dir=out / "worker_shards", solver_fn=solver_fn)
     failures = [
         {"sample_id": item.sample_id, "sample_index": item.sample_index, "status": item.status, "reason": item.error}

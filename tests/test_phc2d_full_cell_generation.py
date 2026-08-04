@@ -14,6 +14,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 import yaml
+import phc2d.data.full_cell_generation as full_cell_generation
 
 from phc2d.cli import build_parser
 from phc2d.data.full_cell import FullCellStructureSpec, load_full_cell_hdf5
@@ -142,6 +143,35 @@ def test_solver_failure_is_preserved_and_dataset_is_not_written(tmp_path: Path) 
     assert results["dataset_written"] is False
     assert "intentional failure" in ledger
     assert not (tmp_path / "dataset.h5").exists()
+
+
+def test_resume_reconstructs_frozen_sample_plan_without_resampling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("h5py")
+    pytest.importorskip("matplotlib")
+    config = _write_config(tmp_path)
+    run_dir = tmp_path / "resumed_run"
+    run_full_cell_generation(
+        config,
+        run_dir=run_dir,
+        skip_environment_check=True,
+        solver_fn=deterministic_fake_solver,
+    )
+    frozen_plan = (run_dir / "sample_plan.jsonl").read_bytes()
+
+    def fail_if_resampled(*args, **kwargs):
+        raise AssertionError("resume must not resample frozen geometry")
+
+    monkeypatch.setattr(full_cell_generation, "_generate_structures", fail_if_resampled)
+    run_full_cell_generation(
+        config,
+        run_dir=run_dir,
+        workers=1,
+        skip_environment_check=True,
+        solver_fn=deterministic_fake_solver,
+    )
+
+    assert (run_dir / "sample_plan.jsonl").read_bytes() == frozen_plan
+    assert "structure_generation,resumed" in (run_dir / "history.csv").read_text(encoding="utf-8")
 
 
 def test_data_generate_cli_parser_does_not_import_meep() -> None:
