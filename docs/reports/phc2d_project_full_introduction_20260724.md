@@ -142,7 +142,7 @@ Top-M 候选
 
 二维光子晶体的能带计算，本质上需要求解周期性介质中的 Maxwell 本征问题：
 
-\[
+$$
 \nabla\times
 \left[
 \varepsilon^{-1}(\mathbf r)
@@ -150,19 +150,19 @@ Top-M 候选
 \right]
 =
 \left(\frac{\omega}{c}\right)^2\mathbf H.
-\]
+$$
 
 对于给定介电常数分布：
 
-\[
+$$
 \varepsilon(\mathbf r),
-\]
+$$
 
 需要在不同 Bloch 波矢 \(\mathbf k\) 下求解多个本征频率：
 
-\[
+$$
 \omega_n(\mathbf k),
-\]
+$$
 
 其中 \(n\) 表示能带编号。
 
@@ -179,7 +179,7 @@ Top-M 候选
 
 因此，本项目研究：
 
-\[
+$$
 \text{真实 Maxwell 求解}
 \longrightarrow
 \text{快速神经代理}
@@ -187,7 +187,7 @@ Top-M 候选
 \text{多候选逆向设计}
 \longrightarrow
 \text{真实求解器回放验证}.
-\]
+$$
 
 ---
 
@@ -197,36 +197,36 @@ Top-M 候选
 
 输入二维光子晶体结构：
 
-\[
+$$
 \rho
 \quad\text{或}\quad
 \varepsilon(x,y),
-\]
+$$
 
 直接预测固定高对称路径上的完整能带矩阵：
 
-\[
+$$
 W_h
 =
 \{\omega_n(\mathbf k_i)\}
 \in
 \mathbb R^{N_k\times N_b}.
-\]
+$$
 
 当前 V2 数据中：
 
-\[
+$$
 N_k=31,\qquad N_b=10.
-\]
+$$
 
 即学习：
 
-\[
+$$
 \mathcal G_{\mathrm{full}}:
 \varepsilon(x,y)
 \rightarrow
 W_h.
-\]
+$$
 
 该任务适合批量计算完整能带图。
 
@@ -234,12 +234,12 @@ W_h.
 
 Full-Wh 模型一次输出固定路径上的全部频率，而 Query 模型把波矢作为显式输入：
 
-\[
+$$
 \mathcal G_{\mathrm{query}}:
 \left(\varepsilon(x,y),\mathbf k\right)
 \rightarrow
 \{\omega_1,\ldots,\omega_{N_b}\}.
-\]
+$$
 
 其意义在于：
 
@@ -255,17 +255,17 @@ Full-Wh 模型一次输出固定路径上的全部频率，而 Query 模型把�
 
 除了频率，项目还研究：
 
-\[
+$$
 \left(\varepsilon,\mathbf k,n\right)
 \rightarrow
 \left(\mathbf E_n,\mathbf H_n,\omega_n\right).
-\]
+$$
 
 当前场模型预测 TE 模式的有效复数分量：
 
-\[
+$$
 E_x,\quad E_y,\quad H_z,
-\]
+$$
 
 并使用实部、虚部分通道表示。
 
@@ -282,13 +282,13 @@ E_x,\quad E_y,\quad H_z,
 
 输入目标能带：
 
-\[
+$$
 W_h^{*},
-\]
+$$
 
 输出多个候选结构：
 
-\[
+$$
 W_h^{*}
 \rightarrow
 \left\{
@@ -297,15 +297,15 @@ W_h^{*}
 \ldots,
 \hat\rho^{(K)}
 \right\}.
-\]
+$$
 
 与确定性 inverse MLP 不同，项目将逆问题视为一对多问题：
 
-\[
+$$
 W_h^{*}
 \not\rightarrow
 \text{唯一结构}.
-\]
+$$
 
 不同结构可能实现相似能带，因此逆向设计的目标不是逐像素恢复数据集中的原结构，而是找到一个或多个满足目标频谱的可行结构。
 
@@ -331,11 +331,11 @@ W_h^{*}
 
 利用当前 \(p4m\) 对称性，仅保存独立结构自由度：
 
-\[
+$$
 \rho_{\mathrm{wedge}}
 \in
 \mathbb R^{36}.
-\]
+$$
 
 优点是维度低，适合 MLP、结构重建和逆向生成器，也便于执行二值化、Hamming 距离和候选去重。
 
@@ -343,11 +343,11 @@ W_h^{*}
 
 将结构展开成周期性介电常数网格：
 
-\[
+$$
 \varepsilon(x,y)
 \in
 \mathbb R^{H\times W}.
-\]
+$$
 
 该表征更适合 CNN、FNO-inspired spectral encoder 和 field operator。
 
@@ -477,25 +477,25 @@ real-MPB replay
 ## 5.1 MLP 系列
 
 `mlp` 与 `res_mlp_wide` 都直接学习：
-\[
+$$
 \rho_{\mathrm{wedge}}
 \rightarrow
 W_h.
-\]
+$$
 
 二者利用低维对称结构参数，具有训练快、参数利用率高的特点，也是判断卷积或谱算子是否真正带来收益的重要基线。
 
 其中，`mlp` 是无残差连接的同容量基线：输入展平后经过输入线性层、GELU、6 个 MLP block 和输出线性层。每个 block 的主分支为 `Linear -> GELU -> Dropout -> Linear`，并计算
 
-\[
+$$
 \operatorname{GELU}(F(x)).
-\]
+$$
 
 在 A1.1 公平消融中，`mlp` 使用 `hidden_dim=256`、`depth=6`、`dropout=0.05`，与 `res_mlp_wide` 的输入、输出、宽度、block 数、每个 block 的线性层数、激活、dropout 和参数量均一致；两者均为 878,646 参数。区别只在于 `res_mlp_wide` 的 block 计算
 
-\[
+$$
 \operatorname{GELU}(x + F(x)).
-\]
+$$
 
 因此，`mlp` 是独立的 canonical model，而非 `res_mlp_wide` 的 alias；该对照用于隔离残差连接本身的收益，不应与 `mlp_query` 或确定性 inverse MLP 混为一谈。
 
@@ -530,20 +530,20 @@ rho_wedge [B,36]
 ## 5.2 Lifted CNN
 
 `lifted_cnn` 使用展开后的网格结构：
-\[
+$$
 \varepsilon(x,y)
 \rightarrow
 W_h.
-\]
+$$
 
 它用于检验普通局部卷积能否有效提取空间形态特征。
 
 ### 5.2.1 输入、张量尺寸与逐层结构
 
 `lifted_cnn` 接收由 `rho_wedge` 展开得到的 `epsilon_grid`。当前 A1 数据中的网格为单通道 \(16\times16\)，但构造器实际读取 `input_shape`，因此网络接口写成一般形式
-\[
+$$
 X_0\in\mathbb R^{B\times C_{\mathrm{in}}\times H\times W}.
-\]
+$$
 
 如果数据张量只有 `[B,H,W]`，forward 会先补出通道维。随后各层保持空间分辨率不变：
 
@@ -561,14 +561,14 @@ X_0\in\mathbb R^{B\times C_{\mathrm{in}}\times H\times W}.
 
 其前向计算可以写为
 
-\[
+$$
 \begin{aligned}
 X_1 &= \operatorname{GELU}(\operatorname{Conv}_{3\times3}^{1\to12}(X_0)),\\
 X_2 &= \operatorname{GELU}(\operatorname{Conv}_{3\times3}^{12\to12}(X_1)),\\
 z &= \operatorname{GAP}(X_2),\\
 \hat W_h &= \operatorname{reshape}(W_{\mathrm{head}}z+b_{\mathrm{head}}).
 \end{aligned}
-\]
+$$
 
 这里的输出 310 和 reshape 到 \(31\times10\) 是当前数据目标；代码本身使用 `output_shape` 计算输出维度。名称中的 `lifted` 指输入已经由低维 wedge 表征展开为二维介电常数网格，不表示 CNN 内部另有一个 learned lifting layer。A1 artifact 记录的总参数量为 **5,458**。实现见 [`build_lifted_cnn`](../../src/phc2d/models/baselines.py)，参数与正式测试记录见 [`A1 Forward 公平对照`](../results/forward/a1_forward_query_fair_v1_20260726.md)。
 
@@ -611,9 +611,9 @@ epsilon_grid [B,1,H,W]
 
 设第 \(l\) 个 block 的输入为 \(X_l\in\mathbb R^{B\times32\times H\times W}\)。频域支路先执行二维实数 FFT：
 
-\[
+$$
 \tilde X_l=\operatorname{RFFT2}(X_l).
-\]
+$$
 
 代码为每个 block 建立两组独立的可训练复数权重：
 
@@ -624,13 +624,13 @@ epsilon_grid [B,1,H,W]
 
 它们都只作用于 `rfft2` 张量左上角保留的低频区域，并以通道 Einstein summation 完成输入/输出通道混合：
 
-\[
+$$
 \tilde Y_{b,o,p,q}
 =
 \sum_i \tilde X_{b,i,p,q}W^{\mathrm{full}}_{i,o,p,q}
 +
 \sum_i \tilde X_{b,i,p,q}W^{\mathrm{band}}_{i,o,p,q}.
-\]
+$$
 
 第二项只在 \(p<5,q<5\) 的重叠低频区域存在；其余被保留的 \(8\times8\) 区域只有 `weight_full`。未保留的频率位置置零，再用 `irfft2(..., s=(H,W))` 回到空间域。实现使用 `min(modes,H)` 和 `min(modes,W/2+1)` 裁剪，因此可以接收不同网格分辨率，但可学习的 modes 上限仍由配置决定。
 
@@ -638,7 +638,7 @@ epsilon_grid [B,1,H,W]
 
 频域结果并不是直接送入下一层。每个 block 还包含局部、门控、低秩全局和残差四部分：
 
-\[
+$$
 \begin{aligned}
 S_l &= \operatorname{SpectralConv}(X_l)+\operatorname{Conv}_{1\times1}(X_l),\\
 G_l &= \sigma(\operatorname{Conv}_{1\times1}(S_l)),\\
@@ -648,7 +648,7 @@ X_{l+1} &= \operatorname{GELU}\!\left(
 \operatorname{Conv}_{1\times1}(U_l+r_l)+X_l
 \right).
 \end{aligned}
-\]
+$$
 
 其中 \(r_l\) 在加入二维特征图前 reshape 为 `[B,32,1,1]` 并广播。低秩 MLP 使用 `Linear(32,8) -> ReLU -> Linear(8,32)`；band gate 使用 `1×1 Conv -> Sigmoid`；最后的 shortcut 保证 block 输入能直接进入输出。对应实现骨架为：
 
@@ -676,13 +676,13 @@ Query 任务目前包括：
 
 DeepONet-style 模型学习：
 
-\[
+$$
 \operatorname{Branch}(\varepsilon)
 \odot
 \operatorname{Trunk}(\mathbf k)
 \rightarrow
 \omega(\mathbf k).
-\]
+$$
 
 它保留了 DeepONet 的核心思想，但没有直接复用官方实现，因此应称为适配模型，而不是 faithful DeepONet reproduction。
 
@@ -696,9 +696,9 @@ DeepONet-style 模型学习：
 
 `mlp_query` 直接展平介电常数网格，并与二维 \(k\) 坐标拼接：
 
-\[
+$$
 u_0=[\operatorname{vec}(\varepsilon);k_x;k_y].
-\]
+$$
 
 当前网络为 `Linear(258,64) -> GELU -> Dropout(0) -> Linear(64,64) -> GELU -> Linear(64,10)`，参数量 **21,386**。它允许每一个隐藏单元同时看到所有网格像素和 \(k\) 坐标，但没有显式空间局部性、频域算子或 branch/trunk 分解，因此是 query 任务的最低复杂度全连接基线。
 
@@ -706,17 +706,17 @@ u_0=[\operatorname{vec}(\varepsilon);k_x;k_y].
 
 Branch 接收展平后的结构，Trunk 只接收 \(k_x,k_y\)。两支均使用 128 宽、depth 4 的 GELU MLP，最后投影到同一个 128 维共享特征空间：
 
-\[
+$$
 b=\operatorname{Branch}(\varepsilon)\in\mathbb R^{128},\qquad
 t=\operatorname{Trunk}(\mathbf k)\in\mathbb R^{128}.
-\]
+$$
 
 代码中的 `depth=4` 具体表示首个 `Linear -> GELU` 加 3 个 `Linear(128,128) -> GELU`，随后再用一个无激活 Linear 输出 128 维特征。融合是逐元素乘法而非 concat：
 
-\[
+$$
 h=b\odot t,\qquad
 \hat\omega(\mathbf k)=W_{\mathrm{band}}h+b_{\mathrm{learned}}.
-\]
+$$
 
 `band_head` 为无 bias 的 `Linear(128,10)`，再单独加一个可学习的 10 维 bias；总参数量 **166,666**。这里的 `latent_dim=128` 只是 branch/trunk 的公共特征宽度，与逆向生成器的随机 latent noise 无关。
 
@@ -724,24 +724,24 @@ h=b\odot t,\qquad
 
 结构侧先用 `1×1` lift 得到 32 通道，再经过 4 个 query FNO block。每个 block 只有一组 `[32,32,8,8]` 复数谱权重，与一个局部 `1×1 Conv` 相加后做 GELU：
 
-\[
+$$
 X_{l+1}=\operatorname{GELU}\left(
 \operatorname{SpectralConv}_{8\times8}(X_l)
 +\operatorname{Conv}_{1\times1}(X_l)
 \right).
-\]
+$$
 
 四层之后用 global average pooling 得到 \(p\in\mathbb R^{32}\)。查询侧把二维 \(k\) 坐标编码为 32 维 Sigmoid gate：
 
-\[
+$$
 g(\mathbf k)=\sigma\left(W_2\operatorname{GELU}(W_1\mathbf k+b_1)+b_2\right),
-\]
+$$
 
 其中 query encoder 为 `Linear(2,64) -> GELU -> Linear(64,32) -> Sigmoid`。最终不是只使用 \(p\odot g\)，而是保留原始结构特征并拼接门控特征：
 
-\[
+$$
 h=[p;\,p\odot g(\mathbf k)]\in\mathbb R^{64},
-\]
+$$
 
 再经 `Linear(64,64) -> GELU -> Linear(64,10)` 输出，参数量 **273,514**。这一路径让 \(k\) 条件以通道门控方式调节结构谱特征，同时保留未门控的结构摘要。它与 `fno2d_band_v2` 不同：没有 `weight_band`、band gate、低秩全局支路或 block residual，输出也是单个 \(k\) 点的 band vector，而不是完整 \(W_h\)。
 
@@ -783,7 +783,7 @@ h=[p;\,p\odot g(\mathbf k)]\in\mathbb R^{64},
 
 设 block 输入为 \(X_l\)，当前 `corrected_spectral_modes=true` 时，谱支路分别学习 RFFT 张量第一频轴的正向低频切片和负向低频切片；两侧均最多保留 \(16\times16\) modes。谱支路与局部 `1×1 Conv` 相加后先经 GroupNorm，再由 `(kx,ky,band)` 经过独立线性层产生通道级 FiLM scale/shift，最后计算
 
-\[
+$$
 X_{l+1}
 =
 X_l
@@ -800,7 +800,7 @@ X_l
 \right)
 \right]
 \right).
-\]
+$$
 
 这四个 operator block 不含 `fno2d_band_v2` 的 `weight_band`、Sigmoid band gate 或 32→8→32 低秩支路。其两个输出头分别是 `Conv1×1(48,48) -> GELU -> Conv1×1(48,6)` 和 `GAP -> concat(context) -> Linear(51,48) -> GELU -> Linear(48,1)`；因此场与频率共享算子编码，但不共享最后的预测头。adapted PINO 不是第三种网络架构，而是在该主干上加入 TE Bloch 物理残差的训练制度。
 
@@ -889,13 +889,13 @@ $$
 
 当前 A1 前向与 query 比较都以逐元素均方误差作为训练目标：
 
-\[
+$$
 \mathcal L_{\mathrm{MSE}}
 =
 \frac{1}{B D}
 \sum_{i=1}^{B}\sum_{j=1}^{D}
 \left(\hat y_{ij}-y_{ij}\right)^2,
-\]
+$$
 
 其中 \(D=|W_h|\)（Full-Wh）或 \(D=|\omega(\mathbf k)|\)（Query）。前向 runner 的默认 `loss.name` 为 `mse`，query runner 直接实例化 `torch.nn.MSELoss()`；前向框架也支持 `band_aware` 可选损失，但它**不是**此处 A1 配置所声明的训练目标。对应实现见 [`forward/runner.py`](../../src/phc2d/forward/runner.py) 与 [`query/runner.py`](../../src/phc2d/query/runner.py)。
 
@@ -913,12 +913,12 @@ $$
 
 数据驱动部分不是普通像素 MSE。代码先在复数域按电场内积对齐全局相位，再分别计算电场和磁场的相对 \(L_2\)；其加权平均与频率 z-space MSE 构成
 
-\[
+$$
 \mathcal L_{\mathrm{data}}
 =
 1.0\,\mathcal L_{\mathrm{phase\text{-}invariant\ field}}
 +0.1\,\operatorname{MSE}(\hat f_z,f_z).
-\]
+$$
 
 对 adapted PINO，训练损失再加上激活后的 \(\lambda_{\mathrm{pde}}\mathcal L_{\mathrm{TE\ residual}}\)，必要时还会加 dense-frequency 与 Rayleigh-consistency 项；P4/P5 配置中的 PDE 残差按 64/96/128 分辨率加权平均。该分支当前仍有 residual-frequency calibration 和跨分辨率门控，因此这些物理损失的存在不等价于已获准 field inverse 或 inverse reranking。
 
@@ -960,9 +960,9 @@ $$
 
 本章先定义当前主生成器，再说明非参数检索、确定性回归和 latent generator 等已实现方法的角色。第一版四方法公平结果已经撤销，当前定量证据以 objective-bridge single-mode/mixture 为准。当前主生成器名为：
 
-\[
+$$
 \texttt{mixture\_conditional\_generator}.
-\]
+$$
 
 它与另外两种已实现的可训练 inverse 网络的实际结构如下。这里展示的是网络身份，不表示三种网络都已有当前有效的公平结果。
 
@@ -972,14 +972,14 @@ $$
 
 生成过程可表示为：
 
-\[
+$$
 \hat\rho
 =
 G_\theta
 \left(
 W_h^{*},m,z
 \right),
-\]
+$$
 
 其中：
 
@@ -1055,15 +1055,15 @@ rho_continuous = decoder(cat([encoded, mode, z])) # [B, R], with final Sigmoid
 
 首先利用配对数据训练：
 
-\[
+$$
 W_h
 \rightarrow
 \rho_{\mathrm{original}}.
-\]
+$$
 
 预训练损失为：
 
-\[
+$$
 \mathcal L_{\mathrm{pretrain}}
 =
 \operatorname{MSE}
@@ -1071,7 +1071,7 @@ W_h
 \hat\rho,
 \rho_{\mathrm{original}}
 \right).
-\]
+$$
 
 这一阶段让生成器先学会目标能带与合理结构分布之间的基本关系。
 
@@ -1083,7 +1083,7 @@ W_h
 
 总目标包含：
 
-\[
+$$
 \begin{aligned}
 \mathcal L_{\mathrm{objective}}
 ={}&
@@ -1096,11 +1096,11 @@ W_h
 &+\lambda_z\mathcal L_{\mathrm{latent\ response}}
 +\lambda_{\mathrm{col}}\mathcal L_{\mathrm{collision}}.
 \end{aligned}
-\]
+$$
 
 当前主要权重为：
 
-\[
+$$
 \begin{aligned}
 \lambda_s &= 1.0, &
 \lambda_c &= 0.2, &
@@ -1111,7 +1111,7 @@ W_h
 \lambda_z &= 0.25, &
 \lambda_{\mathrm{col}} &= 0.9.
 \end{aligned}
-\]
+$$
 
 各部分作用如下：
 
@@ -1128,12 +1128,12 @@ W_h
 
 在当前 objective 配置下，上表各项的可微定义可进一步写为：
 
-\[
+$$
 \mathcal L_{\mathrm{surrogate}}
 =
 \operatorname{mean}_{b\ge 2}
 \frac{|\hat W_b-W_b^*|}{\max(|W_b^*|,10^{-8})},
-\]
+$$
 
 即默认从第 2 条能带开始计算相对误差，避免近零分母的第 1 条能带主导目标。`cross-surrogate loss` 使用相同的 bands-aware 相对差，比较主、次两个冻结代理的预测；分母取次代理预测的 detach 版本。`gap loss` 先以可微 soft-min/soft-max 计算相邻带的 complete-gap descriptor，再对预测与目标 descriptor 取 MSE。
 
@@ -1151,13 +1151,13 @@ W_h
 
 逆向框架内部确实包含正向替代网络。其作用不是生成结构，而是近似
 
-\[
+$$
 \hat F_\phi:\rho\rightarrow \hat W_h,
-\]
+$$
 
 从而把生成结构 \(\hat\rho=G_\theta(W_h^*,z,m)\) 再映射回预测频谱，并形成可微闭环：
 
-\[
+$$
 W_h^*
 \xrightarrow{G_\theta}
 \hat\rho
@@ -1165,7 +1165,7 @@ W_h^*
 \hat W_h
 \xrightarrow{\mathcal L(\hat W_h,W_h^*)}
 \nabla_\theta.
-\]
+$$
 
 其中 \(\phi\) 在 inverse 训练时冻结，只有生成器参数 \(\theta\) 更新。因此它更准确的名称是“冻结的正向物理代理”，而不是 inverse 网络内部另一个共同训练的 decoder。
 
@@ -1270,19 +1270,19 @@ $$
 
 对于生成结构 \(\hat\rho\)，真实 MPB replay 计算：
 
-\[
+$$
 \hat W_h^{\mathrm{MPB}}
 =
 \operatorname{MPB}(\hat\rho),
-\]
+$$
 
 再比较：
 
-\[
+$$
 \hat W_h^{\mathrm{MPB}}
 \quad\text{与}\quad
 W_h^{*}.
-\]
+$$
 
 它验证的是：
 
@@ -1290,23 +1290,23 @@ W_h^{*}.
 
 它并不要求：
 
-\[
+$$
 \hat\rho
 =
 \rho_{\mathrm{original}}.
-\]
+$$
 
 因为逆向设计通常是多解问题。候选结构与数据集原始结构不同，只要真实 MPB 频谱能够匹配目标，就仍然可能是有效逆向设计结果。
 
 项目同时计算：
 
-\[
+$$
 \text{surrogate-replay gap}
 =
 E_{\mathrm{MPB}}
 -
 E_{\mathrm{surrogate}},
-\]
+$$
 
 用来衡量代理模型是否对候选结构过于乐观。
 
@@ -1452,9 +1452,9 @@ objective-bridge 的 50-epoch 训练与完整 test625 推理开销为：
 
 粗体只标记三行完全可比表格中的全局最优；PINO 的 residual 改善写入独立 delta 表，不再与 U-Net 的全局最优混为一谈。PINO seed 0 复用 validation-selected checkpoint，`1,428.54 s/new seed` 是 seed 1/2 的平均新增训练时间。其 Maxwell residual median 相对匹配 FNO 降低约：
 
-\[
+$$
 37.48\%.
-\]
+$$
 
 但是它的 frequency MRE 反而升高，说明 residual 改善并不自动等价于频率预测改善。
 
@@ -1516,19 +1516,19 @@ inverse_status = blocked
 
 项目同时研究：
 
-\[
+$$
 \varepsilon
 \rightarrow
 W_h
-\]
+$$
 
 和：
 
-\[
+$$
 (\varepsilon,\mathbf k)
 \rightarrow
 \omega(\mathbf k).
-\]
+$$
 
 Full-Wh 模型适合完整能带快速计算，Query 模型适合灵活波矢查询，两者还可以在逆向筛选中互相交叉检查。
 
@@ -1536,11 +1536,11 @@ Full-Wh 模型适合完整能带快速计算，Query 模型适合灵活波矢查
 
 项目显式承认：
 
-\[
+$$
 W_h^{*}
 \rightarrow
 \rho
-\]
+$$
 
 是高度非唯一问题，通过 mode 和 latent noise 为同一目标提出多个候选，而不是只输出一个平均化结构。
 
