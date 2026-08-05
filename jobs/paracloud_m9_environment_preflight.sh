@@ -10,5 +10,5 @@ source "$PHC2D_ROOT/jobs/paracloud_m9_common.sh"
 
 echo "host=$(hostname)"
 cat /etc/os-release
-ldd --version | head -n 1
+ldd --version 2>&1 | sed -n '1p'
 python -c "import platform; import meep; from meep import mpb; print(platform.libc_ver()); print(meep.__version__, mpb.__version__)"

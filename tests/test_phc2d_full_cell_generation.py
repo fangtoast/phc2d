@@ -355,6 +355,10 @@ def test_paracloud_m9_formal_job_is_fail_closed() -> None:
     assert "mpb_version = '.'.join(map(str, mpb.__version__))" in common
     for path in (root / "jobs").glob("paracloud_m9_*.sh"):
         assert path.read_text(encoding="utf-8").startswith("#!/usr/bin/env bash\n")
+    environment_preflight = (
+        root / "jobs/paracloud_m9_environment_preflight.sh"
+    ).read_text(encoding="utf-8")
+    assert "ldd --version 2>&1 | sed -n '1p'" in environment_preflight
     for name in (
         "paracloud_m9_environment_preflight.sh",
         "paracloud_m9_solver_preflight.sh",
