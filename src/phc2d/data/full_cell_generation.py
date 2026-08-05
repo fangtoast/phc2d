@@ -115,6 +115,12 @@ def _cpu_model() -> str:
     return platform.processor() or "unknown"
 
 
+def _runtime_version(value: Any) -> str:
+    if isinstance(value, (tuple, list)):
+        return ".".join(str(item) for item in value)
+    return str(value)
+
+
 def _execution_profile(solver: Mapping[str, Any]) -> dict[str, Any]:
     environment = str(solver.get("environment", ""))
     profile: dict[str, Any] = {
@@ -143,8 +149,8 @@ def _execution_profile(solver: Mapping[str, Any]) -> dict[str, Any]:
         import meep
         from meep import mpb
 
-        profile["meep_version"] = str(getattr(meep, "__version__", "unknown"))
-        profile["mpb_version"] = str(getattr(mpb, "__version__", "unknown"))
+        profile["meep_version"] = _runtime_version(getattr(meep, "__version__", "unknown"))
+        profile["mpb_version"] = _runtime_version(getattr(mpb, "__version__", "unknown"))
     except Exception as exc:
         profile["meep_mpb_import_error"] = str(exc)
     if environment == "wsl_meep_env":
