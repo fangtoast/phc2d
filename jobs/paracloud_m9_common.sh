@@ -54,7 +54,12 @@ mkdir -p "$PHC2D_ENV"
 tar -xzf "$PHC2D_ENV_ARCHIVE" -C "$PHC2D_ENV"
 export PATH="$PHC2D_ENV/bin:$PATH"
 "$PHC2D_ENV/bin/conda-unpack"
+# The conda-pack activation shim probes optional shell variables such as
+# CONDA_PREFIX and PS1.  Keep strict mode for the job, but not while sourcing
+# that third-party shim.
+set +u
 source "$PHC2D_ENV/bin/activate"
+set -u
 export PYTHONPATH="$PHC2D_ROOT/src"
 export MPLBACKEND=Agg
 export OMP_NUM_THREADS=1

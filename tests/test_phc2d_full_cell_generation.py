@@ -351,6 +351,7 @@ def test_paracloud_m9_formal_job_is_fail_closed() -> None:
     assert common.index('export PATH="$PHC2D_ENV/bin:$PATH"') < common.index(
         '"$PHC2D_ENV/bin/conda-unpack"'
     )
+    assert "set +u\nsource \"$PHC2D_ENV/bin/activate\"\nset -u" in common
     for path in (root / "jobs").glob("paracloud_m9_*.sh"):
         assert path.read_text(encoding="utf-8").startswith("#!/usr/bin/env bash\n")
     for name in (
