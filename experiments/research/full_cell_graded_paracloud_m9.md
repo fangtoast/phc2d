@@ -17,12 +17,14 @@
 5a046251e18bd0964ea8c70f4d52fa3bc48bff1b7e8997d4a3f17855be267ec2
 ```
 
-项目与环境固定部署到：
+项目与环境归档固定部署到：
 
 ```text
 /publicfs10/fs10-m9/home/m9s005801/phc2d
-/publicfs10/fs10-m9/home/m9s005801/envs/meep_env_paracloud_m9
+/publicfs10/fs10-m9/home/m9s005801/envs/meep_env_paracloud_m9.tar.gz
 ```
+
+公共文件系统不展开 Conda 的数万个小文件。每个 Slurm 作业先校验环境归档 SHA-256，再解包到 `${SLURM_TMPDIR:-/tmp}/phc2d_${USER}_${SLURM_JOB_ID}/meep_env`，运行 `conda-unpack`，作业退出时仅清理该精确节点本地目录。
 
 ## 提交顺序
 

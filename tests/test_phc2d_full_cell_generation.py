@@ -338,11 +338,16 @@ def test_paracloud_m9_config_preserves_graded_physics_and_allows_256_workers() -
 def test_paracloud_m9_formal_job_is_fail_closed() -> None:
     root = Path(__file__).resolve().parents[1]
     script = (root / "jobs/paracloud_m9_graded_10000.sh").read_text(encoding="utf-8")
+    common = (root / "jobs/paracloud_m9_common.sh").read_text(encoding="utf-8")
     assert 'PHC2D_AUTHORIZE_GRADED:-NO' in script
     assert "5a046251e18bd0964ea8c70f4d52fa3bc48bff1b7e8997d4a3f17855be267ec2" in script
     assert "PHC2D_EXPECTED_GIT_COMMIT" in script
     assert "PHC2D_PREFLIGHT_RUN_DIR" in script
     assert "PHC2D_ALLOW_RESUME" in script
+    assert "SLURM_TMPDIR" in common
+    assert "meep_env_paracloud_m9.tar.gz" in common
+    assert "b2fd8f0cf039d27d7f203bab16ae1428b9f8cd470777475c92169e6833611117" in common
+    assert "conda-unpack" in common
 
 
 def test_xingyi_binary_acceptance_replays_fixed_strata_and_k_points(tmp_path: Path) -> None:
