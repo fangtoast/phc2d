@@ -173,6 +173,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Test-only escape hatch; never use this to claim accepted MPB validation.",
     )
     generate.set_defaults(command="data generate")
+    accept_cluster = data_sub.add_parser(
+        "accept-cluster",
+        help="Recompute fixed Xingyi structures in WSL and gate the binary dataset.",
+        description="Compare native-Linux MPB labels against WSL Ubuntu conda meep_env replay.",
+    )
+    accept_cluster.add_argument("--dataset", type=Path, required=True)
+    accept_cluster.add_argument("--config", type=Path, required=True)
+    accept_cluster.add_argument("--run-dir", type=Path, default=None)
+    accept_cluster.set_defaults(command="data accept-cluster")
     converge = data_sub.add_parser(
         "converge",
         help="Run the full-cell 64/96/128 real-MPB resolution gate.",
@@ -436,6 +445,17 @@ def main(argv: Sequence[str] | None = None) -> None:
                 max_samples=ns.max_samples,
                 workers=worker_override,
                 skip_environment_check=ns.skip_environment_check,
+            )
+        )
+        return
+    if ns.command == "data accept-cluster":
+        from phc2d.data.full_cell_acceptance import run_xingyi_binary_wsl_acceptance
+
+        print(
+            run_xingyi_binary_wsl_acceptance(
+                ns.dataset,
+                ns.config,
+                run_dir=ns.run_dir,
             )
         )
         return

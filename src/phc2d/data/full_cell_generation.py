@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import platform
+import socket
 import time
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
@@ -53,6 +54,7 @@ from phc2d.solvers import (
 
 ROOT = Path(__file__).resolve().parents[3]
 FullCellSolverFn = Callable[..., tuple[np.ndarray, dict[str, Any]]]
+SUPPORTED_EXECUTION_ENVIRONMENTS = {"wsl_meep_env", "native_linux_conda_meep_env"}
 
 
 def _repo_path(value: str | Path) -> Path:
@@ -100,18 +102,82 @@ def load_full_cell_generation_config(path: str | Path) -> dict[str, Any]:
     return dict(payload)
 
 
-def _validate_execution_boundary() -> list[str]:
-    problems: list[str] = []
-    if "microsoft" not in platform.release().lower() and "WSL" not in os.environ.get("WSL_DISTRO_NAME", ""):
-        problems.append("real MPB generation must run inside WSL Ubuntu")
-    if os.environ.get("CONDA_DEFAULT_ENV", "") != "meep_env":
-        problems.append("real MPB generation requires conda environment meep_env")
+def _is_wsl() -> bool:
+    return "microsoft" in platform.release().lower() or bool(os.environ.get("WSL_DISTRO_NAME"))
+
+
+def _cpu_model() -> str:
+    cpuinfo = Path("/proc/cpuinfo")
+    if cpuinfo.is_file():
+        for line in cpuinfo.read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.lower().startswith("model name") and ":" in line:
+                return line.split(":", 1)[1].strip()
+    return platform.processor() or "unknown"
+
+
+def _execution_profile(solver: Mapping[str, Any]) -> dict[str, Any]:
+    environment = str(solver.get("environment", ""))
+    profile: dict[str, Any] = {
+        "configured_environment": environment,
+        "hostname": socket.gethostname(),
+        "platform_system": platform.system(),
+        "platform_release": platform.release(),
+        "platform_version": platform.version(),
+        "cpu_count": int(os.cpu_count() or 1),
+        "cpu_model": _cpu_model(),
+        "conda_default_env": os.environ.get("CONDA_DEFAULT_ENV", ""),
+        "conda_prefix": os.environ.get("CONDA_PREFIX", ""),
+        "slurm_job_id": os.environ.get("SLURM_JOB_ID", ""),
+        "slurm_job_nodelist": os.environ.get("SLURM_JOB_NODELIST", ""),
+        "slurm_cpus_on_node": os.environ.get("SLURM_CPUS_ON_NODE", ""),
+    }
     try:
-        import meep  # noqa: F401
-        from meep import mpb  # noqa: F401
+        import meep
+        from meep import mpb
+
+        profile["meep_version"] = str(getattr(meep, "__version__", "unknown"))
+        profile["mpb_version"] = str(getattr(mpb, "__version__", "unknown"))
     except Exception as exc:
-        problems.append(f"Meep/MPB Python bindings unavailable: {exc}")
-    return problems
+        profile["meep_mpb_import_error"] = str(exc)
+    if environment == "wsl_meep_env":
+        profile["validation_boundary"] = "wsl_meep_env_real_mpb"
+        profile["formal_acceptance_eligible"] = True
+    elif environment == "native_linux_conda_meep_env":
+        profile["validation_boundary"] = "native_linux_real_mpb_generation_pending_wsl_acceptance"
+        profile["formal_acceptance_eligible"] = False
+    else:
+        profile["validation_boundary"] = "unsupported_real_mpb_environment"
+        profile["formal_acceptance_eligible"] = False
+    return profile
+
+
+def _validate_execution_boundary(solver: Mapping[str, Any]) -> tuple[list[str], dict[str, Any]]:
+    profile = _execution_profile(solver)
+    problems: list[str] = []
+    environment = str(solver.get("environment", ""))
+    if environment == "wsl_meep_env":
+        if not _is_wsl():
+            problems.append("wsl_meep_env requires WSL Ubuntu")
+        if os.environ.get("CONDA_DEFAULT_ENV", "") != "meep_env":
+            problems.append("wsl_meep_env requires conda environment meep_env")
+    elif environment == "native_linux_conda_meep_env":
+        if platform.system() != "Linux" or _is_wsl():
+            problems.append("native_linux_conda_meep_env requires native Linux, not WSL")
+        if not os.environ.get("CONDA_PREFIX"):
+            problems.append("native_linux_conda_meep_env requires an activated conda environment")
+        if not os.environ.get("SLURM_JOB_ID") or not os.environ.get("SLURM_JOB_NODELIST"):
+            problems.append("native_linux_conda_meep_env generation must run inside a Slurm allocation")
+    else:
+        problems.append(f"unsupported solver.environment: {environment}")
+    if profile.get("meep_mpb_import_error"):
+        problems.append(f"Meep/MPB Python bindings unavailable: {profile['meep_mpb_import_error']}")
+    expected_meep = str(solver.get("expected_meep_version", "")).strip()
+    expected_mpb = str(solver.get("expected_mpb_version", "")).strip()
+    if expected_meep and profile.get("meep_version") != expected_meep:
+        problems.append(f"Meep version {profile.get('meep_version')} != expected {expected_meep}")
+    if expected_mpb and profile.get("mpb_version") != expected_mpb:
+        problems.append(f"MPB version {profile.get('mpb_version')} != expected {expected_mpb}")
+    return problems, profile
 
 
 def _solver_config(cfg: Mapping[str, Any], *, resolution_override: int | None = None) -> FullCellMpbBandSolverConfig:
@@ -170,8 +236,10 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
         problems.append("missing solver fields: " + ", ".join(missing))
     if str(solver.get("backend", "")).lower() != "mpb" or bool(solver.get("use_proxy", False)):
         problems.append("solver must be real MPB with use_proxy=false")
-    if str(solver.get("environment", "")) != "wsl_meep_env":
-        problems.append("solver.environment must be wsl_meep_env")
+    if str(solver.get("environment", "")) not in SUPPORTED_EXECUTION_ENVIRONMENTS:
+        problems.append(
+            "solver.environment must be wsl_meep_env or native_linux_conda_meep_env"
+        )
     if str(solver.get("polarization", "")).upper() != "TE":
         problems.append("full_cell_v1 pilot is frozen to TE")
     frozen_solver = {
@@ -427,15 +495,18 @@ def run_full_cell_generation(
     resolved_yaml = yaml.safe_dump(resolved, sort_keys=False, allow_unicode=True)
     write_resolved_config(out, resolved_yaml)
     problems = _validate_config(cfg)
+    solver_payload = dict(cfg.get("solver") or {})
+    execution_profile = _execution_profile(solver_payload)
     if not skip_environment_check:
-        problems.extend(_validate_execution_boundary())
+        environment_problems, execution_profile = _validate_execution_boundary(solver_payload)
+        problems.extend(environment_problems)
     if problems:
         reason = "; ".join(problems)
         history.append({"stage": "contract_check", "status": "blocked", "reason": reason})
         _write_history(out / "history.csv", history)
         write_metrics(out, {"status": "blocked", "wall_time_total_s": float(time.perf_counter() - started), "real_mpb_generation_started": False})
         write_results(out, {"status": "blocked", "reason": reason, "dataset_written": False})
-        write_run_meta(out, {"status": "blocked", "validation_boundary": "wsl_meep_env_real_mpb"})
+        write_run_meta(out, {"status": "blocked", "validation_boundary": execution_profile["validation_boundary"], "execution_profile": execution_profile})
         return out
     if str(experiment.get("stage")) == "solver_preflight":
         return run_full_cell_solver_preflight(
@@ -511,7 +582,14 @@ def run_full_cell_generation(
         _write_history(out / "history.csv", history)
         write_metrics(out, {**worker_summary, "status": "solver_execution_failed", "wall_time_total_s": float(time.perf_counter() - started), "real_mpb_generation_started": True, "real_mpb_generation_completed": False})
         write_results(out, {"status": "solver_execution_failed", "reason": reason, "dataset_written": False})
-        write_run_meta(out, {"status": "solver_execution_failed", "validation_boundary": "wsl_meep_env_real_mpb"})
+        write_run_meta(
+            out,
+            {
+                "status": "solver_execution_failed",
+                "validation_boundary": execution_profile["validation_boundary"],
+                "execution_profile": execution_profile,
+            },
+        )
         return out
     bands = np.stack([np.asarray(item.bands, dtype=np.float32) for item in results], axis=0)
     expected = (effective_count, len(k_points), int(solver_cfg.num_bands))
@@ -522,10 +600,13 @@ def run_full_cell_generation(
     raster_resolutions = tuple(int(value) for value in dataset_cfg["raster_resolutions"])
     configured_output = _repo_path(str(dataset_cfg["output_path"]))
     dataset_path = configured_output if effective_count == full_count else out / f"{configured_output.stem}_smoke_{effective_count}.h5"
-    acceptance_eligible = not skip_environment_check and solver_fn is solve_bands_for_full_cell_mpb
+    real_mpb_generation_eligible = not skip_environment_check and solver_fn is solve_bands_for_full_cell_mpb
+    formal_acceptance_eligible = bool(
+        real_mpb_generation_eligible and execution_profile.get("formal_acceptance_eligible")
+    )
     validation_boundary = (
-        "wsl_meep_env_real_mpb_generation"
-        if acceptance_eligible
+        str(execution_profile["validation_boundary"])
+        if real_mpb_generation_eligible
         else "unaccepted_test_only_injected_or_unchecked_solver"
     )
     metadata = {
@@ -572,9 +653,11 @@ def run_full_cell_generation(
         )
     _write_jsonl(out / "sample_metadata.jsonl", sample_rows)
     provenance = {
-        "backend": "meep.mpb.ModeSolver" if acceptance_eligible else f"{solver_fn.__module__}.{solver_fn.__name__}",
-        "execution_boundary": "WSL Ubuntu + conda meep_env" if acceptance_eligible else "test-only; not accepted",
-        "acceptance_eligible": acceptance_eligible,
+        "backend": "meep.mpb.ModeSolver" if real_mpb_generation_eligible else f"{solver_fn.__module__}.{solver_fn.__name__}",
+        "execution_boundary": validation_boundary,
+        "real_mpb_generation_eligible": real_mpb_generation_eligible,
+        "acceptance_eligible": formal_acceptance_eligible,
+        "execution_profile": execution_profile,
         "geometry_convention": "analytic_periodic_full_cell_material_function",
         "solver": dict(cfg["solver"]),
         "k_grid": {**dict(cfg["k_grid"]), "k_points_hash": _hash_text(_canonical_json(k_points))},
@@ -582,8 +665,13 @@ def run_full_cell_generation(
         "worker_summary": worker_summary,
     }
     write_json(out / "solver_provenance.json", provenance)
-    if not acceptance_eligible:
+    native_cluster = str(solver_payload.get("environment")) == "native_linux_conda_meep_env"
+    if not real_mpb_generation_eligible:
         status = "test_solver_smoke_only"
+    elif native_cluster and effective_count <= 4 and effective_count < full_count:
+        status = "cluster_real_mpb_preflight_pass_pending_wsl_acceptance"
+    elif native_cluster:
+        status = "cluster_generated_pending_wsl_acceptance"
     elif effective_count <= 4 and effective_count < full_count:
         status = "real_mpb_preflight_pass"
     else:
@@ -603,7 +691,9 @@ def run_full_cell_generation(
         "sample_metadata": "sample_metadata.jsonl",
         "failed_case_ledger": "failed_case_ledger.jsonl",
         "next_gate": (
-            "resolution_convergence_64_96_128"
+            "wsl_cross_environment_acceptance"
+            if status in {"cluster_real_mpb_preflight_pass_pending_wsl_acceptance", "cluster_generated_pending_wsl_acceptance"}
+            else "resolution_convergence_64_96_128"
             if status == "pilot_generated_pending_convergence"
             else "solver_oracle_preflight_then_full_pilot"
             if status == "real_mpb_preflight_pass"
@@ -631,7 +721,7 @@ def run_full_cell_generation(
         },
     )
     write_results(out, {"status": status, "dataset_written": True, "dataset_path": _relative(dataset_path), "dataset_manifest": "dataset_manifest.yaml", "next_gate": manifest["next_gate"]})
-    write_run_meta(out, {"status": status, "validation_boundary": validation_boundary, "config_path": _relative(config_path)})
+    write_run_meta(out, {"status": status, "validation_boundary": validation_boundary, "config_path": _relative(config_path), "execution_profile": execution_profile})
     logger.info("Full-cell generation completed with status %s: %s", status, dataset_path)
     return out
 
@@ -693,14 +783,17 @@ def run_full_cell_solver_preflight(
     resolved_yaml = yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True)
     write_resolved_config(out, resolved_yaml)
     problems = _validate_config(cfg)
+    solver_payload = dict(cfg.get("solver") or {})
+    execution_profile = _execution_profile(solver_payload)
     if not skip_environment_check:
-        problems.extend(_validate_execution_boundary())
+        environment_problems, execution_profile = _validate_execution_boundary(solver_payload)
+        problems.extend(environment_problems)
     if problems:
         reason = "; ".join(problems)
         _write_history(out / "history.csv", [{"stage": "solver_preflight", "status": "blocked", "reason": reason}])
         write_metrics(out, {"status": "blocked", "wall_time_total_s": float(time.perf_counter() - started)})
         write_results(out, {"status": "blocked", "reason": reason})
-        write_run_meta(out, {"status": "blocked", "validation_boundary": "wsl_meep_env_real_mpb"})
+        write_run_meta(out, {"status": "blocked", "validation_boundary": execution_profile["validation_boundary"], "execution_profile": execution_profile})
         return out
     solver_cfg = _solver_config(dict(cfg["solver"]))
     k_points = _representative_k_points(int(dict(cfg["k_grid"])["n_side"]))
@@ -759,10 +852,13 @@ def run_full_cell_solver_preflight(
     ):
         if not np.isfinite(actual) or actual < uniform_match_fraction_min:
             failures.append(f"{name}={actual} is below {uniform_match_fraction_min}")
+    native_cluster = str(solver_payload.get("environment")) == "native_linux_conda_meep_env"
     if failures:
         status = "blocked"
     elif skip_environment_check:
         status = "solver_preflight_unaccepted"
+    elif native_cluster:
+        status = "cluster_solver_preflight_pass_pending_wsl_acceptance"
     else:
         status = "solver_preflight_pass"
     metrics = {
@@ -784,7 +880,8 @@ def run_full_cell_solver_preflight(
         "case_times_s": timings,
         "mpb_generation_time_s": float(sum(timings.values())),
         "wall_time_total_s": float(time.perf_counter() - started),
-        "validation_boundary": "WSL Ubuntu + conda meep_env real MPB",
+        "validation_boundary": execution_profile["validation_boundary"],
+        "execution_profile": execution_profile,
     }
     np.savez_compressed(out / "solver_preflight_bands.npz", k_points=k_points, **cases)
     write_json(out / "solver_preflight_cases.json", {"k_points": k_points.tolist(), "metrics": metrics, "failures": failures})
@@ -793,6 +890,8 @@ def run_full_cell_solver_preflight(
     next_gate = (
         "full_cell_graded_and_binary_max4"
         if status == "solver_preflight_pass"
+        else "cluster_full_cell_binary_max4_then_wsl_crosscheck"
+        if status == "cluster_solver_preflight_pass_pending_wsl_acceptance"
         else "rerun_without_skip_environment_check"
         if status == "solver_preflight_unaccepted"
         else "repair_material_function_encoding"
@@ -802,8 +901,9 @@ def run_full_cell_solver_preflight(
         out,
         {
             "status": status,
-            "validation_boundary": "wsl_meep_env_real_mpb" if not skip_environment_check else "unaccepted_environment_check_skipped",
+            "validation_boundary": execution_profile["validation_boundary"] if not skip_environment_check else "unaccepted_environment_check_skipped",
             "config_path": _relative(config_path),
+            "execution_profile": execution_profile,
         },
     )
     logger.info("Full-cell solver preflight completed: %s", status)

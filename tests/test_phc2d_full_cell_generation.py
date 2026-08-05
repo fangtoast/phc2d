@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -17,8 +18,10 @@ import yaml
 import phc2d.data.full_cell_generation as full_cell_generation
 
 from phc2d.cli import build_parser
+from phc2d.data.full_cell_acceptance import run_xingyi_binary_wsl_acceptance
 from phc2d.data.full_cell import FullCellStructureSpec, load_full_cell_hdf5
 from phc2d.data.full_cell_generation import run_full_cell_generation, write_combined_full_cell_manifest
+from phc2d.data.xingyi_deployment import select_xingyi_worker_count
 
 
 def deterministic_fake_solver(structure, *, k_points, config):
@@ -182,6 +185,202 @@ def test_data_generate_cli_parser_does_not_import_meep() -> None:
     assert namespace.command == "data generate"
     assert namespace.workers == "auto"
     assert "meep" not in set(sys.modules) - before
+
+
+def test_native_linux_boundary_requires_slurm_and_records_versions(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_mpb = SimpleNamespace(__version__="1.12.0")
+    fake_meep = SimpleNamespace(__version__="1.33.0-beta", mpb=fake_mpb)
+    monkeypatch.setitem(sys.modules, "meep", fake_meep)
+    monkeypatch.setattr(full_cell_generation.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(full_cell_generation.platform, "release", lambda: "5.15.0-xingyi")
+    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
+    monkeypatch.setenv("CONDA_PREFIX", "/envs/meep_env_xingyi")
+    monkeypatch.delenv("SLURM_JOB_ID", raising=False)
+    monkeypatch.delenv("SLURM_JOB_NODELIST", raising=False)
+    solver = {
+        "environment": "native_linux_conda_meep_env",
+        "expected_meep_version": "1.33.0-beta",
+        "expected_mpb_version": "1.12.0",
+    }
+
+    problems, profile = full_cell_generation._validate_execution_boundary(solver)
+    assert any("Slurm allocation" in problem for problem in problems)
+
+    monkeypatch.setenv("SLURM_JOB_ID", "1234")
+    monkeypatch.setenv("SLURM_JOB_NODELIST", "cnode2451")
+    problems, profile = full_cell_generation._validate_execution_boundary(solver)
+    assert problems == []
+    assert profile["meep_version"] == "1.33.0-beta"
+    assert profile["mpb_version"] == "1.12.0"
+    assert profile["formal_acceptance_eligible"] is False
+    assert profile["validation_boundary"] == "native_linux_real_mpb_generation_pending_wsl_acceptance"
+
+
+def test_native_cluster_generation_is_pending_wsl_acceptance(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("h5py")
+    pytest.importorskip("matplotlib")
+    config = _write_config(tmp_path)
+    payload = yaml.safe_load(config.read_text(encoding="utf-8"))
+    payload["solver"]["environment"] = "native_linux_conda_meep_env"
+    config.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    profile = {
+        "configured_environment": "native_linux_conda_meep_env",
+        "validation_boundary": "native_linux_real_mpb_generation_pending_wsl_acceptance",
+        "formal_acceptance_eligible": False,
+        "meep_version": "1.33.0-beta",
+        "mpb_version": "1.12.0",
+        "slurm_job_id": "1234",
+        "slurm_job_nodelist": "cnode2451",
+    }
+    monkeypatch.setattr(full_cell_generation, "_validate_execution_boundary", lambda solver: ([], profile))
+    monkeypatch.setattr(full_cell_generation, "solve_bands_for_full_cell_mpb", deterministic_fake_solver)
+
+    run_dir = tmp_path / "native_run"
+    run_full_cell_generation(config, run_dir=run_dir, solver_fn=deterministic_fake_solver)
+    results = json.loads((run_dir / "results.json").read_text(encoding="utf-8"))
+    provenance = json.loads((run_dir / "solver_provenance.json").read_text(encoding="utf-8"))
+    assert results["status"] == "cluster_generated_pending_wsl_acceptance"
+    assert provenance["real_mpb_generation_eligible"] is True
+    assert provenance["acceptance_eligible"] is False
+    assert provenance["execution_profile"]["slurm_job_id"] == "1234"
+
+
+def test_xingyi_configs_preserve_physics_and_raise_only_worker_capacity() -> None:
+    root = Path(__file__).resolve().parents[1]
+    pairs = (
+        (
+            root / "configs/research/full_cell_binary_bz9_10000_v1.yaml",
+            root / "configs/research/full_cell_binary_bz9_10000_xingyi_v1.yaml",
+        ),
+        (
+            root / "configs/research/full_cell_graded_bz9_10000_v1.yaml",
+            root / "configs/research/full_cell_graded_bz9_10000_xingyi_v1.yaml",
+        ),
+    )
+    for base_path, xingyi_path in pairs:
+        base = yaml.safe_load(base_path.read_text(encoding="utf-8"))
+        xingyi = yaml.safe_load(xingyi_path.read_text(encoding="utf-8"))
+        assert xingyi["experiment"] == base["experiment"]
+        assert xingyi["generator"] == base["generator"]
+        assert xingyi["k_grid"] == base["k_grid"]
+        for key in (
+            "backend",
+            "use_proxy",
+            "lattice",
+            "lattice_constant",
+            "epsilon_air",
+            "epsilon_material",
+            "resolution",
+            "mesh_size",
+            "polarization",
+            "num_bands",
+            "band_guard_count",
+            "band_order_policy",
+            "eigensolver_tolerance",
+        ):
+            assert xingyi["solver"][key] == base["solver"][key]
+        assert xingyi["solver"]["environment"] == "native_linux_conda_meep_env"
+        assert xingyi["workers"]["max_workers"] == 64
+        assert xingyi["workers"]["worker_thread_env"] == base["workers"]["worker_thread_env"]
+
+
+def test_graded_xingyi_job_is_fail_closed_without_authorization() -> None:
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "jobs/xingyi_graded_10000_prepared_only.sh").read_text(encoding="utf-8")
+    assert 'PHC2D_AUTHORIZE_GRADED:-NO' in script
+    assert '!= "YES"' in script
+
+
+def test_xingyi_binary_acceptance_replays_fixed_strata_and_k_points(tmp_path: Path) -> None:
+    pytest.importorskip("h5py")
+    pytest.importorskip("matplotlib")
+    generation_config = _write_config(tmp_path)
+    payload = yaml.safe_load(generation_config.read_text(encoding="utf-8"))
+    payload["dataset"].update(
+        {
+            "lane": "binary_air_holes",
+            "sample_count": 8,
+            "split": {"train": 6, "val": 1, "test": 1},
+        }
+    )
+    payload["workers"].update({"workers": 1, "max_workers": 1})
+    generation_config.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    run_full_cell_generation(
+        generation_config,
+        run_dir=tmp_path / "generation",
+        skip_environment_check=True,
+        solver_fn=deterministic_fake_solver,
+    )
+
+    acceptance_config = tmp_path / "acceptance.yaml"
+    acceptance_config.write_text(
+        yaml.safe_dump(
+            {
+                "experiment": {"experiment_id": "acceptance_unit"},
+                "acceptance": {
+                    "structure_count": 8,
+                    "workers": 1,
+                    "median_mre_max": 0.005,
+                    "p95_mre_max": 0.01,
+                },
+                "solver": payload["solver"],
+                "output": {"runs_dir": str(tmp_path / "runs")},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    out = run_xingyi_binary_wsl_acceptance(
+        tmp_path / "dataset.h5",
+        acceptance_config,
+        run_dir=tmp_path / "acceptance",
+        solver_fn=deterministic_fake_solver,
+        skip_environment_check=True,
+    )
+    evidence = json.loads((out / "cross_environment_acceptance.json").read_text(encoding="utf-8"))
+    assert evidence["status"] == "test_only_not_acceptance_eligible"
+    assert set(evidence["selected_strata"]) == {"polar_hole_1", "polar_hole_2", "spectral_threshold"}
+    assert len(evidence["selected_sample_ids"]) == 8
+    assert len(evidence["selected_k_grid_indices"]) == 9
+    assert evidence["bands_compared"] == list(range(2, 11))
+    assert evidence["failure_count"] == 0
+    assert evidence["median_mre"] == pytest.approx(0.0)
+    assert evidence["p95_mre"] == pytest.approx(0.0)
+
+
+def test_accept_cluster_cli_parser_does_not_import_meep() -> None:
+    before = set(sys.modules)
+    parser = build_parser()
+    namespace = parser.parse_args(
+        ["data", "accept-cluster", "--dataset", "binary.h5", "--config", "acceptance.yaml"]
+    )
+
+    assert namespace.command == "data accept-cluster"
+    assert "meep" not in set(sys.modules) - before
+
+
+def test_xingyi_worker_selection_uses_lower_count_within_ten_percent() -> None:
+    rows = [
+        {"workers": 16, "throughput_samples_per_s": 1.0, "failed_count": 0, "peak_rss_gib": 80.0},
+        {"workers": 32, "throughput_samples_per_s": 1.85, "failed_count": 0, "peak_rss_gib": 150.0},
+        {"workers": 48, "throughput_samples_per_s": 1.95, "failed_count": 0, "peak_rss_gib": 220.0},
+        {"workers": 64, "throughput_samples_per_s": 2.0, "failed_count": 0, "peak_rss_gib": 310.0},
+    ]
+
+    decision = select_xingyi_worker_count(rows)
+    assert decision["fastest_workers"] == 64
+    assert decision["selected_workers"] == 32
+
+
+def test_xingyi_worker_selection_rejects_failures_oom_and_high_memory() -> None:
+    rows = [
+        {"workers": 16, "throughput_samples_per_s": 1.0, "failed_count": 0, "peak_rss_gib": 100.0},
+        {"workers": 32, "throughput_samples_per_s": 2.0, "failed_count": 1, "peak_rss_gib": 150.0},
+        {"workers": 48, "throughput_samples_per_s": 3.0, "failed_count": 0, "peak_rss_gib": 450.0},
+        {"workers": 64, "throughput_samples_per_s": 4.0, "failed_count": 0, "peak_rss_gib": 300.0, "oom": True},
+    ]
+
+    assert select_xingyi_worker_count(rows)["selected_workers"] == 16
 
 
 def test_combined_manifest_refuses_promotion_without_convergence(tmp_path: Path) -> None:
