@@ -313,6 +313,13 @@ def test_xingyi_common_requires_deployed_commit_provenance() -> None:
     assert "PHC2D_CLUSTER_ID=xingyi" in script
 
 
+def test_xingyi_shell_jobs_have_batch_shebangs() -> None:
+    root = Path(__file__).resolve().parents[1]
+    for path in sorted((root / "jobs").glob("xingyi_*.sh")):
+        first_line = path.read_text(encoding="utf-8").splitlines()[0]
+        assert first_line == "#!/usr/bin/env bash", path.name
+
+
 def test_paracloud_m9_config_preserves_graded_physics_and_allows_256_workers() -> None:
     root = Path(__file__).resolve().parents[1]
     base = yaml.safe_load((root / "configs/research/full_cell_graded_bz9_10000_v1.yaml").read_text(encoding="utf-8"))

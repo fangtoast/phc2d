@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Run Xingyi environment, MPB-oracle, and four-sample full-cell preflights.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com

@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Shared runtime setup for phc2d jobs on the Xingyi cluster.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com

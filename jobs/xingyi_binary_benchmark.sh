@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Benchmark binary full-cell MPB generation at fixed Xingyi worker counts.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com

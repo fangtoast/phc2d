@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Generate the frozen 10,000-sample binary full-cell dataset on Xingyi.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com

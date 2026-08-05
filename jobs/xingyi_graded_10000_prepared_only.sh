@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Prepared-only Xingyi graded-medium job; explicit authorization is mandatory.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com
