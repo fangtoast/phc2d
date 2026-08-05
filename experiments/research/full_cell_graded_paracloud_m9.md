@@ -51,12 +51,30 @@ sbatch --export=ALL -p amd_m9_768 -N 1 -n 1 -c 4 --mem=32G \
 ```bash
 PHC2D_SAMPLE_PLAN=/path/to/frozen/sample_plan.jsonl \
 PHC2D_BENCHMARK_ROOT=runs/20260805/paracloud_m9_graded_benchmark \
-sbatch --export=ALL -p amd_m9_768 -N 1 -n 1 -c 256 --mem=700G \
+sbatch --export=ALL -p amd_m9_768 -N 1 -n 1 -c 256 --mem=690G \
   -o runs/20260805/paracloud_m9_benchmark_%j.log \
   jobs/paracloud_m9_graded_benchmark.sh
 ```
 
+M9 分区限制 `MaxMemPerCPU=2764 MB`；256 CPU 搭配 700 GiB 会被 Slurm
+拒绝，因而基准预留 690 GiB。正式任务仍使用 `worker_selection.json` 给出的
+实测内存申请。
+
 `worker_selection.json` 给出正式任务的 CPU、内存与时限。正式任务必须创建标准运行目录，只复制原始冻结计划，保持 `worker_shards/` 为空。`PHC2D_AUTHORIZE_GRADED=YES` 只能在用户另行授权后设置。
+
+## 2026-08-05 现场证据
+
+- 环境预检作业 `4190605`：`COMPLETED/0:0`；Rocky/RHEL 8.10、glibc
+  2.28、Meep 1.33.0-beta、MPB 1.12.0。
+- solver oracle 与 4 样本预检作业 `4190628`：`COMPLETED/0:0`；
+  `Wh=[4,81,10]`，有限值、频带升序、失败数 0，`graded_core_1/2`
+  各 2 个。状态仍为 `cluster_real_mpb_preflight_pass_pending_wsl_acceptance`。
+- 自适应基准作业 `4190638`：`COMPLETED/0:0`；六档均零失败且无 OOM。
+  32/64/96/128/192/256 workers 的吞吐分别为
+  1.817/3.274/3.258/4.862/5.870/6.694 samples/s，峰值 RSS 分别为
+  9.35/18.39/27.40/36.43/54.54/72.55 GiB。
+- 自动选择 256 workers；正式资源建议为 256 CPU、96 GiB、24 小时。
+  该结果只授权准备正式命令，不授权提交 10000 样本作业。
 
 ## 恢复与验收
 
