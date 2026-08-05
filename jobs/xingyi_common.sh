@@ -19,10 +19,16 @@ if [[ ! -d "$PHC2D_ROOT/src/phc2d" ]]; then
   echo "Missing phc2d checkout: $PHC2D_ROOT" >&2
   exit 2
 fi
+if [[ ! -f "$PHC2D_ROOT/DEPLOYED_GIT_COMMIT" ]]; then
+  echo "Missing deployed Git commit provenance: $PHC2D_ROOT/DEPLOYED_GIT_COMMIT" >&2
+  exit 2
+fi
 
 module purge >/dev/null 2>&1 || true
 source "$PHC2D_ENV/bin/activate"
 export PYTHONPATH="$PHC2D_ROOT/src"
+export PHC2D_CLUSTER_ID=xingyi
+export PHC2D_DEPLOYED_GIT_COMMIT="$(tr -d '[:space:]' < "$PHC2D_ROOT/DEPLOYED_GIT_COMMIT")"
 export MPLBACKEND=Agg
 export OMP_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
@@ -30,4 +36,5 @@ export MKL_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
 cd "$PHC2D_ROOT"
+[[ "$PHC2D_DEPLOYED_GIT_COMMIT" == "14906c6" ]]
 python -c "import meep; from meep import mpb; mpb_version = '.'.join(map(str, mpb.__version__)) if isinstance(mpb.__version__, (tuple, list)) else str(mpb.__version__); assert meep.__version__ == '1.33.0-beta'; assert mpb_version == '1.12.0'; print('Meep/MPB:', meep.__version__, mpb_version)"

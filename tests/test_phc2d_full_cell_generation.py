@@ -305,6 +305,14 @@ def test_graded_xingyi_job_is_fail_closed_without_authorization() -> None:
     assert '!= "YES"' in script
 
 
+def test_xingyi_common_requires_deployed_commit_provenance() -> None:
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "jobs/xingyi_common.sh").read_text(encoding="utf-8")
+    assert "DEPLOYED_GIT_COMMIT" in script
+    assert "PHC2D_DEPLOYED_GIT_COMMIT" in script
+    assert "PHC2D_CLUSTER_ID=xingyi" in script
+
+
 def test_paracloud_m9_config_preserves_graded_physics_and_allows_256_workers() -> None:
     root = Path(__file__).resolve().parents[1]
     base = yaml.safe_load((root / "configs/research/full_cell_graded_bz9_10000_v1.yaml").read_text(encoding="utf-8"))
