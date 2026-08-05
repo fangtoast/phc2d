@@ -14,6 +14,13 @@ from pathlib import Path
 from typing import Any
 
 from phc2d.runs import write_json
+from phc2d.data.full_cell_generation import (
+    _effective_split_counts,
+    _load_frozen_sample_plan,
+    _stable_stratified_splits,
+    _structure_schedule,
+    load_full_cell_generation_config,
+)
 
 
 def select_xingyi_worker_count(
@@ -79,13 +86,76 @@ def collect_xingyi_benchmarks(root: str | Path) -> list[dict[str, Any]]:
     return rows
 
 
+def prepare_xingyi_benchmark_plan(
+    source: str | Path,
+    output: str | Path,
+    config_path: str | Path,
+    *,
+    count: int = 64,
+) -> Path:
+    """Write a validated frozen-geometry prefix with benchmark-local split labels."""
+
+    cfg = load_full_cell_generation_config(config_path)
+    source_rows = [
+        json.loads(line)
+        for line in Path(source).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    requested = int(count)
+    if requested <= 0 or len(source_rows) < requested:
+        raise ValueError(f"benchmark plan requires at least {requested} source rows")
+    rows = [dict(row) for row in source_rows[:requested]]
+    experiment_id = str(dict(cfg["experiment"])["experiment_id"])
+    lane = str(dict(cfg["dataset"])["lane"])
+    schedule = _structure_schedule(lane, requested)
+    sample_ids: list[str] = []
+    strata: list[str] = []
+    for index, (row, (family, _variant, stratum)) in enumerate(zip(rows, schedule)):
+        expected_id = f"{experiment_id}_{index:06d}"
+        if int(row.get("sample_index", -1)) != index or str(row.get("sample_id")) != expected_id:
+            raise ValueError(f"benchmark source identity mismatch at row {index}")
+        if str(row.get("generator_family")) != family or str(row.get("stratum")) != stratum:
+            raise ValueError(f"benchmark source schedule mismatch at row {index}")
+        sample_ids.append(expected_id)
+        strata.append(stratum)
+    dataset = dict(cfg["dataset"])
+    split_counts = _effective_split_counts(
+        dict(dataset["split"]),
+        int(dataset["sample_count"]),
+        requested,
+    )
+    _, _, _, labels = _stable_stratified_splits(sample_ids, strata, split_counts)
+    for row, label in zip(rows, labels):
+        row["split"] = label
+        row["benchmark_split_reassigned"] = True
+    out = Path(output)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        "".join(json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+    _load_frozen_sample_plan(out, cfg, effective_count=requested)
+    return out
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     """Select and persist the production worker count from benchmark artifacts."""
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--benchmark-root", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--benchmark-root", type=Path)
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--prepare-plan-source", type=Path)
+    parser.add_argument("--prepare-plan-output", type=Path)
+    parser.add_argument("--config", type=Path)
+    parser.add_argument("--count", type=int, default=64)
     args = parser.parse_args(argv)
+    if args.prepare_plan_source is not None:
+        if args.prepare_plan_output is None or args.config is None:
+            parser.error("--prepare-plan-source requires --prepare-plan-output and --config")
+        print(prepare_xingyi_benchmark_plan(args.prepare_plan_source, args.prepare_plan_output, args.config, count=args.count))
+        return
+    if args.benchmark_root is None or args.output is None:
+        parser.error("worker selection requires --benchmark-root and --output")
     decision = select_xingyi_worker_count(collect_xingyi_benchmarks(args.benchmark_root))
     write_json(args.output, decision)
     print(decision["selected_workers"])
@@ -95,4 +165,4 @@ if __name__ == "__main__":
     main()
 
 
-__all__ = ["collect_xingyi_benchmarks", "select_xingyi_worker_count"]
+__all__ = ["collect_xingyi_benchmarks", "prepare_xingyi_benchmark_plan", "select_xingyi_worker_count"]

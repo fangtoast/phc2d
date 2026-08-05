@@ -27,7 +27,7 @@ from phc2d.data.cluster_deployment import (
 from phc2d.data.full_cell_acceptance import run_cluster_wsl_acceptance, run_xingyi_binary_wsl_acceptance
 from phc2d.data.full_cell import FullCellStructureSpec, load_full_cell_hdf5
 from phc2d.data.full_cell_generation import run_full_cell_generation, write_combined_full_cell_manifest
-from phc2d.data.xingyi_deployment import select_xingyi_worker_count
+from phc2d.data.xingyi_deployment import prepare_xingyi_benchmark_plan, select_xingyi_worker_count
 
 
 def deterministic_fake_solver(structure, *, k_points, config):
@@ -536,6 +536,37 @@ def test_xingyi_worker_selection_rejects_failures_oom_and_high_memory() -> None:
     ]
 
     assert select_xingyi_worker_count(rows)["selected_workers"] == 16
+
+
+def test_xingyi_benchmark_plan_preserves_frozen_geometry_and_reassigns_only_split(tmp_path: Path) -> None:
+    pytest.importorskip("h5py")
+    pytest.importorskip("matplotlib")
+    config = _write_config(tmp_path)
+    payload = yaml.safe_load(config.read_text(encoding="utf-8"))
+    payload["dataset"].update(
+        {
+            "lane": "binary_air_holes",
+            "sample_count": 8,
+            "split": {"train": 6, "val": 1, "test": 1},
+        }
+    )
+    payload["workers"].update({"workers": 1, "max_workers": 1})
+    config.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    source_run = tmp_path / "source"
+    run_full_cell_generation(
+        config,
+        run_dir=source_run,
+        skip_environment_check=True,
+        solver_fn=deterministic_fake_solver,
+    )
+    source_rows = [json.loads(line) for line in (source_run / "sample_plan.jsonl").read_text(encoding="utf-8").splitlines()]
+    output = prepare_xingyi_benchmark_plan(source_run / "sample_plan.jsonl", tmp_path / "prefix.jsonl", config, count=4)
+    prefix_rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+
+    assert len(prefix_rows) == 4
+    assert [row["geometry_hash"] for row in prefix_rows] == [row["geometry_hash"] for row in source_rows[:4]]
+    assert [row["parameters"] for row in prefix_rows] == [row["parameters"] for row in source_rows[:4]]
+    assert all(row["benchmark_split_reassigned"] is True for row in prefix_rows)
 
 
 def test_cluster_worker_selection_extension_and_resource_recommendation() -> None:
