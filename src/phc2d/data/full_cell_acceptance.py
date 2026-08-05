@@ -45,15 +45,41 @@ def _binary_stratum(structure: FullCellStructureSpec) -> str:
     raise ValueError(f"WSL cluster acceptance supports only binary structures, got {structure.generator_family}")
 
 
-def select_fixed_binary_structures(bundle: FullCellDatasetBundle, *, count: int = 8) -> list[int]:
-    """Select a stable hash-ordered set covering every binary generation stratum."""
+def _graded_stratum(structure: FullCellStructureSpec) -> str:
+    if structure.generator_family != "graded_rbf_fourier":
+        raise ValueError(f"graded acceptance requires graded_rbf_fourier, got {structure.generator_family}")
+    core_count = int(structure.metadata.get("core_count", len(structure.parameters.get("blobs", []))))
+    if core_count not in {1, 2}:
+        raise ValueError(f"graded acceptance requires one or two cores, got {core_count}")
+    return f"graded_core_{core_count}"
+
+
+def _stratum(structure: FullCellStructureSpec, lane: str) -> str:
+    if lane == "binary_air_holes":
+        return _binary_stratum(structure)
+    if lane == "graded_medium":
+        return _graded_stratum(structure)
+    raise ValueError(f"unsupported full-cell acceptance lane: {lane}")
+
+
+def select_fixed_structures(
+    bundle: FullCellDatasetBundle,
+    *,
+    lane: str,
+    count: int = 8,
+) -> list[int]:
+    """Select a stable hash-ordered set covering every lane stratum."""
 
     grouped: dict[str, list[int]] = defaultdict(list)
     for index, structure in enumerate(bundle.structures):
-        grouped[_binary_stratum(structure)].append(index)
-    required = {"polar_hole_1", "polar_hole_2", "spectral_threshold"}
+        grouped[_stratum(structure, lane)].append(index)
+    required = (
+        {"polar_hole_1", "polar_hole_2", "spectral_threshold"}
+        if lane == "binary_air_holes"
+        else {"graded_core_1", "graded_core_2"}
+    )
     if set(grouped) != required:
-        raise ValueError(f"binary strata mismatch: expected {sorted(required)}, got {sorted(grouped)}")
+        raise ValueError(f"{lane} strata mismatch: expected {sorted(required)}, got {sorted(grouped)}")
     if int(count) < len(required):
         raise ValueError("acceptance structure count cannot be smaller than the stratum count")
     ordered = {
@@ -75,6 +101,12 @@ def select_fixed_binary_structures(bundle: FullCellDatasetBundle, *, count: int 
     return sorted(selected)
 
 
+def select_fixed_binary_structures(bundle: FullCellDatasetBundle, *, count: int = 8) -> list[int]:
+    """Backward-compatible binary structure selector."""
+
+    return select_fixed_structures(bundle, lane="binary_air_holes", count=count)
+
+
 def select_representative_k_points(bundle: FullCellDatasetBundle) -> list[int]:
     """Select the center, edge midpoints, and corners from a centered 9x9 grid."""
 
@@ -93,7 +125,7 @@ def _load_config(path: Path) -> dict[str, Any]:
     return dict(payload)
 
 
-def run_xingyi_binary_wsl_acceptance(
+def run_cluster_wsl_acceptance(
     dataset_path: str | Path,
     config_path: str | Path,
     *,
@@ -101,12 +133,13 @@ def run_xingyi_binary_wsl_acceptance(
     solver_fn: AcceptanceSolverFn = solve_bands_for_full_cell_mpb,
     skip_environment_check: bool = False,
 ) -> Path:
-    """Recompute fixed structures in WSL and gate a Xingyi binary dataset."""
+    """Recompute fixed full-cell structures in WSL and gate a cluster dataset."""
 
     dataset = Path(dataset_path).resolve()
     config_file = Path(config_path).resolve()
     cfg = _load_config(config_file)
     acceptance = dict(cfg.get("acceptance") or {})
+    lane = str(acceptance.get("lane", "binary_air_holes"))
     solver = dict(cfg.get("solver") or {})
     problems, profile = _validate_execution_boundary(solver)
     if skip_environment_check:
@@ -118,7 +151,7 @@ def run_xingyi_binary_wsl_acceptance(
     if solver.get("environment") != "wsl_meep_env":
         raise ValueError("cross-environment acceptance must use solver.environment=wsl_meep_env")
 
-    task = str((cfg.get("experiment") or {}).get("experiment_id", "xingyi_binary_wsl_acceptance_v1"))
+    task = str((cfg.get("experiment") or {}).get("experiment_id", "cluster_wsl_acceptance_v1"))
     out = make_run_dir(task, runs_dir=str((cfg.get("output") or {}).get("runs_dir", "runs")), run_dir=run_dir)
     setup_logging(log_file=out / "run.log")
     ensure_figures_dir(out)
@@ -126,7 +159,11 @@ def run_xingyi_binary_wsl_acceptance(
     write_run_meta(out, {"task": task, "dataset_path": str(dataset), "execution_profile": profile})
 
     bundle = load_full_cell_hdf5(dataset)
-    structure_indices = select_fixed_binary_structures(bundle, count=int(acceptance.get("structure_count", 8)))
+    structure_indices = select_fixed_structures(
+        bundle,
+        lane=lane,
+        count=int(acceptance.get("structure_count", 8)),
+    )
     k_indices = select_representative_k_points(bundle)
     k_points = bundle.k_points[k_indices]
     solver_config = _solver_config(solver)
@@ -178,7 +215,7 @@ def run_xingyi_binary_wsl_acceptance(
         rows.append(
             {
                 "sample_id": result.sample_id,
-                "stratum": _binary_stratum(bundle.structures[result.sample_index]),
+                "stratum": _stratum(bundle.structures[result.sample_index], lane),
                 "median_mre": float(np.median(relative)),
                 "p95_mre": float(np.percentile(relative, 95)),
                 "solve_time_s": float(result.solve_time_s),
@@ -200,11 +237,12 @@ def run_xingyi_binary_wsl_acceptance(
         writer.writerows(rows)
     evidence = {
         "status": status,
+        "lane": lane,
         "dataset_path": str(dataset),
         "dataset_sample_count": len(bundle.structures),
         "selected_structure_indices": structure_indices,
         "selected_sample_ids": [bundle.structures[index].sample_id for index in structure_indices],
-        "selected_strata": [_binary_stratum(bundle.structures[index]) for index in structure_indices],
+        "selected_strata": [_stratum(bundle.structures[index], lane) for index in structure_indices],
         "selected_k_grid_indices": bundle.k_grid_index[k_indices].tolist(),
         "bands_compared": list(range(2, int(solver["num_bands"]) + 1)),
         "median_mre": median_mre,
@@ -231,8 +269,29 @@ def run_xingyi_binary_wsl_acceptance(
     return out
 
 
+def run_xingyi_binary_wsl_acceptance(
+    dataset_path: str | Path,
+    config_path: str | Path,
+    *,
+    run_dir: str | Path | None = None,
+    solver_fn: AcceptanceSolverFn = solve_bands_for_full_cell_mpb,
+    skip_environment_check: bool = False,
+) -> Path:
+    """Backward-compatible wrapper for the Xingyi binary acceptance entrypoint."""
+
+    return run_cluster_wsl_acceptance(
+        dataset_path,
+        config_path,
+        run_dir=run_dir,
+        solver_fn=solver_fn,
+        skip_environment_check=skip_environment_check,
+    )
+
+
 __all__ = [
+    "run_cluster_wsl_acceptance",
     "run_xingyi_binary_wsl_acceptance",
     "select_fixed_binary_structures",
+    "select_fixed_structures",
     "select_representative_k_points",
 ]

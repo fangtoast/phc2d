@@ -18,7 +18,13 @@ import yaml
 import phc2d.data.full_cell_generation as full_cell_generation
 
 from phc2d.cli import build_parser
-from phc2d.data.full_cell_acceptance import run_xingyi_binary_wsl_acceptance
+from phc2d.data.cluster_deployment import (
+    prepare_benchmark_sample_plan,
+    recommend_slurm_resources,
+    select_cluster_worker_count,
+    should_run_extended_worker_benchmarks,
+)
+from phc2d.data.full_cell_acceptance import run_cluster_wsl_acceptance, run_xingyi_binary_wsl_acceptance
 from phc2d.data.full_cell import FullCellStructureSpec, load_full_cell_hdf5
 from phc2d.data.full_cell_generation import run_full_cell_generation, write_combined_full_cell_manifest
 from phc2d.data.xingyi_deployment import select_xingyi_worker_count
@@ -208,10 +214,18 @@ def test_native_linux_boundary_requires_slurm_and_records_versions(monkeypatch: 
 
     monkeypatch.setenv("SLURM_JOB_ID", "1234")
     monkeypatch.setenv("SLURM_JOB_NODELIST", "cnode2451")
+    monkeypatch.setenv("SLURM_JOB_PARTITION", "amd_m9_768")
+    monkeypatch.setenv("SLURM_CPUS_PER_TASK", "128")
+    monkeypatch.setenv("SLURM_MEM_PER_NODE", "655360")
+    monkeypatch.setenv("PHC2D_CLUSTER_ID", "paracloud_bscc_m9")
     problems, profile = full_cell_generation._validate_execution_boundary(solver)
     assert problems == []
     assert profile["meep_version"] == "1.33.0-beta"
     assert profile["mpb_version"] == "1.12.0"
+    assert profile["cluster_id"] == "paracloud_bscc_m9"
+    assert profile["slurm_job_partition"] == "amd_m9_768"
+    assert profile["slurm_cpus_per_task"] == "128"
+    assert profile["slurm_mem_per_node"] == "655360"
     assert profile["formal_acceptance_eligible"] is False
     assert profile["validation_boundary"] == "native_linux_real_mpb_generation_pending_wsl_acceptance"
 
@@ -291,6 +305,46 @@ def test_graded_xingyi_job_is_fail_closed_without_authorization() -> None:
     assert '!= "YES"' in script
 
 
+def test_paracloud_m9_config_preserves_graded_physics_and_allows_256_workers() -> None:
+    root = Path(__file__).resolve().parents[1]
+    base = yaml.safe_load((root / "configs/research/full_cell_graded_bz9_10000_v1.yaml").read_text(encoding="utf-8"))
+    m9 = yaml.safe_load(
+        (root / "configs/research/full_cell_graded_bz9_10000_paracloud_m9_v1.yaml").read_text(encoding="utf-8")
+    )
+    assert m9["experiment"] == base["experiment"]
+    assert m9["generator"] == base["generator"]
+    assert m9["k_grid"] == base["k_grid"]
+    for key in (
+        "backend",
+        "use_proxy",
+        "lattice",
+        "lattice_constant",
+        "epsilon_air",
+        "epsilon_material",
+        "resolution",
+        "mesh_size",
+        "polarization",
+        "num_bands",
+        "band_guard_count",
+        "band_order_policy",
+        "eigensolver_tolerance",
+    ):
+        assert m9["solver"][key] == base["solver"][key]
+    assert m9["solver"]["environment"] == "native_linux_conda_meep_env"
+    assert m9["workers"]["max_workers"] == 256
+    assert m9["workers"]["worker_thread_env"] == base["workers"]["worker_thread_env"]
+
+
+def test_paracloud_m9_formal_job_is_fail_closed() -> None:
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "jobs/paracloud_m9_graded_10000.sh").read_text(encoding="utf-8")
+    assert 'PHC2D_AUTHORIZE_GRADED:-NO' in script
+    assert "5a046251e18bd0964ea8c70f4d52fa3bc48bff1b7e8997d4a3f17855be267ec2" in script
+    assert "PHC2D_EXPECTED_GIT_COMMIT" in script
+    assert "PHC2D_PREFLIGHT_RUN_DIR" in script
+    assert "PHC2D_ALLOW_RESUME" in script
+
+
 def test_xingyi_binary_acceptance_replays_fixed_strata_and_k_points(tmp_path: Path) -> None:
     pytest.importorskip("h5py")
     pytest.importorskip("matplotlib")
@@ -348,6 +402,53 @@ def test_xingyi_binary_acceptance_replays_fixed_strata_and_k_points(tmp_path: Pa
     assert evidence["p95_mre"] == pytest.approx(0.0)
 
 
+def test_graded_cluster_acceptance_covers_both_core_strata(tmp_path: Path) -> None:
+    pytest.importorskip("h5py")
+    pytest.importorskip("matplotlib")
+    generation_config = _write_config(tmp_path)
+    payload = yaml.safe_load(generation_config.read_text(encoding="utf-8"))
+    payload["dataset"].update({"sample_count": 8, "split": {"train": 6, "val": 1, "test": 1}})
+    payload["workers"].update({"workers": 1, "max_workers": 1})
+    generation_config.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    run_full_cell_generation(
+        generation_config,
+        run_dir=tmp_path / "generation",
+        skip_environment_check=True,
+        solver_fn=deterministic_fake_solver,
+    )
+    acceptance_config = tmp_path / "graded_acceptance.yaml"
+    acceptance_config.write_text(
+        yaml.safe_dump(
+            {
+                "experiment": {"experiment_id": "graded_acceptance_unit"},
+                "acceptance": {
+                    "lane": "graded_medium",
+                    "structure_count": 8,
+                    "workers": 1,
+                    "median_mre_max": 0.005,
+                    "p95_mre_max": 0.01,
+                },
+                "solver": payload["solver"],
+                "output": {"runs_dir": str(tmp_path / "runs")},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    out = run_cluster_wsl_acceptance(
+        tmp_path / "dataset.h5",
+        acceptance_config,
+        run_dir=tmp_path / "acceptance",
+        solver_fn=deterministic_fake_solver,
+        skip_environment_check=True,
+    )
+    evidence = json.loads((out / "cross_environment_acceptance.json").read_text(encoding="utf-8"))
+    assert evidence["lane"] == "graded_medium"
+    assert set(evidence["selected_strata"]) == {"graded_core_1", "graded_core_2"}
+    assert evidence["failure_count"] == 0
+    assert evidence["finite_and_band_ordered"] is True
+
+
 def test_accept_cluster_cli_parser_does_not_import_meep() -> None:
     before = set(sys.modules)
     parser = build_parser()
@@ -381,6 +482,55 @@ def test_xingyi_worker_selection_rejects_failures_oom_and_high_memory() -> None:
     ]
 
     assert select_xingyi_worker_count(rows)["selected_workers"] == 16
+
+
+def test_cluster_worker_selection_extension_and_resource_recommendation() -> None:
+    rows = [
+        {"workers": 32, "throughput_samples_per_s": 1.0, "failed_count": 0, "peak_rss_gib": 80.0},
+        {"workers": 64, "throughput_samples_per_s": 1.8, "failed_count": 0, "peak_rss_gib": 140.0},
+        {"workers": 96, "throughput_samples_per_s": 2.0, "failed_count": 0, "peak_rss_gib": 220.0},
+        {"workers": 128, "throughput_samples_per_s": 2.2, "failed_count": 0, "peak_rss_gib": 300.0},
+    ]
+    assert should_run_extended_worker_benchmarks(rows) is True
+    decision = select_cluster_worker_count(rows)
+    assert decision["selected_workers"] == 96
+    resources = recommend_slurm_resources(decision)
+    assert resources == {
+        "cpus_per_task": 96,
+        "memory_gib": 280,
+        "time_limit_hours": 24,
+        "sample_count": 10000,
+        "time_factor": 1.5,
+        "memory_factor": 1.25,
+    }
+
+
+def test_benchmark_plan_preserves_geometry_and_changes_only_subset_splits(tmp_path: Path) -> None:
+    pytest.importorskip("h5py")
+    pytest.importorskip("matplotlib")
+    config = _write_config(tmp_path)
+    payload = yaml.safe_load(config.read_text(encoding="utf-8"))
+    payload["dataset"].update({"sample_count": 8, "split": {"train": 6, "val": 1, "test": 1}})
+    config.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    generation = tmp_path / "generation"
+    run_full_cell_generation(
+        config,
+        run_dir=generation,
+        skip_environment_check=True,
+        solver_fn=deterministic_fake_solver,
+    )
+    source = generation / "sample_plan.jsonl"
+    output = tmp_path / "benchmark" / "sample_plan.jsonl"
+    prepare_benchmark_sample_plan(source, output, config, count=4)
+    source_rows = [json.loads(line) for line in source.read_text(encoding="utf-8").splitlines()]
+    output_rows = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert len(output_rows) == 4
+    for source_row, output_row in zip(source_rows[:4], output_rows):
+        for key in ("sample_index", "sample_id", "generator_family", "stratum", "parameters", "geometry_hash"):
+            assert output_row[key] == source_row[key]
+    manifest = json.loads(output.with_suffix(".jsonl.manifest.json").read_text(encoding="utf-8"))
+    assert manifest["status"] == "benchmark_plan_derived"
+    assert manifest["changed_fields"] == ["split"]
 
 
 def test_combined_manifest_refuses_promotion_without_convergence(tmp_path: Path) -> None:

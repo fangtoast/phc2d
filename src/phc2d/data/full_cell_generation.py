@@ -123,13 +123,21 @@ def _execution_profile(solver: Mapping[str, Any]) -> dict[str, Any]:
         "platform_system": platform.system(),
         "platform_release": platform.release(),
         "platform_version": platform.version(),
+        "libc_name": platform.libc_ver()[0] or "unknown",
+        "libc_version": platform.libc_ver()[1] or "unknown",
         "cpu_count": int(os.cpu_count() or 1),
         "cpu_model": _cpu_model(),
+        "cluster_id": os.environ.get("PHC2D_CLUSTER_ID", ""),
+        "deployed_git_commit": os.environ.get("PHC2D_DEPLOYED_GIT_COMMIT", ""),
         "conda_default_env": os.environ.get("CONDA_DEFAULT_ENV", ""),
         "conda_prefix": os.environ.get("CONDA_PREFIX", ""),
         "slurm_job_id": os.environ.get("SLURM_JOB_ID", ""),
         "slurm_job_nodelist": os.environ.get("SLURM_JOB_NODELIST", ""),
+        "slurm_job_partition": os.environ.get("SLURM_JOB_PARTITION", ""),
+        "slurm_cpus_per_task": os.environ.get("SLURM_CPUS_PER_TASK", ""),
         "slurm_cpus_on_node": os.environ.get("SLURM_CPUS_ON_NODE", ""),
+        "slurm_mem_per_node": os.environ.get("SLURM_MEM_PER_NODE", ""),
+        "slurm_mem_per_cpu": os.environ.get("SLURM_MEM_PER_CPU", ""),
     }
     try:
         import meep

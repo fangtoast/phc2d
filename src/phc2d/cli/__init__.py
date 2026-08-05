@@ -175,7 +175,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate.set_defaults(command="data generate")
     accept_cluster = data_sub.add_parser(
         "accept-cluster",
-        help="Recompute fixed Xingyi structures in WSL and gate the binary dataset.",
+        help="Recompute fixed cluster structures in WSL and gate a full-cell dataset.",
         description="Compare native-Linux MPB labels against WSL Ubuntu conda meep_env replay.",
     )
     accept_cluster.add_argument("--dataset", type=Path, required=True)
@@ -449,10 +449,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         return
     if ns.command == "data accept-cluster":
-        from phc2d.data.full_cell_acceptance import run_xingyi_binary_wsl_acceptance
+        from phc2d.data.full_cell_acceptance import run_cluster_wsl_acceptance
 
         print(
-            run_xingyi_binary_wsl_acceptance(
+            run_cluster_wsl_acceptance(
                 ns.dataset,
                 ns.config,
                 run_dir=ns.run_dir,
