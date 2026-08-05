@@ -5,8 +5,8 @@
 # Copyright (c) 2026 fangtoast. All rights reserved.
 
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/xingyi_common.sh"
+PHC2D_ROOT="${PHC2D_ROOT:-$HOME/HDD_POOL/phc2d}"
+source "$PHC2D_ROOT/jobs/xingyi_common.sh"
 
 : "${PHC2D_BENCHMARK_ROOT:?Set PHC2D_BENCHMARK_ROOT to a runs/YYYYMMDD directory.}"
 : "${PHC2D_SAMPLE_PLAN:?Set PHC2D_SAMPLE_PLAN to the frozen 10,000-row sample plan.}"

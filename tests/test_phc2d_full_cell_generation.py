@@ -320,6 +320,19 @@ def test_xingyi_shell_jobs_have_batch_shebangs() -> None:
         assert first_line == "#!/usr/bin/env bash", path.name
 
 
+def test_xingyi_batch_jobs_source_common_from_stable_project_root() -> None:
+    root = Path(__file__).resolve().parents[1]
+    for name in (
+        "xingyi_preflight.sh",
+        "xingyi_binary_benchmark.sh",
+        "xingyi_binary_10000.sh",
+        "xingyi_graded_10000_prepared_only.sh",
+    ):
+        script = (root / "jobs" / name).read_text(encoding="utf-8")
+        assert 'source "$PHC2D_ROOT/jobs/xingyi_common.sh"' in script
+        assert "BASH_SOURCE" not in script
+
+
 def test_paracloud_m9_config_preserves_graded_physics_and_allows_256_workers() -> None:
     root = Path(__file__).resolve().parents[1]
     base = yaml.safe_load((root / "configs/research/full_cell_graded_bz9_10000_v1.yaml").read_text(encoding="utf-8"))

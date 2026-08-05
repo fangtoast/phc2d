@@ -5,8 +5,8 @@
 # Copyright (c) 2026 fangtoast. All rights reserved.
 
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/xingyi_common.sh"
+PHC2D_ROOT="${PHC2D_ROOT:-$HOME/HDD_POOL/phc2d}"
+source "$PHC2D_ROOT/jobs/xingyi_common.sh"
 
 : "${PHC2D_RUN_DIR:?Set PHC2D_RUN_DIR to the fixed standard run directory.}"
 PHC2D_WORKERS="${PHC2D_WORKERS:-64}"
