@@ -194,7 +194,7 @@ def test_data_generate_cli_parser_does_not_import_meep() -> None:
 
 
 def test_native_linux_boundary_requires_slurm_and_records_versions(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_mpb = SimpleNamespace(__version__="1.12.0")
+    fake_mpb = SimpleNamespace(__version__=(1, 12, 0))
     fake_meep = SimpleNamespace(__version__="1.33.0-beta", mpb=fake_mpb)
     monkeypatch.setitem(sys.modules, "meep", fake_meep)
     monkeypatch.setattr(full_cell_generation.platform, "system", lambda: "Linux")
@@ -352,6 +352,7 @@ def test_paracloud_m9_formal_job_is_fail_closed() -> None:
         '"$PHC2D_ENV/bin/conda-unpack"'
     )
     assert "set +u\nsource \"$PHC2D_ENV/bin/activate\"\nset -u" in common
+    assert "mpb_version = '.'.join(map(str, mpb.__version__))" in common
     for path in (root / "jobs").glob("paracloud_m9_*.sh"):
         assert path.read_text(encoding="utf-8").startswith("#!/usr/bin/env bash\n")
     for name in (
