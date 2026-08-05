@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Unpack and verify the offline phc2d environment on a Parallel Computing Cloud M9 node.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com

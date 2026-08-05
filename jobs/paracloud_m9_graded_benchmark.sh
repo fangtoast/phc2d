@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Run adaptive graded-medium worker benchmarks on Parallel Computing Cloud M9.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com

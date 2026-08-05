@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Shared runtime setup for phc2d jobs on Parallel Computing Cloud M9.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com

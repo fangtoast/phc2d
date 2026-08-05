@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Run solver-oracle and four-sample graded preflights on Parallel Computing Cloud M9.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com

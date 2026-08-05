@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Generate the frozen 10,000-sample graded dataset on Parallel Computing Cloud M9.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com

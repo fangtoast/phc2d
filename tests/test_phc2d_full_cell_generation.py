@@ -348,6 +348,8 @@ def test_paracloud_m9_formal_job_is_fail_closed() -> None:
     assert "meep_env_paracloud_m9.tar.gz" in common
     assert "b2fd8f0cf039d27d7f203bab16ae1428b9f8cd470777475c92169e6833611117" in common
     assert "conda-unpack" in common
+    for path in (root / "jobs").glob("paracloud_m9_*.sh"):
+        assert path.read_text(encoding="utf-8").startswith("#!/usr/bin/env bash\n")
 
 
 def test_xingyi_binary_acceptance_replays_fixed_strata_and_k_points(tmp_path: Path) -> None:
