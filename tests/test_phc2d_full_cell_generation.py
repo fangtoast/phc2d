@@ -350,6 +350,15 @@ def test_paracloud_m9_formal_job_is_fail_closed() -> None:
     assert "conda-unpack" in common
     for path in (root / "jobs").glob("paracloud_m9_*.sh"):
         assert path.read_text(encoding="utf-8").startswith("#!/usr/bin/env bash\n")
+    for name in (
+        "paracloud_m9_environment_preflight.sh",
+        "paracloud_m9_solver_preflight.sh",
+        "paracloud_m9_graded_benchmark.sh",
+        "paracloud_m9_graded_10000.sh",
+    ):
+        entrypoint = (root / "jobs" / name).read_text(encoding="utf-8")
+        assert 'source "$PHC2D_ROOT/jobs/paracloud_m9_common.sh"' in entrypoint
+        assert "BASH_SOURCE" not in entrypoint
 
 
 def test_xingyi_binary_acceptance_replays_fixed_strata_and_k_points(tmp_path: Path) -> None:

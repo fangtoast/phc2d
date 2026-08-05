@@ -5,8 +5,8 @@
 # Copyright (c) 2026 fangtoast. All rights reserved.
 
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/paracloud_m9_common.sh"
+PHC2D_ROOT="${PHC2D_ROOT:-/publicfs10/fs10-m9/home/m9s005801/phc2d}"
+source "$PHC2D_ROOT/jobs/paracloud_m9_common.sh"
 
 if [[ "${PHC2D_AUTHORIZE_GRADED:-NO}" != "YES" ]]; then
   echo "Set PHC2D_AUTHORIZE_GRADED=YES only after explicit formal-run authorization." >&2
