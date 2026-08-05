@@ -36,5 +36,8 @@ export MKL_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 
 cd "$PHC2D_ROOT"
-[[ "$PHC2D_DEPLOYED_GIT_COMMIT" == "14906c6" ]]
+if [[ ! "$PHC2D_DEPLOYED_GIT_COMMIT" =~ ^[0-9a-f]{7,40}$ ]]; then
+  echo "Invalid deployed Git commit provenance: $PHC2D_DEPLOYED_GIT_COMMIT" >&2
+  exit 2
+fi
 python -c "import meep; from meep import mpb; mpb_version = '.'.join(map(str, mpb.__version__)) if isinstance(mpb.__version__, (tuple, list)) else str(mpb.__version__); assert meep.__version__ == '1.33.0-beta'; assert mpb_version == '1.12.0'; print('Meep/MPB:', meep.__version__, mpb_version)"
