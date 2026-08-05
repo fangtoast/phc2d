@@ -348,6 +348,9 @@ def test_paracloud_m9_formal_job_is_fail_closed() -> None:
     assert "meep_env_paracloud_m9.tar.gz" in common
     assert "b2fd8f0cf039d27d7f203bab16ae1428b9f8cd470777475c92169e6833611117" in common
     assert "conda-unpack" in common
+    assert common.index('export PATH="$PHC2D_ENV/bin:$PATH"') < common.index(
+        '"$PHC2D_ENV/bin/conda-unpack"'
+    )
     for path in (root / "jobs").glob("paracloud_m9_*.sh"):
         assert path.read_text(encoding="utf-8").startswith("#!/usr/bin/env bash\n")
     for name in (

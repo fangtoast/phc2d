@@ -52,6 +52,7 @@ fi
 module purge >/dev/null 2>&1 || true
 mkdir -p "$PHC2D_ENV"
 tar -xzf "$PHC2D_ENV_ARCHIVE" -C "$PHC2D_ENV"
+export PATH="$PHC2D_ENV/bin:$PATH"
 "$PHC2D_ENV/bin/conda-unpack"
 source "$PHC2D_ENV/bin/activate"
 export PYTHONPATH="$PHC2D_ROOT/src"
