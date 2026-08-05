@@ -26,7 +26,9 @@ if [[ ! -f "$PHC2D_ROOT/DEPLOYED_GIT_COMMIT" ]]; then
 fi
 
 module purge >/dev/null 2>&1 || true
+set +u
 source "$PHC2D_ENV/bin/activate"
+set -u
 export PYTHONPATH="$PHC2D_ROOT/src"
 export PHC2D_CLUSTER_ID=xingyi
 export PHC2D_DEPLOYED_GIT_COMMIT="$(tr -d '[:space:]' < "$PHC2D_ROOT/DEPLOYED_GIT_COMMIT")"

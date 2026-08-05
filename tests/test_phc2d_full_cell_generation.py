@@ -311,6 +311,7 @@ def test_xingyi_common_requires_deployed_commit_provenance() -> None:
     assert "DEPLOYED_GIT_COMMIT" in script
     assert "PHC2D_DEPLOYED_GIT_COMMIT" in script
     assert "PHC2D_CLUSTER_ID=xingyi" in script
+    assert 'set +u\nsource "$PHC2D_ENV/bin/activate"\nset -u' in script
 
 
 def test_xingyi_shell_jobs_have_batch_shebangs() -> None:
