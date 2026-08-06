@@ -363,6 +363,20 @@ def build_parser() -> argparse.ArgumentParser:
     inverse_full_cell_preflight.add_argument("--config", type=Path, required=True)
     inverse_full_cell_preflight.add_argument("--run-dir", type=Path)
     inverse_full_cell_preflight.set_defaults(command="inverse full-cell-preflight")
+    inverse_full_cell_train = inverse_sub.add_parser(
+        "full-cell-train",
+        help="Train one full-cell analytic Stage-A variant/method/seed job.",
+        description=(
+            "Train and validate one supervised full-cell analytic Stage-A job with atomic "
+            "checkpoints and exact resume. This does not use a forward surrogate or run MPB/Meep."
+        ),
+    )
+    inverse_full_cell_train.add_argument("--config", type=Path, required=True)
+    inverse_full_cell_train.add_argument("--variant", required=True)
+    inverse_full_cell_train.add_argument("--method", required=True)
+    inverse_full_cell_train.add_argument("--seed", type=int, required=True)
+    inverse_full_cell_train.add_argument("--run-dir", type=Path, required=True)
+    inverse_full_cell_train.set_defaults(command="inverse full-cell-train")
     inverse_objective_train = inverse_sub.add_parser(
         "objective-train",
         help="Fine-tune an inverse generator against a differentiable surrogate-side objective.",
@@ -629,6 +643,19 @@ def main(argv: Sequence[str] | None = None) -> None:
         from phc2d.inverse import run_full_cell_stage_a_preflight
 
         print(run_full_cell_stage_a_preflight(ns.config, run_dir=ns.run_dir))
+        return
+    if ns.command == "inverse full-cell-train":
+        from phc2d.inverse import run_full_cell_stage_a_train
+
+        print(
+            run_full_cell_stage_a_train(
+                ns.config,
+                variant=ns.variant,
+                method=ns.method,
+                seed=ns.seed,
+                run_dir=ns.run_dir,
+            )
+        )
         return
     if ns.command == "inverse objective-train":
         from phc2d.inverse import run_inverse_objective_train

@@ -25,8 +25,10 @@ from phc2d.generators import (
 from phc2d.inverse.full_cell_training import (
     FULL_CELL_STAGE_A_METHODS,
     load_full_cell_stage_a_preflight_config,
+    load_full_cell_stage_a_train_config,
     load_full_cell_inverse_variant_datasets,
     run_full_cell_stage_a_preflight,
+    run_full_cell_stage_a_train,
 )
 from phc2d.runs import validate_run_artifacts
 
@@ -214,6 +216,141 @@ def test_full_cell_preflight_cli_help_is_lazy(capsys: pytest.CaptureFixture[str]
     assert "does not start formal training" in output
 
 
+def _stage_a_train_config(tiny_full_cell_routes: dict[str, Path], tmp_path: Path) -> Path:
+    config = {
+        "experiment": {
+            "experiment_id": "full_cell_inverse_stage_a_train_unit",
+            "stage": "inverse_full_cell_stage_a_train",
+        },
+        "representation": {
+            "condition_target": "Wh",
+            "output_repr": "full_cell_analytic_params",
+            "condition_normalization": "route_train_per_k_band",
+        },
+        "datasets": {
+            "binary": {"path": str(tiny_full_cell_routes["binary"])},
+            "graded": {"path": str(tiny_full_cell_routes["graded"])},
+        },
+        "models": {
+            "methods": list(FULL_CELL_STAGE_A_METHODS),
+            "overrides": {
+                "direct_inverse_mlp": {
+                    "hidden_dim": 8,
+                    "depth": 2,
+                    "latent_dim": 0,
+                    "mode_count": 1,
+                },
+                "single_mode_generator": {
+                    "hidden_dim": 8,
+                    "depth": 2,
+                    "latent_dim": 4,
+                    "mode_count": 1,
+                },
+                "mixture_conditional_generator": {
+                    "hidden_dim": 8,
+                    "depth": 2,
+                    "latent_dim": 4,
+                    "mode_count": 4,
+                },
+            },
+        },
+        "training": {
+            "epochs": 3,
+            "checkpoint_epochs": [1, 2, 3],
+            "early_stopping_patience": 3,
+            "batch_size": 2,
+            "val_batch_size": 2,
+            "raster_shape": [8, 8],
+            "binary_temperature": 0.01,
+            "learning_rates": {
+                "direct_inverse_mlp": 3.0e-4,
+                "single_mode_generator": 1.0e-4,
+                "mixture_conditional_generator": 1.0e-4,
+            },
+            "weight_decay": 1.0e-5,
+            "raster_weight": 0.1,
+            "unit_circle_weight": 0.05,
+        },
+        "gates": {"forward_surrogate_status": "not_trained"},
+        "runtime": {
+            "device": "cpu",
+            "require_accelerator": False,
+            "precision": "fp32",
+            "amp_enabled": False,
+            "tf32_enabled": False,
+            "cpu_threads": 2,
+        },
+        "output": {"runs_dir": str(tmp_path)},
+    }
+    config_path = tmp_path / "train.yaml"
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    return config_path
+
+
+def test_stage_a_epoch_runner_resumes_with_optimizer_and_writes_curves(
+    tiny_full_cell_routes: dict[str, Path], tmp_path: Path
+) -> None:
+    pytest.importorskip("torch")
+    pytest.importorskip("matplotlib")
+    config_path = _stage_a_train_config(tiny_full_cell_routes, tmp_path)
+    run_dir = tmp_path / "train_run"
+
+    run_full_cell_stage_a_train(
+        config_path,
+        variant="binary_polar_holes_1",
+        method="direct_inverse_mlp",
+        seed=0,
+        run_dir=run_dir,
+        stop_after_epoch=1,
+    )
+    partial = json.loads((run_dir / "results.json").read_text(encoding="utf-8"))
+    assert partial["status"] == "stage_a_train_partial"
+    assert partial["next_gate"] == "resume_same_run_dir"
+
+    resumed_dir = run_full_cell_stage_a_train(
+        config_path,
+        variant="binary_polar_holes_1",
+        method="direct_inverse_mlp",
+        seed=0,
+        run_dir=run_dir,
+    )
+
+    assert resumed_dir == run_dir
+    assert validate_run_artifacts(run_dir) == []
+    results = json.loads((run_dir / "results.json").read_text(encoding="utf-8"))
+    metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    with (run_dir / "history.csv").open(encoding="utf-8", newline="") as handle:
+        history = list(csv.DictReader(handle))
+    assert [int(row["epoch"]) for row in history] == [1, 2, 3]
+    assert results["status"] == "stage_a_train_complete"
+    assert results["formal_training_started"] is False
+    assert results["forward_surrogate_status"] == "not_trained"
+    assert results["stage_b_admitted"] is False
+    assert results["candidate_ranking_admitted"] is False
+    assert results["inverse_mpb_replay_admitted"] is False
+    assert results["test_split_touched"] is False
+    assert metrics["resumed_from_checkpoint"] is True
+    assert metrics["checkpoint_reload_exact_match"] is True
+    assert metrics["train_time_s"] > 0.0
+    assert metrics["eval_time_s"] > 0.0
+    assert (run_dir / "last.pt").is_file()
+    assert (run_dir / "best.pt").is_file()
+    assert (run_dir / "model.pt").is_file()
+    assert len(list(run_dir.glob("checkpoint_epoch_*.pt"))) == 3
+    assert (run_dir / "figures" / "training_curve.png").is_file()
+    assert (run_dir / "figures" / "training_curve.pdf").is_file()
+
+
+def test_full_cell_train_cli_help_is_lazy(capsys: pytest.CaptureFixture[str]) -> None:
+    parser = build_parser()
+    with pytest.raises(SystemExit) as exc:
+        parser.parse_args(["inverse", "full-cell-train", "--help"])
+    assert exc.value.code == 0
+    output = capsys.readouterr().out
+    assert "one supervised full-cell analytic Stage-A job" in output
+    assert "does not use a forward surrogate" in output
+
+
 def test_repository_cpu_and_n40_preflight_configs_are_fail_closed() -> None:
     root = Path(__file__).parents[1]
     cpu = load_full_cell_stage_a_preflight_config(
@@ -229,3 +366,21 @@ def test_repository_cpu_and_n40_preflight_configs_are_fail_closed() -> None:
     assert n40["runtime"]["require_accelerator"] is True
     assert n40["training"]["batch_size"] == 64
     assert n40["training"]["raster_shape"] == [64, 64]
+
+
+def test_repository_stage_a_train_configs_are_fail_closed() -> None:
+    root = Path(__file__).parents[1]
+    cpu = load_full_cell_stage_a_train_config(
+        root / "configs" / "smoke" / "full_cell_inverse_stage_a_train_cpu_v1.yaml"
+    )
+    n40 = load_full_cell_stage_a_train_config(
+        root / "configs" / "research" / "full_cell_inverse_stage_a_train_n40_v1.yaml"
+    )
+
+    assert cpu["runtime"]["device"] == "cpu"
+    assert cpu["training"]["epochs"] == 3
+    assert n40["runtime"]["device"] == "cuda:0"
+    assert n40["runtime"]["require_accelerator"] is True
+    assert n40["training"]["epochs"] == 200
+    assert n40["training"]["checkpoint_epochs"] == [50, 100, 150, 200]
+    assert n40["gates"]["forward_surrogate_status"] == "not_trained"

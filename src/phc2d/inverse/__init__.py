@@ -21,8 +21,10 @@ from phc2d.inverse.full_cell_training import (
     FULL_CELL_STAGE_A_METHODS,
     FullCellInverseVariantDataset,
     load_full_cell_stage_a_preflight_config,
+    load_full_cell_stage_a_train_config,
     load_full_cell_inverse_variant_datasets,
     run_full_cell_stage_a_preflight,
+    run_full_cell_stage_a_train,
 )
 from phc2d.inverse.candidates import (
     CandidateBatch,
@@ -89,6 +91,7 @@ __all__ = [
     "load_full_cell_analytic_codecs",
     "load_full_cell_inverse_variant_datasets",
     "load_full_cell_stage_a_preflight_config",
+    "load_full_cell_stage_a_train_config",
     "save_full_cell_analytic_codecs",
     "unique_rate",
     "validity_rate",
@@ -100,5 +103,6 @@ __all__ = [
     "run_inverse_sample",
     "run_inverse_train",
     "run_full_cell_stage_a_preflight",
+    "run_full_cell_stage_a_train",
     "run_a2_benchmark",
 ]
