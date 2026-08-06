@@ -1,0 +1,143 @@
+# Machine-readable local dataset catalog for the phc2d workspace.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: phc2d.data_catalog.v1
+updated_on: 2026-08-06
+root_policy: active_compatibility_paths_only
+
+datasets:
+  - path: data/full_cell_binary_bz9_10000_xingyi_v1.h5
+    category: formal_full_cell
+    lane: binary_air_holes
+    format: hdf5
+    sample_count: 10000
+    Wh_shape: [10000, 81, 10]
+    status: wsl_cross_environment_acceptance_pass
+    evidence: runs/20260806/full_cell_binary_xingyi_wsl_acceptance_v1_202608060926/results.json
+
+  - path: data/full_cell_graded_bz9_10000_paracloud_m9_v1.h5
+    category: formal_full_cell_candidate
+    lane: graded_medium
+    format: hdf5
+    sample_count: 10000
+    Wh_shape: [10000, 81, 10]
+    status: cluster_generated_pending_wsl_acceptance
+    evidence: runs/20260805/full_cell_graded_bz9_10000_paracloud_m9_202608052316/results.json
+
+  - path: data/query_dataset_v2_pilot_10000_mpb.npz
+    category: active_v2_benchmark
+    format: npz
+    sample_count: 10000
+    rho_shape: [10000, 36]
+    Wh_shape: [10000, 31, 10]
+    status: physically_verified_with_documented_numerical_tolerance
+    manifest: data/metadata/query_dataset_v2_pilot_10000_mpb.manifest.yaml
+
+  - path: data/query_dataset_v2_pilot_1000_mpb.npz
+    category: active_v2_scaling
+    format: npz
+    sample_count: 1000
+    rho_shape: [1000, 36]
+    Wh_shape: [1000, 31, 10]
+    manifest: data/metadata/query_dataset_v2_pilot_1000_mpb.manifest.yaml
+
+  - path: data/query_dataset_v2_pilot_256_mpb.npz
+    category: active_v2_scaling
+    format: npz
+    sample_count: 256
+    rho_shape: [256, 36]
+    Wh_shape: [256, 31, 10]
+    manifest: data/metadata/query_dataset_v2_pilot_256_mpb.manifest.yaml
+
+  - path: data/query_dataset_v2_pilot_64_mpb.npz
+    category: active_v2_scaling
+    format: npz
+    sample_count: 64
+    rho_shape: [64, 36]
+    Wh_shape: [64, 31, 10]
+    manifest: data/metadata/query_dataset_v2_pilot_64_mpb.manifest.yaml
+
+  - path: data/paper_like_50k_mpb.npz
+    category: legacy_paper_like_benchmark
+    format: npz
+    sample_count: 50000
+    rho_shape: [50000, 36]
+    Wh_shape: [50000, 31, 10]
+    status: candidate_unverified
+    manifest: data/metadata/paper_like_50k_mpb.manifest.yaml
+
+  - path: data/paper_like_64_mpb.npz
+    category: active_pilot
+    format: npz
+    sample_count: 64
+    rho_shape: [64, 36]
+    Wh_shape: [64, 31, 10]
+    manifest: data/metadata/paper_like_64_mpb.manifest.yaml
+
+  - path: data/dataset_100k_mpb_train70000_val25000_test5000.npz
+    category: legacy_100k_benchmark
+    format: npz
+    sample_count: 100000
+    rho_shape: [100000, 36]
+    Wh_shape: [100000, 31, 10]
+
+  - path: data/full_cell_binary_holes_bz9_pilot64.h5
+    category: active_full_cell_pilot
+    lane: binary_air_holes
+    format: hdf5
+    sample_count: 64
+    Wh_shape: [64, 81, 10]
+
+  - path: data/full_cell_graded_bz9_pilot64.h5
+    category: active_full_cell_pilot
+    lane: graded_medium
+    format: hdf5
+    sample_count: 64
+    Wh_shape: [64, 81, 10]
+
+  - path: data/field_tiny_mpb.h5
+    category: active_field_smoke
+    format: hdf5
+    status: feasibility_only
+
+  - path: data/tiny.npz
+    category: active_smoke
+    format: npz
+    sample_count: 12
+    rho_shape: [12, 36]
+    Wh_shape: [12, 31, 10]
+    manifest: data/metadata/tiny.manifest.yaml
+
+archived_datasets:
+  - path: data/archive/legacy_source/dataset_small.npz
+    previous_path: data/dataset_small.npz
+    sample_count: 500
+  - path: data/archive/legacy_source/dataset_full.npz
+    previous_path: data/dataset_full.npz
+    sample_count: 87474
+  - path: data/archive/legacy_source/dataset_full_mpb.npz
+    previous_path: data/dataset_full_mpb.npz
+    sample_count: 87474
+  - path: data/archive/validation_probes/dataset_fem_check.npz
+    previous_path: data/dataset_fem_check.npz
+    sample_count: 8
+  - path: data/archive/legacy_random/legacy_random_64_mpb.npz
+    previous_path: data/legacy_random_64_mpb.npz
+    sample_count: 64
+  - path: data/archive/paper_like_previews/paper_like_100_structure_only.npz
+    previous_path: data/paper_like_100_structure_only.npz
+    sample_count: 100
+  - path: data/archive/paper_like_previews/paper_like_64_preview.npz
+    previous_path: data/paper_like_64_preview.npz
+    sample_count: 64
+  - path: data/archive/paper_like_previews/paper_like_64_structure_only.npz
+    previous_path: data/paper_like_64_structure_only.npz
+    sample_count: 64
+
+support_directories:
+  metadata: data/metadata
+  paper_like_artifacts: data/artifacts/paper_like
+  legacy_archives: data/archive
+  full_ibz_diagnostics: data/diagnostics/full_ibz
