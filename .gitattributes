@@ -8,6 +8,8 @@
 *.toml text eol=lf
 jobs/paracloud_m9_*.sh text eol=lf
 jobs/paracloud_gpu_*.sh text eol=lf
+jobs/paracloud_full_cell_*.sh text eol=lf
+jobs/paracloud_submit_full_cell_*.sh text eol=lf
 jobs/xingyi_*.sh text eol=lf
 
 # Preserve curated report artifacts byte-for-byte so recorded SHA-256 values remain portable.
