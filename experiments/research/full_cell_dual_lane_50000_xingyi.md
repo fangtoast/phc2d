@@ -54,13 +54,14 @@
      --run-dir runs/20260806/full_cell_graded_bz9_50000_xingyi_v1_plan_20260806HHMM
    ```
 
-2. 核对两份 `sample_plan_manifest.json`、行数、SHA-256、split 和 strata；把 `sample_plan.jsonl` 放入两个固定正式 run 目录。计划生成只证明几何已冻结，不是 MPB 数据。
+2. 默认核对两份 `sample_plan_manifest.json`、行数、SHA-256、split 和 strata，并把 `sample_plan.jsonl` 放入两个固定正式 run 目录。若用户明确要求停止本地计划生成并直接使用超算，可设置 `PHC2D_PLAN_MODE=generate-on-node`；每个正式作业会先在自己的全新 run 目录生成并冻结 50,000 行计划，再继续 MPB。两种模式都不得复用半成品或混合旧 shard。
 3. 部署范围化 Git commit 到 Xingyi 的新版本目录，验证 `DEPLOYED_GIT_COMMIT`、Meep `1.33.0-beta`、MPB `1.12.0` 和 shell 语法。
 4. 提交前重查 `sinfo`、用户队列、文件系统空间；取得单独的短预检授权后，通过 [`../../jobs/xingyi_full_cell_50000_preflight.sh`](../../jobs/xingyi_full_cell_50000_preflight.sh) 执行 solver oracle 与每路线 4 样本预检。任何环境、有限值、频带升序或 failure gate 不通过即停止。
 5. 提交器默认 `dry-run`。只有用户明确批准计费运行后，才可同时设置 `PHC2D_SUBMIT_MODE=submit` 与 `PHC2D_AUTHORIZE_50K=YES`：
 
    ```bash
    PHC2D_CAMPAIGN_ID=full_cell_dual_lane_50000_xingyi_YYYYMMDDHHMM \
+   PHC2D_PLAN_MODE=generate-on-node \
    PHC2D_SUBMIT_MODE=submit \
    PHC2D_AUTHORIZE_50K=YES \
    bash jobs/xingyi_submit_full_cell_50000.sh

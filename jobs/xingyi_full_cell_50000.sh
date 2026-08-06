@@ -16,6 +16,7 @@ fi
 : "${PHC2D_RUN_DIR:?Set PHC2D_RUN_DIR to the fixed standard run directory.}"
 PHC2D_WORKERS="${PHC2D_WORKERS:-64}"
 PHC2D_ALLOW_RESUME="${PHC2D_ALLOW_RESUME:-0}"
+PHC2D_ALLOW_PLAN_CREATION="${PHC2D_ALLOW_PLAN_CREATION:-0}"
 
 case "$PHC2D_LANE" in
   binary) config="configs/research/full_cell_binary_bz9_50000_xingyi_v1.yaml" ;;
@@ -26,12 +27,16 @@ if (( PHC2D_WORKERS < 1 || PHC2D_WORKERS > 64 )); then
   echo "PHC2D_WORKERS must be in [1,64]." >&2
   exit 2
 fi
-if [[ ! -f "$PHC2D_RUN_DIR/sample_plan.jsonl" ]]; then
-  echo "Frozen sample_plan.jsonl is required in $PHC2D_RUN_DIR." >&2
+if [[ -f "$PHC2D_RUN_DIR/sample_plan.jsonl" ]]; then
+  if [[ "$(wc -l < "$PHC2D_RUN_DIR/sample_plan.jsonl")" -ne 50000 ]]; then
+    echo "Frozen sample plan must contain exactly 50000 rows." >&2
+    exit 2
+  fi
+elif [[ "$PHC2D_ALLOW_PLAN_CREATION" != "1" ]]; then
+  echo "Missing frozen plan; a fresh run requires PHC2D_ALLOW_PLAN_CREATION=1." >&2
   exit 2
-fi
-if [[ "$(wc -l < "$PHC2D_RUN_DIR/sample_plan.jsonl")" -ne 50000 ]]; then
-  echo "Frozen sample plan must contain exactly 50000 rows." >&2
+elif [[ -e "$PHC2D_RUN_DIR/results.json" || -d "$PHC2D_RUN_DIR/worker_shards" ]]; then
+  echo "Plan creation is allowed only in a fresh run directory." >&2
   exit 2
 fi
 if [[ -d "$PHC2D_RUN_DIR/worker_shards" ]] && find "$PHC2D_RUN_DIR/worker_shards" -type f -print -quit | grep -q .; then

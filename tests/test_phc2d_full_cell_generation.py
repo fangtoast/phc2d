@@ -363,9 +363,13 @@ def test_xingyi_50000_jobs_are_fail_closed_and_two_node_ready() -> None:
     submit = (root / "jobs" / "xingyi_submit_full_cell_50000.sh").read_text(encoding="utf-8")
     preflight = (root / "jobs" / "xingyi_full_cell_50000_preflight.sh").read_text(encoding="utf-8")
     assert 'PHC2D_AUTHORIZE_50K:-NO' in worker
+    assert 'PHC2D_ALLOW_PLAN_CREATION:-0' in worker
+    assert 'Plan creation is allowed only in a fresh run directory.' in worker
     assert 'source "$PHC2D_ROOT/jobs/xingyi_common.sh"' in worker
     assert '"$(wc -l < "$PHC2D_RUN_DIR/sample_plan.jsonl")" -ne 50000' in worker
     assert 'PHC2D_SUBMIT_MODE:-dry-run' in submit
+    assert 'PHC2D_PLAN_MODE:-frozen' in submit
+    assert 'generate-on-node' in submit
     assert 'PHC2D_SUBMIT_MODE=submit' in submit
     assert 'PHC2D_AUTHORIZE_50K=YES' in submit
     assert "-p xyfree -N 1 -n 1 -c 64 --mem=128G --time=24:00:00" in submit
