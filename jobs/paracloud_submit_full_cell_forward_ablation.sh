@@ -20,8 +20,15 @@ fi
 
 PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu118}"
 wave_concurrency="${PHC2D_WAVE_CONCURRENCY:-6}"
+selection_offset="${PHC2D_ABLATION_SELECTION_OFFSET:-0}"
+selection_limit="${PHC2D_ABLATION_SELECTION_LIMIT:-3}"
 if [[ "$wave_concurrency" != "3" && "$wave_concurrency" != "6" ]]; then
   echo "ablation PHC2D_WAVE_CONCURRENCY must be 3 or 6" >&2
+  exit 2
+fi
+if ! [[ "$selection_offset" =~ ^[0-2]$ && "$selection_limit" =~ ^[1-3]$ ]] \
+  || (( selection_offset + selection_limit > 3 )); then
+  echo "ablation selection offset/limit must select a non-empty subset of the three frozen configurations" >&2
   exit 2
 fi
 selection_count="$(tail -n +2 "$selection_csv" | sed '/^[[:space:]]*$/d' | wc -l | tr -d '[:space:]')"
@@ -72,9 +79,10 @@ while IFS=, read -r lane representation config model threshold _rest; do
         "$lane" "$representation" "$config" "$model" "$threshold" "$resolution" "$seed" "$job_id" "$run_dir" "$mode" >> "$manifest"
     done
   done
-done < <(tail -n +2 "$selection_csv")
-if [[ "$task_index" != "18" ]]; then
-  echo "internal error: expected 18 submitted tasks, got $task_index" >&2
+done < <(tail -n +2 "$selection_csv" | sed -n "$((selection_offset + 1)),$((selection_offset + selection_limit))p")
+expected_tasks=$((selection_limit * 6))
+if [[ "$task_index" != "$expected_tasks" ]]; then
+  echo "internal error: expected $expected_tasks submitted tasks, got $task_index" >&2
   exit 4
 fi
 printf '%s\n' "$manifest" > runs/full_cell_forward_active_wave.txt
