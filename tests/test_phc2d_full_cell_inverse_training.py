@@ -143,9 +143,10 @@ def test_variant_data_adapter_uses_route_train_only_normalization(tiny_full_cell
     assert np.all(np.isfinite(normalized))
 
 
-def test_stage_a_cpu_preflight_writes_15_complete_cases(tiny_full_cell_routes, tmp_path: Path) -> None:
-    pytest.importorskip("torch")
-    config = {
+def _stage_a_preflight_config(
+    tiny_full_cell_routes: dict[str, Path], tmp_path: Path
+) -> dict[str, object]:
+    return {
         "experiment": {"experiment_id": "full_cell_inverse_stage_a_unit"},
         "representation": {
             "condition_target": "Wh",
@@ -184,6 +185,11 @@ def test_stage_a_cpu_preflight_writes_15_complete_cases(tiny_full_cell_routes, t
         },
         "output": {"runs_dir": str(tmp_path)},
     }
+
+
+def test_stage_a_cpu_preflight_writes_15_complete_cases(tiny_full_cell_routes, tmp_path: Path) -> None:
+    pytest.importorskip("torch")
+    config = _stage_a_preflight_config(tiny_full_cell_routes, tmp_path)
     config_path = tmp_path / "preflight.yaml"
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
     run_dir = run_full_cell_stage_a_preflight(config_path, run_dir=tmp_path / "run")
@@ -206,6 +212,39 @@ def test_stage_a_cpu_preflight_writes_15_complete_cases(tiny_full_cell_routes, t
     assert len(list((run_dir / "cases").glob("*/*/preflight.pt"))) == 15
 
 
+def test_stage_a_filtered_preflight_writes_one_concurrency_case(
+    tiny_full_cell_routes: dict[str, Path], tmp_path: Path
+) -> None:
+    pytest.importorskip("torch")
+    config = _stage_a_preflight_config(tiny_full_cell_routes, tmp_path)
+    config_path = tmp_path / "case_preflight.yaml"
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+
+    run_dir = run_full_cell_stage_a_preflight(
+        config_path,
+        run_dir=tmp_path / "case_run",
+        variants=("graded_rbf_fourier_1",),
+        methods=("mixture_conditional_generator",),
+        seed=2,
+    )
+
+    results = json.loads((run_dir / "results.json").read_text(encoding="utf-8"))
+    metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    resolved = yaml.safe_load((run_dir / "config.resolved.yaml").read_text(encoding="utf-8"))
+    assert results["status"] == "cpu_case_preflight_pass"
+    assert results["next_gate"] == "n40_single_card_preflight_authorization"
+    assert len(results["case_results"]) == 1
+    assert results["case_results"][0]["variant_id"] == "graded_rbf_fourier_1"
+    assert results["case_results"][0]["method"] == "mixture_conditional_generator"
+    assert metrics["case_count"] == 1
+    assert metrics["seed"] == 2
+    assert resolved["selection"] == {
+        "variants": ["graded_rbf_fourier_1"],
+        "methods": ["mixture_conditional_generator"],
+        "seed": 2,
+    }
+
+
 def test_full_cell_preflight_cli_help_is_lazy(capsys: pytest.CaptureFixture[str]) -> None:
     parser = build_parser()
     with pytest.raises(SystemExit) as exc:
@@ -214,6 +253,9 @@ def test_full_cell_preflight_cli_help_is_lazy(capsys: pytest.CaptureFixture[str]
     output = capsys.readouterr().out
     assert "15-case full-cell analytic Stage-A" in output
     assert "does not start formal training" in output
+    assert "--variant" in output
+    assert "--method" in output
+    assert "--seed" in output
 
 
 def _stage_a_train_config(tiny_full_cell_routes: dict[str, Path], tmp_path: Path) -> Path:
@@ -384,3 +426,22 @@ def test_repository_stage_a_train_configs_are_fail_closed() -> None:
     assert n40["training"]["epochs"] == 200
     assert n40["training"]["checkpoint_epochs"] == [50, 100, 150, 200]
     assert n40["gates"]["forward_surrogate_status"] == "not_trained"
+
+
+def test_inverse_stage_a_wave_scripts_freeze_identity_and_dry_run() -> None:
+    root = Path(__file__).parents[1]
+    submit = (root / "jobs" / "paracloud_submit_full_cell_inverse_stage_a_wave.sh").read_text(
+        encoding="utf-8"
+    )
+    status = (root / "jobs" / "paracloud_full_cell_inverse_stage_a_status.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "PHC2D_SUBMIT_DRY_RUN" in submit
+    assert "PHC2D_WAVE_CONCURRENCY must be 3, 9, or 18" in submit
+    assert "expected_dataset_sha256" in submit
+    assert "PHC2D_PREFLIGHT_VARIANT" in submit
+    assert "PHC2D_VARIANT" in submit
+    assert "runs/full_cell_inverse_stage_a_active_wave.txt" in submit
+    assert "sacct" in status
+    assert "forward_surrogate_status" in status

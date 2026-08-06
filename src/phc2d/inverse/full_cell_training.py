@@ -394,6 +394,12 @@ def _validated_config(config: Mapping[str, Any]) -> dict[str, Any]:
             )
             if actual != values:
                 raise ValueError(f"Formal N40 network contract mismatch for {method}: {actual} != {values}")
+        for route in ("binary", "graded"):
+            expected_hash = str(dict(datasets[route]).get("expected_dataset_sha256", ""))
+            if len(expected_hash) != 64:
+                raise ValueError(
+                    f"Formal N40 preflight requires datasets.{route}.expected_dataset_sha256"
+                )
     return payload
 
 
@@ -465,8 +471,11 @@ def run_full_cell_stage_a_preflight(
     config_path: str | Path,
     *,
     run_dir: str | Path | None = None,
+    variants: Sequence[str] | None = None,
+    methods: Sequence[str] | None = None,
+    seed: int | None = None,
 ) -> Path:
-    """Run all 15 single-batch Stage-A cases and write auditable artifacts."""
+    """Run selected single-batch Stage-A cases and write auditable artifacts."""
 
     config_file = Path(config_path)
     config = load_full_cell_stage_a_preflight_config(config_file)
@@ -476,6 +485,26 @@ def run_full_cell_stage_a_preflight(
     training_cfg = dict(config.get("training") or {})
     output_cfg = dict(config.get("output") or {})
     runtime = DeviceConfig.from_mapping(config.get("runtime"))
+    selected_variants = tuple(str(item) for item in (variants or FULL_CELL_VARIANTS))
+    selected_methods = tuple(str(item) for item in (methods or FULL_CELL_STAGE_A_METHODS))
+    unknown_variants = sorted(set(selected_variants) - set(FULL_CELL_VARIANTS))
+    unknown_methods = sorted(set(selected_methods) - set(FULL_CELL_STAGE_A_METHODS))
+    if not selected_variants or unknown_variants:
+        raise ValueError(f"Invalid Stage-A preflight variants: {unknown_variants}")
+    if not selected_methods or unknown_methods:
+        raise ValueError(f"Invalid Stage-A preflight methods: {unknown_methods}")
+    if len(set(selected_variants)) != len(selected_variants):
+        raise ValueError("Stage-A preflight variants must be unique")
+    if len(set(selected_methods)) != len(selected_methods):
+        raise ValueError("Stage-A preflight methods must be unique")
+    selected_seed = int(training_cfg.get("seed", 0) if seed is None else seed)
+    if selected_seed < 0:
+        raise ValueError("Stage-A preflight seed must be non-negative")
+    filtered = (
+        selected_variants != FULL_CELL_VARIANTS
+        or selected_methods != FULL_CELL_STAGE_A_METHODS
+        or seed is not None
+    )
     task = str(experiment.get("experiment_id", "full_cell_inverse_stage_a_preflight"))
     out = make_run_dir(task, runs_dir=output_cfg.get("runs_dir", "runs"), run_dir=run_dir)
     logger = setup_logging(
@@ -489,7 +518,16 @@ def run_full_cell_stage_a_preflight(
             "slurm_node": os.environ.get("SLURM_JOB_NODELIST"),
         },
     )
-    write_resolved_config(out, yaml.safe_dump(config, sort_keys=False, allow_unicode=True))
+    resolved_config = dict(config)
+    resolved_config["selection"] = {
+        "variants": list(selected_variants),
+        "methods": list(selected_methods),
+        "seed": selected_seed,
+    }
+    write_resolved_config(
+        out,
+        yaml.safe_dump(resolved_config, sort_keys=False, allow_unicode=True),
+    )
     ensure_figures_dir(out)
     try:
         import torch
@@ -506,21 +544,31 @@ def run_full_cell_stage_a_preflight(
     unit_circle_weight = float(training_cfg.get("unit_circle_weight", 0.05))
     learning_rate = float(training_cfg.get("learning_rate", 1.0e-4))
     weight_decay = float(training_cfg.get("weight_decay", 1.0e-5))
-    seed = int(training_cfg.get("seed", 0))
-    torch.manual_seed(seed)
+    torch.manual_seed(selected_seed)
     if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+        torch.cuda.manual_seed_all(selected_seed)
 
     wall_start = time.perf_counter()
     route_variants = {
-        "binary": FULL_CELL_VARIANTS[:3],
-        "graded": FULL_CELL_VARIANTS[3:],
+        "binary": tuple(item for item in selected_variants if item.startswith("binary_")),
+        "graded": tuple(item for item in selected_variants if item.startswith("graded_")),
     }
     route_data: dict[str, dict[str, FullCellInverseVariantDataset]] = {}
     dataset_contracts: dict[str, Any] = {}
     all_codecs: dict[str, FullCellAnalyticCodec] = {}
     for route, variants in route_variants.items():
+        if not variants:
+            continue
         path = Path(str(dict(dataset_cfg[route])["path"]))
+        expected_dataset_sha256 = str(
+            dict(dataset_cfg[route]).get("expected_dataset_sha256", "")
+        ).lower()
+        dataset_sha256 = _sha256_file(path)
+        if expected_dataset_sha256 and dataset_sha256.lower() != expected_dataset_sha256:
+            raise ValueError(
+                f"Dataset SHA-256 mismatch for {route}: "
+                f"{dataset_sha256} != {expected_dataset_sha256}"
+            )
         loaded = load_full_cell_inverse_variant_datasets(path, variants=variants)
         if tuple(loaded) != tuple(variants):
             raise ValueError(f"Dataset route {route} does not contain its frozen variants")
@@ -529,7 +577,7 @@ def run_full_cell_stage_a_preflight(
         representative = next(iter(loaded.values()))
         dataset_contracts[route] = {
             "path": str(path),
-            "sha256": _sha256_file(path),
+            "sha256": dataset_sha256,
             "Wh_shape": list(representative.condition_mean.shape),
             "condition_mean_sha256": _sha256_array(representative.condition_mean),
             "condition_std_sha256": _sha256_array(representative.condition_std),
@@ -553,7 +601,6 @@ def run_full_cell_stage_a_preflight(
     save_full_cell_analytic_codecs(all_codecs, out / "codec.resolved.json")
 
     overrides = dict(models_cfg.get("overrides") or {})
-    methods = tuple(str(item) for item in models_cfg["methods"])
     history: list[dict[str, Any]] = []
     checkpoint_paths: list[str] = []
     for route, datasets in route_data.items():
@@ -571,7 +618,7 @@ def run_full_cell_stage_a_preflight(
                 binary_temperature=binary_temperature,
                 torch=torch,
             ).detach()
-            for method in methods:
+            for method in selected_methods:
                 case_cfg = dict(overrides.get(method) or {})
                 model_args = {
                     "method": method,
@@ -582,7 +629,7 @@ def run_full_cell_stage_a_preflight(
                     "latent_dim": int(case_cfg.get("latent_dim", 0 if method == "direct_inverse_mlp" else 32)),
                     "mode_count": int(case_cfg.get("mode_count", 4 if method == "mixture_conditional_generator" else 1)),
                 }
-                torch.manual_seed(seed)
+                torch.manual_seed(selected_seed)
                 model = _AnalyticStageAModel(**model_args, torch=torch).to(device)
                 optimizer = torch.optim.AdamW(
                     model.parameters(),
@@ -634,7 +681,7 @@ def run_full_cell_stage_a_preflight(
                         "dataset_path": str(dataset.dataset_path),
                         "dataset_sha256": dataset_contracts[route]["sha256"],
                         "global_indices": dataset.global_indices[local_indices],
-                        "seed": seed,
+                        "seed": selected_seed,
                     },
                     checkpoint,
                     torch=torch,
@@ -682,15 +729,25 @@ def run_full_cell_stage_a_preflight(
                     gradient_norm,
                 )
 
-    expected_cases = len(FULL_CELL_VARIANTS) * len(FULL_CELL_STAGE_A_METHODS)
+    expected_cases = len(selected_variants) * len(selected_methods)
     if len(history) != expected_cases:
         raise RuntimeError(f"Expected {expected_cases} Stage-A cases, got {len(history)}")
     wall_time = float(time.perf_counter() - wall_start)
-    status = "n40_single_card_preflight_pass" if device_info.is_cuda else "cpu_contract_preflight_pass"
+    if device_info.is_cuda:
+        status = (
+            "n40_concurrency_case_preflight_pass"
+            if filtered
+            else "n40_single_card_preflight_pass"
+        )
+    else:
+        status = "cpu_case_preflight_pass" if filtered else "cpu_contract_preflight_pass"
     metrics = {
         "status": status,
         "validation_boundary": "full_cell_inverse_stage_a_single_batch_no_formal_training_no_mpb",
         "case_count": len(history),
+        "selected_variants": list(selected_variants),
+        "selected_methods": list(selected_methods),
+        "seed": selected_seed,
         "batch_size": batch_size,
         "raster_shape": list(raster_shape),
         "all_gradients_finite_nonzero": all(
@@ -711,9 +768,15 @@ def run_full_cell_stage_a_preflight(
             "dataset_contracts": dataset_contracts,
             "case_results": history,
             "checkpoint_paths": checkpoint_paths,
-            "next_gate": "n40_single_card_preflight_authorization"
-            if not device_info.is_cuda
-            else "n40_18_job_concurrency_admission",
+            "next_gate": (
+                "n40_single_card_preflight_authorization"
+                if not device_info.is_cuda
+                else (
+                    "n40_concurrency_manifest_audit"
+                    if filtered
+                    else "n40_18_job_concurrency_admission"
+                )
+            ),
         },
     )
     write_run_meta(

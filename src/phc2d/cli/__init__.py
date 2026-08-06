@@ -362,6 +362,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     inverse_full_cell_preflight.add_argument("--config", type=Path, required=True)
     inverse_full_cell_preflight.add_argument("--run-dir", type=Path)
+    inverse_full_cell_preflight.add_argument(
+        "--variant",
+        action="append",
+        dest="variants",
+        help="Restrict the preflight to one variant; repeat to select multiple variants.",
+    )
+    inverse_full_cell_preflight.add_argument(
+        "--method",
+        action="append",
+        dest="methods",
+        help="Restrict the preflight to one method; repeat to select multiple methods.",
+    )
+    inverse_full_cell_preflight.add_argument(
+        "--seed",
+        type=int,
+        help="Override the configured seed for an isolated concurrency case.",
+    )
     inverse_full_cell_preflight.set_defaults(command="inverse full-cell-preflight")
     inverse_full_cell_train = inverse_sub.add_parser(
         "full-cell-train",
@@ -642,7 +659,15 @@ def main(argv: Sequence[str] | None = None) -> None:
     if ns.command == "inverse full-cell-preflight":
         from phc2d.inverse import run_full_cell_stage_a_preflight
 
-        print(run_full_cell_stage_a_preflight(ns.config, run_dir=ns.run_dir))
+        print(
+            run_full_cell_stage_a_preflight(
+                ns.config,
+                run_dir=ns.run_dir,
+                variants=ns.variants,
+                methods=ns.methods,
+                seed=ns.seed,
+            )
+        )
         return
     if ns.command == "inverse full-cell-train":
         from phc2d.inverse import run_full_cell_stage_a_train

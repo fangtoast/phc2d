@@ -16,8 +16,10 @@ representation:
 datasets:
   binary:
     path: data/full_cell_binary_bz9_10000_xingyi_v1.h5
+    expected_dataset_sha256: 1f131f2bda7ccb1f1736809bdf6bafd534096cb275e22ce3e56fc5d910530c2f
   graded:
     path: data/full_cell_graded_bz9_10000_paracloud_m9_v1.h5
+    expected_dataset_sha256: d16d838e098215c05dc299bf7c4bbc8c6bc00f6ef35b9772546aa4e7c2b8b728
 
 models:
   methods:
