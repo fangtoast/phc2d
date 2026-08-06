@@ -322,7 +322,11 @@ def run_gpu_cluster_preflight(
         output_shape=tuple(int(v) for v in y.shape[1:]),
         **dict(overrides.get("fno2d_band_v2") or {}),
     ).to(device)
-    reloaded.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=True))
+    try:
+        checkpoint_state = torch.load(checkpoint_path, map_location=device, weights_only=True)
+    except TypeError:  # PyTorch versions before the weights_only argument.
+        checkpoint_state = torch.load(checkpoint_path, map_location=device)
+    reloaded.load_state_dict(checkpoint_state)
     fno_model.eval()
     reloaded.eval()
     with torch.no_grad():
@@ -354,7 +358,13 @@ def run_gpu_cluster_preflight(
         "torch_version": str(torch.__version__),
         "torch_cuda_version": str(torch.version.cuda),
         "cudnn_version": torch.backends.cudnn.version(),
-        "nccl_version": list(torch.cuda.nccl.version()) if device.type == "cuda" else None,
+        "nccl_version": (
+            list(torch.cuda.nccl.version())
+            if device.type == "cuda" and isinstance(torch.cuda.nccl.version(), tuple)
+            else torch.cuda.nccl.version()
+            if device.type == "cuda"
+            else None
+        ),
         "nvidia_driver_version": _nvidia_driver(),
         "dataset_sha256": _sha256_file(dataset_path),
         "idx_train_hash": _sha256_array(idx_train),

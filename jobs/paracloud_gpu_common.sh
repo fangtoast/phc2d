@@ -13,8 +13,8 @@ PHC2D_GPU_PLATFORM="${PHC2D_GPU_PLATFORM:-n40}"
 PHC2D_ROOT="${PHC2D_ROOT:-$HOME/run/phc2d}"
 case "$PHC2D_GPU_PLATFORM" in
   n40)
-    PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu124}"
-    PHC2D_CUDA_MODULE="${PHC2D_CUDA_MODULE:-cuda/12.4}"
+    PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu118}"
+    PHC2D_CUDA_MODULE="${PHC2D_CUDA_MODULE:-cuda/11.8}"
     ;;
   n50)
     PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu128}"
