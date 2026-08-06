@@ -60,6 +60,7 @@ from phc2d.data.field_eigen import FieldEigenRecord, canonicalize_eigenfields, h
 from phc2d.data.field_selection import build_field_eigen_operator_selection_manifest, build_field_eigen_selection_manifest, validate_field_eigen_selection_manifest
 from phc2d.data.lift import epsilon_from_rho, lift_rho_to_grid, wedge_index_for_pixel, wedge_indices
 from phc2d.data.representations import DataRepresentationSpec, SampleMetadata
+from phc2d.data.synthetic_smoke import SYNTHETIC_SMOKE_STATUS, make_synthetic_smoke_dataset
 from phc2d.data.target_specs import InputRepresentation, OutputTarget, TargetSpec
 from phc2d.data.transforms import (
     infer_dataset_schema,
@@ -90,6 +91,7 @@ __all__ = [
     "OutputTarget",
     "QueryProtocolSpec",
     "SampleMetadata",
+    "SYNTHETIC_SMOKE_STATUS",
     "TargetSpec",
     "build_query_dataset",
     "build_full_bz_grid",
@@ -120,6 +122,7 @@ __all__ = [
     "load_full_cell_hdf5",
     "make_input",
     "make_target",
+    "make_synthetic_smoke_dataset",
     "recover_k_path",
     "physical_k_ids",
     "save_forward_dataset",

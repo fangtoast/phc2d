@@ -26,6 +26,20 @@ def test_cli_help_parses_without_backend_imports(capsys: pytest.CaptureFixture[s
     assert "Train a registered forward surrogate" in capsys.readouterr().out
 
 
+def test_new_audit_and_smoke_help_do_not_import_backends(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = build_parser()
+    for argv, expected in (
+        (["data", "make-smoke", "--help"], "synthetic dataset"),
+        (["report", "docs-audit", "--help"], "project documentation"),
+    ):
+        with pytest.raises(SystemExit) as exc:
+            parser.parse_args(argv)
+        assert exc.value.code == 0
+        assert expected in capsys.readouterr().out
+
+
 def test_data_inspect_cli_reports_schema(tmp_path, capsys: pytest.CaptureFixture[str]) -> None:
     import numpy as np
 

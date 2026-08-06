@@ -248,6 +248,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert.add_argument("--config", type=Path, required=True)
     convert.set_defaults(command="data convert")
+    make_smoke = data_sub.add_parser(
+        "make-smoke",
+        help="Generate a deterministic non-physical dataset for clean-clone smoke tests.",
+        description=(
+            "Generate a configuration-shaped synthetic dataset. The output is explicitly "
+            "not MPB/Meep data and cannot support scientific claims."
+        ),
+    )
+    make_smoke.add_argument("--config", type=Path, required=True)
+    make_smoke.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace an existing synthetic dataset and manifest explicitly.",
+    )
+    make_smoke.set_defaults(command="data make-smoke")
 
     forward = sub.add_parser("forward", help="Forward surrogate training and evaluation.")
     forward_sub = forward.add_subparsers(dest="action", required=True)
@@ -440,6 +455,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fail when ignored runs/source artifacts are unavailable.",
     )
     report_model_audit.set_defaults(command="report model-audit")
+    report_docs_audit = report_sub.add_parser(
+        "docs-audit",
+        help="Audit documentation links, reachability, anchors, and entry metadata.",
+        description="Audit Git-tracked project documentation without importing training backends.",
+    )
+    report_docs_audit.add_argument("--root", type=Path, default=Path("README.md"))
+    report_docs_audit.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit non-zero when documentation contract failures are found.",
+    )
+    report_docs_audit.set_defaults(command="report docs-audit")
     report.set_defaults(command="report")
     return parser
 
@@ -453,6 +480,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         return
     if ns.command == "data inspect":
         print(json.dumps(infer_dataset_schema(ns.path), ensure_ascii=False, indent=2))
+        return
+    if ns.command == "data make-smoke":
+        from phc2d.data.synthetic_smoke import make_synthetic_smoke_dataset
+
+        payload = make_synthetic_smoke_dataset(ns.config, overwrite=ns.overwrite)
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
         return
     if ns.command == "data generate":
         from phc2d.data.full_cell_generation import run_full_cell_generation
@@ -614,6 +647,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         if payload["status"] != "pass":
+            raise SystemExit(1)
+        return
+    if ns.command == "report docs-audit":
+        from phc2d.reporting.docs_audit import audit_documentation
+
+        payload = audit_documentation(repo_root=Path.cwd(), root_path=ns.root)
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        if ns.strict and payload["status"] != "pass":
             raise SystemExit(1)
         return
     _not_migrated(ns.command)

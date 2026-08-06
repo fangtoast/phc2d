@@ -5,6 +5,7 @@ Email: fangtoast@foxmail.com
 Copyright (c) 2026 fangtoast. All rights reserved.
 """
 
+from phc2d.reporting.docs_audit import audit_documentation
 from phc2d.reporting.model_audit import audit_model_report
 
-__all__ = ["audit_model_report"]
+__all__ = ["audit_documentation", "audit_model_report"]
