@@ -74,6 +74,7 @@
 | [`inverse/full_cell_inverse_codec_preflight_20260806.md`](inverse/full_cell_inverse_codec_preflight_20260806.md) | 五变体 analytic codec、hard/soft decoder 与真实 10k train-split 合同预检；尚非训练/replay 证据 |
 | [`inverse/full_cell_inverse_stage_a_cpu_preflight_20260806.md`](inverse/full_cell_inverse_stage_a_cpu_preflight_20260806.md) | 真实双路线 10k 上的 15-case Stage-A CPU 合同预检；N40 正式单卡执行尚待授权 |
 | [`inverse/full_cell_inverse_stage_a_runner_smoke_20260806.md`](inverse/full_cell_inverse_stage_a_runner_smoke_20260806.md) | 可断点续训 Stage-A epoch runner 的 Windows/WSL 小数据测试；正向 surrogate 与 N40 正式训练均未开始 |
+| [`inverse/full_cell_inverse_stage_a_wave_dryrun_20260806.md`](inverse/full_cell_inverse_stage_a_wave_dryrun_20260806.md) | 18-task/9-concurrency N40 波次零提交演练；验证身份、节流、manifest/status，但不证明实际 GPU 容量 |
 
 阅读 inverse 文档时必须保留 seed、目标数、候选池、Top-K、surrogate 与 replay 层级；单 seed pilot 不能升级为跨 seed 或普遍 superiority。
 

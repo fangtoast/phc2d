@@ -40,7 +40,7 @@
 | 解析参数 | **data ready**；HDF5 含 `params`、`param_mask`、`family_id` 和 `structure_json` | 可以构建变体专用 codec，但不能直接把 padding 后数组当作统一输出 |
 | 通用 inverse runner | **部分可复用**；已有 retrieval、direct、single-mode、mixture、candidate health 和 replay 基础设施 | 当前只接受 `rho_wedge/rho_grid`，不能直接训练 full-cell 解析参数 |
 | full-cell codec / 可微解析解码器 | **core implemented**；五变体 hard/soft codec、真实 10k train-only 宽度检查与专用 Stage-A epoch runner 已通过实现测试 | Stage B、candidate/ranker 和 replay 尚未接入；N40 gate 前不得提交 45 个正式训练 run |
-| full-cell Stage-A implementation | **runner implemented / CPU smoke passed**；真实 10k 上 15/15 single-batch 合同通过，小数据 WSL epoch/resume 测试通过 | N40 batch-64 单卡 preflight 与任何正式 epoch 训练均未执行 |
+| full-cell Stage-A implementation | **runner/orchestrator implemented / CPU smoke passed**；真实 10k 上 15/15 single-batch 合同通过，小数据 WSL epoch/resume 与 18-task 波次 dry-run 通过 | N40 batch-64 单卡/并发 preflight 与任何正式 epoch 训练均未执行 |
 | N40 GPU | **环境 ready**；三卡分配与单卡四模型预检已通过 | 可做 full-cell inverse 单卡与并发 preflight；尚无 inverse 正式 run |
 | N50R5 | **blocked**；`loginCluster` 权限仍被拒绝 | 不计入可用 GPU，也不能与 N40 混合 seed |
 | M9 MPB | **环境与队列 ready** | 可在单独授权后执行 replay；当前没有本计划的新 replay 作业 |
@@ -227,14 +227,16 @@ Retrieval 不计训练 run。Stage A/B 在一个 run 内分阶段记录，不拆
 
 1. 每个变体 × 方法完成一轮 batch-64 forward/backward；binary soft decoder 梯度有限非零；
 2. Direct、Single、Mixture checkpoint 均可原子写入并精确恢复；
-3. 18 个独立单卡短任务实际进入 `RUNNING`/`COMPLETED`，逐项核对 `AllocTRES`，不以排队数量证明可用卡数；
+3. 18 个独立单卡短任务实际进入 `RUNNING`/`COMPLETED`，逐项核对 `AllocTRES`，不以 dry-run manifest 或排队数量证明可用卡数；
 4. 记录共享 HDF5 的并发吞吐、GPU utilization、峰值显存和启动等待，据此冻结 `max_concurrent_jobs=18|9|3`；
 5. 候选生成与 surrogate ranking 继续在 N40 GPU 上执行，可复用相同 18-job 上限，但必须写独立 candidate run；
 6. M9 只运行 hard analytic candidates 的 MPB，不参与训练、反向传播或跨站点 DDP。
 
 N40 当前环境为 PyTorch `2.1.2+cu118` / CUDA `11.8`；N50R5 在登录权限和独立 preflight 通过前保持 blocked。环境事实与瞬时队列容量见 [GPU 全链路预检报告](../../results/data-provenance/paracloud_gpu_preflight_20260806.md)。
 
-Stage-A 的 CPU 合同已在真实双路线 10k 数据上完成 15/15 cases；N40 preflight 冻结入口为 [`configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml`](../../../configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml) 与 [`jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh`](../../../jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh)。正式单任务训练入口为 [`configs/research/full_cell_inverse_stage_a_train_n40_v1.yaml`](../../../configs/research/full_cell_inverse_stage_a_train_n40_v1.yaml) 与 [`jobs/paracloud_gpu_full_cell_inverse_stage_a_train.sh`](../../../jobs/paracloud_gpu_full_cell_inverse_stage_a_train.sh)，每次只接收一个 variant、method、seed 和稳定 run dir，并校验 dataset/config/codec/code identity 后恢复 optimizer。两类 N40 配置均尚未在云端执行，不能据 CPU 结果推断 batch-64 显存、吞吐或正式收敛通过。
+Stage-A 的 CPU 合同已在真实双路线 10k 数据上完成 15/15 cases；N40 preflight 冻结入口为 [`configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml`](../../../configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml) 与 [`jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh`](../../../jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh)。正式单任务训练入口为 [`configs/research/full_cell_inverse_stage_a_train_n40_v1.yaml`](../../../configs/research/full_cell_inverse_stage_a_train_n40_v1.yaml) 与 [`jobs/paracloud_gpu_full_cell_inverse_stage_a_train.sh`](../../../jobs/paracloud_gpu_full_cell_inverse_stage_a_train.sh)，每次只接收一个 variant、method、seed 和稳定 run dir，并校验 dataset/config/codec/code identity 后恢复 optimizer。
+
+波次入口为 [`jobs/paracloud_submit_full_cell_inverse_stage_a_wave.sh`](../../../jobs/paracloud_submit_full_cell_inverse_stage_a_wave.sh)，支持 1–2 个 variant，即 9/18 个任务，并只允许 `3|9|18` 并发节流；`probe` 使用单 case batch-64 gate，`train` 使用正式 epoch runner。每次提交先验证完整配置与双数据集 SHA-256，再写 `submission_manifest.csv`；[`jobs/paracloud_full_cell_inverse_stage_a_status.sh`](../../../jobs/paracloud_full_cell_inverse_stage_a_status.sh) 只读汇总 Slurm 状态、artifact status、epoch、validation loss 和 forward gate。`PHC2D_SUBMIT_DRY_RUN=1` 仅生成 manifest，不调用 `sbatch`、不写 active-wave 指针。2026-08-06 的 18-task/9-concurrency dry-run 已通过，但两类 N40 配置仍未在云端执行，不能据 dry-run 或 CPU 结果推断 9/18 卡容量、batch-64 显存、吞吐或正式收敛通过；证据见 [Stage-A wave dry-run](../../results/inverse/full_cell_inverse_stage_a_wave_dryrun_20260806.md)。
 
 [↑ 回顶部](#full-cell-inverse-design-extension-plan)
 
@@ -406,9 +408,9 @@ Full validation 冻结每路线一个 generator arm，并冻结最强 retrieval/
 ```text
 解决了什么问题：明确 full-cell inverse 的五类参数 codec、三种训练方法、两阶段损失、45 个单卡训练 run、GPU 并发方式，以及 8-target smoke 到完整 validation 和 test-100 的 replay 路线；同时把 Stage A 与尚未训练的正向 surrogate 解耦。
 为什么采用这个方案：解析参数维度和固定字段因变体而异，必须分变体训练；Stage A 只需真实配对标签，Stage B/ranking 才依赖冻结 forward；N40 可并发独立单卡任务，M9 只做 hard candidate 的 real-MPB，二者通过冻结 manifest/hash 交接。
-改变了项目哪一层/哪一模块：主要改变 L3 实验/证据协议，并完成 L4 Stage-A epoch runner、断点续训、训练曲线与 N40 单任务入口；Stage B 和 replay 接口仍未实现。
-使用什么证据验证：当前 HDF5 schema/参数宽度、真实 10k CPU preflight、小数据 WSL epoch/resume 测试、历史 A2 方法与 replay 边界、N40/M9 环境预检，以及仓库的 WSL/制品治理规则。
-最大风险、未知或下一 gate：正向 102-run 尚未训练；inverse N40 单卡/18-job admission、45 个 Stage-A 正式 run、Stage B 和 8-target inverse smoke 均未执行；full-validation replay 上限约 170,000 个 hard candidates，必须在 smoke 后重新核算 M9 费用并人工授权。
+改变了项目哪一层/哪一模块：主要改变 L3 实验/证据协议，并完成 L4 Stage-A epoch runner、断点续训、训练曲线、单 case preflight、N40 波次 manifest/节流和只读状态入口；Stage B 和 replay 接口仍未实现。
+使用什么证据验证：当前 HDF5 schema/参数宽度、真实 10k CPU preflight、小数据 WSL epoch/resume 测试、18-task/9-concurrency 零提交 dry-run、历史 A2 方法与 replay 边界、N40/M9 环境预检，以及仓库的 WSL/制品治理规则。
+最大风险、未知或下一 gate：正向 102-run 尚未训练；inverse N40 单卡/18-job 实际 admission、45 个 Stage-A 正式 run、Stage B 和 8-target inverse smoke 均未执行；dry-run 不证明账号 QoS 或实际卡数。full-validation replay 上限约 170,000 个 hard candidates，必须在 smoke 后重新核算 M9 费用并人工授权。
 ```
 
 [↑ 回顶部](#full-cell-inverse-design-extension-plan)
