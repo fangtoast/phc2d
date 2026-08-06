@@ -29,7 +29,7 @@
 | 数据集 | 角色 | 主要形状 | 当前证据边界 |
 |---|---|---|---|
 | `full_cell_binary_bz9_10000_xingyi_v1.h5` | 二值全 BZ 正式数据 | `Wh=[10000,81,10]` | 星逸 real-MPB 生成完成，WSL `meep_env` 跨环境验收通过 |
-| `full_cell_graded_bz9_10000_paracloud_m9_v1.h5` | 渐进介质全 BZ 正式候选 | `Wh=[10000,81,10]` | real-MPB 生成完成，仍等待 WSL 跨环境验收 |
+| `full_cell_graded_bz9_10000_paracloud_m9_v1.h5` | 渐进介质全 BZ 正式数据 | `Wh=[10000,81,10]` | M9 real-MPB 生成完成，WSL `meep_env` 跨环境验收通过 |
 | `query_dataset_v2_pilot_10000_mpb.npz` | V2 query/forward/inverse 主数据 | `rho=[10000,36]`, `Wh=[10000,31,10]` | manifest 记录为已完成物理复核 |
 | `paper_like_50k_mpb.npz` | legacy paper-like 主 benchmark | `rho=[50000,36]`, `Wh=[50000,31,10]` | provenance 候选，正式物理复核仍受限 |
 | `dataset_100k_mpb_train70000_val25000_test5000.npz` | legacy 100k benchmark | `rho=[100000,36]`, `Wh=[100000,31,10]` | 仅供明确标注为 legacy 的配置使用 |
