@@ -17,6 +17,13 @@ from phc2d.inverse.full_cell_codec import (
     load_full_cell_analytic_codecs,
     save_full_cell_analytic_codecs,
 )
+from phc2d.inverse.full_cell_training import (
+    FULL_CELL_STAGE_A_METHODS,
+    FullCellInverseVariantDataset,
+    load_full_cell_stage_a_preflight_config,
+    load_full_cell_inverse_variant_datasets,
+    run_full_cell_stage_a_preflight,
+)
 from phc2d.inverse.candidates import (
     CandidateBatch,
     GenerativeInverseAdapter,
@@ -59,7 +66,9 @@ __all__ = [
     "FULL_CELL_ANALYTIC_CODEC_VERSION",
     "FULL_CELL_ANALYTIC_OUTPUT_REPR",
     "FULL_CELL_VARIANTS",
+    "FULL_CELL_STAGE_A_METHODS",
     "FullCellAnalyticCodec",
+    "FullCellInverseVariantDataset",
     "SurrogatePredictor",
     "SurrogateRankingResult",
     "binary_morphology_metrics",
@@ -78,6 +87,8 @@ __all__ = [
     "separated_candidate_indices",
     "rank_candidates",
     "load_full_cell_analytic_codecs",
+    "load_full_cell_inverse_variant_datasets",
+    "load_full_cell_stage_a_preflight_config",
     "save_full_cell_analytic_codecs",
     "unique_rate",
     "validity_rate",
@@ -88,5 +99,6 @@ __all__ = [
     "run_inverse_rerank",
     "run_inverse_sample",
     "run_inverse_train",
+    "run_full_cell_stage_a_preflight",
     "run_a2_benchmark",
 ]

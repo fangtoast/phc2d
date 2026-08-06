@@ -352,6 +352,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     inverse_train.add_argument("--config", type=Path, default=None)
     inverse_train.set_defaults(command="inverse train")
+    inverse_full_cell_preflight = inverse_sub.add_parser(
+        "full-cell-preflight",
+        help="Run the 15-case full-cell analytic Stage-A single-batch gate.",
+        description=(
+            "Run the 15-case full-cell analytic Stage-A gate for data, gradients, and checkpoint restore. "
+            "This does not start formal training or MPB/Meep replay."
+        ),
+    )
+    inverse_full_cell_preflight.add_argument("--config", type=Path, required=True)
+    inverse_full_cell_preflight.add_argument("--run-dir", type=Path)
+    inverse_full_cell_preflight.set_defaults(command="inverse full-cell-preflight")
     inverse_objective_train = inverse_sub.add_parser(
         "objective-train",
         help="Fine-tune an inverse generator against a differentiable surrogate-side objective.",
@@ -613,6 +624,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         if ns.config is None:
             raise SystemExit("`phc2d inverse train` requires --config <yaml-path>.")
         print(run_inverse_train(ns.config))
+        return
+    if ns.command == "inverse full-cell-preflight":
+        from phc2d.inverse import run_full_cell_stage_a_preflight
+
+        print(run_full_cell_stage_a_preflight(ns.config, run_dir=ns.run_dir))
         return
     if ns.command == "inverse objective-train":
         from phc2d.inverse import run_inverse_objective_train
