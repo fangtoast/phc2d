@@ -62,3 +62,5 @@ output:
   formats: [png, svg, pdf]
   dpi: 600
   width_mm: 183
+  integrated_width_mm: 366
+  integrated_height_mm: 521

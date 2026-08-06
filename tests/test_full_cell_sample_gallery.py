@@ -18,6 +18,7 @@ import phc2d.solvers.full_cell as full_cell_solver
 from phc2d.data import build_full_bz_grid, write_full_cell_hdf5
 from phc2d.generators import generate_binary_polar_holes, generate_binary_spectral_threshold, generate_graded_rbf_fourier
 from phc2d.plot.full_cell_gallery import (
+    _medium_colormap,
     build_full_cell_sample_gallery,
     infer_full_cell_stratum,
     normalized_electric_energy_density,
@@ -41,6 +42,14 @@ def _generator_config() -> dict[str, object]:
         "graded_air_well_magnitude_range": [0.90, 1.40],
         "max_attempts": 512,
     }
+
+
+def test_medium_colormap_maps_air_to_white_and_material_to_blue() -> None:
+    pytest.importorskip("matplotlib")
+    colormap = _medium_colormap()
+    assert np.allclose(colormap(0.0)[:3], (1.0, 1.0, 1.0))
+    red, green, blue = colormap(1.0)[:3]
+    assert blue > green > red
 
 
 def _structures() -> tuple[list, list]:
@@ -284,7 +293,13 @@ def _write_gallery_inputs(tmp_path: Path) -> Path:
             "band_order_policy": "frequency_ascending",
             "eigensolver_tolerance": 1.0e-7,
         },
-        "output": {"runs_dir": str(tmp_path / "runs"), "formats": ["png", "svg", "pdf"], "dpi": 72},
+        "output": {
+            "runs_dir": str(tmp_path / "runs"),
+            "formats": ["png", "svg", "pdf"],
+            "dpi": 72,
+            "integrated_width_mm": 366,
+            "integrated_height_mm": 521,
+        },
     }
     path = tmp_path / "gallery.yaml"
     path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
@@ -332,7 +347,8 @@ def test_gallery_runner_writes_traceable_smoke_artifacts(tmp_path: Path) -> None
     ):
         assert (run_dir / name).is_file(), name
     figures = sorted((run_dir / "figures").glob("*"))
-    assert len(figures) == 18
+    assert len(figures) == 21
+    assert all((run_dir / "figures" / f"full_cell_dual_lane_overview.{suffix}").is_file() for suffix in ("png", "svg", "pdf"))
     results = json.loads((run_dir / "results.json").read_text(encoding="utf-8"))
     manifest = json.loads((run_dir / "figure_manifest.json").read_text(encoding="utf-8"))
     assert results["status"] == "full_cell_sample_gallery_complete"
@@ -341,6 +357,8 @@ def test_gallery_runner_writes_traceable_smoke_artifacts(tmp_path: Path) -> None
     assert results["far_field_computed"] is False
     assert manifest["band_path"]["interpolation"] is False
     assert manifest["near_field"]["cross_sample_absolute_magnitude_comparable"] is False
+    assert manifest["medium_color_semantics"]["air_epsilon_r_1"] == "white"
+    assert manifest["integrated_overview"]["width_mm"] == 366
     assert manifest["evidence_boundary"]["graded_medium"] == "cluster_generated_pending_wsl_acceptance"
 
 

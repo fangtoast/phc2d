@@ -32,7 +32,7 @@
 | `graded_medium` | `cluster_generated_pending_wsl_acceptance` | `graded_core_1/2` 各 8 个 |
 | `binary_air_holes` | `wsl_cross_environment_acceptance_pass` | 单孔 4 个、双孔 4 个、谱阈值 8 个 |
 
-介质图读取 HDF5 中的 `epsilon_grid_128`，两条路线都使用固定 $\varepsilon_r=1.0$ 到 $8.9$ 色标。抽样索引、样本 ID、分层、结构统计量与 geometry hash 写入 `selected_samples.csv`。
+介质图读取 HDF5 中的 `epsilon_grid_128`，两条路线都使用固定 $\varepsilon_r=1.0$ 到 $8.9$ 色标。颜色语义统一为低介电常数空气（$\varepsilon_r=1.0$）白色、高介电常数介质（$\varepsilon_r=8.9$）深蓝色；渐变介质使用同一白到蓝连续色标。抽样索引、样本 ID、分层、结构统计量与 geometry hash 写入 `selected_samples.csv`。
 
 ---
 
@@ -86,7 +86,7 @@ PYTHONPATH=src python -m phc2d.cli plot full-cell-gallery \
   --max-samples-per-dataset 1
 ```
 
-运行目录遵循 `runs/{yyyymmdd}/{experiment_id}_{YYYYMMDDHHmm}/`，包含标准日志、配置、结果、指标和历史文件，以及 `selected_samples.csv`、`band_source.csv`、`near_field_records.h5`、`figure_manifest.json` 和 6 张图版的 PNG/SVG/PDF 导出。
+运行目录遵循 `runs/{yyyymmdd}/{experiment_id}_{YYYYMMDDHHmm}/`，包含标准日志、配置、结果、指标和历史文件，以及 `selected_samples.csv`、`band_source.csv`、`near_field_records.h5`、`figure_manifest.json`、6 张独立图版和 1 张六板块总览大图的 PNG/SVG/PDF 导出。总览图按三行两列组织：行方向依次为介质、能带和近场，列方向依次为渐变与二值路线；其 366 mm × 521 mm 画布用于整体审阅和大幅展示，独立 183 mm 图版仍作为论文排版版本保留。
 
 ---
 

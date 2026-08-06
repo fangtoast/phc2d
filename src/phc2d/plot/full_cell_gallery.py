@@ -444,6 +444,17 @@ def _configure_matplotlib() -> Any:
     return plt
 
 
+def _medium_colormap() -> Any:
+    """Map air to white and increasing permittivity to progressively darker blue."""
+
+    import matplotlib as mpl
+
+    return mpl.colors.LinearSegmentedColormap.from_list(
+        "air_white_material_blue",
+        ["#ffffff", "#deebf7", "#9ecae1", "#4292c6", "#084594"],
+    )
+
+
 def _plot_medium_plate(
     records: Sequence[Mapping[str, Any]], *, lane: str, figures_dir: Path, formats: Sequence[str], dpi: int
 ) -> list[Path]:
@@ -456,7 +467,14 @@ def _plot_medium_plate(
             ax.axis("off")
             continue
         row = records[pos]
-        image = ax.imshow(row["epsilon_128"], origin="lower", cmap="cividis", vmin=1.0, vmax=8.9, interpolation="nearest")
+        image = ax.imshow(
+            row["epsilon_128"],
+            origin="lower",
+            cmap=_medium_colormap(),
+            vmin=1.0,
+            vmax=8.9,
+            interpolation="nearest",
+        )
         short_stratum = str(row["stratum"]).replace("graded_", "").replace("polar_", "").replace("_", " ")
         ax.set_title(f"{row['sample_label']} · {short_stratum}", fontsize=5.7, pad=2.0)
         ax.set_xticks([])
@@ -558,6 +576,163 @@ def _plot_field_plate(
     fig.text(0.5, 0.012, "Each panel is normalized independently; color does not encode absolute cross-sample field strength.", ha="center", fontsize=5.5)
     fig.subplots_adjust(left=0.03, right=0.90, bottom=0.04, top=0.93, wspace=0.10, hspace=0.24)
     paths = _save_figure(fig, figures_dir / f"{lane}_near_field_4x4", formats, dpi)
+    plt.close(fig)
+    return paths
+
+
+def _plot_integrated_overview(
+    records: Sequence[Mapping[str, Any]],
+    *,
+    lanes: Sequence[str],
+    path_indices: np.ndarray,
+    ticks: Sequence[int],
+    tick_labels: Sequence[str],
+    frequency_limits: tuple[float, float],
+    figures_dir: Path,
+    formats: Sequence[str],
+    dpi: int,
+    width_mm: float,
+    height_mm: float,
+) -> list[Path]:
+    """Render all six 4x4 plates as one large, traceable overview figure."""
+
+    if len(lanes) != 2:
+        raise ValueError("the integrated overview requires exactly two dataset lanes")
+    plt = _configure_matplotlib()
+    fig = plt.figure(figsize=(float(width_mm) / 25.4, float(height_mm) / 25.4), facecolor="white")
+    subfigures = fig.subfigures(3, 2, height_ratios=(183, 155, 183), wspace=0.025, hspace=0.025)
+    medium_cmap = _medium_colormap()
+
+    for column, lane in enumerate(lanes):
+        lane_records = [row for row in records if row["lane"] == lane]
+        rows, cols = _figure_grid(len(lane_records))
+
+        medium_subfigure = subfigures[0, column]
+        medium_axes = medium_subfigure.subplots(rows, cols, squeeze=False)
+        medium_image = None
+        for position, ax in enumerate(medium_axes.flat):
+            if position >= len(lane_records):
+                ax.axis("off")
+                continue
+            row = lane_records[position]
+            medium_image = ax.imshow(
+                row["epsilon_128"],
+                origin="lower",
+                cmap=medium_cmap,
+                vmin=1.0,
+                vmax=8.9,
+                interpolation="nearest",
+            )
+            short_stratum = str(row["stratum"]).replace("graded_", "").replace("polar_", "").replace("_", " ")
+            ax.set_title(f"{row['sample_label']} · {short_stratum}", fontsize=5.0, pad=1.5)
+            ax.set_xticks([])
+            ax.set_yticks([])
+        if medium_image is not None:
+            colorbar = medium_subfigure.colorbar(
+                medium_image,
+                ax=medium_axes.ravel().tolist(),
+                fraction=0.022,
+                pad=0.018,
+                aspect=35,
+            )
+            colorbar.set_label(r"Relative permittivity $\varepsilon_r$", fontsize=5.5)
+        medium_subfigure.suptitle(
+            f"{'a' if column == 0 else 'b'}  {lane.replace('_', ' ')} dielectric maps",
+            fontsize=8,
+            fontweight="bold",
+            x=0.02,
+            ha="left",
+        )
+        medium_subfigure.subplots_adjust(left=0.025, right=0.91, bottom=0.025, top=0.92, wspace=0.10, hspace=0.17)
+
+        band_subfigure = subfigures[1, column]
+        band_axes = band_subfigure.subplots(rows, cols, squeeze=False, sharex=True, sharey=True)
+        n_bands = int(np.asarray(lane_records[0]["Wh"]).shape[1])
+        colors = plt.cm.Blues(np.linspace(0.35, 0.95, n_bands))
+        x = np.arange(len(path_indices))
+        for position, ax in enumerate(band_axes.flat):
+            if position >= len(lane_records):
+                ax.axis("off")
+                continue
+            row = lane_records[position]
+            path_bands = np.asarray(row["Wh"])[path_indices]
+            for band_index in range(path_bands.shape[1]):
+                ax.plot(x, path_bands[:, band_index], color=colors[band_index], linewidth=0.55)
+            ax.axhline(float(row["gap_edge"].frequency), color="#a23b72", linewidth=0.6, linestyle=(0, (2, 1)))
+            ax.set_title(
+                f"{row['sample_label']} · b{row['gap_edge'].upper_band_one_based} · "
+                f"Δ={row['gap_edge'].gap:.3f}",
+                fontsize=5.0,
+                pad=1.5,
+            )
+            ax.set_xticks(ticks, tick_labels)
+            ax.set_xlim(0, len(path_indices) - 1)
+            ax.set_ylim(*frequency_limits)
+            ax.grid(axis="x", color="#d9d9d9", linewidth=0.35)
+            if position % cols == 0:
+                ax.set_ylabel(r"Frequency $a/\lambda$", fontsize=5.0)
+        band_subfigure.suptitle(
+            f"{'c' if column == 0 else 'd'}  {lane.replace('_', ' ')} sampled TE bands",
+            fontsize=8,
+            fontweight="bold",
+            x=0.02,
+            ha="left",
+        )
+        band_subfigure.subplots_adjust(left=0.07, right=0.985, bottom=0.07, top=0.90, wspace=0.12, hspace=0.30)
+
+        field_subfigure = subfigures[2, column]
+        field_axes = field_subfigure.subplots(rows, cols, squeeze=False)
+        field_image = None
+        for position, ax in enumerate(field_axes.flat):
+            if position >= len(lane_records):
+                ax.axis("off")
+                continue
+            row = lane_records[position]
+            field_image = ax.imshow(
+                row["energy"],
+                origin="lower",
+                cmap="magma",
+                vmin=0.0,
+                vmax=1.0,
+                interpolation="nearest",
+            )
+            gap = row["gap_edge"]
+            tag = "gap" if gap.status == "complete_gap" else "pseudo"
+            kx_index, ky_index = (int(round(9.0 * float(value))) for value in row["k_point"])
+            ax.set_title(
+                f"{row['sample_label']} · b{gap.upper_band_one_based} · {tag}\n"
+                f"k=({kx_index},{ky_index})/9",
+                fontsize=4.7,
+                pad=1.5,
+            )
+            ax.set_xticks([])
+            ax.set_yticks([])
+        if field_image is not None:
+            colorbar = field_subfigure.colorbar(
+                field_image,
+                ax=field_axes.ravel().tolist(),
+                fraction=0.022,
+                pad=0.018,
+                aspect=35,
+            )
+            colorbar.set_label(r"Normalized $\varepsilon|E|^2 / \max$", fontsize=5.5)
+        field_subfigure.suptitle(
+            f"{'e' if column == 0 else 'f'}  {lane.replace('_', ' ')} upper-gap-edge TE eigenfields",
+            fontsize=8,
+            fontweight="bold",
+            x=0.02,
+            ha="left",
+        )
+        field_subfigure.subplots_adjust(left=0.025, right=0.91, bottom=0.045, top=0.90, wspace=0.10, hspace=0.24)
+        field_subfigure.text(
+            0.47,
+            0.012,
+            "Per-sample normalization; colors do not compare absolute field strength.",
+            ha="center",
+            fontsize=5.0,
+        )
+
+    paths = _save_figure(fig, figures_dir / "full_cell_dual_lane_overview", formats, dpi)
     plt.close(fig)
     return paths
 
@@ -807,6 +982,21 @@ def build_full_cell_sample_gallery(
         figure_paths.extend(
             _plot_field_plate(lane_records, lane=dataset.lane, figures_dir=figures_dir, formats=formats, dpi=dpi)
         )
+    figure_paths.extend(
+        _plot_integrated_overview(
+            all_records,
+            lanes=[dataset.lane for dataset in datasets],
+            path_indices=path_indices,
+            ticks=path_ticks,
+            tick_labels=path_labels,
+            frequency_limits=(global_frequency_min - padding, global_frequency_max + padding),
+            figures_dir=figures_dir,
+            formats=formats,
+            dpi=dpi,
+            width_mm=float(output_cfg.get("integrated_width_mm", 366.0)),
+            height_mm=float(output_cfg.get("integrated_height_mm", 521.0)),
+        )
+    )
     render_time_s = time.perf_counter() - render_started
 
     manifest = {
@@ -827,6 +1017,17 @@ def build_full_cell_sample_gallery(
             "quantity": "epsilon_times_sum_abs_E_components_squared",
             "normalization": "epsilon_weighted_E_l2_then_per_sample_energy_max",
             "cross_sample_absolute_magnitude_comparable": False,
+        },
+        "medium_color_semantics": {
+            "air_epsilon_r_1": "white",
+            "material_epsilon_r_8_9": "dark_blue",
+            "graded_medium": "continuous_white_to_blue",
+        },
+        "integrated_overview": {
+            "path": "figures/full_cell_dual_lane_overview",
+            "layout": "three_response_rows_by_two_dataset_columns",
+            "width_mm": float(output_cfg.get("integrated_width_mm", 366.0)),
+            "height_mm": float(output_cfg.get("integrated_height_mm", 521.0)),
         },
         "datasets": [
             {"path": _relative(dataset.path), "lane": dataset.lane, "status": dataset.status, "sha256": dataset_hashes[dataset.lane]}
