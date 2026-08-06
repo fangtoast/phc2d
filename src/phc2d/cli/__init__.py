@@ -210,6 +210,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Worker count or 'auto'; the config is used when omitted.",
     )
     generate.add_argument(
+        "--plan-workers",
+        type=str,
+        default=None,
+        help="Structure-plan process count or 'auto'; generator.plan_workers is used when omitted.",
+    )
+    generate.add_argument(
         "--skip-environment-check",
         action="store_true",
         help="Test-only escape hatch; never use this to claim accepted MPB validation.",
@@ -224,6 +230,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     prepare_plan.add_argument("--config", type=Path, required=True)
     prepare_plan.add_argument("--run-dir", type=Path, default=None)
+    prepare_plan.add_argument(
+        "--workers",
+        type=str,
+        default=None,
+        help="Structure-plan process count or 'auto'; generator.plan_workers is used when omitted.",
+    )
     prepare_plan.set_defaults(command="data prepare-full-cell-plan")
     accept_cluster = data_sub.add_parser(
         "accept-cluster",
@@ -565,12 +577,21 @@ def main(argv: Sequence[str] | None = None) -> None:
                 raise SystemExit("--workers must be a positive integer or 'auto'.") from exc
         if isinstance(worker_override, int) and worker_override <= 0:
             raise SystemExit("--workers must be positive.")
+        plan_worker_override: int | str | None = ns.plan_workers
+        if isinstance(plan_worker_override, str) and plan_worker_override.lower() != "auto":
+            try:
+                plan_worker_override = int(plan_worker_override)
+            except ValueError as exc:
+                raise SystemExit("--plan-workers must be a positive integer or 'auto'.") from exc
+        if isinstance(plan_worker_override, int) and plan_worker_override <= 0:
+            raise SystemExit("--plan-workers must be positive.")
         print(
             run_full_cell_generation(
                 ns.config,
                 run_dir=ns.run_dir,
                 max_samples=ns.max_samples,
                 workers=worker_override,
+                plan_workers=plan_worker_override,
                 skip_environment_check=ns.skip_environment_check,
             )
         )
@@ -578,7 +599,21 @@ def main(argv: Sequence[str] | None = None) -> None:
     if ns.command == "data prepare-full-cell-plan":
         from phc2d.data.full_cell_generation import prepare_full_cell_sample_plan
 
-        print(prepare_full_cell_sample_plan(ns.config, run_dir=ns.run_dir))
+        plan_worker_override: int | str | None = ns.workers
+        if isinstance(plan_worker_override, str) and plan_worker_override.lower() != "auto":
+            try:
+                plan_worker_override = int(plan_worker_override)
+            except ValueError as exc:
+                raise SystemExit("--workers must be a positive integer or 'auto'.") from exc
+        if isinstance(plan_worker_override, int) and plan_worker_override <= 0:
+            raise SystemExit("--workers must be positive.")
+        print(
+            prepare_full_cell_sample_plan(
+                ns.config,
+                run_dir=ns.run_dir,
+                workers=plan_worker_override,
+            )
+        )
         return
     if ns.command == "data accept-cluster":
         from phc2d.data.full_cell_acceptance import run_cluster_wsl_acceptance

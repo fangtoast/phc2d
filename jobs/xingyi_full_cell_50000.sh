@@ -15,8 +15,14 @@ fi
 : "${PHC2D_LANE:?Set PHC2D_LANE to binary or graded.}"
 : "${PHC2D_RUN_DIR:?Set PHC2D_RUN_DIR to the fixed standard run directory.}"
 PHC2D_WORKERS="${PHC2D_WORKERS:-64}"
+PHC2D_PLAN_WORKERS="${PHC2D_PLAN_WORKERS:-64}"
 PHC2D_ALLOW_RESUME="${PHC2D_ALLOW_RESUME:-0}"
 PHC2D_ALLOW_PLAN_CREATION="${PHC2D_ALLOW_PLAN_CREATION:-0}"
+
+if [[ "${SLURM_CPUS_PER_TASK:-0}" -ne 64 ]]; then
+  echo "This campaign requires exactly 64 allocated CPUs per task." >&2
+  exit 2
+fi
 
 case "$PHC2D_LANE" in
   binary) config="configs/research/full_cell_binary_bz9_50000_xingyi_v1.yaml" ;;
@@ -25,6 +31,10 @@ case "$PHC2D_LANE" in
 esac
 if (( PHC2D_WORKERS < 1 || PHC2D_WORKERS > 64 )); then
   echo "PHC2D_WORKERS must be in [1,64]." >&2
+  exit 2
+fi
+if (( PHC2D_PLAN_WORKERS < 1 || PHC2D_PLAN_WORKERS > 64 )); then
+  echo "PHC2D_PLAN_WORKERS must be in [1,64]." >&2
   exit 2
 fi
 if [[ -f "$PHC2D_RUN_DIR/sample_plan.jsonl" ]]; then
@@ -49,4 +59,5 @@ fi
 python -m phc2d.cli data generate \
   --config "$config" \
   --run-dir "$PHC2D_RUN_DIR" \
+  --plan-workers "$PHC2D_PLAN_WORKERS" \
   --workers "$PHC2D_WORKERS"

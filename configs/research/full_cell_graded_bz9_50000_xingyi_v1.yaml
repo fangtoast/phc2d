@@ -18,6 +18,7 @@ dataset:
   raster_resolutions: [32, 64, 128]
 
 generator:
+  plan_workers: 64
   epsilon_air: 1.0
   epsilon_material: 8.9
   audit_resolution: 256

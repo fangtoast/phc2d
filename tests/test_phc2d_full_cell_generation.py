@@ -160,6 +160,12 @@ def test_prepare_full_cell_sample_plan_is_mpb_free_and_resume_stable(
         json.loads((out / "run.meta.json").read_text(encoding="utf-8"))["validation_boundary"]
         == "structure_plan_only_no_mpb"
     )
+    progress = json.loads((out / "sample_plan_progress.json").read_text(encoding="utf-8"))
+    manifest = json.loads((out / "sample_plan_manifest.json").read_text(encoding="utf-8"))
+    assert progress["status"] == "completed"
+    assert progress["completed"] == 4
+    assert progress["workers"] == 1
+    assert manifest["plan_workers_resolved"] == 1
 
     monkeypatch.setattr(
         full_cell_generation,
@@ -172,11 +178,47 @@ def test_prepare_full_cell_sample_plan_is_mpb_free_and_resume_stable(
     assert manifest["sample_plan_sha256"] == first_hash
 
 
+def test_parallel_structure_plan_matches_serial_order_and_hashes(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path)
+    config = full_cell_generation.load_full_cell_generation_config(config_path)
+
+    serial, serial_strata = full_cell_generation._generate_structures(
+        config,
+        effective_count=4,
+        workers=1,
+    )
+    parallel, parallel_strata = full_cell_generation._generate_structures(
+        config,
+        effective_count=4,
+        workers=2,
+    )
+
+    assert parallel_strata == serial_strata
+    assert [item.sample_id for item in parallel] == [item.sample_id for item in serial]
+    assert [item.geometry_hash for item in parallel] == [item.geometry_hash for item in serial]
+    assert [item.parameters for item in parallel] == [item.parameters for item in serial]
+
+
 def test_prepare_full_cell_sample_plan_cli_is_lazy() -> None:
     namespace = build_parser().parse_args(
-        ["data", "prepare-full-cell-plan", "--config", "config.yaml", "--run-dir", "run"]
+        [
+            "data",
+            "prepare-full-cell-plan",
+            "--config",
+            "config.yaml",
+            "--run-dir",
+            "run",
+            "--workers",
+            "2",
+        ]
     )
     assert namespace.command == "data prepare-full-cell-plan"
+    assert namespace.workers == "2"
+
+    generation = build_parser().parse_args(
+        ["data", "generate", "--config", "config.yaml", "--plan-workers", "64"]
+    )
+    assert generation.plan_workers == "64"
 
 
 def test_solver_failure_is_preserved_and_dataset_is_not_written(tmp_path: Path) -> None:
@@ -353,6 +395,7 @@ def test_xingyi_50000_configs_freeze_dual_lane_contract() -> None:
         assert payload["dataset"]["lane"] == lane
         assert payload["dataset"]["sample_count"] == 50000
         assert payload["dataset"]["split"] == {"train": 40000, "val": 5000, "test": 5000}
+        assert payload["generator"]["plan_workers"] == 64
         assert payload["workers"]["workers"] == 64
         assert payload["solver"]["use_proxy"] is False
 
@@ -364,10 +407,14 @@ def test_xingyi_50000_jobs_are_fail_closed_and_two_node_ready() -> None:
     preflight = (root / "jobs" / "xingyi_full_cell_50000_preflight.sh").read_text(encoding="utf-8")
     assert 'PHC2D_AUTHORIZE_50K:-NO' in worker
     assert 'PHC2D_ALLOW_PLAN_CREATION:-0' in worker
+    assert 'PHC2D_PLAN_WORKERS:-64' in worker
+    assert '--plan-workers "$PHC2D_PLAN_WORKERS"' in worker
+    assert 'SLURM_CPUS_PER_TASK:-0' in worker
     assert 'Plan creation is allowed only in a fresh run directory.' in worker
     assert 'source "$PHC2D_ROOT/jobs/xingyi_common.sh"' in worker
     assert '"$(wc -l < "$PHC2D_RUN_DIR/sample_plan.jsonl")" -ne 50000' in worker
     assert 'PHC2D_SUBMIT_MODE:-dry-run' in submit
+    assert 'PHC2D_PLAN_WORKERS=64' in submit
     assert 'PHC2D_PLAN_MODE:-frozen' in submit
     assert 'generate-on-node' in submit
     assert 'PHC2D_SUBMIT_MODE=submit' in submit

@@ -16,6 +16,8 @@ import socket
 import time
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ProcessPoolExecutor
+from multiprocessing import get_context
 from pathlib import Path
 from typing import Any, Callable
 
@@ -54,6 +56,7 @@ from phc2d.solvers import (
 
 ROOT = Path(__file__).resolve().parents[3]
 FullCellSolverFn = Callable[..., tuple[np.ndarray, dict[str, Any]]]
+PlanProgressFn = Callable[[int, int], None]
 SUPPORTED_EXECUTION_ENVIRONMENTS = {"wsl_meep_env", "native_linux_conda_meep_env"}
 
 
@@ -213,6 +216,7 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
     problems: list[str] = []
     experiment = dict(cfg.get("experiment") or {})
     dataset = dict(cfg.get("dataset") or {})
+    generator = dict(cfg.get("generator") or {})
     solver = dict(cfg.get("solver") or {})
     k_grid = dict(cfg.get("k_grid") or {})
     stage = str(experiment.get("stage", "dataset_generation"))
@@ -234,6 +238,13 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
             problems.append("dataset.output_path is required")
         if [int(value) for value in dataset.get("raster_resolutions", [])] != [32, 64, 128]:
             problems.append("dataset.raster_resolutions must be exactly [32, 64, 128]")
+        plan_workers = generator.get("plan_workers", 1)
+        if not (isinstance(plan_workers, str) and plan_workers.lower() == "auto"):
+            try:
+                if int(plan_workers) <= 0:
+                    problems.append("generator.plan_workers must be positive or 'auto'")
+            except (TypeError, ValueError):
+                problems.append("generator.plan_workers must be positive or 'auto'")
     required_solver = {
         "backend",
         "environment",
@@ -359,29 +370,142 @@ def _structure_schedule(lane: str, count: int) -> list[tuple[str, int | None, st
     return [cycle[index % len(cycle)] for index in range(count)]
 
 
-def _generate_structures(cfg: Mapping[str, Any], *, effective_count: int) -> tuple[list[FullCellStructureSpec], list[str]]:
+def _generate_structure_task(
+    task: tuple[int, str, int | None, str, int, str, dict[str, Any]],
+) -> tuple[FullCellStructureSpec, str]:
+    index, family, variant, stratum, seed, experiment_id, generator_cfg = task
+    sample_id = f"{experiment_id}_{index:06d}"
+    if family == "graded_rbf_fourier":
+        structure = generate_graded_rbf_fourier(
+            sample_id,
+            master_seed=seed,
+            core_count=int(variant),
+            config=generator_cfg,
+        )
+    elif family == "binary_polar_holes":
+        structure = generate_binary_polar_holes(
+            sample_id,
+            master_seed=seed,
+            hole_count=int(variant),
+            config=generator_cfg,
+        )
+    else:
+        structure = generate_binary_spectral_threshold(
+            sample_id,
+            master_seed=seed,
+            config=generator_cfg,
+        )
+    return structure, stratum
+
+
+def _available_cpu_count() -> int:
+    if hasattr(os, "sched_getaffinity"):
+        try:
+            return max(1, len(os.sched_getaffinity(0)))
+        except OSError:
+            pass
+    return max(1, int(os.cpu_count() or 1))
+
+
+def _resolve_plan_workers(
+    cfg: Mapping[str, Any],
+    *,
+    effective_count: int,
+    workers: int | str | None,
+) -> int:
+    requested: int | str = workers if workers is not None else dict(cfg.get("generator") or {}).get("plan_workers", 1)
+    available = _available_cpu_count()
+    if isinstance(requested, str) and requested.lower() == "auto":
+        return max(1, min(available, effective_count))
+    try:
+        resolved = int(requested)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("plan workers must be a positive integer or 'auto'") from exc
+    if resolved <= 0:
+        raise ValueError("plan workers must be positive")
+    if resolved > available:
+        raise RuntimeError(
+            f"plan workers requested {resolved}, but only {available} CPUs are available"
+        )
+    return max(1, min(resolved, effective_count))
+
+
+def _generate_structures(
+    cfg: Mapping[str, Any],
+    *,
+    effective_count: int,
+    workers: int = 1,
+    progress_fn: PlanProgressFn | None = None,
+) -> tuple[list[FullCellStructureSpec], list[str]]:
     dataset = dict(cfg["dataset"])
     generator_cfg = dict(cfg.get("generator") or {})
     lane = str(dataset["lane"])
     seed = int(dataset["seed"])
     experiment_id = str(dict(cfg["experiment"])["experiment_id"])
+    tasks = [
+        (index, family, variant, stratum, seed, experiment_id, generator_cfg)
+        for index, (family, variant, stratum) in enumerate(_structure_schedule(lane, effective_count))
+    ]
+    resolved_workers = max(1, min(int(workers), max(effective_count, 1)))
+    if progress_fn is not None:
+        progress_fn(0, effective_count)
+    if resolved_workers == 1:
+        generated = map(_generate_structure_task, tasks)
+        pool = None
+    else:
+        pool = ProcessPoolExecutor(
+            max_workers=resolved_workers,
+            mp_context=get_context("spawn"),
+        )
+        chunksize = max(1, effective_count // (resolved_workers * 8))
+        generated = pool.map(_generate_structure_task, tasks, chunksize=chunksize)
     structures: list[FullCellStructureSpec] = []
     strata: list[str] = []
-    for index, (family, variant, stratum) in enumerate(_structure_schedule(lane, effective_count)):
-        sample_id = f"{experiment_id}_{index:06d}"
-        if family == "graded_rbf_fourier":
-            structure = generate_graded_rbf_fourier(sample_id, master_seed=seed, core_count=int(variant), config=generator_cfg)
-        elif family == "binary_polar_holes":
-            structure = generate_binary_polar_holes(sample_id, master_seed=seed, hole_count=int(variant), config=generator_cfg)
-        else:
-            structure = generate_binary_spectral_threshold(sample_id, master_seed=seed, config=generator_cfg)
-        structures.append(structure)
-        strata.append(stratum)
+    try:
+        for completed, (structure, stratum) in enumerate(generated, start=1):
+            structures.append(structure)
+            strata.append(stratum)
+            if progress_fn is not None:
+                progress_fn(completed, effective_count)
+    finally:
+        if pool is not None:
+            pool.shutdown(wait=True, cancel_futures=True)
     return structures, strata
 
 
 def _write_jsonl(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
     path.write_text("".join(_canonical_json(row) + "\n" for row in rows), encoding="utf-8")
+
+
+def _write_jsonl_atomic(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
+    temporary = path.with_name(f".{path.name}.tmp")
+    _write_jsonl(temporary, rows)
+    temporary.replace(path)
+
+
+def _plan_progress_writer(path: Path, *, workers: int, started: float) -> PlanProgressFn:
+    last_written = -1
+
+    def report(completed: int, total: int) -> None:
+        nonlocal last_written
+        interval = max(1, total // 100)
+        if completed not in {0, total} and completed - last_written < interval:
+            return
+        last_written = completed
+        elapsed = float(time.perf_counter() - started)
+        payload = {
+            "status": "completed" if completed == total else "running",
+            "completed": int(completed),
+            "total": int(total),
+            "workers": int(workers),
+            "elapsed_s": elapsed,
+            "throughput_samples_per_s": float(completed / elapsed) if elapsed > 0.0 else 0.0,
+        }
+        temporary = path.with_name(f".{path.name}.tmp")
+        write_json(temporary, payload)
+        temporary.replace(path)
+
+    return report
 
 
 def _load_frozen_sample_plan(
@@ -447,6 +571,7 @@ def prepare_full_cell_sample_plan(
     config_path: str | Path,
     *,
     run_dir: str | Path | None = None,
+    workers: int | str | None = None,
 ) -> Path:
     """Generate or validate a frozen full-cell structure plan without invoking MPB."""
 
@@ -469,7 +594,7 @@ def prepare_full_cell_sample_plan(
     )
     started = time.perf_counter()
     resolved_yaml = yaml.safe_dump(
-        {**cfg, "run_options": {"plan_only": True}},
+        {**cfg, "run_options": {"plan_only": True, "plan_workers_override": workers}},
         sort_keys=False,
         allow_unicode=True,
     )
@@ -501,6 +626,7 @@ def prepare_full_cell_sample_plan(
     }
     sample_plan_path = out / "sample_plan.jsonl"
     reused = sample_plan_path.is_file()
+    plan_workers = 0
     if reused:
         structures, strata, split_labels = _load_frozen_sample_plan(
             sample_plan_path,
@@ -508,7 +634,16 @@ def prepare_full_cell_sample_plan(
             effective_count=sample_count,
         )
     else:
-        structures, strata = _generate_structures(cfg, effective_count=sample_count)
+        plan_workers = _resolve_plan_workers(cfg, effective_count=sample_count, workers=workers)
+        plan_started = time.perf_counter()
+        progress_path = out / "sample_plan_progress.json"
+        progress_fn = _plan_progress_writer(progress_path, workers=plan_workers, started=plan_started)
+        structures, strata = _generate_structures(
+            cfg,
+            effective_count=sample_count,
+            workers=plan_workers,
+            progress_fn=progress_fn,
+        )
         sample_ids = [structure.sample_id for structure in structures]
         _, _, _, split_labels = _stable_stratified_splits(sample_ids, strata, split_counts)
         rows = [
@@ -524,9 +659,7 @@ def prepare_full_cell_sample_plan(
             }
             for index, structure in enumerate(structures)
         ]
-        temporary = sample_plan_path.with_name(f".{sample_plan_path.name}.tmp")
-        _write_jsonl(temporary, rows)
-        temporary.replace(sample_plan_path)
+        _write_jsonl_atomic(sample_plan_path, rows)
 
     plan_hash = _file_hash(sample_plan_path)
     manifest = {
@@ -542,6 +675,7 @@ def prepare_full_cell_sample_plan(
         "split": split_counts,
         "strata": dict(Counter(strata)),
         "reused_existing_plan": reused,
+        "plan_workers_resolved": plan_workers,
     }
     write_json(out / "sample_plan_manifest.json", manifest)
     elapsed = float(time.perf_counter() - started)
@@ -556,6 +690,8 @@ def prepare_full_cell_sample_plan(
             "wall_time_total_s": elapsed,
             "sample_count": sample_count,
             "stratum_counts": dict(Counter(strata)),
+            "plan_workers_resolved": plan_workers,
+            "plan_throughput_samples_per_s": float(sample_count / elapsed) if not reused and elapsed > 0.0 else 0.0,
         },
     )
     write_results(
@@ -565,6 +701,7 @@ def prepare_full_cell_sample_plan(
             "sample_plan_written": True,
             "sample_plan_path": _relative(sample_plan_path),
             "sample_plan_sha256": plan_hash,
+            "plan_workers_resolved": plan_workers,
             "next_gate": "native_cluster_real_mpb_generation",
         },
     )
@@ -627,6 +764,7 @@ def run_full_cell_generation(
     run_dir: str | Path | None = None,
     max_samples: int | None = None,
     workers: int | str | None = None,
+    plan_workers: int | str | None = None,
     skip_environment_check: bool = False,
     solver_fn: FullCellSolverFn = solve_bands_for_full_cell_mpb,
 ) -> Path:
@@ -642,7 +780,14 @@ def run_full_cell_generation(
     ensure_figures_dir(out)
     started = time.perf_counter()
     history: list[dict[str, Any]] = []
-    resolved = {**cfg, "run_options": {"max_samples": max_samples, "workers_override": workers}}
+    resolved = {
+        **cfg,
+        "run_options": {
+            "max_samples": max_samples,
+            "workers_override": workers,
+            "plan_workers_override": plan_workers,
+        },
+    }
     resolved_yaml = yaml.safe_dump(resolved, sort_keys=False, allow_unicode=True)
     write_resolved_config(out, resolved_yaml)
     problems = _validate_config(cfg)
@@ -671,6 +816,8 @@ def run_full_cell_generation(
     effective_count = min(full_count, int(max_samples)) if max_samples is not None else full_count
     split_counts = _effective_split_counts(dict(dataset_cfg["split"]), full_count, effective_count)
     sample_plan_path = out / "sample_plan.jsonl"
+    structure_plan_started = time.perf_counter()
+    plan_workers_resolved = 0
     if sample_plan_path.is_file():
         structures, strata, split_labels = _load_frozen_sample_plan(sample_plan_path, cfg, effective_count=effective_count)
         sample_ids = [structure.sample_id for structure in structures]
@@ -679,10 +826,32 @@ def run_full_cell_generation(
             raise ValueError("Frozen sample plan split assignments changed during resume")
         history.append({"stage": "structure_generation", "status": "resumed", "reason": "validated frozen sample_plan.jsonl"})
     else:
-        structures, strata = _generate_structures(cfg, effective_count=effective_count)
+        plan_workers_resolved = _resolve_plan_workers(
+            cfg,
+            effective_count=effective_count,
+            workers=plan_workers,
+        )
+        progress_fn = _plan_progress_writer(
+            out / "sample_plan_progress.json",
+            workers=plan_workers_resolved,
+            started=structure_plan_started,
+        )
+        structures, strata = _generate_structures(
+            cfg,
+            effective_count=effective_count,
+            workers=plan_workers_resolved,
+            progress_fn=progress_fn,
+        )
         sample_ids = [structure.sample_id for structure in structures]
         idx_train, idx_val, idx_test, split_labels = _stable_stratified_splits(sample_ids, strata, split_counts)
-        history.append({"stage": "structure_generation", "status": "passed", "reason": ""})
+        history.append(
+            {
+                "stage": "structure_generation",
+                "status": "passed",
+                "reason": f"generated with {plan_workers_resolved} process workers",
+            }
+        )
+    structure_plan_time_s = float(time.perf_counter() - structure_plan_started)
     k_points, k_grid_index = build_full_bz_grid(int(dict(cfg["k_grid"])["n_side"]))
     solver_cfg = _solver_config(dict(cfg["solver"]))
     worker_payload = dict(cfg.get("workers") or {})
@@ -704,7 +873,7 @@ def run_full_cell_generation(
         for index, structure in enumerate(structures)
     ]
     if not sample_plan_path.is_file():
-        _write_jsonl(
+        _write_jsonl_atomic(
             sample_plan_path,
             [
                 {
@@ -731,7 +900,18 @@ def run_full_cell_generation(
         reason = failures[0]["reason"] if failures else "worker result count mismatch"
         history.append({"stage": "real_mpb_generation", "status": "solver_execution_failed", "reason": reason})
         _write_history(out / "history.csv", history)
-        write_metrics(out, {**worker_summary, "status": "solver_execution_failed", "wall_time_total_s": float(time.perf_counter() - started), "real_mpb_generation_started": True, "real_mpb_generation_completed": False})
+        write_metrics(
+            out,
+            {
+                **worker_summary,
+                "status": "solver_execution_failed",
+                "wall_time_total_s": float(time.perf_counter() - started),
+                "structure_plan_time_s": structure_plan_time_s,
+                "plan_workers_resolved": plan_workers_resolved,
+                "real_mpb_generation_started": True,
+                "real_mpb_generation_completed": False,
+            },
+        )
         write_results(out, {"status": "solver_execution_failed", "reason": reason, "dataset_written": False})
         write_run_meta(
             out,
@@ -862,6 +1042,8 @@ def run_full_cell_generation(
             "status": status,
             "wall_time_total_s": elapsed,
             "structure_generation_count": effective_count,
+            "structure_plan_time_s": structure_plan_time_s,
+            "plan_workers_resolved": plan_workers_resolved,
             "mpb_generation_time_s": float(sum(item.solve_time_s for item in results if not item.resumed)),
             "mpb_generation_time_per_sample_s": float(sum(item.solve_time_s for item in results) / max(effective_count, 1)),
             "real_mpb_generation_started": True,

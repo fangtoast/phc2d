@@ -36,7 +36,7 @@
 
 历史二值 10k 作业 `6850058` 使用一个 64 核节点，状态 `COMPLETED/0:0`，墙钟 1:54:29；求解阶段吞吐 1.663 samples/s，失败 0。按该证据线性估算，二值 50k 单节点约 8.4 小时。连续路线必须单独做小样本预检/benchmark，不能把 M9 的 256-worker 吞吐直接移植到 Xingyi。
 
-当前策略以稳定性优先：二值和连续各占一个 64 核节点并行。若提交时只有两个 idle 节点，这已经用满可见空闲容量；跨更多节点的同路线分片与合并尚未实现，不得让多个进程同时写同一 run 目录。
+当前策略是二值和连续各占一个 64 核节点并行。结构计划阶段在每个节点使用 64 个确定性进程，计划冻结后同一作业自动切换为 64 个 MPB worker；两条路线合计使用 128 核。跨更多节点的同路线分片与合并尚未实现，不得让多个作业同时写同一 run 目录。
 
 ---
 
@@ -47,14 +47,16 @@
    ```bash
    python -m phc2d.cli data prepare-full-cell-plan \
      --config configs/research/full_cell_binary_bz9_50000_xingyi_v1.yaml \
-     --run-dir runs/20260806/full_cell_binary_bz9_50000_xingyi_v1_plan_20260806HHMM
+     --run-dir runs/20260806/full_cell_binary_bz9_50000_xingyi_v1_plan_20260806HHMM \
+     --workers 64
 
    python -m phc2d.cli data prepare-full-cell-plan \
      --config configs/research/full_cell_graded_bz9_50000_xingyi_v1.yaml \
-     --run-dir runs/20260806/full_cell_graded_bz9_50000_xingyi_v1_plan_20260806HHMM
+     --run-dir runs/20260806/full_cell_graded_bz9_50000_xingyi_v1_plan_20260806HHMM \
+     --workers 64
    ```
 
-2. 默认核对两份 `sample_plan_manifest.json`、行数、SHA-256、split 和 strata，并把 `sample_plan.jsonl` 放入两个固定正式 run 目录。若用户明确要求停止本地计划生成并直接使用超算，可设置 `PHC2D_PLAN_MODE=generate-on-node`；每个正式作业会先在自己的全新 run 目录生成并冻结 50,000 行计划，再继续 MPB。两种模式都不得复用半成品或混合旧 shard。
+2. 默认核对两份 `sample_plan_manifest.json`、行数、SHA-256、split 和 strata，并把 `sample_plan.jsonl` 放入两个固定正式 run 目录。若用户明确要求停止本地计划生成并直接使用超算，可设置 `PHC2D_PLAN_MODE=generate-on-node`；每个正式作业会以 `--plan-workers 64` 在自己的全新 run 目录生成并冻结 50,000 行计划，再由同一作业自动进入 `--workers 64` 的 MPB 阶段。`sample_plan_progress.json` 每完成约 1% 更新一次，只表示结构计划进度，不是 MPB 分片进度。两种模式都不得复用半成品或混合旧 shard。
 3. 部署范围化 Git commit 到 Xingyi 的新版本目录，验证 `DEPLOYED_GIT_COMMIT`、Meep `1.33.0-beta`、MPB `1.12.0` 和 shell 语法。
 4. 提交前重查 `sinfo`、用户队列、文件系统空间；取得单独的短预检授权后，通过 [`../../jobs/xingyi_full_cell_50000_preflight.sh`](../../jobs/xingyi_full_cell_50000_preflight.sh) 执行 solver oracle 与每路线 4 样本预检。任何环境、有限值、频带升序或 failure gate 不通过即停止。
 5. 提交器默认 `dry-run`。只有用户明确批准计费运行后，才可同时设置 `PHC2D_SUBMIT_MODE=submit` 与 `PHC2D_AUTHORIZE_50K=YES`：
