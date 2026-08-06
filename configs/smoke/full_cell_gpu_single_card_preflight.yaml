@@ -1,0 +1,46 @@
+# Single-card preflight for the full-cell three-seed GPU training plan.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: full_cell_gpu_single_card_preflight
+  family: smoke
+  stage: gpu_environment_preflight
+
+dataset:
+  path: data/full_cell_binary_bz9_10000_xingyi_v1.h5
+  grid_field: material_weight_grid_64
+  preflight_samples: 256
+  throughput_samples: 1024
+
+model:
+  candidates: [mlp, res_mlp_wide, lifted_cnn, fno2d_band_v2]
+  overrides:
+    mlp: {hidden_dim: 256, depth: 6, dropout: 0.05, activation: gelu}
+    res_mlp_wide: {hidden_dim: 256, depth: 6, dropout: 0.05, activation: gelu}
+    lifted_cnn: {channels: 12, activation: gelu}
+    fno2d_band_v2:
+      width: 32
+      depth: 4
+      modes: [8, 8]
+      band_modes: [5, 5]
+      fourier_rank: 8
+      activation: gelu
+
+training:
+  precision: fp32
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  batch_size: 64
+  fno_epochs: 10
+
+runtime:
+  device: cuda:0
+  require_cuda: true
+  hdf5_num_workers: 4
+  pin_memory: true
+  non_blocking_transfer: true
+
+output:
+  runs_dir: runs
