@@ -19,11 +19,11 @@
 | Audience | 逆向设计研究人员、GPU/超算执行人员与项目负责人 |
 | Owner | 研究生维护，导师审阅 inverse promotion |
 | Last reviewed | Pending human review |
-| Reading time | 20 minutes |
+| Reading time | 22 minutes |
 
 本文规定 **解析参数 inverse Stage-A 监督训练 → 冻结正向 surrogate 的 Stage-B objective bridge → candidate health → 双 surrogate 筛选 → real-MPB replay** 协议。Stage A 直接使用 HDF5 中的真实 `Wh → analytic parameters` 配对，不依赖已经训练好的正向 surrogate，因此可与 102 个 Full-Wh 前向 run 分开授权、并行推进；Stage B、候选 surrogate 排序和 inverse MPB replay 则必须等正向主/辅 surrogate 按三 seed 训练、验收并冻结后才可进入。
 
-本次明确采用 **每个解析变体 × 每个训练方法 × 每个 seed 一个独立单卡作业**。MPB replay 采用“每路线 8-target smoke → 整个 validation split → 冻结后的 test-100”三级边界，取消原来的 20-target 中间 pilot。
+本次明确采用 **每个解析变体 × 每个训练方法 × 每个 seed 一个独立单卡作业**。MPB replay 采用“每路线 8-target smoke → 整个 validation split → 整个 test split”三级边界，取消原来的 20-target 中间 pilot。完整 test 保留全部预注册模型/方法，而不是只回放 validation 胜出 arm；validation 仍负责冻结 primary comparison，test 不得用于重新选模或调参。
 
 **目录：** [一、当前状态](#inverse-current-status) · [二、准入条件](#inverse-admission) · [三、参数 codec](#inverse-codec) · [四、方法与训练](#inverse-training) · [五、GPU 编排](#inverse-gpu) · [六、候选与筛选](#inverse-candidates) · [七、MPB replay](#inverse-replay) · [八、制品](#inverse-artifacts) · [九、授权与结论](#inverse-authorization) · [十、人工理解记录](#inverse-human-record)
 
@@ -64,7 +64,7 @@
 | Stage-B objective bridge | 对应路线 Stage-A best checkpoint 完整；binary/graded 主、辅 Full-Wh surrogate 三 seed validation 冻结；checkpoint/config/SHA-256 齐全；Stage B 单独授权 | **blocked: forward surrogate not trained** |
 | Candidate generation/ranking | Stage-B checkpoint 过 candidate-health；主/辅 ranker 身份冻结；threshold proxy 不进入 objective/ranker/物理结论 | **blocked by Stage B and forward** |
 | 8-target inverse smoke | candidate manifest 冻结；M9 环境再次预检；预算核算并取得 M9 smoke 授权 | **not run** |
-| Full validation / test-100 | 前一级 replay 成功、失败账本完整、费用重新核算并逐级授权 | **not admitted** |
+| Full validation / full test-1000 | 前一级 replay 成功、失败账本完整、费用重新核算并逐级授权 | **not admitted** |
 
 两套数据继续使用各自冻结的 `8000/1000/1000` split；test split 不参与 codec 统计、Stage A/B 训练、checkpoint 选择或 validation replay。单卡训练 preflight 与 18 个独立单卡任务的并发 admission/共享 HDF5 探针也必须分别留证。
 
@@ -288,11 +288,13 @@ Real replay 比较 `MPB(decoded_candidate)` 与目标 `Wh`。Inverse 是多解�
 
 <a id="inverse-replay"></a>
 
-## 七、8-target smoke → full validation → test-100
+## 七、8-target smoke → full validation → full test-1000
 
 ### 7.1 阶段与最大求解预算
 
-“8 targets”按原计划解释为 **每路线 8 个**：binary 8 个、graded 8 个，共 16 个目标。Smoke 使用 seed 0；完整 validation 使用全部三个训练 seed。
+“8 targets”按原计划解释为 **每路线 8 个**：binary 8 个、graded 8 个，共 16 个目标。Smoke 使用 seed 0；完整 validation 与完整 test 使用全部三个训练 seed。
+
+本节所有正式 hard-candidate real-MPB 均在 M9 CPU 超算 `amd_m9_768` 分区执行；N40 只负责候选生成和 surrogate ranking，本机 WSL 不承担批量 replay。M9 的 smoke、full-validation 和 full-test 分别使用冻结 manifest、独立授权和独立 run 目录，前一阶段授权不得自动扩展到后一阶段。
 
 截至 2026-08-06，正向 surrogate 尚未训练，因而本节三个 inverse replay 阶段均未获准进入。此前完成的 8 结构 WSL replay 只是 graded 数据集跨环境验收；不能跳过本节 smoke，也不能现在直接扩展到整个 validation。
 
@@ -300,11 +302,13 @@ Real replay 比较 `MPB(decoded_candidate)` 与目标 `Wh`。Inverse 是多解�
 |---|---|---:|---|---:|
 | Smoke | val | 每路线 8 | 全变体、全部方法、seed 0 | binary 288 + graded 192 = **480** |
 | Full validation | val | 每路线完整 1,000 | 全变体、全部方法、seeds 0/1/2 | binary 102,000 + graded 68,000 = **170,000** |
-| Formal test | test | 每路线预注册 100 | route-level 胜出 generator + 最强 retrieval/direct baseline，seeds 0/1/2 | 至多约 **3,800** |
+| Full test | test | 每路线完整 1,000 | 全变体、全部方法、seeds 0/1/2 | binary 102,000 + graded 68,000 = **170,000** |
 
-预算计算规则：seed-0 smoke 中每变体每目标为 `retrieval 1 + direct 1 + single Top-5 + mixture Top-5 = 12`；full validation 中为 `retrieval 1 + direct 3 seeds + single 3×Top-5 + mixture 3×Top-5 = 34`。实际求解数以全局 geometry-hash 去重后的 manifest 为准，但授权前按上限估算 CPU-hours、存储和 wall time。
+预算计算规则：seed-0 smoke 中每变体每目标为 `retrieval 1 + direct 1 + single Top-5 + mixture Top-5 = 12`；full validation 和 full test 中均为 `retrieval 1 + direct 3 seeds + single 3×Top-5 + mixture 3×Top-5 = 34`。实际求解数以全局 geometry-hash 去重后的 manifest 为准，但授权前按上限估算 CPU-hours、存储和 wall time。按去重前上限，validation 与 test 合计最多约 **340,000** 次 hard-MPB；两阶段必须分别基于 smoke 实测单候选 runtime、失败率、缓存命中率和存储量重新报价。
 
-原来的 20-target pilot 已取消。Smoke 只验证整条物理链与明显 surrogate exploit；通过后可以直接申请 full-validation replay，但 **170,000 上限的正式 M9 任务必须重新报价和单独授权**，不能由 smoke 授权自动扩张。
+原来的 20-target pilot 已取消。Smoke 只验证整条物理链与明显 surrogate exploit；通过后可以直接申请 full-validation replay，但 validation 和 test 两个各 **170,000** 上限的正式 M9 阶段都必须重新报价和单独授权，不能由 smoke 或 validation 授权自动扩张。
+
+仓库要求正式 MPB/Meep 验收经过 WSL `Ubuntu` + conda `meep_env`。为避免对 M9 大规模结果做重复批量计算，本计划把该要求收缩为 **一次性跨环境 solver sentinel**：首次 M9 inverse smoke 前，五个解析变体各冻结一个 hard candidate，在 M9 与本机 WSL 分别求解并核对 geometry/raster hash、81×10 频率和 band order；bands 2–10 的跨环境 median MRE 必须 `<=0.5%`、P95 必须 `<=1%`。只要 decoder、MPB 配置、M9 packed environment、WSL environment 与代码 hash 均未改变，full-validation 和 full-test 不再抽代表子集到 WSL 复算；任一身份变化才使 sentinel 失效并要求重跑。
 
 ### 7.2 8-target smoke
 
@@ -314,7 +318,7 @@ Real replay 比较 `MPB(decoded_candidate)` 与目标 `Wh`。Inverse 是多解�
 2. 所有候选都有 target/method/variant/seed/latent/rank/geometry hash 谱系；
 3. solver success 为 1.0，频率有限且 band ordered，失败 ledger 为空；
 4. mean absolute surrogate–replay gap 不超过 5 percentage points；
-5. M9 结果中至少抽取每个 `(variant, method)` 一个代表结构，共至少 20 个结构，在本机 WSL `meep_env` 固定 replay 并通过跨环境容差；
+5. 首次 M9 smoke 前完成上述五变体一次性 WSL solver sentinel；后续阶段只审计 sentinel/environment/code hash，不重复批量复算；
 6. 只产生 `full_cell_inverse_smoke_pass|failed`，不在 8 targets 上选择胜出模型或宣称优越性。
 
 截至 2026-08-06，该 smoke **尚未执行**。
@@ -330,17 +334,24 @@ Smoke 通过后，为 binary/graded 分别冻结完整 1,000-target validation m
 - 报告 per-target、per-band、per-k、失败案例、runtime 和 paired bootstrap 95% CI；
 - 不把 validation replay 写成最终 test 结论，也不根据 replay 结果回头调训练 loss；任何调参都创建新协议版本并从训练阶段重来。
 
-### 7.4 Test-100 与 promotion
+### 7.4 Full test-1000、全模型结果与 promotion
 
-Full validation 冻结每路线一个 generator arm，并冻结最强 retrieval/direct baseline。随后从未使用的 `idx_test` 各预注册 100 个目标，使用三个 seed checkpoint 和相同 Top-5 预算执行正式 replay。
+Full validation 为每路线冻结一个 primary generator arm、最强 retrieval/direct baseline 和 primary comparison；同时冻结全部五个变体、全部方法、三个 seed checkpoint、Top-5 预算与 test 分析代码。随后对 binary/graded 未使用的完整 `idx_test` 各 1,000 个目标执行正式 M9 replay。所有预注册 arm 都必须出具 per-target、per-seed 和三 seed 聚合结果，不能只保留 validation 胜出模型。
+
+完整 test 的统计角色必须区分：
+
+- 冻结的 primary generator 对最强 baseline 是唯一 promotion 主检验，报告 paired target difference、bootstrap 95% CI、effect size 与 solver success；
+- 其余 variant/method/seed 结果作为预注册 secondary model inventory 完整记录，用于稳定性、失败模式和后续研究，不得根据 test 排名改写 primary arm；
+- 多个 secondary paired comparisons 使用 Holm 校正，同时保留未校正 effect/CI；单 seed、单 morphology 与单路线结果均单列，不并入无边界的“全胞普遍优势”；
+- test split 不参与 codec fit、训练、checkpoint 选择、候选预算调整、ranker 选择或任何 loss/阈值修改；任一 test 后修改都必须形成新协议版本并使用新的独立证据，不得回写本轮结果。
 
 生成器只有在以下条件同时满足时晋级：
 
 - 相对最强 baseline 的 paired `replay_mre_bands_2_10_pct` 差值 bootstrap 95% CI 完全低于 0；
 - solver success 不下降且所有三 seed 完整；
 - surrogate–replay gap、candidate health、运行时间和失败分布均完整报告；
-- M9 结果通过固定 WSL `meep_env` 代表子集重放；
-- 不把单路线、单 morphology 或 test-100 结果推广为任意 full-cell/OOD 普遍优势。
+- M9 full-test run 的 manifest、solver provenance、hash 与一次性 WSL solver sentinel 身份一致；
+- 不把单路线、单 morphology 或 full-test-1000 结果推广为任意 full-cell/OOD 普遍优势。
 
 [↑ 回顶部](#full-cell-inverse-design-extension-plan)
 
@@ -357,11 +368,13 @@ Full validation 冻结每路线一个 generator arm，并冻结最强 retrieval/
 - `run.log`、`run.meta.json`、`config.resolved.yaml`；
 - `codec.resolved.json` 与 codec/template/hash；
 - `history.csv`：逐 epoch stage、train/val reconstruction、raster、primary/cross surrogate、diversity/collision、learning rate 和 epoch time；
-- `figures/training_curve.png` 与 `.pdf`：Stage A/B 分区，标出 best/stop epoch；
+- `figures/training_curve.png` 与 `.pdf`：Stage A/B 分区，至少绘制 train/val total loss、Stage-A codec/raster loss、Stage-B primary/cross-surrogate loss，并标出 best/stop epoch；
+- `figures/loss_components.png` 与 `.pdf`：按 stage 绘制 bandgap、reconstruction、continuous/binary diversity、latent response 和 collision 等实际启用分量；未启用分量明确标作 not applicable，不画伪零线；
+- `figures/runtime_learning_rate.png` 与 `.pdf`：逐 epoch learning rate、epoch wall time 与累计 train time；
 - best Stage-A checkpoint、best Stage-B `model.pt` 及 SHA-256；
 - `metrics.json`、`results.json` 和 seed/variant/method 身份。
 
-训练曲线的数值源必须是 `history.csv`。三 seed 聚合曲线只在共同 epoch 区间计算 mean ± std，不用 early-stopping 后的末值填充。
+训练曲线的唯一数值源必须是 `history.csv`，图中指标名与 CSV 列名逐项对应。每个 `(variant, method)` 还必须生成 `figures/training_curve_seed_aggregate.png/.pdf`：三个 seed 用浅色单线展示，并只在共同 epoch 区间计算 mean ± std；不得用 early-stopping 后的末值填充，也不得只保留平滑曲线而隐藏原始 epoch 值。图表生成命令、输入 run id 与源文件 SHA-256 写入 figure manifest。
 
 ### 8.2 Candidate 与 replay
 
@@ -372,7 +385,13 @@ Full validation 冻结每路线一个 generator arm，并冻结最强 retrieval/
 - smoke/full-validation/test target manifests 及 SHA-256；
 - atomic MPB shards、failed-case ledger、solver provenance；
 - per-target/per-method/per-seed replay metrics、surrogate–replay gap 和 runtime ledger；
-- validation leaderboard、paired statistics、promotion decision 和代表性成功/失败图。
+- validation 与 full-test 全模型 leaderboard、paired statistics、promotion decision 和代表性成功/失败图；
+- `figures/test_model_leaderboard.png/.pdf`：按路线、变体、方法展示三 seed aggregate 与 95% CI，同时保留 seed-level 点；
+- `figures/test_error_distribution.png/.pdf`：per-target replay MRE 的 ECDF/箱线或 violin，不用单一均值掩盖长尾；
+- `figures/surrogate_replay_calibration.png/.pdf`：surrogate MRE 对 replay MRE、identity line、分方法校准误差与失败点；
+- `figures/test_per_band_k.png/.pdf`：bands 2–10 与 81 个 k 点的误差分解；
+- `figures/quality_runtime_pareto.png/.pdf`：candidate sampling、ranking、MPB 与总 wall time 对 replay 质量；
+- `tables/test_all_models.csv`：每个 `(route, variant, method, seed)` 的 target 数、solver success、replay/surrogate/gap、runtime 与 CI，作为图和结论的共同数值源。
 
 不要求长期保存 per-batch 日志、逐步 GPU telemetry、profiler traces、中间 activation/gradient、每个 epoch checkpoint、未入 Top-5 的完整预测张量、重复 raster/HDF5 副本或重复 solver stdout。它们可用于临时调试，但不能替代核心制品，也不得进入 Git。
 
@@ -393,7 +412,7 @@ Full validation 冻结每路线一个 generator arm，并冻结最强 retrieval/
 5. inverse Stage B、validation candidate generation 与 candidate-health；
 6. M9 每路线 8-target inverse smoke；
 7. M9 整个 validation split replay；
-8. test-100 正式 replay。
+8. M9 整个 test split（每路线 1,000、全模型）正式 replay。
 
 任一阶段失败时保留既有成功产物并停止在当前 gate；不得自动重训、扩大 replay、修改 loss 或替换目标 manifest。前向 102-run 完成也不自动授权 inverse，GPU training 完成也不自动授权 M9。
 
@@ -406,11 +425,11 @@ Full validation 冻结每路线一个 generator arm，并冻结最强 retrieval/
 ## 十、本次调整的人工理解记录
 
 ```text
-解决了什么问题：明确 full-cell inverse 的五类参数 codec、三种训练方法、两阶段损失、45 个单卡训练 run、GPU 并发方式，以及 8-target smoke 到完整 validation 和 test-100 的 replay 路线；同时把 Stage A 与尚未训练的正向 surrogate 解耦。
-为什么采用这个方案：解析参数维度和固定字段因变体而异，必须分变体训练；Stage A 只需真实配对标签，Stage B/ranking 才依赖冻结 forward；N40 可并发独立单卡任务，M9 只做 hard candidate 的 real-MPB，二者通过冻结 manifest/hash 交接。
+解决了什么问题：明确 full-cell inverse 的五类参数 codec、三种训练方法、两阶段损失、45 个单卡训练 run、逐 epoch/逐分量/三 seed 训练曲线，以及 8-target smoke 到完整 validation 和完整 test-1000 的全模型 replay 路线；同时把 Stage A 与尚未训练的正向 surrogate 解耦。
+为什么采用这个方案：解析参数维度和固定字段因变体而异，必须分变体训练；Stage A 只需真实配对标签，Stage B/ranking 才依赖冻结 forward；完整 test 为每个预注册模型保留独立物理结果，但仍由 validation 冻结 primary comparison，避免 test 选模。N40 负责训练/筛选，M9 负责批量 hard-candidate real-MPB，WSL 只保留首次 campaign 前的一次性五变体 solver sentinel。
 改变了项目哪一层/哪一模块：主要改变 L3 实验/证据协议，并完成 L4 Stage-A epoch runner、断点续训、训练曲线、单 case preflight、N40 波次 manifest/节流和只读状态入口；Stage B 和 replay 接口仍未实现。
 使用什么证据验证：当前 HDF5 schema/参数宽度、真实 10k CPU preflight、小数据 WSL epoch/resume 测试、18-task/9-concurrency 零提交 dry-run、历史 A2 方法与 replay 边界、N40/M9 环境预检，以及仓库的 WSL/制品治理规则。
-最大风险、未知或下一 gate：正向 102-run 尚未训练；inverse N40 单卡/18-job 实际 admission、45 个 Stage-A 正式 run、Stage B 和 8-target inverse smoke 均未执行；dry-run 不证明账号 QoS 或实际卡数。full-validation replay 上限约 170,000 个 hard candidates，必须在 smoke 后重新核算 M9 费用并人工授权。
+最大风险、未知或下一 gate：正向 102-run 尚未训练；inverse N40 单卡/18-job 实际 admission、45 个 Stage-A 正式 run、Stage B 和 8-target inverse smoke 均未执行；dry-run 不证明账号 QoS 或实际卡数。full-validation 与 full-test replay 去重前各约 170,000 个 hard candidates，必须分别依据 smoke 实测 runtime/缓存命中重新核算 M9 费用并人工授权。
 ```
 
 [↑ 回顶部](#full-cell-inverse-design-extension-plan)
