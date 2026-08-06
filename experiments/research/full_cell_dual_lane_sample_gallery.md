@@ -97,4 +97,6 @@ PYTHONPATH=src python -m phc2d.cli plot full-cell-gallery \
 - 本实验近场是无源 TE Bloch 本征模电能密度，不是受激散射近场。
 - 没有入射源、有限结构、PML、观测面和归一化合同，因此本实验不生成或声称远场分布。
 
+受激有限阵列近场、Poynting 箭头与 near-to-far 远场已拆分到独立的 [Meep 散射响应实验](full_cell_dual_lane_meep_scattering.md)，避免与本页的无源 Bloch 本征模合同混用。
+
 [↑ 回到页首](#full-cell-dual-lane-sample-gallery)

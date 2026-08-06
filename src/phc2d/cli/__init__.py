@@ -114,6 +114,13 @@ def _plot(argv: Sequence[str]) -> None:
         default=None,
         help="Optional smoke-only limit applied after deterministic 16-sample selection.",
     )
+    full_cell_scattering = sub.add_parser(
+        "full-cell-scattering-gallery",
+        help="Run finite-array Meep near/far-field responses for selected full-cell samples.",
+    )
+    full_cell_scattering.add_argument("--config", type=Path, required=True)
+    full_cell_scattering.add_argument("--run-dir", type=Path, default=None)
+    full_cell_scattering.add_argument("--max-samples-per-dataset", type=int, default=None)
 
     ns = parser.parse_args(list(argv))
     if ns.kind == "medium":
@@ -158,6 +165,14 @@ def _plot(argv: Sequence[str]) -> None:
         from phc2d.plot.full_cell_gallery import build_full_cell_sample_gallery
 
         result = build_full_cell_sample_gallery(
+            ns.config,
+            run_dir=ns.run_dir,
+            max_samples_per_dataset=ns.max_samples_per_dataset,
+        )
+    elif ns.kind == "full-cell-scattering-gallery":
+        from phc2d.plot.full_cell_scattering import build_full_cell_scattering_gallery
+
+        result = build_full_cell_scattering_gallery(
             ns.config,
             run_dir=ns.run_dir,
             max_samples_per_dataset=ns.max_samples_per_dataset,

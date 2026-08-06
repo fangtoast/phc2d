@@ -1,0 +1,46 @@
+# Finite-array Meep response contract for the frozen dual-lane gallery.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: full_cell_dual_lane_meep_scattering_v1
+  family: research
+  stage: meep_scattering_response
+  primary_layer: L3
+
+source_gallery_run: runs/20260806/full_cell_dual_lane_sample_gallery_v1_202608061012
+
+datasets:
+  - lane: graded_medium
+    path: data/full_cell_graded_bz9_10000_paracloud_m9_v1.h5
+    status: cluster_generated_pending_wsl_acceptance
+  - lane: binary_air_holes
+    path: data/full_cell_binary_bz9_10000_xingyi_v1.h5
+    status: wsl_cross_environment_acceptance_pass
+
+bands:
+  gap_lower_bands_one_based: [2, 9]
+
+response:
+  periods_x: 5
+  periods_y: 5
+  resolution: 24
+  pml_thickness: 1.0
+  monitor_padding: 0.75
+  source_gap: 0.75
+  fractional_bandwidth: 0.10
+  dft_decay_tolerance: 1.0e-5
+  dft_minimum_run_time: 50.0
+  dft_maximum_run_time: 2000.0
+  require_decay_before_max: true
+  farfield_radius_wavelengths: 100.0
+  farfield_angle_count: 181
+  greencyl_tolerance: 1.0e-6
+
+output:
+  runs_dir: runs
+  formats: [png, svg, pdf]
+  dpi: 600
+  arrow_count: 13
+  arrow_relative_threshold: 0.08
