@@ -11,7 +11,7 @@
 
 | Metadata | Value |
 |---|---|
-| Status | Deferred Draft；协议已明确，full-cell inverse 实现与执行尚未开始 |
+| Status | Draft；Stage-A codec/preflight/epoch runner 已实现，正向 surrogate、N40 正式训练、Stage B 与 inverse replay 均未开始 |
 | Primary layer | L3 experiment/evidence；L4 仅实现本文列出的 codec、训练与 replay 接口 |
 | Authority | [生成网络调整研究计划](../fno_generative_network_adjustment_plan_20260617.md) |
 | Prerequisite | [全胞双路线训练与混合算力计划](full_cell_dual_lane_hybrid_compute_plan.md) |
@@ -21,7 +21,7 @@
 | Last reviewed | Pending human review |
 | Reading time | 20 minutes |
 
-本文规定前向双路线完成后的 **解析参数 inverse training → candidate health → 双 surrogate 筛选 → real-MPB replay** 协议。它不属于当前 102 个 Full-Wh 前向训练 run；只有前向 surrogate 按三 seed 冻结、本文实现门通过并取得新的 GPU/M9 授权后，才能执行。
+本文规定 **解析参数 inverse Stage-A 监督训练 → 冻结正向 surrogate 的 Stage-B objective bridge → candidate health → 双 surrogate 筛选 → real-MPB replay** 协议。Stage A 直接使用 HDF5 中的真实 `Wh → analytic parameters` 配对，不依赖已经训练好的正向 surrogate，因此可与 102 个 Full-Wh 前向 run 分开授权、并行推进；Stage B、候选 surrogate 排序和 inverse MPB replay 则必须等正向主/辅 surrogate 按三 seed 训练、验收并冻结后才可进入。
 
 本次明确采用 **每个解析变体 × 每个训练方法 × 每个 seed 一个独立单卡作业**。MPB replay 采用“每路线 8-target smoke → 整个 validation split → 冻结后的 test-100”三级边界，取消原来的 20-target 中间 pilot。
 
@@ -36,10 +36,11 @@
 | 项目 | 当前状态 | 可得出的结论 |
 |---|---|---|
 | binary/graded full-cell 10k HDF5 | **ready**；均为 `[10000,81,10]`，split 均为 `8000/1000/1000`，WSL acceptance 已通过 | 数据可以进入 inverse 实现与训练准备 |
+| full-cell forward surrogate | **not trained**；截至 2026-08-06 没有 102 个正式训练 run、三 seed 冻结 checkpoint 或 validation 排名 | Stage A 可先做；Stage B、候选排序和 inverse MPB replay 均 blocked |
 | 解析参数 | **data ready**；HDF5 含 `params`、`param_mask`、`family_id` 和 `structure_json` | 可以构建变体专用 codec，但不能直接把 padding 后数组当作统一输出 |
 | 通用 inverse runner | **部分可复用**；已有 retrieval、direct、single-mode、mixture、candidate health 和 replay 基础设施 | 当前只接受 `rho_wedge/rho_grid`，不能直接训练 full-cell 解析参数 |
-| full-cell codec / 可微解析解码器 | **core implemented**；五变体 hard/soft codec 与真实 10k train-only 宽度检查已通过 | 旧 inverse runner、validation/early-stop 和 checkpoint 合同仍未接入，不得提交 45 个正式训练 run |
-| full-cell Stage-A preflight | **CPU contract passed**；真实 10k 上 15/15 cases 梯度与 checkpoint 恢复通过 | N40 batch-64 单卡配置已冻结但未执行；不等于 GPU 或正式训练证据 |
+| full-cell codec / 可微解析解码器 | **core implemented**；五变体 hard/soft codec、真实 10k train-only 宽度检查与专用 Stage-A epoch runner 已通过实现测试 | Stage B、candidate/ranker 和 replay 尚未接入；N40 gate 前不得提交 45 个正式训练 run |
+| full-cell Stage-A implementation | **runner implemented / CPU smoke passed**；真实 10k 上 15/15 single-batch 合同通过，小数据 WSL epoch/resume 测试通过 | N40 batch-64 单卡 preflight 与任何正式 epoch 训练均未执行 |
 | N40 GPU | **环境 ready**；三卡分配与单卡四模型预检已通过 | 可做 full-cell inverse 单卡与并发 preflight；尚无 inverse 正式 run |
 | N50R5 | **blocked**；`loginCluster` 权限仍被拒绝 | 不计入可用 GPU，也不能与 N40 混合 seed |
 | M9 MPB | **环境与队列 ready** | 可在单独授权后执行 replay；当前没有本计划的新 replay 作业 |
@@ -55,15 +56,17 @@
 
 ## 二、执行准入条件
 
-必须同时满足：
+各阶段按下列门禁进入，不能用后续依赖反向阻塞本来独立的 Stage A，也不能用 Stage-A 成功越过正向模型门：
 
-1. binary 与 graded continuous 的主、辅 Full-Wh surrogate 已按三 seed validation 冻结，checkpoint、模型配置和 SHA-256 齐全；
-2. 主 ranker 是该路线三 seed validation 最优的原生连续/二值 Full-Wh 模型；辅 ranker 选择架构不同且已通过校准门的次优模型；
-3. threshold proxy 模型不进入 inverse objective、ranker 或物理结论；
-4. 两套数据继续使用各自冻结的 `8000/1000/1000` split，test split 不参与 codec 统计、训练、checkpoint 选择或 validation replay；
-5. full-cell codec、hard/soft decoder、geometry hash、周期边界和 `FullCellStructureSpec` round-trip 测试通过；
-6. 单卡训练 preflight 与 18 个独立单卡任务的并发 admission/共享 HDF5 探针通过；
-7. GPU training、validation candidate generation、M9 smoke、M9 full-validation replay 和 test replay 分阶段单独授权。
+| 阶段 | 必须已经满足 | 当前状态 |
+|---|---|---|
+| Stage-A 正式训练 | 双路线 HDF5/split/哈希冻结；codec hard/soft/round-trip 通过；N40 单卡 batch-64 preflight 通过；GPU training 单独授权 | **blocked on N40 preflight authorization**；不依赖 forward checkpoint |
+| Stage-B objective bridge | 对应路线 Stage-A best checkpoint 完整；binary/graded 主、辅 Full-Wh surrogate 三 seed validation 冻结；checkpoint/config/SHA-256 齐全；Stage B 单独授权 | **blocked: forward surrogate not trained** |
+| Candidate generation/ranking | Stage-B checkpoint 过 candidate-health；主/辅 ranker 身份冻结；threshold proxy 不进入 objective/ranker/物理结论 | **blocked by Stage B and forward** |
+| 8-target inverse smoke | candidate manifest 冻结；M9 环境再次预检；预算核算并取得 M9 smoke 授权 | **not run** |
+| Full validation / test-100 | 前一级 replay 成功、失败账本完整、费用重新核算并逐级授权 | **not admitted** |
+
+两套数据继续使用各自冻结的 `8000/1000/1000` split；test split 不参与 codec 统计、Stage A/B 训练、checkpoint 选择或 validation replay。单卡训练 preflight 与 18 个独立单卡任务的并发 admission/共享 HDF5 探针也必须分别留证。
 
 主、辅 surrogate 都使用各自三个 seed checkpoint 的预测均值；三个 seed 的预测标准差作为不确定性诊断。任何一个 seed 缺失时，不得把两 seed ensemble 写成正式三 seed ranker。
 
@@ -111,7 +114,7 @@ HDF5 的 `params` 是按全数据最大宽度 padding 的原始数值表，不�
 5. 随机越界网络输出被 fail-closed 拒绝或映射回冻结物理区间；
 6. full-cell 专用配置必须显式声明 `output_repr=full_cell_analytic_params`；不得伪装成 `rho_grid` 或静默落回旧 `GenerativeInverseConfig` 路线。
 
-截至 2026-08-06，以上六项的 codec/表示核心及独立 Stage-A 单 batch CPU 合同已通过；证据见 [full-cell inverse codec 预检](../../results/inverse/full_cell_inverse_codec_preflight_20260806.md) 和 [Stage-A CPU 预检](../../results/inverse/full_cell_inverse_stage_a_cpu_preflight_20260806.md)。N40 单卡、正式 validation checkpoint 选择和 epoch runner 仍未通过，因此本节整体尚未达到 GPU training admission。
+截至 2026-08-06，以上六项的 codec/表示核心、独立 Stage-A 单 batch CPU 合同和可断点续训 epoch runner 的 WSL 小数据测试已通过；证据见 [full-cell inverse codec 预检](../../results/inverse/full_cell_inverse_codec_preflight_20260806.md)、[Stage-A CPU 预检](../../results/inverse/full_cell_inverse_stage_a_cpu_preflight_20260806.md) 和 [Stage-A runner smoke](../../results/inverse/full_cell_inverse_stage_a_runner_smoke_20260806.md)。N40 单卡与正式 validation checkpoint 选择仍未执行，因此尚未达到 GPU training admission。
 
 [↑ 回顶部](#full-cell-inverse-design-extension-plan)
 
@@ -159,6 +162,7 @@ HDF5 的 `params` 是按全数据最大宽度 padding 的原始数值表，不�
 
 **Stage B：冻结双 surrogate objective bridge**
 
+- 当前正向替代模型尚未训练，故 Stage B 的实现/执行门均保持关闭；Stage-A checkpoint 不得被写成 Stage-B ready。
 - 从 Stage-A best checkpoint warm start，最多 50 epochs；checkpoint epochs `10/30/50`；early-stopping patience 10；learning rate `1e-4`；
 - 每个条件在训练时生成 16 个 objective candidates；主、辅 Full-Wh surrogate 均冻结，只允许梯度穿过 surrogate 和 soft analytic decoder 回到 generator；
 - checkpoint 先过 candidate-health 硬门，再按 val primary bands 2–10 MRE 选择；不能按 test 或 MPB replay 反向选 checkpoint。
@@ -230,7 +234,7 @@ Retrieval 不计训练 run。Stage A/B 在一个 run 内分阶段记录，不拆
 
 N40 当前环境为 PyTorch `2.1.2+cu118` / CUDA `11.8`；N50R5 在登录权限和独立 preflight 通过前保持 blocked。环境事实与瞬时队列容量见 [GPU 全链路预检报告](../../results/data-provenance/paracloud_gpu_preflight_20260806.md)。
 
-Stage-A 的 CPU 合同已在真实双路线 10k 数据上完成 15/15 cases；N40 冻结入口为 [`configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml`](../../../configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml) 与 [`jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh`](../../../jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh)。该配置尚未在云端执行，不能据 CPU 结果推断 batch-64 显存或吞吐通过。
+Stage-A 的 CPU 合同已在真实双路线 10k 数据上完成 15/15 cases；N40 preflight 冻结入口为 [`configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml`](../../../configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml) 与 [`jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh`](../../../jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh)。正式单任务训练入口为 [`configs/research/full_cell_inverse_stage_a_train_n40_v1.yaml`](../../../configs/research/full_cell_inverse_stage_a_train_n40_v1.yaml) 与 [`jobs/paracloud_gpu_full_cell_inverse_stage_a_train.sh`](../../../jobs/paracloud_gpu_full_cell_inverse_stage_a_train.sh)，每次只接收一个 variant、method、seed 和稳定 run dir，并校验 dataset/config/codec/code identity 后恢复 optimizer。两类 N40 配置均尚未在云端执行，不能据 CPU 结果推断 batch-64 显存、吞吐或正式收敛通过。
 
 [↑ 回顶部](#full-cell-inverse-design-extension-plan)
 
@@ -287,6 +291,8 @@ Real replay 比较 `MPB(decoded_candidate)` 与目标 `Wh`。Inverse 是多解�
 ### 7.1 阶段与最大求解预算
 
 “8 targets”按原计划解释为 **每路线 8 个**：binary 8 个、graded 8 个，共 16 个目标。Smoke 使用 seed 0；完整 validation 使用全部三个训练 seed。
+
+截至 2026-08-06，正向 surrogate 尚未训练，因而本节三个 inverse replay 阶段均未获准进入。此前完成的 8 结构 WSL replay 只是 graded 数据集跨环境验收；不能跳过本节 smoke，也不能现在直接扩展到整个 validation。
 
 | 阶段 | split | 目标 | 进入的 arm | hard-MPB 最大候选数（去重前） |
 |---|---|---:|---|---:|
@@ -376,15 +382,16 @@ Full validation 冻结每路线一个 generator arm，并冻结最强 retrieval/
 
 ## 九、授权、失败与结论边界
 
-本文保持 Deferred Draft。以下阶段互不授权：
+本文保持 Draft。以下阶段互不授权：
 
 1. codec/L4 实现与 WSL 单元测试；
 2. N40 单卡及 18-job 并发 preflight；
-3. 45 个 inverse GPU training runs；
-4. validation candidate generation 与 candidate-health；
-5. M9 每路线 8-target smoke；
-6. M9 整个 validation split replay；
-7. test-100 正式 replay。
+3. 45 个 inverse Stage-A GPU training runs；
+4. 102 个 full-cell forward run 的训练、validation 排名与主/辅 surrogate 冻结；
+5. inverse Stage B、validation candidate generation 与 candidate-health；
+6. M9 每路线 8-target inverse smoke；
+7. M9 整个 validation split replay；
+8. test-100 正式 replay。
 
 任一阶段失败时保留既有成功产物并停止在当前 gate；不得自动重训、扩大 replay、修改 loss 或替换目标 manifest。前向 102-run 完成也不自动授权 inverse，GPU training 完成也不自动授权 M9。
 
@@ -397,11 +404,11 @@ Full validation 冻结每路线一个 generator arm，并冻结最强 retrieval/
 ## 十、本次调整的人工理解记录
 
 ```text
-解决了什么问题：明确 full-cell inverse 的五类参数 codec、三种训练方法、两阶段损失、45 个单卡训练 run、GPU 并发方式，以及 8-target smoke 到完整 validation 和 test-100 的 replay 路线。
-为什么采用这个方案：解析参数维度和固定字段因变体而异，必须分变体训练；N40 可并发独立单卡任务，M9 只做 hard candidate 的 real-MPB，二者通过冻结 manifest/hash 交接。
-改变了项目哪一层/哪一模块：主要改变 L3 实验/证据协议；未来 L4 只实现 codec、可微 soft decoder、full-cell inverse 数据适配与 replay 接口。
-使用什么证据验证：当前 HDF5 schema/参数宽度、现有 inverse runner/config、历史 A2 方法与 replay 边界、N40/M9 环境预检，以及仓库的 WSL/制品治理规则。
-最大风险、未知或下一 gate：full-cell codec 与 Stage-A CPU 合同已实现，但 N40 单卡/18-job admission、正式训练、Stage B 和 8-target inverse smoke 均未执行；full-validation replay 上限约 170,000 个 hard candidates，必须在 smoke 后重新核算 M9 费用并人工授权。
+解决了什么问题：明确 full-cell inverse 的五类参数 codec、三种训练方法、两阶段损失、45 个单卡训练 run、GPU 并发方式，以及 8-target smoke 到完整 validation 和 test-100 的 replay 路线；同时把 Stage A 与尚未训练的正向 surrogate 解耦。
+为什么采用这个方案：解析参数维度和固定字段因变体而异，必须分变体训练；Stage A 只需真实配对标签，Stage B/ranking 才依赖冻结 forward；N40 可并发独立单卡任务，M9 只做 hard candidate 的 real-MPB，二者通过冻结 manifest/hash 交接。
+改变了项目哪一层/哪一模块：主要改变 L3 实验/证据协议，并完成 L4 Stage-A epoch runner、断点续训、训练曲线与 N40 单任务入口；Stage B 和 replay 接口仍未实现。
+使用什么证据验证：当前 HDF5 schema/参数宽度、真实 10k CPU preflight、小数据 WSL epoch/resume 测试、历史 A2 方法与 replay 边界、N40/M9 环境预检，以及仓库的 WSL/制品治理规则。
+最大风险、未知或下一 gate：正向 102-run 尚未训练；inverse N40 单卡/18-job admission、45 个 Stage-A 正式 run、Stage B 和 8-target inverse smoke 均未执行；full-validation replay 上限约 170,000 个 hard candidates，必须在 smoke 后重新核算 M9 费用并人工授权。
 ```
 
 [↑ 回顶部](#full-cell-inverse-design-extension-plan)

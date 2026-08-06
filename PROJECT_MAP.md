@@ -52,7 +52,7 @@
 ## 当前最重要的未解决问题
 
 - N50R5 登录仍被平台 `loginCluster` 权限拒绝；当前正式训练可使用已通过三卡分配验证的 N40 作为同型号 GPU 路线。
-- 主模型与 inverse 尚未在全胞、多形态、全 BZ 数据上重建系统基准；inverse codec/单 batch runner 合同已实现，但仍需 N40 单卡、validation epoch runner 和 soft-surrogate Stage B。
+- 主模型与 inverse 尚未在全胞、多形态、全 BZ 数据上重建系统基准；full-cell forward 102-run 尚未训练。inverse codec、单 batch 合同和可断点续训 Stage-A epoch runner 已实现，但仍需 N40 单卡/并发 admission、45 个正式 Stage-A run，以及在 forward 冻结后的 soft-surrogate Stage B。
 - inverse 缺 seeds 1/2 和满足 candidate-health/Top-5 coverage 的中立候选池。
 - adapted PINO 尚未通过修正指标、residual–frequency、dense-k 与跨分辨率门。
 - OOD、cross-dataset、cross-surrogate 统计和失败分析仍不完整。
@@ -61,7 +61,7 @@
 
 1. **P0：人工授权三 seed 正式训练**；数据门与 N40 单卡预检已通过，授权后按 seed 0/1/2 固定到三张同型号 GPU，禁止跨站点 DDP。
 2. **P0：建立双路线全胞基准**；按冻结计划同预算比较二值/渐变及其表征，正式 run 与预检证据分开。
-3. **P0：推进 full-cell inverse GPU admission**；授权并执行 N40 15-case 单卡与 18-job 并发 preflight，再实现 validation epoch runner、Stage B 和跨 seed 候选池。
+3. **P0：推进 full-cell inverse GPU admission**；授权并执行 N40 15-case 单卡与 18-job 并发 preflight，再运行已实现的 Stage-A epoch runner；Stage B 和跨 seed 候选池必须等待 full-cell forward 主/辅 surrogate 训练、验收并冻结。
 4. **P1：重做 Field/PINO 校准**；任一 frequency、dense-k、跨分辨率或 residual–error 门失败即保持 blocked。
 5. **P1：汇总 OOD / cross-dataset / cross-surrogate**；统一报告统计量、运行时间、失败案例和 surrogate–replay gap。
 
