@@ -230,7 +230,7 @@ Retrieval 不计训练 run。Stage A/B 在一个 run 内分阶段记录，不拆
 
 N40 当前环境为 PyTorch `2.1.2+cu118` / CUDA `11.8`；N50R5 在登录权限和独立 preflight 通过前保持 blocked。环境事实与瞬时队列容量见 [GPU 全链路预检报告](../../results/data-provenance/paracloud_gpu_preflight_20260806.md)。
 
-Stage-A 的 CPU 合同已在真实双路线 10k 数据上完成 15/15 cases；N40 冻结入口为 [`configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml`](../../../configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml)。该配置尚未在云端执行，不能据 CPU 结果推断 batch-64 显存或吞吐通过。
+Stage-A 的 CPU 合同已在真实双路线 10k 数据上完成 15/15 cases；N40 冻结入口为 [`configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml`](../../../configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml) 与 [`jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh`](../../../jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh)。该配置尚未在云端执行，不能据 CPU 结果推断 batch-64 显存或吞吐通过。
 
 [↑ 回顶部](#full-cell-inverse-design-extension-plan)
 
