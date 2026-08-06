@@ -41,9 +41,7 @@ fi
 
 module purge >/dev/null 2>&1 || true
 module load "$PHC2D_CUDA_MODULE"
-set +u
-source "$PHC2D_ENV/bin/activate"
-set -u
+export PATH="$PHC2D_ENV/bin:$PATH"
 export PYTHONPATH="$PHC2D_ROOT/src"
 export PHC2D_CLUSTER_ID="paracloud_${PHC2D_GPU_PLATFORM}"
 export PHC2D_DEPLOYED_GIT_COMMIT="$(tr -d '[:space:]' < "$PHC2D_ROOT/DEPLOYED_GIT_COMMIT")"
