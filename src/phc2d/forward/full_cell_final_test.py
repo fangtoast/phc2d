@@ -114,6 +114,20 @@ def _metrics(target: np.ndarray, prediction: np.ndarray) -> dict[str, float]:
     }
 
 
+def _bootstrap_mean_ci(values: np.ndarray, *, indices: np.ndarray) -> tuple[float, float, float]:
+    """Return mean and percentile CI using caller-frozen resample indices."""
+
+    sample_values = np.asarray(values, dtype=np.float64)
+    if sample_values.ndim != 1 or indices.ndim != 2 or indices.shape[1] != sample_values.shape[0]:
+        raise ValueError("bootstrap inputs must be one-dimensional samples and a matching 2D index matrix")
+    bootstrap_means = np.mean(sample_values[indices], axis=1)
+    return (
+        float(np.mean(sample_values)),
+        float(np.quantile(bootstrap_means, 0.025)),
+        float(np.quantile(bootstrap_means, 0.975)),
+    )
+
+
 def run_full_cell_final_test(
     final_selection: str | Path,
     *,
@@ -173,6 +187,10 @@ def run_full_cell_final_test(
 
     device_info = resolve_device(DeviceConfig(device=device, require_accelerator=device.startswith("cuda"), precision="fp32", num_workers=4, pin_memory=True), torch_module=torch)
     result_rows: list[dict[str, Any]] = []
+    per_band_rows: list[dict[str, Any]] = []
+    per_k_rows: list[dict[str, Any]] = []
+    per_sample_errors: dict[tuple[str, str], list[np.ndarray]] = {}
+    sample_ids_by_configuration: dict[tuple[str, str], np.ndarray] = {}
     total_inference = 0.0
     for final in final_rows:
         representation = final["representation"]
@@ -234,6 +252,35 @@ def run_full_cell_final_test(
                     "inference_time_s": elapsed,
                 }
             )
+            relative_error = 100.0 * np.abs(prediction - target) / np.maximum(np.abs(target), 1.0e-8)
+            for band_index, value in enumerate(np.mean(relative_error, axis=(0, 1)), start=1):
+                per_band_rows.append(
+                    {
+                        "lane": final["lane"],
+                        "representation": representation,
+                        "model": model_name,
+                        "resolution": resolution,
+                        "seed": seed,
+                        "band_index": band_index,
+                        "mre_pct": float(value),
+                    }
+                )
+            for k_index, value in enumerate(np.mean(relative_error[..., 1:], axis=(0, 2))):
+                per_k_rows.append(
+                    {
+                        "lane": final["lane"],
+                        "representation": representation,
+                        "model": model_name,
+                        "resolution": resolution,
+                        "seed": seed,
+                        "k_index": k_index,
+                        "mre_bands_2_10_pct": float(value),
+                    }
+                )
+            per_sample_errors.setdefault((final["lane"], representation), []).append(
+                np.mean(relative_error[..., 1:], axis=(1, 2))
+            )
+            sample_ids_by_configuration[(final["lane"], representation)] = sample_ids.copy()
             prediction_by_seed[seed] = prediction
         assert target_reference is not None
         np.savez_compressed(
@@ -248,6 +295,8 @@ def run_full_cell_final_test(
         logger.info("completed final test for %s/%s/r%d", final["lane"], representation, resolution)
     _write_csv(out / "history.csv", result_rows)
     _write_csv(out / "test_seed_metrics.csv", result_rows)
+    _write_csv(out / "test_per_band.csv", per_band_rows)
+    _write_csv(out / "test_per_k.csv", per_k_rows)
     summary_rows: list[dict[str, Any]] = []
     for final in final_rows:
         relevant = [row for row in result_rows if row["lane"] == final["lane"] and row["representation"] == final["representation"]]
@@ -266,6 +315,57 @@ def run_full_cell_final_test(
         )
     _write_csv(out / "test_summary.csv", summary_rows)
 
+    bootstrap_rows: list[dict[str, Any]] = []
+    bootstrap_count = 2_000
+    seed_sequence = np.random.SeedSequence(20260806)
+    configuration_keys = sorted(per_sample_errors)
+    child_sequences = seed_sequence.spawn(len(configuration_keys) + 1)
+    mean_error_by_configuration: dict[tuple[str, str], np.ndarray] = {}
+    for child_sequence, key in zip(child_sequences, configuration_keys):
+        values = np.mean(np.stack(per_sample_errors[key], axis=0), axis=0)
+        mean_error_by_configuration[key] = values
+        rng = np.random.default_rng(child_sequence)
+        indices = rng.integers(0, values.size, size=(bootstrap_count, values.size))
+        estimate, ci_low, ci_high = _bootstrap_mean_ci(values, indices=indices)
+        bootstrap_rows.append(
+            {
+                "comparison": "configuration_mean",
+                "lane": key[0],
+                "left_representation": key[1],
+                "right_representation": "",
+                "estimate_mre_pct_points": estimate,
+                "ci95_low": ci_low,
+                "ci95_high": ci_high,
+                "sample_count": values.size,
+                "bootstrap_replicates": bootstrap_count,
+                "paired": False,
+            }
+        )
+    graded_keys = [key for key in configuration_keys if key[0] == "graded"]
+    if len(graded_keys) == 2:
+        left, right = sorted(graded_keys, key=lambda key: key[1] != "continuous")
+        if not np.array_equal(sample_ids_by_configuration[left], sample_ids_by_configuration[right]):
+            raise RuntimeError("graded final configurations do not share identical test sample order")
+        difference = mean_error_by_configuration[left] - mean_error_by_configuration[right]
+        rng = np.random.default_rng(child_sequences[-1])
+        indices = rng.integers(0, difference.size, size=(bootstrap_count, difference.size))
+        estimate, ci_low, ci_high = _bootstrap_mean_ci(difference, indices=indices)
+        bootstrap_rows.append(
+            {
+                "comparison": "paired_difference",
+                "lane": "graded",
+                "left_representation": left[1],
+                "right_representation": right[1],
+                "estimate_mre_pct_points": estimate,
+                "ci95_low": ci_low,
+                "ci95_high": ci_high,
+                "sample_count": difference.size,
+                "bootstrap_replicates": bootstrap_count,
+                "paired": True,
+            }
+        )
+    _write_csv(out / "paired_bootstrap_ci.csv", bootstrap_rows)
+
     import matplotlib.pyplot as plt
 
     figure, axis = plt.subplots(figsize=(8, 4.8))
@@ -278,7 +378,14 @@ def run_full_cell_final_test(
     for suffix in ("png", "pdf"):
         figure.savefig(out / "figures" / f"final_test_comparison.{suffix}", dpi=180)
     plt.close(figure)
-    metrics_payload = {"final_configuration_count": 3, "seed_evaluations": 9, "inference_time_total_s": total_inference}
+    metrics_payload = {
+        "final_configuration_count": 3,
+        "seed_evaluations": 9,
+        "per_band_rows": len(per_band_rows),
+        "per_k_rows": len(per_k_rows),
+        "bootstrap_rows": len(bootstrap_rows),
+        "inference_time_total_s": total_inference,
+    }
     write_metrics(out, metrics_payload)
     write_results(
         out,
@@ -328,4 +435,4 @@ if __name__ == "__main__":
     main()
 
 
-__all__ = ["resolve_final_run_dirs", "run_full_cell_final_test"]
+__all__ = ["_bootstrap_mean_ci", "resolve_final_run_dirs", "run_full_cell_final_test"]

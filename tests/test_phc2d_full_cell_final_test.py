@@ -1,11 +1,13 @@
-"""Tests for final full-cell checkpoint routing.
+"""Tests for final full-cell checkpoint routing and frozen statistics.
 
 Author: fangtoast
 Email: fangtoast@foxmail.com
 Copyright (c) 2026 fangtoast. All rights reserved.
 """
 
-from phc2d.forward.full_cell_final_test import resolve_final_run_dirs
+import numpy as np
+
+from phc2d.forward.full_cell_final_test import _bootstrap_mean_ci, resolve_final_run_dirs
 
 
 def test_resolve_final_run_dirs_routes_main_and_ablation_checkpoints() -> None:
@@ -28,3 +30,14 @@ def test_resolve_final_run_dirs_routes_main_and_ablation_checkpoints() -> None:
     assert resolved[("binary", 2)] == "binary_s2"
     assert resolved[("continuous", 1)] == "continuous_r32_s1"
     assert resolved[("t05", 0)] == "t05_r128_s0"
+
+
+def test_bootstrap_mean_ci_uses_frozen_resample_indices() -> None:
+    values = np.asarray([1.0, 2.0, 3.0])
+    indices = np.asarray([[0, 0, 0], [0, 1, 2], [2, 2, 2]])
+
+    estimate, low, high = _bootstrap_mean_ci(values, indices=indices)
+
+    assert estimate == 2.0
+    assert low == 1.05
+    assert high == 2.95
