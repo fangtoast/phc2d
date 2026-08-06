@@ -36,6 +36,7 @@
 
 ## Forward results
 
+- [`forward/full_cell_dual_lane_forward_training_20260806.md`](forward/full_cell_dual_lane_forward_training_20260806.md)：全胞双路线 102/102 正式训练、576-cell 交叉评估、分辨率冻结与冻结后 test；threshold real-MPB 未执行。
 - [`forward/a1_forward_query_fair_v1_20260726.md`](forward/a1_forward_query_fair_v1_20260726.md)：A1 10k V2 Forward/Query 三 seed 公平协议结果。
 
 <a id="query-results"></a>
