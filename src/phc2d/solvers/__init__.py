@@ -25,6 +25,7 @@ from phc2d.solvers.full_cell import (
     build_full_cell_material_function,
     solve_bands_for_full_cell_mpb,
     solve_circular_air_hole_mpb,
+    solve_eigenfield_for_full_cell_mpb,
     solve_uniform_medium_mpb,
 )
 
@@ -41,6 +42,7 @@ __all__ = [
     "solve_bands_for_rho_mpb",
     "solve_bands_for_full_cell_mpb",
     "solve_circular_air_hole_mpb",
+    "solve_eigenfield_for_full_cell_mpb",
     "solve_eigenfield_bundle_for_rho_mpb",
     "solve_eigenfield_multiband_bundle_for_rho_mpb",
     "solve_eigenfield_for_rho_mpb",
