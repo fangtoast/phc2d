@@ -145,6 +145,11 @@ def test_stage_a_cpu_preflight_writes_15_complete_cases(tiny_full_cell_routes, t
     pytest.importorskip("torch")
     config = {
         "experiment": {"experiment_id": "full_cell_inverse_stage_a_unit"},
+        "representation": {
+            "condition_target": "Wh",
+            "output_repr": "full_cell_analytic_params",
+            "condition_normalization": "route_train_per_k_band",
+        },
         "datasets": {
             "binary": {"path": str(tiny_full_cell_routes["binary"])},
             "graded": {"path": str(tiny_full_cell_routes["graded"])},

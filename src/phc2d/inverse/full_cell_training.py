@@ -329,6 +329,15 @@ def _load_config(path: Path) -> dict[str, Any]:
 
 def _validated_config(config: Mapping[str, Any]) -> dict[str, Any]:
     payload = dict(config)
+    representation = dict(payload.get("representation") or {})
+    if representation.get("condition_target") != "Wh":
+        raise ValueError("representation.condition_target must be Wh")
+    if representation.get("output_repr") != "full_cell_analytic_params":
+        raise ValueError("representation.output_repr must be full_cell_analytic_params")
+    if representation.get("condition_normalization") != "route_train_per_k_band":
+        raise ValueError(
+            "representation.condition_normalization must be route_train_per_k_band"
+        )
     datasets = dict(payload.get("datasets") or {})
     if set(datasets) != {"binary", "graded"}:
         raise ValueError("datasets must define exactly binary and graded routes")

@@ -8,6 +8,11 @@ experiment:
   stage: inverse_full_cell_stage_a_preflight
   validation_boundary: cpu_contract_only_no_formal_training_no_mpb
 
+representation:
+  condition_target: Wh
+  output_repr: full_cell_analytic_params
+  condition_normalization: route_train_per_k_band
+
 datasets:
   binary:
     path: data/full_cell_binary_bz9_10000_xingyi_v1.h5
