@@ -39,6 +39,7 @@
 | 解析参数 | **data ready**；HDF5 含 `params`、`param_mask`、`family_id` 和 `structure_json` | 可以构建变体专用 codec，但不能直接把 padding 后数组当作统一输出 |
 | 通用 inverse runner | **部分可复用**；已有 retrieval、direct、single-mode、mixture、candidate health 和 replay 基础设施 | 当前只接受 `rho_wedge/rho_grid`，不能直接训练 full-cell 解析参数 |
 | full-cell codec / 可微解析解码器 | **core implemented**；五变体 hard/soft codec 与真实 10k train-only 宽度检查已通过 | 旧 inverse runner、validation/early-stop 和 checkpoint 合同仍未接入，不得提交 45 个正式训练 run |
+| full-cell Stage-A preflight | **CPU contract passed**；真实 10k 上 15/15 cases 梯度与 checkpoint 恢复通过 | N40 batch-64 单卡配置已冻结但未执行；不等于 GPU 或正式训练证据 |
 | N40 GPU | **环境 ready**；三卡分配与单卡四模型预检已通过 | 可做 full-cell inverse 单卡与并发 preflight；尚无 inverse 正式 run |
 | N50R5 | **blocked**；`loginCluster` 权限仍被拒绝 | 不计入可用 GPU，也不能与 N40 混合 seed |
 | M9 MPB | **环境与队列 ready** | 可在单独授权后执行 replay；当前没有本计划的新 replay 作业 |
@@ -108,9 +109,9 @@ HDF5 的 `params` 是按全数据最大宽度 padding 的原始数值表，不�
 3. 所有固定字段逐项相同，辅助字段的重算规则可追溯；
 4. soft decoder 对活动参数梯度有限且非零，hard decoder 输出全部合法；
 5. 随机越界网络输出被 fail-closed 拒绝或映射回冻结物理区间；
-6. 当前 `GenerativeInverseConfig.output_repr` 扩展为明确的 `full_cell_analytic_params`，不得伪装成 `rho_grid`。
+6. full-cell 专用配置必须显式声明 `output_repr=full_cell_analytic_params`；不得伪装成 `rho_grid` 或静默落回旧 `GenerativeInverseConfig` 路线。
 
-截至 2026-08-06，以上第 1～5 项的 codec 核心已在生成结构与真实 10k HDF5 上通过；证据见 [full-cell inverse codec 预检](../../results/inverse/full_cell_inverse_codec_preflight_20260806.md)。第 6 项及正式 runner 数据适配、validation checkpoint 选择仍未完成，因此本节整体尚未达到 GPU training admission。
+截至 2026-08-06，以上六项的 codec/表示核心及独立 Stage-A 单 batch CPU 合同已通过；证据见 [full-cell inverse codec 预检](../../results/inverse/full_cell_inverse_codec_preflight_20260806.md) 和 [Stage-A CPU 预检](../../results/inverse/full_cell_inverse_stage_a_cpu_preflight_20260806.md)。N40 单卡、正式 validation checkpoint 选择和 epoch runner 仍未通过，因此本节整体尚未达到 GPU training admission。
 
 [↑ 回顶部](#full-cell-inverse-design-extension-plan)
 
@@ -228,6 +229,8 @@ Retrieval 不计训练 run。Stage A/B 在一个 run 内分阶段记录，不拆
 6. M9 只运行 hard analytic candidates 的 MPB，不参与训练、反向传播或跨站点 DDP。
 
 N40 当前环境为 PyTorch `2.1.2+cu118` / CUDA `11.8`；N50R5 在登录权限和独立 preflight 通过前保持 blocked。环境事实与瞬时队列容量见 [GPU 全链路预检报告](../../results/data-provenance/paracloud_gpu_preflight_20260806.md)。
+
+Stage-A 的 CPU 合同已在真实双路线 10k 数据上完成 15/15 cases；N40 冻结入口为 [`configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml`](../../../configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml)。该配置尚未在云端执行，不能据 CPU 结果推断 batch-64 显存或吞吐通过。
 
 [↑ 回顶部](#full-cell-inverse-design-extension-plan)
 
@@ -398,7 +401,7 @@ Full validation 冻结每路线一个 generator arm，并冻结最强 retrieval/
 为什么采用这个方案：解析参数维度和固定字段因变体而异，必须分变体训练；N40 可并发独立单卡任务，M9 只做 hard candidate 的 real-MPB，二者通过冻结 manifest/hash 交接。
 改变了项目哪一层/哪一模块：主要改变 L3 实验/证据协议；未来 L4 只实现 codec、可微 soft decoder、full-cell inverse 数据适配与 replay 接口。
 使用什么证据验证：当前 HDF5 schema/参数宽度、现有 inverse runner/config、历史 A2 方法与 replay 边界、N40/M9 环境预检，以及仓库的 WSL/制品治理规则。
-最大风险、未知或下一 gate：full-cell codec 和 8-target inverse smoke 均未实现/执行；full-validation replay 上限约 170,000 个 hard candidates，必须在 smoke 后重新核算 M9 费用并人工授权。
+最大风险、未知或下一 gate：full-cell codec 与 Stage-A CPU 合同已实现，但 N40 单卡/18-job admission、正式训练、Stage B 和 8-target inverse smoke 均未执行；full-validation replay 上限约 170,000 个 hard candidates，必须在 smoke 后重新核算 M9 费用并人工授权。
 ```
 
 [↑ 回顶部](#full-cell-inverse-design-extension-plan)

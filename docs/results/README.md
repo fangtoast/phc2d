@@ -72,6 +72,7 @@
 | [`inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md`](inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md) | Objective-Bridge seed0 证据 |
 | [`inverse/a2_inverse_surrogate_postrepair_validation_v2_20260802.md`](inverse/a2_inverse_surrogate_postrepair_validation_v2_20260802.md) | surrogate 修复后候选健康与 pilot 验证 |
 | [`inverse/full_cell_inverse_codec_preflight_20260806.md`](inverse/full_cell_inverse_codec_preflight_20260806.md) | 五变体 analytic codec、hard/soft decoder 与真实 10k train-split 合同预检；尚非训练/replay 证据 |
+| [`inverse/full_cell_inverse_stage_a_cpu_preflight_20260806.md`](inverse/full_cell_inverse_stage_a_cpu_preflight_20260806.md) | 真实双路线 10k 上的 15-case Stage-A CPU 合同预检；N40 正式单卡执行尚待授权 |
 
 阅读 inverse 文档时必须保留 seed、目标数、候选池、Top-K、surrogate 与 replay 层级；单 seed pilot 不能升级为跨 seed 或普遍 superiority。
 
