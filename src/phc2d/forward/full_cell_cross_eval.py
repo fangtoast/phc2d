@@ -205,22 +205,30 @@ def run_full_cell_cross_evaluation(
     rows: list[dict[str, Any]] = []
     started = time.perf_counter()
     cells = planned_cross_evaluation_cells()
+    cached_source_key: tuple[str, str, int] | None = None
+    model: Any | None = None
+    mean: Any | None = None
+    std: Any | None = None
     for cell_index, (source, target, model_name, seed) in enumerate(cells, start=1):
-        run = runs[(source, model_name, seed)]
-        checkpoint_path = run / "model.pt"
-        try:
-            checkpoint = torch.load(checkpoint_path, map_location=device_info.torch_device, weights_only=True)
-        except TypeError:
-            checkpoint = torch.load(checkpoint_path, map_location=device_info.torch_device)
-        model = build_model(
-            model_name,
-            input_shape=tuple(int(v) for v in checkpoint["input_shape"]),
-            output_shape=tuple(int(v) for v in checkpoint["output_shape"]),
-            **dict(checkpoint["model_params"]),
-        ).to(device_info.torch_device)
-        model.load_state_dict(checkpoint["state_dict"])
-        mean = checkpoint["target_mean"].to(device_info.torch_device)
-        std = checkpoint["target_std"].to(device_info.torch_device)
+        source_key = (source, model_name, seed)
+        if source_key != cached_source_key:
+            run = runs[source_key]
+            checkpoint_path = run / "model.pt"
+            try:
+                checkpoint = torch.load(checkpoint_path, map_location=device_info.torch_device, weights_only=True)
+            except TypeError:
+                checkpoint = torch.load(checkpoint_path, map_location=device_info.torch_device)
+            model = build_model(
+                model_name,
+                input_shape=tuple(int(v) for v in checkpoint["input_shape"]),
+                output_shape=tuple(int(v) for v in checkpoint["output_shape"]),
+                **dict(checkpoint["model_params"]),
+            ).to(device_info.torch_device)
+            model.load_state_dict(checkpoint["state_dict"])
+            mean = checkpoint["target_mean"].to(device_info.torch_device)
+            std = checkpoint["target_std"].to(device_info.torch_device)
+            cached_source_key = source_key
+        assert model is not None and mean is not None and std is not None
         target_cfg = target_contracts[target]
         layout = "flat" if model_name in {"mlp", "res_mlp_wide"} else "image"
         dataset = _FullCellH5Dataset(
