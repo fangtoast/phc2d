@@ -62,19 +62,18 @@ for model in "${models[@]}"; do
       probe=1
       time_limit="00:10:00"
     fi
-    dependency_args=()
+    sbatch_args=(-p gpu_4090 --gres=gpu:1 -c 6 -t "$time_limit")
     if (( task_index >= wave_concurrency )) && (( task_index % wave_concurrency == 0 )); then
       previous_group_ids=("${current_group_ids[@]}")
       current_group_ids=()
     fi
     if (( task_index >= wave_concurrency )); then
       dependency="$(IFS=:; echo "${previous_group_ids[*]}")"
-      dependency_args=(--dependency="afterany:$dependency")
+      sbatch_args+=(--dependency="afterany:$dependency")
     fi
-    job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t "$time_limit" \
+    job_id="$(sbatch --parsable "${sbatch_args[@]}" \
       -J "fc_${mode}_${model}_s${seed}" \
       -o "${run_dir}.slurm.out" -e "${run_dir}.slurm.err" \
-      "${dependency_args[@]}" \
       --export="ALL,PHC2D_FORWARD_CONFIG=$config,PHC2D_FORWARD_MODEL=$model,PHC2D_FORWARD_SEED=$seed,PHC2D_FORWARD_RUN_DIR=$run_dir,PHC2D_FORWARD_ADMISSION_PROBE=$probe,PHC2D_FORWARD_THRESHOLD=$threshold" \
       jobs/paracloud_full_cell_forward.sh)"
     current_group_ids+=("$job_id")
