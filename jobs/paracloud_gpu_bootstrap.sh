@@ -45,7 +45,11 @@ else
     nvidia-nccl-cu12==2.27.5 --force-reinstall --no-deps \
     -i https://mirrors.cernet.edu.cn/pypi/web/simple
 fi
-"$PHC2D_ENV/bin/python" -m pip install --no-cache-dir \
-  numpy scipy matplotlib PyYAML h5py tqdm joblib psutil pytest
+# N40 login nodes use CentOS 7/glibc 2.17. Keep the scientific stack on
+# manylinux2014-compatible wheels and fail fast instead of compiling on login.
+"$PHC2D_ENV/bin/python" -m pip install --no-cache-dir --only-binary=:all: \
+  numpy==1.26.4 scipy==1.11.4 matplotlib==3.7.5 PyYAML==6.0.2 \
+  h5py==3.10.0 pillow==10.4.0 tqdm==4.67.1 joblib==1.4.2 \
+  psutil==5.9.8 pytest==8.3.5
 "$PHC2D_ENV/bin/python" -m pip freeze > "$PHC2D_ENV/requirements.lock.txt"
 "$PHC2D_ENV/bin/python" -c "import h5py, torch; print(torch.__version__, torch.version.cuda, h5py.__version__)"
