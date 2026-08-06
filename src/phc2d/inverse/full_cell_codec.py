@@ -147,6 +147,8 @@ class FullCellAnalyticCodec:
     transform_kinds: tuple[str, ...]
     locations: tuple[float, ...]
     scales: tuple[float, ...]
+    lower_bounds: tuple[float, ...]
+    upper_bounds: tuple[float, ...]
     fixed_parameter_names: tuple[str, ...]
     auxiliary_parameter_names: tuple[str, ...]
     template_mapping: dict[str, Any]
@@ -161,14 +163,21 @@ class FullCellAnalyticCodec:
             len(self.transform_kinds) == width
             and len(self.locations) == width
             and len(self.scales) == width
+            and len(self.lower_bounds) == width
+            and len(self.upper_bounds) == width
         ):
-            raise ValueError("learned names, transforms, locations, and scales must have equal length")
+            raise ValueError("learned names, transforms, statistics, and bounds must have equal length")
         if int(self.train_sample_count) <= 0:
             raise ValueError("train_sample_count must be positive")
         if any(kind not in {"periodic", "angle", "log_robust", "robust"} for kind in self.transform_kinds):
             raise ValueError("codec contains an unsupported transform kind")
         if any(not np.isfinite(scale) or float(scale) <= 0.0 for scale in self.scales):
             raise ValueError("codec scales must be finite and positive")
+        if any(
+            not np.isfinite(low) or not np.isfinite(high) or float(low) >= float(high)
+            for low, high in zip(self.lower_bounds, self.upper_bounds)
+        ):
+            raise ValueError("codec bounds must be finite increasing pairs")
         template = FullCellStructureSpec.from_mapping(self.template_mapping)
         if full_cell_variant_id(template) != self.variant_id:
             raise ValueError("codec template does not match variant_id")
@@ -221,6 +230,8 @@ class FullCellAnalyticCodec:
         values = np.asarray([[row[name] for name in learned] for row in mappings], dtype=np.float64)
         locations: list[float] = []
         scales: list[float] = []
+        lower_bounds: list[float] = []
+        upper_bounds: list[float] = []
         for column, kind in enumerate(kinds):
             raw = values[:, column]
             if not np.all(np.isfinite(raw)):
@@ -228,6 +239,8 @@ class FullCellAnalyticCodec:
             if kind in {"periodic", "angle"}:
                 locations.append(0.0)
                 scales.append(1.0)
+                lower_bounds.append(-0.5 if kind == "periodic" else 0.0)
+                upper_bounds.append(0.5 if kind == "periodic" else 2.0 * np.pi)
                 continue
             transformed = raw
             if kind == "log_robust":
@@ -237,6 +250,15 @@ class FullCellAnalyticCodec:
             center, scale = _robust_location_scale(transformed)
             locations.append(center)
             scales.append(scale)
+            low, high = float(np.min(raw)), float(np.max(raw))
+            margin = max(0.02 * (high - low), 1.0e-10)
+            if kind == "log_robust":
+                low = max(low - margin, np.finfo(np.float64).tiny)
+            else:
+                low -= margin
+            high += margin
+            lower_bounds.append(low)
+            upper_bounds.append(high)
 
         template = items[0].to_mapping()
         template["sample_id"] = f"codec_template_{variant_id}"
@@ -250,6 +272,8 @@ class FullCellAnalyticCodec:
             transform_kinds=kinds,
             locations=tuple(locations),
             scales=tuple(scales),
+            lower_bounds=tuple(lower_bounds),
+            upper_bounds=tuple(upper_bounds),
             fixed_parameter_names=fixed,
             auxiliary_parameter_names=auxiliary,
             template_mapping=template,
@@ -459,11 +483,13 @@ class FullCellAnalyticCodec:
 
         parameters = copy.deepcopy(base.parameters)
         cursor = 0
-        for name, kind, location, scale in zip(
+        for name, kind, location, scale, lower, upper in zip(
             self.learned_parameter_names,
             self.transform_kinds,
             self.locations,
             self.scales,
+            self.lower_bounds,
+            self.upper_bounds,
         ):
             if kind in {"periodic", "angle"}:
                 sin_value, cos_value = float(values[cursor]), float(values[cursor + 1])
@@ -477,11 +503,20 @@ class FullCellAnalyticCodec:
                 cursor += 2
             else:
                 transformed = float(values[cursor]) * float(scale) + float(location)
+                if kind == "log_robust" and not np.log(float(lower)) <= transformed <= np.log(float(upper)):
+                    raise ValueError(
+                        f"Decoded analytic parameter {name} is outside the frozen log range"
+                    )
                 decoded = float(np.exp(transformed)) if kind == "log_robust" else transformed
                 cursor += 1
             template_value = _get_path(base.parameters, name)
             if abs(decoded - template_value) <= float(snap_tolerance):
                 decoded = template_value
+            if not np.isfinite(decoded) or decoded < float(lower) or decoded > float(upper):
+                raise ValueError(
+                    f"Decoded analytic parameter {name}={decoded!r} is outside "
+                    f"the frozen range [{float(lower)}, {float(upper)}]"
+                )
             _set_path(parameters, name, decoded)
 
         parameter_vector = tuple(_get_path(parameters, name) for name in base.parameter_names)
@@ -520,6 +555,8 @@ class FullCellAnalyticCodec:
             "transform_kinds": list(self.transform_kinds),
             "locations": list(self.locations),
             "scales": list(self.scales),
+            "lower_bounds": list(self.lower_bounds),
+            "upper_bounds": list(self.upper_bounds),
             "fixed_parameter_names": list(self.fixed_parameter_names),
             "auxiliary_parameter_names": list(self.auxiliary_parameter_names),
             "train_sample_count": int(self.train_sample_count),
@@ -541,6 +578,8 @@ class FullCellAnalyticCodec:
             transform_kinds=tuple(str(item) for item in value["transform_kinds"]),
             locations=tuple(float(item) for item in value["locations"]),
             scales=tuple(float(item) for item in value["scales"]),
+            lower_bounds=tuple(float(item) for item in value["lower_bounds"]),
+            upper_bounds=tuple(float(item) for item in value["upper_bounds"]),
             fixed_parameter_names=tuple(str(item) for item in value.get("fixed_parameter_names", ())),
             auxiliary_parameter_names=tuple(str(item) for item in value.get("auxiliary_parameter_names", ())),
             template_mapping=dict(value["template_mapping"]),

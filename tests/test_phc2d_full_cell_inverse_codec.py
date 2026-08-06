@@ -178,3 +178,7 @@ def test_codec_rejects_invalid_or_cross_variant_inputs(production_structures) ->
     bad_pair[:2] = 0.0
     with pytest.raises(ValueError, match="Degenerate sin/cos pair"):
         codec.decode_structure(bad_pair, template=polar[0])
+    out_of_range = codec.encode_structure(polar[0])
+    out_of_range[-1] = 1.0e6
+    with pytest.raises(ValueError, match="outside the frozen"):
+        codec.decode_structure(out_of_range, template=polar[0])
