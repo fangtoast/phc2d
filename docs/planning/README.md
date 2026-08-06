@@ -24,7 +24,7 @@
 | 物理模型路线与当前修正 | [`0718-0801/02_physics_model_reproduction_plan.md`](0718-0801/02_physics_model_reproduction_plan.md) |
 | A0/B0 基础协议 | [`0718-0801/09_phase1_a0_b0_protocol.md`](0718-0801/09_phase1_a0_b0_protocol.md) |
 | B4 frequency / dense-k 准入 | [`0718-0801/10_b4_frequency_fidelity_dense_k_admission.md`](0718-0801/10_b4_frequency_fidelity_dense_k_admission.md) |
-| 全胞正向替代与解析参数逆向设计 | [`full_cell_forward_inverse_training/README.md`](full_cell_forward_inverse_training/README.md) |
+| 全胞双路线训练与混合算力专题 | [`full_cell_forward_inverse_training/README.md`](full_cell_forward_inverse_training/README.md) |
 
 ## 参考层
 

@@ -13,10 +13,10 @@
 |---|---|
 | Status | Superseded historical draft |
 | Primary layer | L3 experiment/evidence |
-| Superseded by | [全胞正向替代与解析参数逆向设计训练计划](../README.md) |
+| Superseded by | [全胞双路线训练与混合算力计划](../full_cell_dual_lane_hybrid_compute_plan.md) |
 | Archived | 2026-08-06 |
 
-> 本文保留旧版单 seed、确定阈值、仅正向训练方案的原始内容，仅用于决策追溯。它不再是当前执行入口，不得与新版三 seed、Bernoulli 表征及解析参数逆向设计协议混用。
+> 本文保留旧版单 seed、确定阈值、仅正向训练方案的原始内容，仅用于决策追溯。它不再是当前执行入口，不得与新版三 seed、混合算力和独立逆向扩展协议混用。
 
 ---
 
