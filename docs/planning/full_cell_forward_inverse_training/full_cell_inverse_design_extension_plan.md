@@ -38,7 +38,7 @@
 | binary/graded full-cell 10k HDF5 | **ready**；均为 `[10000,81,10]`，split 均为 `8000/1000/1000`，WSL acceptance 已通过 | 数据可以进入 inverse 实现与训练准备 |
 | 解析参数 | **data ready**；HDF5 含 `params`、`param_mask`、`family_id` 和 `structure_json` | 可以构建变体专用 codec，但不能直接把 padding 后数组当作统一输出 |
 | 通用 inverse runner | **部分可复用**；已有 retrieval、direct、single-mode、mixture、candidate health 和 replay 基础设施 | 当前只接受 `rho_wedge/rho_grid`，不能直接训练 full-cell 解析参数 |
-| full-cell codec / 可微解析解码器 | **not implemented** | 在该接口完成前不得提交 45 个正式训练 run |
+| full-cell codec / 可微解析解码器 | **core implemented**；五变体 hard/soft codec 与真实 10k train-only 宽度检查已通过 | 旧 inverse runner、validation/early-stop 和 checkpoint 合同仍未接入，不得提交 45 个正式训练 run |
 | N40 GPU | **环境 ready**；三卡分配与单卡四模型预检已通过 | 可做 full-cell inverse 单卡与并发 preflight；尚无 inverse 正式 run |
 | N50R5 | **blocked**；`loginCluster` 权限仍被拒绝 | 不计入可用 GPU，也不能与 N40 混合 seed |
 | M9 MPB | **环境与队列 ready** | 可在单独授权后执行 replay；当前没有本计划的新 replay 作业 |
@@ -109,6 +109,8 @@ HDF5 的 `params` 是按全数据最大宽度 padding 的原始数值表，不�
 4. soft decoder 对活动参数梯度有限且非零，hard decoder 输出全部合法；
 5. 随机越界网络输出被 fail-closed 拒绝或映射回冻结物理区间；
 6. 当前 `GenerativeInverseConfig.output_repr` 扩展为明确的 `full_cell_analytic_params`，不得伪装成 `rho_grid`。
+
+截至 2026-08-06，以上第 1～5 项的 codec 核心已在生成结构与真实 10k HDF5 上通过；证据见 [full-cell inverse codec 预检](../../results/inverse/full_cell_inverse_codec_preflight_20260806.md)。第 6 项及正式 runner 数据适配、validation checkpoint 选择仍未完成，因此本节整体尚未达到 GPU training admission。
 
 [↑ 回顶部](#full-cell-inverse-design-extension-plan)
 

@@ -39,7 +39,7 @@
 | 表征与任务协议 | `rho`/`epsilon`、Full-Wh、Query、Field | spec、target 与 NPZ/HDF5 schema inspection 已实现；小样本表征实验仅属诊断 | [研究计划](docs/planning/fno_generative_network_adjustment_plan_20260617.md) · [公式手册](docs/reports/phc2d_physics_data_formula_guide_20260803.md) |
 | Forward / Query | 完整能带与任意 `(band,k)` 查询 | MLP、CNN、FNO-inspired、DeepONet Query 等已实现；A1 有正式对照，尚缺全胞重训与 OOD 比较 | [A1 结果](docs/results/forward/a1_forward_query_fair_v1_20260726.md) |
 | Field / adapted PINO | TE Bloch 本征场与物理残差 | U-Net、Field FNO、adapted PINO 已实现；介电加权指标需重算，residual–frequency 门未过，inverse 准入仍 `blocked` | [指标修正](docs/results/field-physics/field_electric_metric_correction_20260803.md) · [准入结果](docs/results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md) |
-| 生成式逆向与 replay | 多候选、筛选、真实 MPB 复核 | objective-bridge 已完成 seed0 的 100-target 与 test625 replay；仅为单 seed 证据。七代理筛选仍因候选谱系和 Top-5 coverage 阻塞 | [逆向 seed0](docs/results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md) · [test625](docs/results/inverse/inverse_mpb_replay_mixture_v2_10000_test625_20260706.md) |
+| 生成式逆向与 replay | 多候选、筛选、真实 MPB 复核 | objective-bridge 已完成 seed0 的 100-target 与 test625 replay；full-cell 五变体 hard/soft analytic codec 已通过真实 10k train-split 预检，但 runner/GPU/replay 尚未准入 | [逆向 seed0](docs/results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md) · [full-cell codec](docs/results/inverse/full_cell_inverse_codec_preflight_20260806.md) |
 | 工程与证据治理 | CLI、配置、run 产物、审计 | 统一源码/配置/实验/运行结构已建立；N40 已证明可同时分配 3×RTX4090，单卡训练预检已通过；N50 登录权限仍受平台阻塞 | [GPU 准备报告](docs/results/data-provenance/paracloud_gpu_preflight_20260806.md) · [仓库约定](docs/conventions.md) |
 
 ## 当前最重要的结论
@@ -52,7 +52,7 @@
 ## 当前最重要的未解决问题
 
 - N50R5 登录仍被平台 `loginCluster` 权限拒绝；当前正式训练可使用已通过三卡分配验证的 N40 作为同型号 GPU 路线。
-- 主模型与 inverse 尚未在全胞、多形态、全 BZ 数据上重建系统基准。
+- 主模型与 inverse 尚未在全胞、多形态、全 BZ 数据上重建系统基准；inverse analytic codec 已实现，但 runner 仍需完成输出层、validation/checkpoint 和 soft-surrogate 接入。
 - inverse 缺 seeds 1/2 和满足 candidate-health/Top-5 coverage 的中立候选池。
 - adapted PINO 尚未通过修正指标、residual–frequency、dense-k 与跨分辨率门。
 - OOD、cross-dataset、cross-surrogate 统计和失败分析仍不完整。
