@@ -26,6 +26,8 @@
 
 本文仍是待人工审计的 Draft。2026-08-06 的现场证据已经确认两套数据门、N40 三卡分配与单卡训练预检通过，因此可以进入 **12 个独立单卡作业的并发扩容测试**；这不表示 12/18 卡并发已被账号 QoS 实测接受，也不表示 102 个正式训练 run 或新的 M9 任务已经启动。
 
+同日稍后，原先缺失于 M9 的 binary 10k HDF5 已补传并通过远端 SHA-256，M9 与 N40 代码静态部署统一到 `b93cc2d`。这解除文件交接缺口，但 packed Meep/MPB 计算节点 preflight 和任何新 solver 作业仍需单独授权。
+
 **目录：** [一、目标与边界](#forward-goal) · [二、数据门禁](#forward-data) · [三、表征方案](#forward-representation) · [四、模型与训练矩阵](#forward-matrix) · [五、混合算力](#forward-compute) · [六、训练协议](#forward-protocol) · [七、交叉评估](#forward-cross-eval) · [八、超算物理验证](#forward-mpb) · [九、制品与验收](#forward-acceptance) · [十、人工理解记录](#forward-human-record)
 
 ---
@@ -219,7 +221,7 @@ physical_equivalence: true | false
 | N40 软件 | **就绪** | 部署 commit `05f5776`；PyTorch `2.1.2+cu118`、CUDA `11.8`、h5py `3.10.0`、NumPy `1.26.4` | 正式 run 必须记录实际节点、driver、CUDA、PyTorch 和依赖锁文件 hash |
 | N40 数据 | **就绪** | binary/graded 两份 10k HDF5 已到位，远端 SHA-256 与本机一致 | 每个波次启动前只读复核 dataset/split hash；不得复制成每个作业一份临时训练数据 |
 | N50R5 `gpu` | **blocked** | 平台网关拒绝 `loginCluster` | 未安装环境、未分配 RTX5090、未通过 preflight，不计入本计划可用卡数 |
-| M9 `amd_m9_768` | **可用于经授权的 MPB 测试**；分区在线，快照时约 5,633 CPU 空闲 | SSH、packed Meep/MPB 环境、作业脚本和 graded 10k 数据存在；既有正式生成已完成 | 所有新 MPB preflight/pilot 仍需单独授权，不因 GPU 训练启动而自动提交 |
+| M9 `amd_m9_768` | **静态交接 ready，可用于经授权的 MPB 测试** | SSH、packed Meep/MPB 环境、作业脚本及 binary/graded 10k 数据存在且 hash 一致；代码为 `b93cc2d` | 所有新计算节点 environment preflight、MPB preflight/pilot 仍需单独授权，不因 GPU 训练启动而自动提交 |
 | 本机 WSL `meep_env` | **正式验收环境就绪** | binary/graded 10k 均已通过固定 real-MPB 跨环境验收 | 用于 checkpoint 回收复核和 MPB acceptance；Windows `.venv` 不算正式验收 |
 
 N40/N50 的平台约束分别以 [N40 文档](https://kbs.paratera.com/info/1503) 和 [N50R5 文档](https://kbs.paratera.com/info/1661) 为准。上表中的“44 张空闲”和“M9 5,633 CPU 空闲”只是检查时快照，不能写入正式结果作为长期容量承诺。

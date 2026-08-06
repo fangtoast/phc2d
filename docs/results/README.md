@@ -26,6 +26,7 @@
 |---|---|
 | [`data-provenance/gpu_environment_audit_20260618.md`](data-provenance/gpu_environment_audit_20260618.md) | GPU/环境审计，不是模型结果 |
 | [`data-provenance/paracloud_gpu_preflight_20260806.md`](data-provenance/paracloud_gpu_preflight_20260806.md) | N40 三卡分配、单卡训练预检、数据传输与 N50 阻塞边界 |
+| [`data-provenance/paracloud_m9_binary_import_and_code_sync_20260806.md`](data-provenance/paracloud_m9_binary_import_and_code_sync_20260806.md) | M9 binary 10k 补传、双数据 hash 和 N40/M9 同 commit 静态部署；未运行 MPB |
 | [`data-provenance/k_path_physical_validation_v2_1000_20260621.md`](data-provenance/k_path_physical_validation_v2_1000_20260621.md) | physical-k 路径验证 |
 | [`data-provenance/full_cell_dual_lane_pilot_20260803.md`](data-provenance/full_cell_dual_lane_pilot_20260803.md) | 全胞双路线 pilot 与收敛边界 |
 

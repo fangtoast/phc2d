@@ -43,7 +43,7 @@
 | full-cell Stage-A implementation | **runner/orchestrator implemented / CPU smoke passed**；真实 10k 上 15/15 single-batch 合同通过，小数据 WSL epoch/resume 与 18-task 波次 dry-run 通过 | N40 batch-64 单卡/并发 preflight 与任何正式 epoch 训练均未执行 |
 | N40 GPU | **环境 ready**；三卡分配与单卡四模型预检已通过 | 可做 full-cell inverse 单卡与并发 preflight；尚无 inverse 正式 run |
 | N50R5 | **blocked**；`loginCluster` 权限仍被拒绝 | 不计入可用 GPU，也不能与 N40 混合 seed |
-| M9 MPB | **环境与队列 ready** | 可在单独授权后执行 replay；当前没有本计划的新 replay 作业 |
+| M9 MPB | **static handoff ready**；binary/graded 10k 与 N40 hash 一致，代码同为 `b93cc2d`，既有 packed MPB 环境已保留 | 仍须经授权的计算节点 environment preflight；当前没有合法 candidate manifest 或本计划的新 replay 作业 |
 | full-cell inverse 8-target smoke | **not run** | 不能把历史 V2 inverse replay 或数据集 WSL acceptance 当作本计划 smoke |
 
 此前完成的“8 个结构”是 graded 10k 数据的 WSL 跨环境验收，用于确认集群生成的原始标签可复现。它没有生成 inverse candidates，也没有比较 `MPB(candidate)` 与目标 `Wh`，因此 **不等于本计划的 8-target inverse smoke**。历史 A2/V2 的 smoke、20-target 或 test625 replay 使用不同数据、参数空间与 checkpoint，同样只能作为方法经验，不能顶替 full-cell gate。
