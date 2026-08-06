@@ -25,15 +25,15 @@
 
 | 优先级 | 文档 | 状态 | 负责内容 |
 |---|---|---|---|
-| 当前主计划 | [全胞双路线训练与混合算力计划](full_cell_dual_lane_hybrid_compute_plan.md) | Draft | 连续/五阈值表征、三 seed、102 个训练 run、三张租用 GPU、阈值 real-MPB 验证 |
-| 后续扩展 | [全胞解析参数逆向设计扩展计划](full_cell_inverse_design_extension_plan.md) | Deferred Draft | 解析参数生成、候选健康门、双 surrogate 筛选与 8→20→100 replay |
+| 当前主计划 | [全胞双路线训练与混合算力计划](full_cell_dual_lane_hybrid_compute_plan.md) | Draft | 连续/五阈值表征、三 seed、102 个训练 run、12-job GPU 波次、阈值 real-MPB 验证 |
+| 后续扩展 | [全胞解析参数逆向设计扩展计划](full_cell_inverse_design_extension_plan.md) | Deferred Draft | 解析参数 codec、45 个 inverse GPU run、候选健康门与 8-target smoke→full validation→test-100 replay |
 | 历史草案 | [旧版单 seed 正向计划](archive/full_cell_forward_single_seed_legacy.md) | Superseded | 仅用于决策追溯，不得作为执行入口 |
 
 ## 二、执行顺序
 
 1. 人工审计并冻结前向主计划。
 2. 完成渐进数据 WSL acceptance 和单卡租用 preflight。
-3. 单独授权三张云 GPU，执行 84 个主训练 run。
+3. 单独授权 N40 GPU 波次，执行 84 个主训练 run。
 4. 冻结三个胜出配置后，执行 18 个分辨率消融 run。
 5. 若阈值代理值得继续，单独授权 M9 进行阈值真实物理验证。
 6. 前向证据完整后，重新审计并决定是否启动 inverse 扩展计划。
