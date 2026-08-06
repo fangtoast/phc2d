@@ -6,6 +6,17 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 """
 
 from phc2d.inverse.config import DispersionInverseConfig, GenerativeInverseConfig
+from phc2d.inverse.full_cell_codec import (
+    FULL_CELL_ANALYTIC_CODEC_VERSION,
+    FULL_CELL_ANALYTIC_OUTPUT_REPR,
+    FULL_CELL_VARIANTS,
+    FullCellAnalyticCodec,
+    fit_full_cell_analytic_codecs,
+    fit_full_cell_analytic_codecs_from_hdf5,
+    full_cell_variant_id,
+    load_full_cell_analytic_codecs,
+    save_full_cell_analytic_codecs,
+)
 from phc2d.inverse.candidates import (
     CandidateBatch,
     GenerativeInverseAdapter,
@@ -45,6 +56,10 @@ __all__ = [
     "DispersionInverseConfig",
     "GenerativeInverseAdapter",
     "GenerativeInverseConfig",
+    "FULL_CELL_ANALYTIC_CODEC_VERSION",
+    "FULL_CELL_ANALYTIC_OUTPUT_REPR",
+    "FULL_CELL_VARIANTS",
+    "FullCellAnalyticCodec",
     "SurrogatePredictor",
     "SurrogateRankingResult",
     "binary_morphology_metrics",
@@ -52,6 +67,9 @@ __all__ = [
     "candidate_morphology_metrics",
     "diversity_hamming",
     "fill_fraction",
+    "fit_full_cell_analytic_codecs",
+    "fit_full_cell_analytic_codecs_from_hdf5",
+    "full_cell_variant_id",
     "mean_relative_error",
     "morphology_score",
     "nearest_neighbor_hamming",
@@ -59,6 +77,8 @@ __all__ = [
     "nearest_neighbor_hamming_stats",
     "separated_candidate_indices",
     "rank_candidates",
+    "load_full_cell_analytic_codecs",
+    "save_full_cell_analytic_codecs",
     "unique_rate",
     "validity_rate",
     "run_inverse_eval",
