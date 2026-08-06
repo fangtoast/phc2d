@@ -14,11 +14,13 @@ case "$PHC2D_GPU_PLATFORM" in
   n40)
     module load miniforge/24.1.2
     PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu118}"
+    PHC2D_CUDA_MODULE="${PHC2D_CUDA_MODULE:-cuda/11.8}"
     TORCH_WHEEL="${TORCH_WHEEL:-/data/apps_4090/pytorch/2.1.2_cu118_cp310/torch-2.1.2+cu118-cp310-cp310-linux_x86_64.whl}"
     ;;
   n50)
     module load miniforge/25.3.0-3
     PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu128}"
+    PHC2D_CUDA_MODULE="${PHC2D_CUDA_MODULE:-cuda/12.8}"
     TORCH_VERSION=2.7.1
     TORCH_INDEX=https://download.pytorch.org/whl/cu128
     ;;
@@ -52,4 +54,5 @@ fi
   h5py==3.10.0 pillow==10.4.0 tqdm==4.67.1 joblib==1.4.2 \
   psutil==5.9.8 pytest==8.3.5
 "$PHC2D_ENV/bin/python" -m pip freeze > "$PHC2D_ENV/requirements.lock.txt"
+module load "$PHC2D_CUDA_MODULE"
 "$PHC2D_ENV/bin/python" -c "import h5py, torch; print(torch.__version__, torch.version.cuda, h5py.__version__)"
