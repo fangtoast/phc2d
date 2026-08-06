@@ -13,6 +13,7 @@
 
 - [`full_cell_dual_lane_data.md`](full_cell_dual_lane_data.md)：非 p4m 全胞双路线 real-MPB 数据协议。
 - [`full_cell_graded_paracloud_m9.md`](full_cell_graded_paracloud_m9.md)：M9 渐变 10k 生成与 WSL 跨环境验收合同。
+- [`full_cell_dual_lane_50000_xingyi.md`](full_cell_dual_lane_50000_xingyi.md)：Xingyi 二值/连续各 50k 的计划冻结、双节点提交、恢复与 WSL 验收合同。
 - [`full_cell_dual_lane_sample_gallery.md`](full_cell_dual_lane_sample_gallery.md)：可追溯样本图册。
 - [`representation_ablation.md`](representation_ablation.md)：输入表示消融。
 - [`inverse_scale_preflight.md`](inverse_scale_preflight.md)：扩容前的资源、数据与 gate 预检。

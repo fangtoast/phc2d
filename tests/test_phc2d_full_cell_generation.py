@@ -26,7 +26,11 @@ from phc2d.data.cluster_deployment import (
 )
 from phc2d.data.full_cell_acceptance import run_cluster_wsl_acceptance, run_xingyi_binary_wsl_acceptance
 from phc2d.data.full_cell import FullCellStructureSpec, load_full_cell_hdf5
-from phc2d.data.full_cell_generation import run_full_cell_generation, write_combined_full_cell_manifest
+from phc2d.data.full_cell_generation import (
+    prepare_full_cell_sample_plan,
+    run_full_cell_generation,
+    write_combined_full_cell_manifest,
+)
 from phc2d.data.xingyi_deployment import prepare_xingyi_benchmark_plan, select_xingyi_worker_count
 
 
@@ -134,6 +138,45 @@ def test_injected_solver_writes_complete_but_unaccepted_smoke_run(tmp_path: Path
     assert provenance["acceptance_eligible"] is False
     assert dataset.Wh.shape == (4, 81, 10)
     assert sorted(np.concatenate([dataset.idx_train, dataset.idx_val, dataset.idx_test]).tolist()) == [0, 1, 2, 3]
+
+
+def test_prepare_full_cell_sample_plan_is_mpb_free_and_resume_stable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = _write_config(tmp_path)
+    run_dir = tmp_path / "plan"
+    out = prepare_full_cell_sample_plan(config, run_dir=run_dir)
+    first_hash = json.loads(
+        (out / "sample_plan_manifest.json").read_text(encoding="utf-8")
+    )["sample_plan_sha256"]
+
+    assert len((out / "sample_plan.jsonl").read_text(encoding="utf-8").splitlines()) == 4
+    assert (
+        json.loads((out / "results.json").read_text(encoding="utf-8"))["next_gate"]
+        == "native_cluster_real_mpb_generation"
+    )
+    assert (
+        json.loads((out / "run.meta.json").read_text(encoding="utf-8"))["validation_boundary"]
+        == "structure_plan_only_no_mpb"
+    )
+
+    monkeypatch.setattr(
+        full_cell_generation,
+        "_generate_structures",
+        lambda *_args, **_kwargs: pytest.fail("plan was resampled"),
+    )
+    prepare_full_cell_sample_plan(config, run_dir=run_dir)
+    manifest = json.loads((out / "sample_plan_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["reused_existing_plan"] is True
+    assert manifest["sample_plan_sha256"] == first_hash
+
+
+def test_prepare_full_cell_sample_plan_cli_is_lazy() -> None:
+    namespace = build_parser().parse_args(
+        ["data", "prepare-full-cell-plan", "--config", "config.yaml", "--run-dir", "run"]
+    )
+    assert namespace.command == "data prepare-full-cell-plan"
 
 
 def test_solver_failure_is_preserved_and_dataset_is_not_written(tmp_path: Path) -> None:
@@ -296,6 +339,42 @@ def test_xingyi_configs_preserve_physics_and_raise_only_worker_capacity() -> Non
         assert xingyi["solver"]["environment"] == "native_linux_conda_meep_env"
         assert xingyi["workers"]["max_workers"] == 64
         assert xingyi["workers"]["worker_thread_env"] == base["workers"]["worker_thread_env"]
+
+
+def test_xingyi_50000_configs_freeze_dual_lane_contract() -> None:
+    root = Path(__file__).resolve().parents[1]
+    expected = {
+        "full_cell_binary_bz9_50000_xingyi_v1.yaml": "binary_air_holes",
+        "full_cell_graded_bz9_50000_xingyi_v1.yaml": "graded_medium",
+    }
+    for name, lane in expected.items():
+        payload = yaml.safe_load((root / "configs" / "research" / name).read_text(encoding="utf-8"))
+        assert full_cell_generation._validate_config(payload) == []
+        assert payload["dataset"]["lane"] == lane
+        assert payload["dataset"]["sample_count"] == 50000
+        assert payload["dataset"]["split"] == {"train": 40000, "val": 5000, "test": 5000}
+        assert payload["workers"]["workers"] == 64
+        assert payload["solver"]["use_proxy"] is False
+
+
+def test_xingyi_50000_jobs_are_fail_closed_and_two_node_ready() -> None:
+    root = Path(__file__).resolve().parents[1]
+    worker = (root / "jobs" / "xingyi_full_cell_50000.sh").read_text(encoding="utf-8")
+    submit = (root / "jobs" / "xingyi_submit_full_cell_50000.sh").read_text(encoding="utf-8")
+    preflight = (root / "jobs" / "xingyi_full_cell_50000_preflight.sh").read_text(encoding="utf-8")
+    assert 'PHC2D_AUTHORIZE_50K:-NO' in worker
+    assert 'source "$PHC2D_ROOT/jobs/xingyi_common.sh"' in worker
+    assert '"$(wc -l < "$PHC2D_RUN_DIR/sample_plan.jsonl")" -ne 50000' in worker
+    assert 'PHC2D_SUBMIT_MODE:-dry-run' in submit
+    assert 'PHC2D_SUBMIT_MODE=submit' in submit
+    assert 'PHC2D_AUTHORIZE_50K=YES' in submit
+    assert "-p xyfree -N 1 -n 1 -c 64 --mem=128G --time=24:00:00" in submit
+    assert 'submit_lane binary "$binary_run"' in submit
+    assert 'submit_lane graded "$graded_run"' in submit
+    assert 'PHC2D_AUTHORIZE_50K_PREFLIGHT:-NO' in preflight
+    assert "--max-samples 4" in preflight
+    assert "full_cell_binary_bz9_50000_xingyi_v1.yaml" in preflight
+    assert "full_cell_graded_bz9_50000_xingyi_v1.yaml" in preflight
 
 
 def test_graded_xingyi_job_is_fail_closed_without_authorization() -> None:

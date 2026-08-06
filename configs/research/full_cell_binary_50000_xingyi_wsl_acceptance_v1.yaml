@@ -1,0 +1,38 @@
+# WSL cross-environment acceptance for the Xingyi binary 50k dataset.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: full_cell_binary_50000_xingyi_wsl_acceptance_v1
+  family: research
+  stage: cross_environment_acceptance
+
+acceptance:
+  structure_count: 8
+  representative_k_point_count: 9
+  workers: 4
+  compared_bands: [2, 3, 4, 5, 6, 7, 8, 9, 10]
+  median_mre_max: 0.005
+  p95_mre_max: 0.01
+
+solver:
+  backend: mpb
+  environment: wsl_meep_env
+  expected_meep_version: 1.33.0-beta
+  expected_mpb_version: 1.12.0
+  use_proxy: false
+  lattice: square
+  lattice_constant: 1.0
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 64
+  mesh_size: 3
+  polarization: TE
+  num_bands: 10
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+  eigensolver_tolerance: 1.0e-7
+
+output:
+  runs_dir: runs

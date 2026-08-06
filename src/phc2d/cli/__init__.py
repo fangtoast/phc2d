@@ -215,6 +215,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Test-only escape hatch; never use this to claim accepted MPB validation.",
     )
     generate.set_defaults(command="data generate")
+    prepare_plan = data_sub.add_parser(
+        "prepare-full-cell-plan",
+        help="Freeze a deterministic full-cell structure plan without invoking MPB.",
+        description=(
+            "Write and validate sample_plan.jsonl plus provenance before cluster generation."
+        ),
+    )
+    prepare_plan.add_argument("--config", type=Path, required=True)
+    prepare_plan.add_argument("--run-dir", type=Path, default=None)
+    prepare_plan.set_defaults(command="data prepare-full-cell-plan")
     accept_cluster = data_sub.add_parser(
         "accept-cluster",
         help="Recompute fixed cluster structures in WSL and gate a full-cell dataset.",
@@ -564,6 +574,11 @@ def main(argv: Sequence[str] | None = None) -> None:
                 skip_environment_check=ns.skip_environment_check,
             )
         )
+        return
+    if ns.command == "data prepare-full-cell-plan":
+        from phc2d.data.full_cell_generation import prepare_full_cell_sample_plan
+
+        print(prepare_full_cell_sample_plan(ns.config, run_dir=ns.run_dir))
         return
     if ns.command == "data accept-cluster":
         from phc2d.data.full_cell_acceptance import run_cluster_wsl_acceptance

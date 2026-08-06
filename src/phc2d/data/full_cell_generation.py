@@ -443,6 +443,143 @@ def _write_history(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
         writer.writerows({key: row.get(key, "") for key in writer.fieldnames} for row in rows)
 
 
+def prepare_full_cell_sample_plan(
+    config_path: str | Path,
+    *,
+    run_dir: str | Path | None = None,
+) -> Path:
+    """Generate or validate a frozen full-cell structure plan without invoking MPB."""
+
+    config_path = _repo_path(config_path)
+    cfg = load_full_cell_generation_config(config_path)
+    experiment = dict(cfg.get("experiment") or {})
+    experiment_id = str(experiment.get("experiment_id", "full_cell_generation"))
+    output_cfg = dict(cfg.get("output") or {})
+    out = make_run_dir(
+        f"{experiment_id}_plan",
+        runs_dir=_repo_path(output_cfg.get("runs_dir", "runs")),
+        run_dir=_repo_path(run_dir) if run_dir else None,
+    )
+    logger = setup_logging(
+        log_file=out / "run.log",
+        run_meta={
+            "script": "phc2d.data.full_cell_generation.prepare_full_cell_sample_plan",
+            "config_path": _relative(config_path),
+        },
+    )
+    started = time.perf_counter()
+    resolved_yaml = yaml.safe_dump(
+        {**cfg, "run_options": {"plan_only": True}},
+        sort_keys=False,
+        allow_unicode=True,
+    )
+    write_resolved_config(out, resolved_yaml)
+    problems = _validate_config(cfg)
+    if str(experiment.get("stage")) != "dataset_generation":
+        problems.append("sample-plan preparation requires experiment.stage=dataset_generation")
+    if problems:
+        reason = "; ".join(problems)
+        _write_history(
+            out / "history.csv",
+            [{"stage": "sample_plan", "status": "blocked", "reason": reason}],
+        )
+        write_metrics(
+            out,
+            {"status": "blocked", "wall_time_total_s": float(time.perf_counter() - started)},
+        )
+        write_results(out, {"status": "blocked", "reason": reason, "sample_plan_written": False})
+        write_run_meta(
+            out,
+            {"status": "blocked", "validation_boundary": "structure_plan_only_no_mpb"},
+        )
+        return out
+
+    dataset_cfg = dict(cfg["dataset"])
+    sample_count = int(dataset_cfg["sample_count"])
+    split_counts = {
+        name: int(dict(dataset_cfg["split"])[name]) for name in ("train", "val", "test")
+    }
+    sample_plan_path = out / "sample_plan.jsonl"
+    reused = sample_plan_path.is_file()
+    if reused:
+        structures, strata, split_labels = _load_frozen_sample_plan(
+            sample_plan_path,
+            cfg,
+            effective_count=sample_count,
+        )
+    else:
+        structures, strata = _generate_structures(cfg, effective_count=sample_count)
+        sample_ids = [structure.sample_id for structure in structures]
+        _, _, _, split_labels = _stable_stratified_splits(sample_ids, strata, split_counts)
+        rows = [
+            {
+                "sample_id": structure.sample_id,
+                "sample_index": index,
+                "split": split_labels[index],
+                "stratum": strata[index],
+                "generator_family": structure.generator_family,
+                "geometry_hash": structure.geometry_hash,
+                "parameters": structure.parameters,
+                "stats": structure.metadata.get("stats", {}),
+            }
+            for index, structure in enumerate(structures)
+        ]
+        temporary = sample_plan_path.with_name(f".{sample_plan_path.name}.tmp")
+        _write_jsonl(temporary, rows)
+        temporary.replace(sample_plan_path)
+
+    plan_hash = _file_hash(sample_plan_path)
+    manifest = {
+        "schema_version": "phc2d.full_cell_sample_plan.v1",
+        "status": "full_cell_sample_plan_ready",
+        "validation_boundary": "structure_plan_only_no_mpb",
+        "config_path": _relative(config_path),
+        "config_hash": _hash_text(resolved_yaml),
+        "sample_plan_path": _relative(sample_plan_path),
+        "sample_plan_sha256": plan_hash,
+        "sample_count": sample_count,
+        "lane": dataset_cfg["lane"],
+        "split": split_counts,
+        "strata": dict(Counter(strata)),
+        "reused_existing_plan": reused,
+    }
+    write_json(out / "sample_plan_manifest.json", manifest)
+    elapsed = float(time.perf_counter() - started)
+    _write_history(
+        out / "history.csv",
+        [{"stage": "sample_plan", "status": "reused" if reused else "generated", "reason": ""}],
+    )
+    write_metrics(
+        out,
+        {
+            "status": "full_cell_sample_plan_ready",
+            "wall_time_total_s": elapsed,
+            "sample_count": sample_count,
+            "stratum_counts": dict(Counter(strata)),
+        },
+    )
+    write_results(
+        out,
+        {
+            "status": "full_cell_sample_plan_ready",
+            "sample_plan_written": True,
+            "sample_plan_path": _relative(sample_plan_path),
+            "sample_plan_sha256": plan_hash,
+            "next_gate": "native_cluster_real_mpb_generation",
+        },
+    )
+    write_run_meta(
+        out,
+        {
+            "status": "full_cell_sample_plan_ready",
+            "validation_boundary": "structure_plan_only_no_mpb",
+            "sample_plan_sha256": plan_hash,
+        },
+    )
+    logger.info("Full-cell sample plan ready: %s", sample_plan_path)
+    return out
+
+
 def _write_preview_figures(
     figures_dir: Path,
     structures: Sequence[FullCellStructureSpec],
@@ -969,6 +1106,7 @@ def write_combined_full_cell_manifest(
 
 __all__ = [
     "load_full_cell_generation_config",
+    "prepare_full_cell_sample_plan",
     "run_full_cell_generation",
     "run_full_cell_solver_preflight",
     "write_combined_full_cell_manifest",
