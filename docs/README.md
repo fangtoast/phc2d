@@ -48,7 +48,7 @@
 |---|---|---|
 | 封面 | 项目是什么、从哪里进入？ | [`README.md`](../README.md) |
 | 当前状态 | 现在做到哪里、卡在哪里？ | [`PROJECT_MAP.md`](../PROJECT_MAP.md) |
-| 第一章：研究全貌 | 为什么做、实现了什么、证据多强？ | [综合报告索引](reports/README.md) · [完整项目报告](reports/phc2d_project_full_introduction_20260724.md) |
+| 第一章：研究全貌 | 为什么做、实现了什么、证据多强？ | [综合报告索引](reports/README.md) · [完整项目报告](reports/phc2d_project_full_introduction_20260724.md) · [带隙—近远场—逆向设计科学动机](reports/phc2d_bandgap_field_inverse_design_rationale_20260806.md) |
 | 第二章：物理与公式 | 结构怎样变成数据，损失和指标如何定义？ | [公式手册](reports/phc2d_physics_data_formula_guide_20260803.md) |
 | 第三章：代码架构 | 模块、数据流、CLI 和可选依赖怎样组织？ | [架构说明](architecture.md) |
 | 第四章：实验设计 | 每项实验的输入、非目标、命令和 gate 是什么？ | [实验 profiles](../experiments/README.md) |
