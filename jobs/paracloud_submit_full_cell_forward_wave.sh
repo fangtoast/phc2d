@@ -41,10 +41,18 @@ fi
 
 models=(mlp res_mlp_wide lifted_cnn fno2d_band_v2)
 seeds=(0 1 2)
+wave_concurrency="${PHC2D_WAVE_CONCURRENCY:-12}"
+if [[ "$wave_concurrency" != "3" && "$wave_concurrency" != "6" && "$wave_concurrency" != "12" ]]; then
+  echo "PHC2D_WAVE_CONCURRENCY must be 3, 6, or 12" >&2
+  exit 2
+fi
 timestamp="$(date +%Y%m%d%H%M%S)"
 manifest="runs/$(date +%Y%m%d)/${wave_id}_${mode}_${timestamp}/submission_manifest.csv"
 mkdir -p "$(dirname "$manifest")"
 printf 'model,seed,job_id,run_dir,mode\n' > "$manifest"
+task_index=0
+previous_group_ids=()
+current_group_ids=()
 for model in "${models[@]}"; do
   for seed in "${seeds[@]}"; do
     run_dir="runs/$(date +%Y%m%d)/${wave_id}_${mode}_${timestamp}_${model}_seed${seed}"
@@ -54,11 +62,23 @@ for model in "${models[@]}"; do
       probe=1
       time_limit="00:10:00"
     fi
+    dependency_args=()
+    if (( task_index >= wave_concurrency )) && (( task_index % wave_concurrency == 0 )); then
+      previous_group_ids=("${current_group_ids[@]}")
+      current_group_ids=()
+    fi
+    if (( task_index >= wave_concurrency )); then
+      dependency="$(IFS=:; echo "${previous_group_ids[*]}")"
+      dependency_args=(--dependency="afterany:$dependency")
+    fi
     job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t "$time_limit" \
       -J "fc_${mode}_${model}_s${seed}" \
       -o "${run_dir}.slurm.out" -e "${run_dir}.slurm.err" \
+      "${dependency_args[@]}" \
       --export="ALL,PHC2D_FORWARD_CONFIG=$config,PHC2D_FORWARD_MODEL=$model,PHC2D_FORWARD_SEED=$seed,PHC2D_FORWARD_RUN_DIR=$run_dir,PHC2D_FORWARD_ADMISSION_PROBE=$probe,PHC2D_FORWARD_THRESHOLD=$threshold" \
       jobs/paracloud_full_cell_forward.sh)"
+    current_group_ids+=("$job_id")
+    task_index=$((task_index + 1))
     printf '%s,%s,%s,%s,%s\n' "$model" "$seed" "$job_id" "$run_dir" "$mode" >> "$manifest"
   done
 done
