@@ -51,7 +51,7 @@
 
 ## 当前最重要的未解决问题
 
-- N50R5 登录仍被平台 `loginCluster` 权限拒绝；当前正式训练可使用已通过三卡分配验证的 N40 作为同型号 GPU 路线。
+- N50R5 登录仍被平台 `loginCluster` 权限拒绝；N40 已部署当前 inverse Stage-A runner/orchestrator（`b93cc2d`），但当前正式训练只能以既有三卡分配证据为下限，9/18 卡仍需真实 admission 作业证明。
 - 主模型与 inverse 尚未在全胞、多形态、全 BZ 数据上重建系统基准；full-cell forward 102-run 尚未训练。inverse codec、单 case/15-case 合同、可断点续训 Stage-A runner 和 18-task 波次 dry-run 已实现，但仍需 N40 单卡/并发实际 admission、45 个正式 Stage-A run，以及在 forward 冻结后的 soft-surrogate Stage B。
 - inverse 缺 seeds 1/2 和满足 candidate-health/Top-5 coverage 的中立候选池。
 - adapted PINO 尚未通过修正指标、residual–frequency、dense-k 与跨分辨率门。

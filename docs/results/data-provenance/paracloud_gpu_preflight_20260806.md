@@ -12,7 +12,7 @@
 | Status | Draft evidence report |
 | Date | 2026-08-06 |
 | Primary layer | L4 implementation/runtime |
-| Deployed commit | `05f5776` |
+| Current N40 deployed commit | `b93cc2d`；原三卡/单卡 Slurm 证据产生于更早部署，job id 与制品边界不变 |
 | GPU environment | N40 `gpu_4090`, PyTorch `2.1.2+cu118`, CUDA `11.8` |
 | Evidence boundary | 资源、环境、数据和单卡训练预检；不是正式训练结果 |
 | Reading time | 6 minutes |
@@ -26,6 +26,10 @@ N40 已打通登录、代码部署、数据导入、Slurm 分配、CUDA/PyTorch 
 N50R5 尚未打通：网关返回 `loginCluster` 权限拒绝，因此未在该平台安装环境或提交 GPU 作业。它是可选的 RTX5090 路线，不影响按计划使用 N40 三卡，但在平台同步 SSH 公钥或登录权限前不能称为可用。
 
 正式 102-run 训练未开始，M9 threshold real-MPB preflight/pilot 也未提交；两者仍分别等待人工授权。
+
+2026-08-06 17:44–17:45（Asia/Shanghai）又完成一次 **非作业部署检查**：N40 部署树从 `b86ed7e` 更新到 `b93cc2d`，同步 inverse Stage-A runner、单 case preflight、正式配置、波次调度和只读 status 脚本。覆盖前备份保存在 `/HOME/scw6g7a/run/deployments/phc2d_before_b93cc2d_20260806174434.tar.gz`；部署归档 SHA-256 为 `ac291ddd46ca909e097d6bc8cc9dc23d85ea67a78e35879f3734f818a403df34`。远端 compile、CLI help 和 shell syntax 通过后才原子更新 `DEPLOYED_GIT_COMMIT`。
+
+随后在 N40 登录节点运行 `PHC2D_SUBMIT_DRY_RUN=1`：远端重新核对两份 10k 数据哈希，生成 18 个唯一任务的 9+9 dependency manifest，未调用 `sbatch`、未创建 inverse active-wave pointer。登录节点直接导入 Torch 会因未加载 CUDA module 报动态库符号错误；这不是计算节点环境回归证据，正式 wrapper 仍必须在 Slurm allocation 内由 `paracloud_gpu_common.sh` 加载 `cuda/11.8` 后验证 CUDA。
 
 ## 资源与职责
 
@@ -88,9 +92,10 @@ N50R5 尚未打通：网关返回 `loginCluster` 权限拒绝，因此未在该�
 
 ## 下一 gate
 
-1. 人工确认是否按冻结计划启动 N40 三张 RTX4090 的 seed 0/1/2 正式训练。
-2. N50R5 若要作为备选，需要平台恢复登录权限后重新执行同一硬件探针与单卡预检；不能沿用 N40 结果代替。
-3. 任何 M9 threshold real-MPB preflight、pilot 或扩展任务都需单独授权，并与 surrogate 指标分表报告。
+1. 人工确认是否启动 full-cell inverse N40 15-case 单卡 preflight；通过后再单独授权 18-task concurrency probe，不能把 dry-run 当作真实分配。
+2. full-cell forward 102-run 和 inverse Stage-A 正式训练仍需按各自冻结计划单独授权；正向 checkpoint 未冻结前不得进入 inverse Stage B/ranking/replay。
+3. N50R5 若要作为备选，需要平台恢复登录权限后重新执行同一硬件探针与单卡预检；不能沿用 N40 结果代替。
+4. 任何 M9 threshold real-MPB preflight、pilot 或扩展任务都需单独授权，并与 surrogate 指标分表报告。
 
 ## 人工理解记录
 

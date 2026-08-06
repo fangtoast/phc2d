@@ -12,7 +12,7 @@
 | Status | orchestration dry-run passed；未调用 Slurm、未分配 GPU |
 | Primary layer | L4 implementation；仅验证调度合同，不产生 L3 模型结果 |
 | Code revision | `678b6da` (`feat(cluster): orchestrate inverse Stage-A GPU waves`) |
-| Environment | WSL `Ubuntu` + conda `meep_env`，本地只读数据哈希与 manifest 演练 |
+| Environment | WSL `Ubuntu` + conda `meep_env`；N40 登录节点部署与远端只读数据哈希/manifest 演练 |
 | Evidence boundary | 证明任务矩阵、节流依赖、配置/数据 hash 和状态解析入口；不证明 N40 QoS、9/18 卡可分配、显存、吞吐或训练收敛 |
 
 ## 演练输入
@@ -43,8 +43,12 @@
 | Windows targeted pytest | 9 passed |
 | WSL codec + Stage-A targeted pytest | 19 passed |
 | Ruff / compile / three shell scripts `bash -n` | passed |
+| N40 deployed commit | `b93cc2d`；部署前备份已保留 |
+| N40 remote dry-run | 18/18 身份、9+9 dependency、无 `sbatch`、无 active pointer |
 
 单 case preflight 现在可通过 `--variant --method --seed` 选择一个任务；默认不传筛选参数时仍保持原 15-case 单卡合同。正式波次只允许每个任务申请一张 `gpu_4090`，allocation 内使用 `cuda:0`，并支持 `3|9|18` 三档节流。
+
+N40 远端 dry-run manifest 为 `runs/20260806/inverse_stage_a_r1_remote_dryrun_probe_20260806174540/submission_manifest.csv`。17:45 的只读资源快照显示平台公共 `gpu_4090` 当时报告 45 张可用、144 张总卡；这是瞬时公共池信息，不是本账号可同时分配 18 张的承诺。N40 与 M9 的用户队列快照均无本任务作业。
 
 ## 当前门禁
 
