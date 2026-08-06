@@ -38,7 +38,7 @@ task_index=0
 previous_group_ids=()
 current_group_ids=()
 
-while IFS=, read -r lane representation config model threshold; do
+while IFS=, read -r lane representation config model threshold _rest; do
   if [[ ! -f "$config" ]]; then
     echo "missing frozen config: $config" >&2
     exit 3
