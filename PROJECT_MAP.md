@@ -7,7 +7,17 @@
 
 # PROJECT MAP
 
-> 更新日期：2026-08-06。“已实现”不等于“已完成研究验证”；surrogate、field residual 与 real-MPB replay 证据不得混用。
+| Metadata | Value |
+|---|---|
+| Status | Current state snapshot |
+| Audience | 导师、研究生与项目负责人 |
+| Owner | 研究生维护，导师审阅科学主张 |
+| Last reviewed | 2026-08-06 |
+| Reading time | 8 minutes |
+
+[项目封面](README.md) · [书籍式文档目录](docs/README.md) · [当前实验进展](docs/results/README.md) · [协作治理](docs/collaboration.md)
+
+> 本文件是“当前状态”的唯一短入口。“已实现”不等于“已完成研究验证”；surrogate、field residual 与 real-MPB replay 证据不得混用。具体数值、配置和运行命令继续留在下层文档。
 
 ## 项目要解决什么问题
 

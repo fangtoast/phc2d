@@ -15,3 +15,10 @@
 | [`smoke/`](smoke/) | 本地快速 smoke 配置 |
 
 论文复现、正式研究与 WSL 验收配置均由 `research/` 中的明确实验 ID 区分；快速编辑期检查使用 `smoke/`。旧顶层实现目录不再作为活跃配置入口。
+
+干净克隆的非物理 R1 使用：
+
+- [`smoke/synthetic_dataset.yaml`](smoke/synthetic_dataset.yaml)：配置驱动的确定性合成数据；
+- [`smoke/forward_synthetic_res_mlp.yaml`](smoke/forward_synthetic_res_mlp.yaml)：一轮最小 forward 训练。
+
+这两项只能证明 smoke 链路可执行，不能进入科研结果或 MPB/Meep 验收。

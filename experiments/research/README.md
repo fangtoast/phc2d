@@ -1,5 +1,5 @@
 <!--
-  Research experiment profile index.
+  Complete index of active phc2d research experiment profiles.
   Author: fangtoast
   Email: fangtoast@foxmail.com
   Copyright (c) 2026 fangtoast. All rights reserved.
@@ -7,16 +7,28 @@
 
 # Research Profiles
 
-本目录用于后续研究 profile。旧 `research/ai4phc` 顶层目录已从活跃树移除；后续研究代码应直接进入 [`../../src/phc2d`](../../src/phc2d)，统一入口通过 `phc2d forward`、`phc2d inverse`、`phc2d replay` 和 `phc2d plot` 调度。
+本目录描述研究实验的输入、非目标、执行入口和 gate，不承诺当前结果。公共实现进入 [`../../src/phc2d`](../../src/phc2d)，结果统一从 [`../../docs/results/README.md`](../../docs/results/README.md) 读取。
 
-优先收束的研究主线：
+## 数据与表征
 
-| profile | 说明 |
-|---|---|
-| `forward_benchmark` | 多 forward surrogate 对比 |
-| [`representation_ablation`](representation_ablation.md) | `rho_wedge`、grid、epsilon、image 输入表征消融 |
-| `dispersion_inverse` | frozen surrogate 驱动的色散逆向设计 |
-| [`generative_inverse`](generative_inverse.md) | cVAE / diffusion 多候选逆向设计与 replay 闭环 |
-| [`a2_inverse_surrogate_ablation_v1`](a2_inverse_surrogate_ablation_v1.md) | A2 七个频率 surrogate 固定候选池筛选、primary-only objective 与两模型三种子门禁 |
-| `mpb_replay` | 生成结构的 MPB physics replay |
-| [`near_field_surrogate`](near_field_surrogate.md) | TE/TM near-field surrogate、NeurOLight 与 Maxwell residual feasibility |
+- [`full_cell_dual_lane_data.md`](full_cell_dual_lane_data.md)：非 p4m 全胞双路线 real-MPB 数据协议。
+- [`full_cell_graded_paracloud_m9.md`](full_cell_graded_paracloud_m9.md)：M9 渐变 10k 生成与 WSL 跨环境验收合同。
+- [`full_cell_dual_lane_sample_gallery.md`](full_cell_dual_lane_sample_gallery.md)：可追溯样本图册。
+- [`representation_ablation.md`](representation_ablation.md)：输入表示消融。
+- [`inverse_scale_preflight.md`](inverse_scale_preflight.md)：扩容前的资源、数据与 gate 预检。
+
+## Forward、Query 与 Field
+
+- [`a1_fair_forward_query.md`](a1_fair_forward_query.md)：A1 Full-Wh / Query 公平对照。
+- [`field_eigen_te.md`](field_eigen_te.md)：TE Bloch eigenfield、Field FNO 与 adapted PINO。
+- [`near_field_surrogate.md`](near_field_surrogate.md)：near-field、NeurOLight 与 Maxwell residual 可行性边界。
+
+## Inverse 与 replay
+
+- [`generative_inverse.md`](generative_inverse.md)：条件生成式 inverse 的候选/replay 协议历史入口；当前 mixture conditional generator 不是 cVAE 或 diffusion。
+- [`a2_inverse_single_seed.md`](a2_inverse_single_seed.md)：A2 单 seed benchmark 与分阶段恢复语义。
+- [`a2_inverse_objective_bridge_seed0_v1.md`](a2_inverse_objective_bridge_seed0_v1.md)：Objective-Bridge 100-target seed0。
+- [`a2_inverse_objective_bridge_seed0_test625_v1.md`](a2_inverse_objective_bridge_seed0_test625_v1.md)：Objective-Bridge test625 replay。
+- [`a2_inverse_surrogate_ablation_v1.md`](a2_inverse_surrogate_ablation_v1.md)：七 surrogate 固定候选池筛选与 promotion gate。
+
+实验 profile 中的 `config_ready`、命令或预期产物不能替代实际运行。正式状态以结果报告和源 artifacts 为准。

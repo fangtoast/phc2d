@@ -5,6 +5,8 @@
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
+<a id="project-report-home"></a>
+
 # phc2d：二维光子晶体神经算子快速仿真与回放校准生成式逆向设计
 
 | 元数据 | 内容 |
@@ -17,6 +19,10 @@
 | 正式物理环境 | WSL `Ubuntu` + conda `meep_env` |
 | 文档定位 | 面向项目汇报、开题报告和技术路线说明的完整项目介绍 |
 | 证据边界 | 以当前代码、配置和 run artifacts 为准；不把计划或 surrogate 指标升级为物理成功 |
+
+[项目地图](../../PROJECT_MAP.md) · [文档目录](../README.md) · [公式手册](phc2d_physics_data_formula_guide_20260803.md#formula-guide-home) · [当前实验进展](../results/README.md)
+
+> 本文是带证据日期的综合技术快照，不承担“今天的最新状态”职责。当前 gate 和阻塞项以项目地图、结果索引和源 artifacts 为准。
 
 ## 摘要
 
@@ -66,6 +72,8 @@
 | 配置、运行产物与模型逐项状态 | 附录 A–B |
 
 ---
+
+<a id="report-project-overview"></a>
 
 # 1. 项目总览
 
@@ -311,6 +319,8 @@ W_h^{*}
 
 ---
 
+<a id="report-data-representation"></a>
+
 # 4. 数据与结构表征
 
 当前最完整的主线数据是 10k V2 real-MPB 数据集。
@@ -354,6 +364,8 @@ W_h^{*}
 虽然当前数据有确定的 36 维、31 个 \(k\) 点和 10 条能带，但项目代码通过数据元信息、`DataRepresentationSpec` 和 `TargetSpec` 读取维度，不把这些数字视为永久不变的模型常数。
 
 ---
+
+<a id="report-forward-models"></a>
 
 # 5. 前向代理模型
 
@@ -956,6 +968,8 @@ $$
 
 ---
 
+<a id="report-inverse-models"></a>
+
 # 6. 逆向设计模型、基线与证据边界
 
 本章先定义当前主生成器，再说明非参数检索、确定性回归和 latent generator 等已实现方法的角色。第一版四方法公平结果已经撤销，当前定量证据以 objective-bridge single-mode/mixture 为准。当前主生成器名为：
@@ -1199,6 +1213,8 @@ W_h^*
 
 ---
 
+<a id="report-candidate-loop"></a>
+
 # 8. 候选筛选与可信物理闭环
 
 对于每个测试目标，当前主线生成：
@@ -1266,6 +1282,8 @@ $$
 
 ---
 
+<a id="report-mpb-replay"></a>
+
 # 9. MPB replay 到底验证什么？
 
 对于生成结构 \(\hat\rho\)，真实 MPB replay 计算：
@@ -1311,6 +1329,8 @@ E_{\mathrm{surrogate}},
 用来衡量代理模型是否对候选结构过于乐观。
 
 ---
+
+<a id="report-results"></a>
 
 # 10. 当前主要实验结果
 
@@ -1578,6 +1598,8 @@ field-physics result
 这使场物理模型的接入更加可审计。
 
 ---
+
+<a id="report-boundaries"></a>
 
 # 13. 当前边界与尚未完成的工作
 

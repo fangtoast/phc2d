@@ -14,6 +14,16 @@ This file defines fixed implementation rules for future Codex tasks in this repo
 - Treat [`docs/planning/fno_generative_network_adjustment_plan_20260617.md`](docs/planning/fno_generative_network_adjustment_plan_20260617.md) as the research-plan authority.
 - When implementation details are unclear, follow the gates, task families, metrics, replay boundary, and TODO discipline described in that plan and in `docs/planning/research_todo_20260617.md`.
 
+## Documentation And Abstraction Governance
+
+- Before project-wide work, read [`PROJECT_MAP.md`](PROJECT_MAP.md), [`docs/README.md`](docs/README.md), and [`docs/collaboration.md`](docs/collaboration.md).
+- Every Codex task that changes the project must declare one primary layer: L0 research goal, L1 scientific argument, L2 method architecture, L3 experiment/evidence, or L4 implementation.
+- Cross-layer reading is allowed. Do not infer L0/L1 motivation from incidental L4 code, promote a local L3 result into a project-wide claim, or change more than one primary layer without explicit user scope.
+- Keep the root README stable and free of volatile benchmark numbers, private absolute paths, and today-only status. Put current status in `PROJECT_MAP.md` and detailed evidence in `docs/results/`.
+- New or renamed canonical Markdown must be reachable from `docs/README.md` or a linked local index and pass `phc2d report docs-audit --root README.md --strict`.
+- AI-created documents are Draft by default. Only a human owner may accept them as Reviewed or Canonical.
+- Documentation completion is not experimental completion. End substantive tasks with the human-understanding record defined in `docs/collaboration.md`.
+
 ## Repository Boundaries
 
 - New shared/public capabilities must live under `src/phc2d`.

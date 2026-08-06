@@ -6,6 +6,7 @@
 -->
 
 <a id="phc2d-physics-data-formula-guide"></a>
+<a id="formula-guide-home"></a>
 
 # phc2d 端到端物理与数据公式手册
 
@@ -16,6 +17,10 @@
 > 非目标：本文不展开 MaxwellNet、cINN、diffusion 等参考模型，也不重复模型架构报告。
 
 本文回答的是“一个结构如何变成可训练数据、模型优化的量是什么、最终又由什么物理证据复核”。公式按当前源码与 V2 配置逐项回链；通用定义与当前配置常数严格分开。模型清单和结果状态仍以 [`phc2d_model_inventory_v1.yaml`](phc2d_model_inventory_v1.yaml) 及 [`phc2d_project_full_introduction_20260724.md`](phc2d_project_full_introduction_20260724.md) 为准。
+
+[项目地图](../../PROJECT_MAP.md) · [文档目录](../README.md) · [完整项目报告](phc2d_project_full_introduction_20260724.md#project-report-home) · [当前实验进展](../results/README.md)
+
+> 本手册冻结公式、数据与评价定义，不把历史数值自动升级为修正后结果。当前可引用结果和阻塞状态仍以结果索引及源 artifacts 为准。
 
 ```mermaid
 flowchart LR
@@ -64,6 +69,8 @@ flowchart LR
 | $K$ | 每个逆向条件采样的候选数 | 配置或评估参数 |
 
 这里的 $31$、$10$、$16\times16$ 都只是当前 V2 数据配置。代码中的形状应由 schema、dataset metadata、`DataRepresentationSpec`、`TargetSpec` 或配置派生，不能解释为模型硬编码。
+
+<a id="formula-structure-data"></a>
 
 ## 2. 结构生成与 MPB 数据构造
 
@@ -177,6 +184,8 @@ $$
 
 比例约为 $68.75\%/25\%/6.25\%$。这是当前数据配置，不是任意数据集必须遵守的比例。
 
+<a id="formula-mpb-bloch"></a>
+
 ## 3. MPB 与 Bloch 本征问题
 
 ### 3.1 Maxwell curl–curl 本征方程
@@ -269,6 +278,8 @@ guard bands 用于提高截断边界附近的稳健性，不改变最终 target 
 - **来源**：[`solvers/mpb.py`](../../src/phc2d/solvers/mpb.py)、[`query_dataset_v2_pilot_10000.yaml`](../../configs/research/query_dataset_v2_pilot_10000.yaml)。
 - **状态**：当前数据生成与 replay 已实现。
 
+<a id="formula-representation"></a>
+
 ## 4. 数据表示与归一化
 
 ### 4.1 Full-Wh 与 Query 样本
@@ -331,6 +342,8 @@ $\mu_{\log f}$ 和 $\sigma_{\log f}$ 必须由训练集统计得到，并随 che
 
 - **来源**：[`forward/field_eigen_v2.py`](../../src/phc2d/forward/field_eigen_v2.py)、[`field_eigen_te_pino_b4_repair_validation_9216.yaml`](../../configs/research/field_eigen_te_pino_b4_repair_validation_9216.yaml)。
 - **状态**：当前 field 数据制度已实现。
+
+<a id="formula-field-pino"></a>
 
 ## 5. 本征场与 adapted PINO
 
@@ -629,6 +642,8 @@ $\Delta_m>0$ 表示退化，$\Delta_m<0$ 表示改善。当前阈值是 frequenc
 - **来源**：[`forward/field_eigen_v2.py`](../../src/phc2d/forward/field_eigen_v2.py)、[`physics/torch_eigen_residual.py`](../../src/phc2d/physics/torch_eigen_residual.py)、[`field_eigen_te_pino_b4_repair_validation_9216.yaml`](../../configs/research/field_eigen_te_pino_b4_repair_validation_9216.yaml)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md)。
 - **状态**：已实现的训练/验证制度；inverse 使用状态为 blocked。
 
+<a id="formula-forward-metrics"></a>
+
 ## 6. 前向任务、损失与评价指标
 
 令误差 $e_i=\widehat y_i-y_i$，总标量数为 $M$：
@@ -688,6 +703,8 @@ $$
 $$
 
 实现默认权重为 $1.0,0.5,0.05,0.02$，可由 config `loss_params` 覆盖；若 `loss_name=mse`，训练则使用普通 MSE。指标实现分别位于 [`forward/runner.py`](../../src/phc2d/forward/runner.py) 和 [`query/runner.py`](../../src/phc2d/query/runner.py)。
+
+<a id="formula-inverse"></a>
 
 ## 7. 逆向生成、目标桥接与候选筛选
 
@@ -808,6 +825,8 @@ $$
 - **状态**：Objective-Bridge 当前启用项。`fno2d_band_v2` 是 primary frozen surrogate/ranker，`fno2d_query_v2` 是 consistency gate。
 - **排除项**：MPB replay 不属于 $\mathcal L_{\rm obj}$，也不通过训练图反向传播；adapted PINO 当前不是 inverse ranker。
 
+<a id="formula-replay"></a>
+
 ## 8. real-MPB replay 与最终评价
 
 对经过投影、去重与筛选的候选，real-MPB replay 明确重新调用求解器：
@@ -851,6 +870,8 @@ $$
 三者必须分别报告。实际结果键若以 `_pct` 结尾，则是以上无量纲比值再乘 $100\%$。surrogate 排名好只说明模型内预测好；physics residual 低只说明场的离散一致性好；只有同候选池、同预算的 real-MPB replay 才能提供相应的物理复核证据。
 
 当前 Objective-Bridge 评估配置使用 `requested_k=128`，并对筛选后的 top 5 做 replay；这些是当前实验预算，不是公式中的固定 $K$。评估配置见 [`a2_inverse_objective_bridge_seed0_test625_v1.yaml`](../../configs/research/a2_inverse_objective_bridge_seed0_test625_v1.yaml)。
+
+<a id="formula-source-index"></a>
 
 ## 9. 源码与配置索引
 
