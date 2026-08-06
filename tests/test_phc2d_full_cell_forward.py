@@ -105,3 +105,26 @@ def test_threshold_proxy_requires_false_physical_equivalence(tmp_path: Path) -> 
     path.write_text(yaml.safe_dump(config), encoding="utf-8")
     with pytest.raises(ValueError, match="physical_equivalence"):
         run_full_cell_forward(path, model_name="mlp", seed=0, run_dir=tmp_path / "run", admission_probe=True)
+
+
+def test_resolution_override_rejects_unplanned_grid(tmp_path: Path) -> None:
+    config = {
+        "experiment": {"experiment_id": "bad_resolution", "lane": "binary"},
+        "dataset": {"path": "missing.h5"},
+        "representation": {"sampling": "continuous", "threshold": None, "resolution": 64, "physical_equivalence": True},
+        "models": {"mlp": {}},
+        "training": {"learning_rates": {"mlp": 3.0e-4}},
+        "runtime": {},
+        "output": {},
+    }
+    path = tmp_path / "bad_resolution.yaml"
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    with pytest.raises(ValueError, match="32, 64, or 128"):
+        run_full_cell_forward(
+            path,
+            model_name="mlp",
+            seed=0,
+            run_dir=tmp_path / "run_resolution",
+            admission_probe=True,
+            resolution=96,
+        )

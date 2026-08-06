@@ -10,8 +10,9 @@ mode="${1:-}"
 config="${2:-}"
 wave_id="${3:-}"
 threshold="${4:-}"
+resolution="${5:-}"
 if [[ "$mode" != "probe" && "$mode" != "train" ]]; then
-  echo "usage: $0 probe|train CONFIG WAVE_ID [THRESHOLD]" >&2
+  echo "usage: $0 probe|train CONFIG WAVE_ID [THRESHOLD] [RESOLUTION]" >&2
   exit 2
 fi
 if [[ ! -f "$config" || -z "$wave_id" ]]; then
@@ -74,7 +75,7 @@ for model in "${models[@]}"; do
     job_id="$(sbatch --parsable "${sbatch_args[@]}" \
       -J "fc_${mode}_${model}_s${seed}" \
       -o "${run_dir}.slurm.out" -e "${run_dir}.slurm.err" \
-      --export="ALL,PHC2D_FORWARD_CONFIG=$config,PHC2D_FORWARD_MODEL=$model,PHC2D_FORWARD_SEED=$seed,PHC2D_FORWARD_RUN_DIR=$run_dir,PHC2D_FORWARD_ADMISSION_PROBE=$probe,PHC2D_FORWARD_THRESHOLD=$threshold" \
+      --export="ALL,PHC2D_FORWARD_CONFIG=$config,PHC2D_FORWARD_MODEL=$model,PHC2D_FORWARD_SEED=$seed,PHC2D_FORWARD_RUN_DIR=$run_dir,PHC2D_FORWARD_ADMISSION_PROBE=$probe,PHC2D_FORWARD_THRESHOLD=$threshold,PHC2D_FORWARD_RESOLUTION=$resolution" \
       jobs/paracloud_full_cell_forward.sh)"
     current_group_ids+=("$job_id")
     task_index=$((task_index + 1))

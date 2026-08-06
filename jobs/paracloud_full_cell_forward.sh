@@ -26,4 +26,7 @@ fi
 if [[ -n "${PHC2D_FORWARD_THRESHOLD:-}" ]]; then
   args+=(--threshold "$PHC2D_FORWARD_THRESHOLD")
 fi
+if [[ -n "${PHC2D_FORWARD_RESOLUTION:-}" ]]; then
+  args+=(--resolution "$PHC2D_FORWARD_RESOLUTION")
+fi
 python -m phc2d.forward.full_cell "${args[@]}"

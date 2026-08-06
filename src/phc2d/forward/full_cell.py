@@ -138,11 +138,17 @@ def _validate_and_resolve(
     seed: int,
     admission_probe: bool,
     threshold_override: float | None = None,
+    resolution_override: int | None = None,
 ) -> dict[str, Any]:
     dataset = dict(config.get("dataset") or {})
     representation = dict(config.get("representation") or {})
     if threshold_override is not None:
         representation["threshold"] = float(threshold_override)
+    if resolution_override is not None:
+        if int(resolution_override) not in {32, 64, 128}:
+            raise ValueError("resolution override must be 32, 64, or 128")
+        representation["resolution"] = int(resolution_override)
+        dataset["grid_field"] = f"material_weight_grid_{int(resolution_override)}"
     models = dict(config.get("models") or {})
     training = dict(config.get("training") or {})
     runtime = dict(config.get("runtime") or {})
@@ -171,6 +177,9 @@ def _validate_and_resolve(
     experiment_id = str(experiment.get("experiment_id", "full_cell_forward"))
     if sampling == "deterministic_threshold":
         experiment_id = f"{experiment_id}_t{int(round(float(threshold) * 10)):02d}"
+    resolution = int(representation.get("resolution", 64))
+    if resolution != 64:
+        experiment_id = f"{experiment_id}_r{resolution}"
     resolved = {
         "experiment": {
             **experiment,
@@ -325,6 +334,7 @@ def run_full_cell_forward(
     run_dir: str | Path | None = None,
     admission_probe: bool = False,
     threshold: float | None = None,
+    resolution: int | None = None,
 ) -> Path:
     """Run one isolated model-plus-seed job from a frozen wave config."""
 
@@ -335,6 +345,7 @@ def run_full_cell_forward(
         seed=seed,
         admission_probe=admission_probe,
         threshold_override=threshold,
+        resolution_override=resolution,
     )
     experiment = dict(resolved["experiment"])
     representation = dict(resolved["representation"])
@@ -566,6 +577,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--admission-probe", action="store_true")
     parser.add_argument("--threshold", type=float)
+    parser.add_argument("--resolution", type=int)
     args = parser.parse_args(argv)
     print(
         run_full_cell_forward(
@@ -575,6 +587,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             run_dir=args.run_dir,
             admission_probe=args.admission_probe,
             threshold=args.threshold,
+            resolution=args.resolution,
         )
     )
 
