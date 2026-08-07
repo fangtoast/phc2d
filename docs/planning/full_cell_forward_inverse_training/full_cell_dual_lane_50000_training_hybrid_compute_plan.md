@@ -37,14 +37,15 @@
 
 ### 1.1 主要研究问题
 
-本计划回答六个问题：
+本计划回答七个问题：
 
 1. 10k 数据训练得到的冻结模型，在新的 50k test split 上是否保持精度？
 2. 在同一 50k 数据合同内，将 train 样本从 8k 增至 20k、40k 是否带来稳定收益？
 3. epoch `20/100/200` 对不同模型、表征和训练规模的影响是什么？
 4. 50k 全量 train split 上，四个模型与七个表征的排名是否延续 10k 结论？
-5. 64 分辨率训练的空间模型能否不微调地直接读取同一结构的 32/128 栅格？
-6. 怎样使用 N40 GPU 池和 M9 CPU 超算缩短墙钟时间，同时保留公平性、provenance 和物理证据边界？
+5. binary-trained 模型在 graded continuous test 上、graded-trained 模型在 binary test 上是否具有跨路线泛化能力？
+6. 64 分辨率训练的空间模型能否不微调地直接读取同一结构的 32/128 栅格？
+7. 怎样使用 N40 GPU 池和 M9 CPU 超算缩短墙钟时间，同时保留公平性、provenance 和物理证据边界？
 
 ### 1.2 范围
 
@@ -56,6 +57,7 @@
 - 8k/20k/40k 三个嵌套 train 子集；
 - epoch 20/100/200 三个冻结观察点；
 - 旧 10k checkpoint 在新 50k test split 上的无微调推理；
+- binary-trained → graded continuous/threshold 与 graded-trained → binary 的双向跨路线测试；
 - 64-trained spatial checkpoint 的 32/64/128 零样本分辨率测试；
 - validation-only 选择、共同 test 对照、训练曲线和资源效率报告；
 - 阈值代理值得继续时，由 M9 执行的独立 real-MPB 验证。
@@ -226,15 +228,58 @@ manifest 记录 selection algorithm/version、salt、源 dataset/split hash、�
 
 8k 和 20k 轨迹用于同源、共同 validation/test 的数据规模比较；40k 轨迹不得在“全量训练”和“数据消融”中重复运行。
 
-### 4.4 可选交叉表征和跨路线评估
+### 4.4 必做交叉表征和双向跨路线评估
 
-交叉评估不对全部 756 个 checkpoint 无界展开。先按 validation 冻结每个 `(train_size, representation, model, seed)` 的 epoch milestone，再对冻结 checkpoint 执行：
+交叉评估是正式证据门，不再标记为可选。每次推理必须使用**源 checkpoint 的 target normalization**，不得使用目标路线 train/validation/test 标签重新估计 normalization。目标路线标签只用于反归一化后的误差计算。
 
-- graded 内部 continuous/t0.3–t0.7 的 `6×6`；
-- binary-trained → graded 表征；
-- graded-trained → binary native。
+交叉方向固定为：
 
-若研究问题只关注 40k full-train，则交叉评估只运行 `train_size=40000` 的冻结 checkpoint。所有跨路线指标只属于 OOD/generalization，不参与训练规模、epoch 或模型选择。
+- binary-trained → graded continuous test；
+- binary-trained → graded t0.3–t0.7 test；
+- graded continuous-trained → binary native test；
+- graded t0.3–t0.7-trained → binary native test；
+- graded 内部 continuous/t0.3–t0.7 的 `6×6`。
+
+binary-trained → graded continuous 是直接把连续 `[0,1]` material-weight grid 输入原 binary-trained checkpoint，不做 threshold、resize、fine-tune 或目标域 calibration。它回答的是强 domain shift 下的泛化能力，不能解释为“binary 与 graded 物理等价”。
+
+#### 4.4.1 旧 10k 主矩阵在新 50k test 上
+
+仅使用 84 个 64-resolution 主矩阵 checkpoint；18 个分辨率重训 checkpoint 保留原生路线测试，不加入此矩阵：
+
+```text
+graded internal: 4 models × 3 seeds × 6 sources × 6 targets = 432 cells
+binary -> graded: 4 models × 3 seeds × 6 targets = 72 cells
+graded -> binary: 4 models × 6 sources × 3 seeds = 72 cells
+total = 576 cross-evaluation cells
+```
+
+#### 4.4.2 50k/40k full-train 三个 epoch milestone
+
+对 train size 40k 的 epoch 20/100/200 分别执行同样的 576-cell 矩阵：
+
+```text
+576 cells × 3 milestones = 1,728 cross-evaluation cells
+```
+
+这三个 milestone 均为预注册结果，必须完整报告，不得只保留 test 上最好的 epoch。
+
+#### 4.4.3 8k/20k 跨路线数据规模对照
+
+为控制推理规模，8k/20k 只执行最关键的连续/二值双向测试：
+
+```text
+binary-trained -> graded continuous: 4 models × 3 seeds = 12 cells
+graded continuous-trained -> binary: 4 models × 3 seeds = 12 cells
+24 cells × 2 train sizes × 3 milestones = 144 cells
+```
+
+因此本计划预注册的跨表征/跨路线总量为：
+
+```text
+576 legacy + 1,728 full-train + 144 nested-size = 2,448 cells
+```
+
+同一 source checkpoint 的多个 target representation 应在一个 GPU 推理作业中顺序完成；`cell` 是指标单元，不等于 Slurm job。所有跨路线指标只属于 OOD/generalization，不参与模型、epoch、阈值或训练规模选择。
 
 [↑ 回顶部](#full-cell-dual-lane-50000-training-plan)
 
@@ -488,7 +533,7 @@ admission 失败时降并发为 6 或 3，但不改变科学矩阵。通过只�
 
 ### Stage 4：旧 10k checkpoint → 50k test
 
-先执行 102 个无微调推理任务。该阶段在任何新 50k 模型训练前冻结结果，以避免根据新训练结果选择性报告旧 checkpoint。
+先执行 102 个原生路线无微调推理，并用其中 84 个 64-resolution 主矩阵 checkpoint 完成 576-cell 跨表征/跨路线评估。binary-trained → graded continuous 必须单独列出。该阶段在任何新 50k 模型训练前冻结结果，以避免根据新训练结果选择性报告旧 checkpoint。
 
 ### Stage 5：252 条正式训练轨迹
 
@@ -508,11 +553,13 @@ admission 失败时降并发为 6 或 3，但不改变科学矩阵。通过只�
 - 完成 8k/20k/40k × 20/100/200 的 paired comparison；
 - 冻结用于后续交叉评估和 inverse 的 checkpoint 角色。
 
-### Stage 7：零样本分辨率与可选交叉评估
+### Stage 7：零样本分辨率与必做交叉评估
 
 - 执行第六节的 10k 和 50k CNN/FNO 32/64/128 bundle；
 - 记录 MLP/ResMLP 为不适用而不是失败样本；
-- 按 validation 冻结的 checkpoint 执行可选跨表征/跨路线评估。
+- 对 40k train 的 20/100/200 milestone 完成 1,728-cell 全交叉矩阵；
+- 对 8k/20k train 完成 144-cell binary ↔ graded continuous 定向矩阵；
+- 核对总计 2,448 个 cross-evaluation cells 的 source/target dataset、representation、checkpoint 和 normalization lineage。
 
 ### Stage 8：有条件的 M9 物理验证
 
@@ -544,6 +591,7 @@ admission 失败时降并发为 6 或 3，但不改变科学矩阵。通过只�
 2. 同一 `(lane, representation, model, seed, epoch)` 下 8k vs 20k vs 40k；
 3. 同一 `(lane, representation, model, seed, train_size)` 下 epoch 20 vs 100 vs 200；
 4. CNN/FNO 同一 checkpoint 下 resolution 32 vs 64 vs 128。
+5. binary-trained → graded continuous 与 graded continuous-trained → binary 的方向性差异。
 
 使用相同 sample ID 的比较必须使用 paired bootstrap 95% CI。三 seed 报告每 seed 独立值与 mean ± std。多模型、多表征和多 epoch 的 secondary comparisons 使用 Holm 校正，同时保留未校正 effect size 和 CI。
 
@@ -552,6 +600,7 @@ admission 失败时降并发为 6 或 3，但不改变科学矩阵。通过只�
 - validation 可用于冻结模型、epoch milestone 和后续交叉评估 checkpoint；
 - test 上三个预注册 milestone 可以全部报告，但不得根据 test 继续调参或只发布最好一个；
 - 10k→50k 是 domain/generalization comparison；
+- binary-trained → graded continuous 和反方向均属于跨路线 OOD，不证明两种介质或标签物理等价；
 - 8k/20k/40k 是同一 50k pool 内的数据规模 comparison；
 - 同 epoch 与 compute-matched 近似分别报告；
 - 如果 50k 没有显著优于 10k，必须报告“未观察到稳定收益”，不能以样本数更大替代证据。
@@ -563,6 +612,8 @@ admission 失败时降并发为 6 或 3，但不改变科学矩阵。通过只�
 - 8k/20k/40k 数据规模—误差曲线；
 - epoch 20/100/200—误差与 GPU-hours 曲线；
 - 10k checkpoint 与 50k checkpoint 的共同 test paired difference 图；
+- binary-trained → graded continuous、graded continuous-trained → binary 的双向对照图；
+- graded continuous/t0.3–t0.7 的 `6×6` cross-representation heatmap；
 - CNN/FNO 的 32/64/128 零样本分辨率迁移图；
 - 模型×表征×训练规模×epoch 的紧凑 heatmap；
 - 失败、长尾和最差样本案例图。
@@ -607,6 +658,8 @@ legacy_checkpoint_manifest.csv
 nested_train_manifest.json
 trajectory_manifest.csv
 milestone_manifest.csv
+cross_evaluation_manifest.csv
+cross_evaluation_cells.csv
 failed_tasks.csv
 seed_summary.csv
 resource_summary.csv
@@ -646,6 +699,8 @@ cross_environment_accepted
 - 两套 50k 数据均通过下载/hash/schema/content/WSL acceptance；
 - 两套嵌套 manifest 均证明 8k ⊂ 20k ⊂ 40k，且不与 val/test 相交；
 - 102 个旧 10k checkpoint 在 50k test 的原生训练分辨率推理结果完整；
+- 旧 10k 主矩阵的 576 个、50k/40k 的 1,728 个和 8k/20k 定向的 144 个 cross-evaluation cells 齐全，总计 2,448/2,448；
+- binary-trained → graded continuous 与 graded continuous-trained → binary 均有三 seed、四模型和 source-normalization 证据；
 - 252 条训练轨迹均有明确 terminal 状态；
 - 每条成功轨迹的 20/100/200 checkpoint、history、曲线、metrics 和 provenance 齐全；
 - 756 个 milestone observation 均有 native-resolution validation/test 记录或明确失败原因；
@@ -676,7 +731,7 @@ cross_environment_accepted
 
 ```text
 解决了什么问题：
-把原 10k 双路线训练扩展为独立的 50k 训练合同，加入旧 checkpoint 共同 test、8k/20k/40k 嵌套训练、20/100/200 epoch 里程碑和 64→32/128 零样本分辨率测试。
+把原 10k 双路线训练扩展为独立的 50k 训练合同，加入旧 checkpoint 共同 test、8k/20k/40k 嵌套训练、20/100/200 epoch 里程碑、2,448-cell 双向跨路线/跨表征评估和 64→32/128 零样本分辨率测试。
 
 为什么采用这个方案：
 单条 200-epoch 轨迹保存三个 milestone，能够形成完整的 epoch 对比而不重复计算相同前缀；252 条轨迹可组织为 21 个 12-GPU 波次，兼顾全量矩阵、三 seed 和 N40 既有 QoS 证据。

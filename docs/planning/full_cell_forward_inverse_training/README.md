@@ -26,7 +26,7 @@
 | 优先级 | 文档 | 状态 | 负责内容 |
 |---|---|---|---|
 | 10k 参考计划 | [全胞双路线训练与混合算力计划](full_cell_dual_lane_hybrid_compute_plan.md) | Historical Draft / experiment completed | 连续/五阈值表征、三 seed、102 个训练 run、12-job GPU 波次及其原始验收合同 |
-| 50k 当前计划 | [全胞双路线 50k 训练、迁移评估与混合算力计划](full_cell_dual_lane_50000_training_hybrid_compute_plan.md) | Draft | 旧 10k checkpoint→50k test、8k/20k/40k nested、20/100/200 milestone、252 条训练轨迹、零样本分辨率测试与 N40/M9 分工 |
+| 50k 当前计划 | [全胞双路线 50k 训练、迁移评估与混合算力计划](full_cell_dual_lane_50000_training_hybrid_compute_plan.md) | Draft | 旧 10k checkpoint→50k test、8k/20k/40k nested、20/100/200 milestone、252 条训练轨迹、2,448-cell 双向跨路线/跨表征评估、零样本分辨率测试与 N40/M9 分工 |
 | 后续扩展 | [全胞解析参数逆向设计扩展计划](full_cell_inverse_design_extension_plan.md) | Deferred Draft | 解析参数 codec、45 个 inverse GPU run、候选健康门与 8-target smoke→full validation→test-100 replay |
 | 历史草案 | [旧版单 seed 正向计划](archive/full_cell_forward_single_seed_legacy.md) | Superseded | 仅用于决策追溯，不得作为执行入口 |
 
@@ -37,7 +37,7 @@
 3. 实现 50k 计划所需的 milestone、nested split、完整 resume 和跨 dataset/resolution 推理接口。
 4. 完成 N40 单卡 benchmark 与 12-job 50k HDF5 admission。
 5. 经单独授权后执行旧 10k checkpoint 推理和 21 个 12-job 训练波次。
-6. 完成共同 test、epoch/data-size 对照与 CNN/FNO 零样本分辨率测试。
+6. 完成共同 test、epoch/data-size 对照、2,448-cell 双向跨路线/跨表征评估与 CNN/FNO 零样本分辨率测试。
 7. 若阈值代理值得继续，单独授权 M9 进行阈值真实物理验证。
 8. Forward 证据完整后，重新审计并决定是否更新 inverse 扩展入口。
 
