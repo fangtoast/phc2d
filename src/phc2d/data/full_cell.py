@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import dataclass, field
+from multiprocessing import get_context
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
 
@@ -299,6 +302,207 @@ def write_full_cell_hdf5(
     return out
 
 
+def _rasterize_structure_resolutions(
+    task: tuple[int, FullCellStructureSpec, tuple[int, ...]],
+) -> tuple[int, tuple[tuple[int, np.ndarray, np.ndarray], ...]]:
+    """Compute each material grid once and derive epsilon from that grid."""
+
+    index, structure, resolutions = task
+    rows: list[tuple[int, np.ndarray, np.ndarray]] = []
+    for resolution in resolutions:
+        weight = structure.rasterize((resolution, resolution)).astype(np.float32, copy=False)
+        epsilon = (
+            float(structure.epsilon_air)
+            + (float(structure.epsilon_material) - float(structure.epsilon_air)) * weight
+        ).astype(np.float32, copy=False)
+        rows.append((resolution, weight, epsilon))
+    return index, tuple(rows)
+
+
+def write_full_cell_hdf5_streaming(
+    path: str | Path,
+    *,
+    structures: Sequence[FullCellStructureSpec],
+    band_shape: Sequence[int],
+    band_loader: Callable[[int], np.ndarray],
+    k_points: np.ndarray,
+    k_grid_index: np.ndarray,
+    idx_train: np.ndarray,
+    idx_val: np.ndarray,
+    idx_test: np.ndarray,
+    raster_resolutions: Sequence[int],
+    metadata: Mapping[str, Any],
+    raster_workers: int = 1,
+    row_chunk_size: int = 256,
+    progress_fn: Callable[[str, int, int], None] | None = None,
+) -> Path:
+    """Atomically build a full-cell HDF5 with bounded memory and parallel rasters."""
+
+    try:
+        import h5py
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise ImportError("h5py is required to write full-cell datasets") from exc
+
+    items = tuple(structures)
+    n_items = len(items)
+    shape = tuple(int(value) for value in band_shape)
+    if len(shape) != 2 or min(shape) <= 0:
+        raise ValueError("band_shape must be [n_k_points, n_bands]")
+    points = np.asarray(k_points, dtype=np.float64)
+    grid_index = np.asarray(k_grid_index, dtype=np.int64)
+    if points.shape != (shape[0], 2) or grid_index.shape != points.shape:
+        raise ValueError("k_points and k_grid_index do not match band_shape")
+    split_arrays = tuple(
+        np.asarray(value, dtype=np.int64).reshape(-1) for value in (idx_train, idx_val, idx_test)
+    )
+    merged = np.concatenate(split_arrays) if split_arrays else np.empty(0, dtype=np.int64)
+    if sorted(int(value) for value in merged) != list(range(n_items)):
+        raise ValueError("train/val/test indices must partition all structures exactly once")
+    resolutions = tuple(sorted({int(value) for value in raster_resolutions}))
+    if not resolutions or min(resolutions) <= 0:
+        raise ValueError("raster resolutions must be positive")
+    available_cpus = (
+        len(os.sched_getaffinity(0))
+        if hasattr(os, "sched_getaffinity")
+        else int(os.cpu_count() or 1)
+    )
+    workers = max(1, min(int(raster_workers), n_items or 1, available_cpus))
+    chunk_size = max(1, int(row_chunk_size))
+
+    out = Path(path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    incomplete = out.with_name(f".{out.name}.incomplete")
+    if incomplete.exists():
+        raise RuntimeError(f"Incomplete finalizer output already exists: {incomplete}")
+    string_dtype = h5py.string_dtype(encoding="utf-8")
+    max_params = max((len(item.parameter_vector) for item in items), default=0)
+
+    with h5py.File(incomplete, "w") as handle:
+        handle.attrs["schema_version"] = FULL_CELL_SCHEMA_VERSION
+        handle.attrs["metadata_json"] = _canonical_json(metadata)
+        handle.attrs["material_parameterization"] = "analytic_periodic_full_cell"
+        sample_ds = handle.create_dataset("sample_id", shape=(n_items,), dtype=string_dtype)
+        family_ds = handle.create_dataset("family_id", shape=(n_items,), dtype=string_dtype)
+        kind_ds = handle.create_dataset("material_kind", shape=(n_items,), dtype=string_dtype)
+        structure_ds = handle.create_dataset("structure_json", shape=(n_items,), dtype=string_dtype)
+        params_ds = handle.create_dataset(
+            "params", shape=(n_items, max_params), dtype=np.float32, compression="gzip", shuffle=True
+        )
+        mask_ds = handle.create_dataset(
+            "param_mask", shape=(n_items, max_params), dtype=np.uint8, compression="gzip", shuffle=True
+        )
+        bands_ds = handle.create_dataset(
+            "Wh",
+            shape=(n_items, *shape),
+            dtype=np.float32,
+            compression="gzip",
+            shuffle=True,
+            chunks=(1, *shape),
+        )
+        handle.create_dataset("k_points", data=points)
+        handle.create_dataset("k_grid_index", data=grid_index)
+        handle.create_dataset("idx_train", data=split_arrays[0])
+        handle.create_dataset("idx_val", data=split_arrays[1])
+        handle.create_dataset("idx_test", data=split_arrays[2])
+        weight_ds = {
+            resolution: handle.create_dataset(
+                f"material_weight_grid_{resolution}",
+                shape=(n_items, resolution, resolution),
+                dtype=np.float32,
+                compression="gzip",
+                shuffle=True,
+                chunks=(1, resolution, resolution),
+            )
+            for resolution in resolutions
+        }
+        epsilon_ds = {
+            resolution: handle.create_dataset(
+                f"epsilon_grid_{resolution}",
+                shape=(n_items, resolution, resolution),
+                dtype=np.float32,
+                compression="gzip",
+                shuffle=True,
+                chunks=(1, resolution, resolution),
+            )
+            for resolution in resolutions
+        }
+
+        for start in range(0, n_items, chunk_size):
+            end = min(n_items, start + chunk_size)
+            rows = items[start:end]
+            sample_ds[start:end] = [item.sample_id for item in rows]
+            family_ds[start:end] = [item.generator_family for item in rows]
+            kind_ds[start:end] = [item.material_kind for item in rows]
+            structure_ds[start:end] = [_canonical_json(item.to_mapping()) for item in rows]
+            params = np.zeros((end - start, max_params), dtype=np.float32)
+            mask = np.zeros((end - start, max_params), dtype=np.uint8)
+            band_rows = np.empty((end - start, *shape), dtype=np.float32)
+            for offset, item in enumerate(rows):
+                width = len(item.parameter_vector)
+                params[offset, :width] = np.asarray(item.parameter_vector, dtype=np.float32)
+                mask[offset, :width] = np.asarray(item.parameter_mask, dtype=np.uint8)
+                band_rows[offset] = np.asarray(band_loader(start + offset), dtype=np.float32)
+            if not np.all(np.isfinite(band_rows)):
+                raise RuntimeError("Full-cell bands contain NaN or Inf")
+            if np.any(np.diff(band_rows, axis=-1) < -1.0e-7):
+                raise RuntimeError("Full-cell bands violate ascending band order")
+            params_ds[start:end] = params
+            mask_ds[start:end] = mask
+            bands_ds[start:end] = band_rows
+            handle.flush()
+            if progress_fn is not None:
+                progress_fn("bands", end, n_items)
+
+        tasks = iter((index, item, resolutions) for index, item in enumerate(items))
+        if workers == 1:
+            generated = map(_rasterize_structure_resolutions, tasks)
+            for completed, (index, raster_rows) in enumerate(generated, start=1):
+                for resolution, weight, epsilon in raster_rows:
+                    weight_ds[resolution][index] = weight
+                    epsilon_ds[resolution][index] = epsilon
+                if completed % chunk_size == 0:
+                    handle.flush()
+                    if progress_fn is not None:
+                        progress_fn("rasters", completed, n_items)
+        else:
+            with ProcessPoolExecutor(
+                max_workers=workers, mp_context=get_context("spawn")
+            ) as executor:
+                futures: dict[Any, None] = {}
+                max_in_flight = max(1, workers * 2)
+
+                def fill() -> None:
+                    while len(futures) < max_in_flight:
+                        try:
+                            task = next(tasks)
+                        except StopIteration:
+                            break
+                        future = executor.submit(_rasterize_structure_resolutions, task)
+                        futures[future] = None
+
+                completed = 0
+                fill()
+                while futures:
+                    done, _ = wait(tuple(futures), return_when=FIRST_COMPLETED)
+                    for future in done:
+                        futures.pop(future)
+                        index, raster_rows = future.result()
+                        for resolution, weight, epsilon in raster_rows:
+                            weight_ds[resolution][index] = weight
+                            epsilon_ds[resolution][index] = epsilon
+                        completed += 1
+                        if completed % chunk_size == 0:
+                            handle.flush()
+                            if progress_fn is not None:
+                                progress_fn("rasters", completed, n_items)
+                    fill()
+        if progress_fn is not None:
+            progress_fn("rasters", n_items, n_items)
+        handle.flush()
+    os.replace(incomplete, out)
+    return out
+
+
 def load_full_cell_hdf5(path: str | Path) -> FullCellDatasetBundle:
     """Load a full-cell dataset without importing h5py until requested."""
 
@@ -347,4 +551,5 @@ __all__ = [
     "build_full_bz_grid",
     "load_full_cell_hdf5",
     "write_full_cell_hdf5",
+    "write_full_cell_hdf5_streaming",
 ]

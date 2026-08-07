@@ -31,6 +31,12 @@ from phc2d.data.full_cell_generation import (
     run_full_cell_generation,
     write_combined_full_cell_manifest,
 )
+from phc2d.data.full_cell_hpc import (
+    finalize_full_cell_hpc,
+    prepare_full_cell_hpc_plan,
+    solve_full_cell_hpc_shard,
+)
+from phc2d.hpc import audit_campaign, collect_campaign_status
 from phc2d.data.xingyi_deployment import prepare_xingyi_benchmark_plan, select_xingyi_worker_count
 
 
@@ -219,6 +225,49 @@ def test_prepare_full_cell_sample_plan_cli_is_lazy() -> None:
         ["data", "generate", "--config", "config.yaml", "--plan-workers", "64"]
     )
     assert generation.plan_workers == "64"
+
+
+def test_full_cell_hpc_two_shard_pipeline_is_atomic_and_run_local(tmp_path: Path) -> None:
+    pytest.importorskip("h5py")
+    config = _write_config(tmp_path)
+    run_dir = tmp_path / "campaign" / "full_cell_unit"
+    prepare_full_cell_hpc_plan(
+        config,
+        run_dir=run_dir,
+        workers=2,
+        shard_count=2,
+        platform_id="unit",
+    )
+    for shard_index in range(2):
+        solve_full_cell_hpc_shard(
+            config,
+            run_dir=run_dir,
+            shard_index=shard_index,
+            shard_count=2,
+            workers=2,
+            skip_environment_check=True,
+            solver_fn=deterministic_fake_solver,
+        )
+    before = collect_campaign_status(run_dir)
+    assert before["state"] == "solver_shards_complete"
+    assert before["completed"] == 4
+    assert before["failed"] == 0
+
+    finalize_full_cell_hpc(config, run_dir=run_dir, raster_workers=1)
+
+    dataset_path = run_dir / "data" / "dataset.h5"
+    assert dataset_path.is_file()
+    assert not (run_dir / "data" / ".dataset.h5.incomplete").exists()
+    assert not list(run_dir.rglob("*.npy"))
+    dataset = load_full_cell_hdf5(dataset_path)
+    assert dataset.Wh.shape == (4, 81, 10)
+    assert dataset.material_weight_grids[128].shape == (4, 128, 128)
+    status = collect_campaign_status(run_dir)
+    assert status["state"] == "cluster_generated_pending_download"
+    assert status["hdf5"][0]["path"] == "data/dataset.h5"
+    audit = audit_campaign(run_dir)
+    assert audit["status"] == "passed"
+    assert audit["scientific_acceptance_promoted"] is False
 
 
 def test_solver_failure_is_preserved_and_dataset_is_not_written(tmp_path: Path) -> None:

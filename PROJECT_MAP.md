@@ -5,6 +5,8 @@
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
+> 2026-08-07 工程状态：通用超算物理 campaign 控制面与 `full_cell_band` 参考适配器已实现；query/k-path、field-eigen、resolution-convergence 与 inverse replay 仅完成适配器登记，尚未完成多节点迁移。详见 [`docs/hpc_physics_campaigns.md`](docs/hpc_physics_campaigns.md)。这不是新的物理验证结论。
+
 # PROJECT MAP
 
 | Metadata | Value |

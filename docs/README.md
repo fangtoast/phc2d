@@ -5,6 +5,8 @@
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
+> 超算物理数据生成的统一 plan/shard/finalize/status/audit 合同见 [`hpc_physics_campaigns.md`](hpc_physics_campaigns.md)。该文档明确区分已实现的 full-cell 参考适配器与尚待迁移的任务族。
+
 <a id="docs-book-home"></a>
 
 # phc2d 知识地图与阅读目录

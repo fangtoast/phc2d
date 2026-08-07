@@ -5,6 +5,8 @@
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
+> 2026-08-07 后的新 campaign 应使用 [`../../docs/hpc_physics_campaigns.md`](../../docs/hpc_physics_campaigns.md) 的通用 plan → solve array → finalize 合同。本文件中的单作业 64-worker 命令保留为已完成 50k campaign 的历史执行证据，不再作为后续规模化任务的默认架构。
+
 <a id="full-cell-dual-lane-50000-xingyi"></a>
 
 # Xingyi 全胞双路线 50k 数据生成合同

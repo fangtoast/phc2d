@@ -13,7 +13,13 @@ from pathlib import Path
 
 import numpy as np
 
-from phc2d.solvers import MPBParallelConfig, MPBWorkerJob, MpbBandSolverConfig, run_mpb_worker_jobs
+from phc2d.solvers import (
+    MPBParallelConfig,
+    MPBWorkerJob,
+    MpbBandSolverConfig,
+    run_mpb_worker_jobs,
+    run_mpb_worker_partition,
+)
 
 
 def _solver_config() -> MpbBandSolverConfig:
@@ -143,3 +149,72 @@ def test_resume_rejects_a_shard_with_mismatched_identity(tmp_path: Path) -> None
     assert summary["resumed_count"] == 1
     repaired = json.loads(payload_path.read_text(encoding="utf-8"))
     assert repaired["geometry_hash"] == "geom0"
+
+
+def test_partition_runner_uses_one_hdf5_and_resumes_successful_cases(tmp_path: Path) -> None:
+    h5py = __import__("pytest").importorskip("h5py")
+    output = tmp_path / "shard_000" / "partition.h5"
+    identity = {
+        "shard_index": 0,
+        "shard_count": 1,
+        "case_start": 0,
+        "case_end": 4,
+        "plan_sha256": "a" * 64,
+    }
+    config = MPBParallelConfig(
+        workers=2,
+        min_workers=1,
+        max_workers=2,
+        worker_backend="thread",
+        fail_fast=False,
+    )
+    summary = run_mpb_worker_partition(
+        _jobs(4),
+        config=config,
+        partition_path=output,
+        identity=identity,
+        solver_fn=sleepy_fake_solver,
+    )
+
+    assert summary["completed_count"] == 4
+    assert summary["failed_count"] == 0
+    assert not list(tmp_path.rglob("*.npy"))
+    with h5py.File(output, "r") as handle:
+        assert bool(handle.attrs["partition_complete"])
+        assert handle["bands"].shape == (4, 2, 2)
+        assert np.all(np.asarray(handle["success"]) == 1)
+
+    resumed = run_mpb_worker_partition(
+        _jobs(4),
+        config=config,
+        partition_path=output,
+        identity=identity,
+        allow_resume=True,
+        solver_fn=sleepy_fake_solver,
+    )
+    assert resumed["resumed_count"] == 4
+    assert resumed["computed_this_run"] == 0
+
+
+def test_partition_resume_rejects_identity_change(tmp_path: Path) -> None:
+    __import__("pytest").importorskip("h5py")
+    output = tmp_path / "partition.h5"
+    config = MPBParallelConfig(workers=1, min_workers=1, max_workers=1, worker_backend="thread")
+    run_mpb_worker_partition(
+        _jobs(1),
+        config=config,
+        partition_path=output,
+        identity={"plan_sha256": "a" * 64},
+        solver_fn=sleepy_fake_solver,
+    )
+    import pytest
+
+    with pytest.raises(ValueError, match="identity"):
+        run_mpb_worker_partition(
+            _jobs(1),
+            config=config,
+            partition_path=output,
+            identity={"plan_sha256": "b" * 64},
+            allow_resume=True,
+            solver_fn=sleepy_fake_solver,
+        )

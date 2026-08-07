@@ -1,0 +1,13 @@
+# Parallel Computing Cloud M9 profile for portable physical-data campaigns.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+platform_id: paracloud_bscc_m9
+scheduler: slurm
+partition: amd_m9_768
+cores_per_node: 256
+memory_gb_per_node: 128
+max_nodes: 8
+max_array_tasks: 16
+allowed_node_tiers: [1, 2, 4, 8]

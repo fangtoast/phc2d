@@ -13,6 +13,7 @@ from phc2d.data.full_cell import (
     build_full_bz_grid,
     load_full_cell_hdf5,
     write_full_cell_hdf5,
+    write_full_cell_hdf5_streaming,
 )
 from phc2d.data.query_dataset import (
     BandQueryDataset,
@@ -135,6 +136,7 @@ __all__ = [
     "validate_representation_compatibility",
     "write_field_eigen_hdf5",
     "write_full_cell_hdf5",
+    "write_full_cell_hdf5_streaming",
     "wedge_index_for_pixel",
     "wedge_indices",
 ]

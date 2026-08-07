@@ -5,6 +5,8 @@
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
+> 超算平台资源合同位于 [`research/hpc_platform_xingyi_v1.yaml`](research/hpc_platform_xingyi_v1.yaml) 与 [`research/hpc_platform_paracloud_m9_v1.yaml`](research/hpc_platform_paracloud_m9_v1.yaml)；统一执行边界见 [`../docs/hpc_physics_campaigns.md`](../docs/hpc_physics_campaigns.md)。
+
 # Configs
 
 统一配置入口按实验用途分组：
