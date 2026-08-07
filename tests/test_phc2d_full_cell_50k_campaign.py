@@ -16,12 +16,21 @@ import yaml
 from phc2d.forward.full_cell_50k_campaign import (
     MODELS,
     advance_campaign,
+    audit_wave,
     build_wave_plan,
     initialize_campaign,
 )
 
 
-def _write_manifest(root: Path, name: str, *, create_artifacts: bool, epochs: int = 20) -> Path:
+def _write_manifest(
+    root: Path,
+    name: str,
+    *,
+    create_artifacts: bool,
+    epochs: int = 20,
+    train_size: int = 40000,
+    final_fit: bool = False,
+) -> Path:
     rows: list[dict[str, object]] = []
     for model in MODELS:
         for seed in (0, 1, 2):
@@ -37,9 +46,15 @@ def _write_manifest(root: Path, name: str, *, create_artifacts: bool, epochs: in
                         {
                             "status": "formal_training_success",
                             "test_executed": False,
+                            "selection_split": "none_final_fit" if final_fit else "validation",
+                            "checkpoint_role": (
+                                "final_epoch_final_fit" if final_fit else "best_validation"
+                            ),
+                            "validation_overlap": final_fit,
+                            "validation_metrics_admissible": not final_fit,
                             "model": model,
                             "seed": seed,
-                            "train_size": 40000,
+                            "train_size": train_size,
                             "max_epochs": epochs,
                             "checkpoint_sha256": "a" * 64,
                         }
@@ -47,7 +62,15 @@ def _write_manifest(root: Path, name: str, *, create_artifacts: bool, epochs: in
                     encoding="utf-8",
                 )
                 (run_dir / "metrics.json").write_text(
-                    json.dumps({"best_validation_bands_2_10_mre_pct": 1.0}),
+                    json.dumps(
+                        {
+                            "best_validation_bands_2_10_mre_pct": None if final_fit else 1.0,
+                            "best_training_overlap_monitor_mre_pct": 1.0 if final_fit else None,
+                            "monitor_is_unbiased_validation": not final_fit,
+                            "best_epoch": epochs if final_fit else 1,
+                            "checkpoint_epoch": epochs if final_fit else 1,
+                        }
+                    ),
                     encoding="utf-8",
                 )
                 (run_dir / "run.meta.json").write_text(
@@ -55,12 +78,17 @@ def _write_manifest(root: Path, name: str, *, create_artifacts: bool, epochs: in
                         {
                             "dataset_sha256": "b" * 64,
                             "train_subset_hash": "c" * 64,
+                            "full_dataset_final_fit": final_fit,
+                            "validation_overlap_count": 5000 if final_fit else 0,
+                            "test_overlap_count": 5000 if final_fit else 0,
                         }
                     ),
                     encoding="utf-8",
                 )
                 (run_dir / "config.resolved.yaml").write_text(
-                    yaml.safe_dump({"training": {"train_size": 40000, "max_epochs": epochs}}),
+                    yaml.safe_dump(
+                        {"training": {"train_size": train_size, "max_epochs": epochs}}
+                    ),
                     encoding="utf-8",
                 )
                 with (run_dir / "history.csv").open("w", encoding="utf-8", newline="") as handle:
@@ -90,14 +118,49 @@ def _states(state: str) -> dict[str, dict[str, str]]:
     return {str(1000 + index): {"state": state} for index in range(12)}
 
 
-def test_build_wave_plan_freezes_63_waves_and_756_runs() -> None:
+def test_build_wave_plan_freezes_17_waves_and_204_runs() -> None:
     waves = build_wave_plan()
-    assert len(waves) == 63
-    assert sum(wave["planned_runs"] for wave in waves) == 756
+    assert len(waves) == 17
+    assert sum(wave["planned_runs"] for wave in waves) == 204
     assert waves[0]["key"] == "binary_native_n40000_e20"
     assert waves[1]["key"] == "binary_native_n40000_e100"
     assert waves[2]["key"] == "binary_native_n40000_e200"
-    assert waves[-1]["key"] == "graded_t07_n8000_e200"
+    assert waves[3]["key"] == "graded_continuous_n40000_e20"
+    assert waves[6]["key"] == "binary_native_n50000_e20"
+    assert waves[12]["key"] == "graded_t03_n50000_e100"
+    assert waves[-1]["key"] == "graded_t07_n50000_e100"
+    assert {int(wave["train_size"]) for wave in waves} == {40000, 50000}
+    threshold_waves = [wave for wave in waves if str(wave["representation"]).startswith("graded_t")]
+    assert len(threshold_waves) == 5
+    assert {(wave["train_size"], wave["max_epochs"]) for wave in threshold_waves} == {
+        (50000, 100)
+    }
+
+
+def test_final_fit_wave_audit_requires_explicit_overlap_boundary(tmp_path: Path) -> None:
+    manifest = _write_manifest(
+        tmp_path,
+        "final_fit",
+        create_artifacts=True,
+        epochs=100,
+        train_size=50000,
+        final_fit=True,
+    )
+    wave = next(wave for wave in build_wave_plan() if wave["key"] == "binary_native_n50000_e100")
+    wave["manifest"] = str(manifest.relative_to(tmp_path))
+    result = audit_wave(
+        wave,
+        repository_root=tmp_path,
+        slurm_reader=lambda _ids: _states("COMPLETED"),
+    )
+    assert result == {
+        "status": "complete",
+        "completed": 12,
+        "failed": 0,
+        "active": 0,
+        "unknown": 0,
+        "failures": [],
+    }
 
 
 def test_advance_is_idempotent_and_submits_only_after_complete_audit(tmp_path: Path) -> None:

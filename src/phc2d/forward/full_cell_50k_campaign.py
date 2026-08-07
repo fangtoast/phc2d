@@ -1,4 +1,4 @@
-"""Run the authorized 63-wave full-cell 50k forward training campaign.
+"""Run the authorized 17-wave full-cell 50k forward training campaign.
 
 Author: fangtoast
 Email: fangtoast@foxmail.com
@@ -24,15 +24,16 @@ from phc2d.forward.full_cell_wave import REQUIRED_RUN_FILES, aggregate_full_cell
 
 MODELS = ("mlp", "res_mlp_wide", "lifted_cnn", "fno2d_band_v2")
 SEEDS = (0, 1, 2)
-TRAIN_SIZES = (40000, 20000, 8000)
 EPOCH_BUDGETS = (20, 100, 200)
-REPRESENTATIONS = (
+PRIMARY_REPRESENTATIONS = (
     ("binary_native", "configs/research/full_cell_forward_binary_native_50000_v1.yaml", None),
     (
         "graded_continuous",
         "configs/research/full_cell_forward_graded_continuous_50000_v1.yaml",
         None,
     ),
+)
+THRESHOLD_REPRESENTATIONS = (
     ("graded_t03", "configs/research/full_cell_forward_graded_threshold_50000_v1.yaml", 0.3),
     ("graded_t04", "configs/research/full_cell_forward_graded_threshold_50000_v1.yaml", 0.4),
     ("graded_t05", "configs/research/full_cell_forward_graded_threshold_50000_v1.yaml", 0.5),
@@ -91,33 +92,38 @@ def _read_manifest(path: Path) -> list[dict[str, str]]:
 
 
 def build_wave_plan() -> list[dict[str, Any]]:
-    """Return the frozen 63-wave, 756-run execution order."""
+    """Return the frozen 17-wave, 204-run execution order."""
 
     waves: list[dict[str, Any]] = []
-    for train_size in TRAIN_SIZES:
-        for representation, config, threshold in REPRESENTATIONS:
+    matrix: list[tuple[str, str, float | None, int, int]] = []
+    for train_size in (40000, 50000):
+        for representation, config, threshold in PRIMARY_REPRESENTATIONS:
             for max_epochs in EPOCH_BUDGETS:
-                key = f"{representation}_n{train_size}_e{max_epochs}"
-                waves.append(
-                    {
-                        "index": len(waves) + 1,
-                        "key": key,
-                        "wave_id": f"fc50k_{key}",
-                        "representation": representation,
-                        "config": config,
-                        "threshold": threshold,
-                        "resolution": 64,
-                        "train_size": train_size,
-                        "max_epochs": max_epochs,
-                        "planned_runs": 12,
-                        "status": "planned",
-                        "manifest": None,
-                        "job_ids": [],
-                        "aggregation_dir": None,
-                    }
-                )
-    if len(waves) != 63 or sum(int(wave["planned_runs"]) for wave in waves) != 756:
-        raise RuntimeError("internal error: the frozen campaign is not 63 waves / 756 runs")
+                matrix.append((representation, config, threshold, train_size, max_epochs))
+    for representation, config, threshold in THRESHOLD_REPRESENTATIONS:
+        matrix.append((representation, config, threshold, 50000, 100))
+    for representation, config, threshold, train_size, max_epochs in matrix:
+        key = f"{representation}_n{train_size}_e{max_epochs}"
+        waves.append(
+            {
+                "index": len(waves) + 1,
+                "key": key,
+                "wave_id": f"fc50k_{key}",
+                "representation": representation,
+                "config": config,
+                "threshold": threshold,
+                "resolution": 64,
+                "train_size": train_size,
+                "max_epochs": max_epochs,
+                "planned_runs": 12,
+                "status": "planned",
+                "manifest": None,
+                "job_ids": [],
+                "aggregation_dir": None,
+            }
+        )
+    if len(waves) != 17 or sum(int(wave["planned_runs"]) for wave in waves) != 204:
+        raise RuntimeError("internal error: the frozen campaign is not 17 waves / 204 runs")
     return waves
 
 
@@ -152,14 +158,14 @@ def initialize_campaign(
         wave["job_ids"] = [row["job_id"] for row in rows]
         wave["adopted_at"] = _now()
     state: dict[str, Any] = {
-        "schema_version": "phc2d.full_cell_forward_50k_campaign.v1",
+        "schema_version": "phc2d.full_cell_forward_50k_campaign.v2",
         "status": "campaign_running",
         "authorization_id": authorization_id,
         "formal_submission_authorized": True,
         "created_at": _now(),
         "updated_at": _now(),
-        "planned_waves": 63,
-        "planned_runs": 756,
+        "planned_waves": len(waves),
+        "planned_runs": sum(int(wave["planned_runs"]) for wave in waves),
         "completed_waves": 0,
         "completed_runs": 0,
         "failed_runs": 0,
@@ -190,6 +196,12 @@ def _validate_run_artifacts(root: Path, row: Mapping[str, str], wave: Mapping[st
     except Exception as exc:  # pragma: no cover - exact parser errors vary
         return [f"parse_error:{type(exc).__name__}:{exc}"]
     try:
+        final_fit = int(wave["train_size"]) == 50000
+        metric = (
+            metrics.get("best_training_overlap_monitor_mre_pct", math.nan)
+            if final_fit
+            else metrics.get("best_validation_bands_2_10_mre_pct", math.nan)
+        )
         checks = {
             "results_status": results.get("status") == "formal_training_success",
             "test_not_executed": not bool(results.get("test_executed")),
@@ -201,9 +213,29 @@ def _validate_run_artifacts(root: Path, row: Mapping[str, str], wave: Mapping[st
             "history_terminal_epoch": bool(history)
             and int(history[-1].get("epoch", -1)) == int(wave["max_epochs"]),
             "checkpoint_hash": len(str(results.get("checkpoint_sha256", ""))) == 64,
-            "metric_finite": math.isfinite(
-                float(metrics.get("best_validation_bands_2_10_mre_pct", math.nan))
+            "metric_finite": math.isfinite(float(metric)),
+            "selection_boundary": results.get("selection_split")
+            == ("none_final_fit" if final_fit else "validation"),
+            "validation_admissibility": bool(
+                results.get("validation_metrics_admissible", not final_fit)
+            )
+            is (not final_fit),
+            "overlap_boundary": bool(results.get("validation_overlap", False)) is final_fit,
+            "monitor_admissibility": bool(
+                metrics.get("monitor_is_unbiased_validation", not final_fit)
+            )
+            is (not final_fit),
+            "metadata_final_fit": bool(meta.get("full_dataset_final_fit", False)) is final_fit,
+            "metadata_overlap_counts": (
+                int(meta.get("validation_overlap_count", 0)) > 0
+                and int(meta.get("test_overlap_count", 0)) > 0
+                if final_fit
+                else True
             ),
+            "checkpoint_role": results.get("checkpoint_role", "best_validation")
+            == ("final_epoch_final_fit" if final_fit else "best_validation"),
+            "checkpoint_epoch": int(metrics.get("checkpoint_epoch", metrics.get("best_epoch", -1)))
+            == (int(wave["max_epochs"]) if final_fit else int(metrics.get("best_epoch", -1))),
             "resolved_train_size": int(resolved["training"]["train_size"])
             == int(wave["train_size"]),
             "resolved_max_epochs": int(resolved["training"]["max_epochs"])

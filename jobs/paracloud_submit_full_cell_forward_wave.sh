@@ -22,8 +22,8 @@ if [[ "$mode" == "train" && ( -n "$train_size" || -n "$max_epochs" ) ]]; then
     echo "TRAIN_SIZE and MAX_EPOCHS must be supplied together" >&2
     exit 2
   fi
-  if [[ "$train_size" != "8000" && "$train_size" != "20000" && "$train_size" != "40000" ]]; then
-    echo "formal 50k TRAIN_SIZE must be 8000, 20000, or 40000" >&2
+  if [[ "$train_size" != "8000" && "$train_size" != "20000" && "$train_size" != "40000" && "$train_size" != "50000" ]]; then
+    echo "formal 50k TRAIN_SIZE must be 8000, 20000, 40000, or 50000" >&2
     exit 2
   fi
   if [[ "$max_epochs" != "20" && "$max_epochs" != "100" && "$max_epochs" != "200" ]]; then

@@ -58,7 +58,12 @@ def _write_csv(path: Path, rows: list[Mapping[str, Any]]) -> None:
         writer.writerows(rows)
 
 
-def _plot_training_curves(output_dir: Path, histories: Mapping[str, Mapping[int, list[dict[str, str]]]]) -> None:
+def _plot_training_curves(
+    output_dir: Path,
+    histories: Mapping[str, Mapping[int, list[dict[str, str]]]],
+    *,
+    monitor_label: str,
+) -> None:
     import matplotlib.pyplot as plt
     import numpy as np
 
@@ -81,7 +86,7 @@ def _plot_training_curves(output_dir: Path, histories: Mapping[str, Mapping[int,
         axis.fill_between(epoch_axis, mean - std, mean + std, color="black", alpha=0.15)
         axis.set_title(model)
         axis.set_xlabel("epoch")
-        axis.set_ylabel("validation bands 2-10 MRE (%)")
+        axis.set_ylabel(f"{monitor_label} bands 2-10 MRE (%)")
         axis.grid(alpha=0.2)
         axis.legend(fontsize=8)
     figure.tight_layout()
@@ -90,21 +95,29 @@ def _plot_training_curves(output_dir: Path, histories: Mapping[str, Mapping[int,
     plt.close(figure)
 
 
-def _plot_validation(output_dir: Path, summary_rows: list[Mapping[str, Any]]) -> None:
+def _plot_comparison(
+    output_dir: Path,
+    summary_rows: list[Mapping[str, Any]],
+    *,
+    mean_key: str,
+    std_key: str,
+    label: str,
+    filename: str,
+) -> None:
     import matplotlib.pyplot as plt
 
-    rows = sorted(summary_rows, key=lambda row: float(row["validation_mre_mean_pct"]))
+    rows = sorted(summary_rows, key=lambda row: float(row[mean_key]))
     labels = [str(row["model"]) for row in rows]
-    means = [float(row["validation_mre_mean_pct"]) for row in rows]
-    stds = [float(row["validation_mre_std_pct"]) for row in rows]
+    means = [float(row[mean_key]) for row in rows]
+    stds = [float(row[std_key]) for row in rows]
     figure, axis = plt.subplots(figsize=(8, 4.8))
     axis.bar(labels, means, yerr=stds, capsize=4)
-    axis.set_ylabel("best validation bands 2-10 MRE (%)")
+    axis.set_ylabel(label)
     axis.tick_params(axis="x", rotation=18)
     axis.grid(axis="y", alpha=0.2)
     figure.tight_layout()
     for suffix in ("png", "pdf"):
-        figure.savefig(output_dir / "figures" / f"validation_comparison.{suffix}", dpi=180)
+        figure.savefig(output_dir / "figures" / f"{filename}.{suffix}", dpi=180)
     plt.close(figure)
 
 
@@ -114,7 +127,7 @@ def aggregate_full_cell_forward_wave(
     output_dir: str | Path,
     repository_root: str | Path = ".",
 ) -> Path:
-    """Validate all 12 terminal runs and write the frozen validation-only summary."""
+    """Validate all 12 terminal runs and preserve their selection boundary."""
 
     root = Path(repository_root).resolve()
     manifest = Path(manifest_path)
@@ -136,6 +149,8 @@ def aggregate_full_cell_forward_wave(
     dataset_hashes: set[str] = set()
     split_hashes: set[tuple[str, str, str]] = set()
     config_paths: set[str] = set()
+    selection_splits: set[str] = set()
+    final_fit_flags: set[bool] = set()
 
     for row in rows:
         model = str(row["model"])
@@ -153,9 +168,18 @@ def aggregate_full_cell_forward_wave(
             raise RuntimeError(f"run {model}/seed{seed} status is {results.get('status')!r}")
         if bool(results.get("test_executed")):
             raise RuntimeError(f"run {model}/seed{seed} accessed test before validation freeze")
-        value = float(metrics["best_validation_bands_2_10_mre_pct"])
+        selection_split = str(results.get("selection_split", ""))
+        if selection_split == "validation":
+            metric_name = "best_validation_bands_2_10_mre_pct"
+        elif selection_split == "none_final_fit":
+            metric_name = "best_training_overlap_monitor_mre_pct"
+        else:
+            raise RuntimeError(
+                f"run {model}/seed{seed} has unsupported selection_split={selection_split!r}"
+            )
+        value = float(metrics[metric_name])
         if not math.isfinite(value):
-            raise RuntimeError(f"run {model}/seed{seed} has non-finite validation metric")
+            raise RuntimeError(f"run {model}/seed{seed} has non-finite aggregation metric")
         checkpoint_hash = str(results.get("checkpoint_sha256", ""))
         if len(checkpoint_hash) != 64:
             raise RuntimeError(f"run {model}/seed{seed} lacks checkpoint SHA-256")
@@ -170,6 +194,8 @@ def aggregate_full_cell_forward_wave(
             )
         )
         config_paths.add(str(meta.get("config_path")))
+        selection_splits.add(selection_split)
+        final_fit_flags.add(bool(meta.get("full_dataset_final_fit", False)))
         run_rows.append(
             {
                 "model": model,
@@ -181,40 +207,88 @@ def aggregate_full_cell_forward_wave(
                 "checkpoint_sha256": checkpoint_hash,
                 "best_epoch": metrics["best_epoch"],
                 "stop_epoch": metrics["stop_epoch"],
-                "best_validation_bands_2_10_mre_pct": value,
+                "selection_split": selection_split,
+                "aggregation_metric": metric_name,
+                "aggregation_mre_pct": value,
                 "train_time_s": metrics["train_time_s"],
                 "wall_time_total_s": metrics["wall_time_total_s"],
                 "peak_gpu_memory_mb": metrics["peak_gpu_memory_mb"],
                 "test_executed": False,
             }
         )
-    if len(dataset_hashes) != 1 or len(split_hashes) != 1 or len(config_paths) != 1:
-        raise RuntimeError("wave runs do not share one dataset, split contract, and config")
+    if (
+        len(dataset_hashes) != 1
+        or len(split_hashes) != 1
+        or len(config_paths) != 1
+        or len(selection_splits) != 1
+        or len(final_fit_flags) != 1
+    ):
+        raise RuntimeError(
+            "wave runs do not share one dataset, split contract, config, and selection boundary"
+        )
 
+    selection_split = next(iter(selection_splits))
+    final_fit = next(iter(final_fit_flags))
+    if final_fit != (selection_split == "none_final_fit"):
+        raise RuntimeError("full-dataset final-fit flag disagrees with the selection boundary")
     summary_rows: list[dict[str, Any]] = []
+    prefix = "training_overlap_monitor" if final_fit else "validation"
     for model in MODELS:
         values = grouped[model]
         summary_rows.append(
             {
                 "model": model,
-                "seed0_validation_mre_pct": values[0],
-                "seed1_validation_mre_pct": values[1],
-                "seed2_validation_mre_pct": values[2],
-                "validation_mre_mean_pct": statistics.mean(values),
-                "validation_mre_std_pct": statistics.stdev(values),
+                f"seed0_{prefix}_mre_pct": values[0],
+                f"seed1_{prefix}_mre_pct": values[1],
+                f"seed2_{prefix}_mre_pct": values[2],
+                f"{prefix}_mre_mean_pct": statistics.mean(values),
+                f"{prefix}_mre_std_pct": statistics.stdev(values),
                 "success_count": 3,
             }
         )
-    leaderboard = sorted(summary_rows, key=lambda row: float(row["validation_mre_mean_pct"]))
-    leaderboard_rows = [
-        {"rank": index, **row, "selection_split": "validation", "test_driven_selection": False}
-        for index, row in enumerate(leaderboard, start=1)
-    ]
     _write_csv(out / "run_manifest.csv", sorted(run_rows, key=lambda row: (MODELS.index(str(row["model"])), int(row["seed"]))))
     _write_csv(out / "seed_summary.csv", summary_rows)
-    _write_csv(out / "leaderboard.csv", leaderboard_rows)
-    _plot_training_curves(out, histories)
-    _plot_validation(out, summary_rows)
+    mean_key = f"{prefix}_mre_mean_pct"
+    std_key = f"{prefix}_mre_std_pct"
+    leaderboard_rows: list[dict[str, Any]] = []
+    if final_fit:
+        monitor_rows = sorted(summary_rows, key=lambda row: float(row[mean_key]))
+        _write_csv(
+            out / "training_monitor_summary.csv",
+            [
+                {
+                    "monitor_order": index,
+                    **row,
+                    "selection_split": "none_final_fit",
+                    "eligible_for_model_selection": False,
+                }
+                for index, row in enumerate(monitor_rows, start=1)
+            ],
+        )
+    else:
+        leaderboard = sorted(summary_rows, key=lambda row: float(row[mean_key]))
+        leaderboard_rows = [
+            {"rank": index, **row, "selection_split": "validation", "test_driven_selection": False}
+            for index, row in enumerate(leaderboard, start=1)
+        ]
+        _write_csv(out / "leaderboard.csv", leaderboard_rows)
+    _plot_training_curves(
+        out,
+        histories,
+        monitor_label="training-overlap monitor" if final_fit else "validation",
+    )
+    _plot_comparison(
+        out,
+        summary_rows,
+        mean_key=mean_key,
+        std_key=std_key,
+        label=(
+            "training-overlap monitor bands 2-10 MRE (%)"
+            if final_fit
+            else "best validation bands 2-10 MRE (%)"
+        ),
+        filename="training_monitor_comparison" if final_fit else "validation_comparison",
+    )
     train_hash, val_hash, test_hash = next(iter(split_hashes))
     write_json(
         out / "wave.meta.json",
@@ -230,12 +304,20 @@ def aggregate_full_cell_forward_wave(
             "idx_val_hash": val_hash,
             "idx_test_hash": test_hash,
             "config_path": next(iter(config_paths)),
-            "selection_split": "validation",
+            "selection_split": selection_split,
+            "full_dataset_final_fit": final_fit,
+            "monitor_only_no_model_selection": final_fit,
             "test_executed": False,
             "test_driven_selection": False,
-            "validation_winner": leaderboard_rows[0]["model"],
-            "validation_winner_mean_mre_pct": leaderboard_rows[0]["validation_mre_mean_pct"],
-            "next_gate": "next_representation_wave",
+            "validation_winner": None if final_fit else leaderboard_rows[0]["model"],
+            "validation_winner_mean_mre_pct": (
+                None if final_fit else leaderboard_rows[0]["validation_mre_mean_pct"]
+            ),
+            "next_gate": (
+                "next_final_fit_wave_no_validation_selection"
+                if final_fit
+                else "next_representation_wave"
+            ),
         },
     )
     return out

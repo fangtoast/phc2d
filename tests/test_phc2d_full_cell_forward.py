@@ -145,6 +145,31 @@ def test_full_cell_forward_cpu_admission_probe_writes_contract(tmp_path: Path) -
     assert results["formal_training_started"] is False
     assert results["test_executed"] is False
 
+    final_fit_dir = run_full_cell_forward(
+        config_path,
+        model_name="mlp",
+        seed=0,
+        run_dir=tmp_path / "probe_final_fit",
+        admission_probe=True,
+        train_size=10,
+    )
+    final_fit_results = json.loads(
+        (final_fit_dir / "results.json").read_text(encoding="utf-8")
+    )
+    final_fit_metrics = json.loads(
+        (final_fit_dir / "metrics.json").read_text(encoding="utf-8")
+    )
+    final_fit_meta = json.loads(
+        (final_fit_dir / "run.meta.json").read_text(encoding="utf-8")
+    )
+    assert final_fit_results["selection_split"] == "none_final_fit"
+    assert final_fit_results["checkpoint_role"] == "final_epoch_final_fit"
+    assert final_fit_results["validation_metrics_admissible"] is False
+    assert final_fit_metrics["best_validation_bands_2_10_mre_pct"] is None
+    assert final_fit_metrics["monitor_is_unbiased_validation"] is False
+    assert final_fit_meta["validation_overlap_count"] == 2
+    assert final_fit_meta["test_overlap_count"] == 2
+
 
 def test_threshold_proxy_requires_false_physical_equivalence(tmp_path: Path) -> None:
     config = {

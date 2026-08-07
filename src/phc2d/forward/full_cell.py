@@ -276,8 +276,10 @@ def _read_contract(resolved: Mapping[str, Any]) -> dict[str, Any]:
         idx_val = np.asarray(handle["idx_val"], dtype=np.int64)
         idx_test = np.asarray(handle["idx_test"], dtype=np.int64)
         sorted_train = np.sort(idx_train)
+        total_samples = int(handle["Wh"].shape[0])
         train_size = int(training.get("train_size", sorted_train.size))
         subset_salt = str(training.get("train_subset_salt", "phc2d-full-cell-50k-v1"))
+        full_dataset_final_fit = False
         if train_size < int(sorted_train.size):
             if "sample_id" not in handle:
                 raise KeyError("nested train subsets require the HDF5 sample_id field")
@@ -290,9 +292,13 @@ def _read_contract(resolved: Mapping[str, Any]) -> dict[str, Any]:
             )
         elif train_size == int(sorted_train.size):
             selected_train = sorted_train
+        elif train_size == total_samples:
+            selected_train = np.arange(total_samples, dtype=np.int64)
+            full_dataset_final_fit = True
         else:
             raise ValueError(
-                f"training.train_size={train_size} exceeds idx_train size {sorted_train.size}"
+                f"training.train_size={train_size} must not exceed idx_train size "
+                f"{sorted_train.size} unless it equals the full dataset size {total_samples}"
             )
         grid_shape = tuple(int(v) for v in handle[grid_field].shape[1:])
         target_shape = tuple(int(v) for v in handle["Wh"].shape[1:])
@@ -328,6 +334,9 @@ def _read_contract(resolved: Mapping[str, Any]) -> dict[str, Any]:
         "train_subset_salt": subset_salt,
         "idx_val": idx_val,
         "idx_test": idx_test,
+        "full_dataset_final_fit": full_dataset_final_fit,
+        "validation_overlap_count": int(np.intersect1d(selected_train, idx_val).size),
+        "test_overlap_count": int(np.intersect1d(selected_train, idx_test).size),
         "target_mean": target_mean,
         "target_std": target_std,
         **hashes,
@@ -370,19 +379,28 @@ def _evaluate(model: Any, loader: Any, *, device: Any, mean: Any, std: Any, torc
     }
 
 
-def _plot_history(run_dir: Path, history: list[Mapping[str, Any]]) -> None:
+def _plot_history(
+    run_dir: Path,
+    history: list[Mapping[str, Any]],
+    *,
+    monitor_label: str = "validation",
+) -> None:
     import matplotlib.pyplot as plt
 
     epochs = [int(row["epoch"]) for row in history]
     fig, axes = plt.subplots(1, 2, figsize=(10, 4))
     axes[0].plot(epochs, [float(row["train_loss"]) for row in history], label="train normalized MSE")
-    axes[0].plot(epochs, [float(row["val_loss"]) for row in history], label="validation normalized MSE")
+    axes[0].plot(
+        epochs,
+        [float(row["val_loss"]) for row in history],
+        label=f"{monitor_label} normalized MSE",
+    )
     axes[0].set_yscale("log")
     axes[0].set_xlabel("epoch")
     axes[0].legend()
     axes[1].plot(epochs, [float(row["val_bands_2_10_mre_pct"]) for row in history])
     axes[1].set_xlabel("epoch")
-    axes[1].set_ylabel("validation bands 2-10 MRE (%)")
+    axes[1].set_ylabel(f"{monitor_label} bands 2-10 MRE (%)")
     fig.tight_layout()
     for suffix in ("png", "pdf"):
         fig.savefig(run_dir / "figures" / f"training_curve.{suffix}", dpi=180)
@@ -450,6 +468,7 @@ def run_full_cell_forward(
     device_info = resolve_device(device_cfg, torch_module=torch)
     device = device_info.torch_device
     contract = _read_contract(resolved)
+    final_fit = bool(contract["full_dataset_final_fit"])
     layout = str(representation["layout"])
     input_shape = contract["grid_shape"] if layout == "image" else (int(np.prod(contract["grid_shape"])),)
     model = build_model(
@@ -539,10 +558,17 @@ def run_full_cell_forward(
             row["val_bands_2_10_mre_pct"],
             row["epoch_time_s"],
         )
-        if float(val["bands_2_10_mre_pct"]) < best_mre:
+        improved = float(val["bands_2_10_mre_pct"]) < best_mre
+        if improved:
             best_mre = float(val["bands_2_10_mre_pct"])
             best_epoch = epoch
             stale_epochs = 0
+        else:
+            stale_epochs += 1
+        write_checkpoint = (not final_fit and improved) or (
+            final_fit and epoch == int(training["max_epochs"])
+        )
+        if write_checkpoint:
             checkpoint_tmp = out / "model.pt.tmp"
             torch.save(
                 {
@@ -554,24 +580,27 @@ def run_full_cell_forward(
                     "target_mean": torch.as_tensor(contract["target_mean"], dtype=torch.float32),
                     "target_std": torch.as_tensor(contract["target_std"], dtype=torch.float32),
                     "epoch": epoch,
-                    "validation_bands_2_10_mre_pct": best_mre,
+                    "selection_split": "none_final_fit" if final_fit else "validation",
+                    "validation_bands_2_10_mre_pct": None if final_fit else best_mre,
+                    "training_overlap_monitor_bands_2_10_mre_pct": (
+                        float(val["bands_2_10_mre_pct"]) if final_fit else None
+                    ),
                     "resolved_config": resolved,
                 },
                 checkpoint_tmp,
             )
             os.replace(checkpoint_tmp, out / "model.pt")
-        else:
-            stale_epochs += 1
         _write_history(out / "history.csv", history)
         patience = int(training.get("early_stopping_patience", 15))
-        if not admission_probe and patience > 0 and stale_epochs >= patience:
+        if not final_fit and not admission_probe and patience > 0 and stale_epochs >= patience:
             logger.info("early stopping at epoch=%d best_epoch=%d", epoch, best_epoch)
             break
 
     train_time = time.perf_counter() - train_start
     checkpoint = out / "model.pt"
     if not checkpoint.is_file():
-        raise RuntimeError("best-validation checkpoint was not written")
+        role = "final-epoch final-fit" if final_fit else "best-validation"
+        raise RuntimeError(f"{role} checkpoint was not written")
     try:
         checkpoint_payload = torch.load(checkpoint, map_location=device, weights_only=True)
     except TypeError:  # PyTorch 2.1 supports the legacy default only on some builds.
@@ -579,10 +608,15 @@ def run_full_cell_forward(
     model.load_state_dict(checkpoint_payload["state_dict"])
     final_val = _evaluate(model, val_loader, device=device, mean=mean_t, std=std_t, torch=torch)
     peak_mb = float(torch.cuda.max_memory_allocated(device) / (1024**2)) if device_info.is_cuda else 0.0
+    checkpoint_epoch = int(checkpoint_payload["epoch"])
     metrics = {
         **final_val,
-        "best_validation_bands_2_10_mre_pct": best_mre,
-        "best_epoch": best_epoch,
+        "best_validation_bands_2_10_mre_pct": None if final_fit else best_mre,
+        "best_training_overlap_monitor_mre_pct": best_mre if final_fit else None,
+        "monitor_is_unbiased_validation": not final_fit,
+        "best_epoch": checkpoint_epoch if final_fit else best_epoch,
+        "best_monitor_epoch": best_epoch,
+        "checkpoint_epoch": checkpoint_epoch,
         "stop_epoch": int(history[-1]["epoch"]),
         "train_time_s": train_time,
         "wall_time_total_s": time.perf_counter() - wall_start,
@@ -598,7 +632,11 @@ def run_full_cell_forward(
         "samples_seen": samples_seen,
         "train_subset_hash": contract["train_subset_hash"],
     }
-    _plot_history(out, history)
+    _plot_history(
+        out,
+        history,
+        monitor_label="training-overlap monitor" if final_fit else "validation",
+    )
     write_metrics(out, metrics)
     status = "full_cell_forward_admission_probe_pass" if admission_probe else "formal_training_success"
     write_results(
@@ -607,7 +645,10 @@ def run_full_cell_forward(
             "status": status,
             "formal_training_started": not admission_probe,
             "mpb_meep_used": False,
-            "selection_split": "validation",
+            "selection_split": "none_final_fit" if final_fit else "validation",
+            "checkpoint_role": "final_epoch_final_fit" if final_fit else "best_validation",
+            "validation_overlap": final_fit,
+            "validation_metrics_admissible": not final_fit,
             "test_executed": False,
             "model": model_name,
             "seed": int(seed),
@@ -616,10 +657,17 @@ def run_full_cell_forward(
             "train_size": len(train_dataset),
             "max_epochs": int(training["max_epochs"]),
             "train_subset_hash": contract["train_subset_hash"],
-            "best_epoch": best_epoch,
+            "best_epoch": checkpoint_epoch if final_fit else best_epoch,
+            "best_monitor_epoch": best_epoch,
             "checkpoint_path": str(checkpoint),
             "checkpoint_sha256": _sha256_checkpoint(checkpoint),
-            "next_gate": "wave_admission_decision" if admission_probe else "12_job_wave_aggregation",
+            "next_gate": (
+                "wave_admission_decision"
+                if admission_probe
+                else "12_job_final_fit_aggregation"
+                if final_fit
+                else "12_job_wave_aggregation"
+            ),
         },
     )
     write_run_meta(
@@ -635,6 +683,9 @@ def run_full_cell_forward(
             "train_subset_salt": contract["train_subset_salt"],
             "idx_val_hash": contract["idx_val_hash"],
             "idx_test_hash": contract["idx_test_hash"],
+            "full_dataset_final_fit": final_fit,
+            "validation_overlap_count": contract["validation_overlap_count"],
+            "test_overlap_count": contract["test_overlap_count"],
             "schema_version": contract["schema_version"],
             "model": model_name,
             "seed": int(seed),
