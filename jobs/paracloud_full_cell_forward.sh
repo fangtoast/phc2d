@@ -7,6 +7,9 @@
 set -euo pipefail
 
 PHC2D_ROOT="${PHC2D_ROOT:-$HOME/run/phc2d}"
+# The formal runner imports torch and enforces require_accelerator itself.  Do
+# not launch a separate torch process first on shared N40 environment storage.
+export PHC2D_DEFER_CUDA_CHECK_TO_RUNNER=1
 source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"
 
 : "${PHC2D_FORWARD_CONFIG:?Set PHC2D_FORWARD_CONFIG.}"

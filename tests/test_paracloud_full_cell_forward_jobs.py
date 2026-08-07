@@ -189,3 +189,14 @@ def test_main_wave_submitter_schedules_slowest_models_first(tmp_path: Path) -> N
     assert all(row.startswith("fno2d_band_v2,") for row in rows[:3])
     assert all(row.startswith("lifted_cnn,") for row in rows[3:6])
     assert all(row.startswith("mlp,") for row in rows[-3:])
+
+
+def test_forward_wrapper_defers_redundant_cuda_import_to_runner() -> None:
+    wrapper = (ROOT / "jobs" / "paracloud_full_cell_forward.sh").read_text(encoding="utf-8")
+    common = (ROOT / "jobs" / "paracloud_gpu_common.sh").read_text(encoding="utf-8")
+    export_position = wrapper.index("export PHC2D_DEFER_CUDA_CHECK_TO_RUNNER=1")
+    source_position = wrapper.index('source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"')
+
+    assert export_position < source_position
+    assert 'if [[ "${PHC2D_DEFER_CUDA_CHECK_TO_RUNNER:-0}" != "1" ]]' in common
+    assert "assert torch.cuda.is_available()" in common

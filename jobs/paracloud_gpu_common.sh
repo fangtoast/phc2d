@@ -56,4 +56,6 @@ if [[ ! "$PHC2D_DEPLOYED_GIT_COMMIT" =~ ^[0-9a-f]{7,40}$ ]]; then
   echo "Invalid deployed Git commit provenance: $PHC2D_DEPLOYED_GIT_COMMIT" >&2
   exit 2
 fi
-python -c "import torch; assert torch.cuda.is_available(); print('CUDA:', torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0))"
+if [[ "${PHC2D_DEFER_CUDA_CHECK_TO_RUNNER:-0}" != "1" ]]; then
+  python -c "import torch; assert torch.cuda.is_available(); print('CUDA:', torch.__version__, torch.version.cuda, torch.cuda.get_device_name(0))"
+fi
