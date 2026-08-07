@@ -253,7 +253,27 @@ graded -> binary: 4 models × 6 sources × 3 seeds = 72 cells
 total = 576 cross-evaluation cells
 ```
 
-#### 4.4.2 50k/40k full-train 三个 epoch milestone
+#### 4.4.2 50k 数据集自身的 binary ↔ continuous 双向交叉验证
+
+这一组是 50k 新模型训练完成后的独立必做结果，不使用旧 10k checkpoint：
+
+| 方向 | 源 checkpoint | 目标 test | 单个 milestone |
+|---|---|---|---:|
+| 50k binary → 50k continuous | binary 40k-train、64-resolution、4 models × 3 seeds | graded 50k 的 continuous `idx_test` 5,000 samples | 12 cells |
+| 50k continuous → 50k binary | graded-continuous 40k-train、64-resolution、4 models × 3 seeds | binary 50k 的 native `idx_test` 5,000 samples | 12 cells |
+| 双向合计 |  |  | **24 cells** |
+
+对 epoch 20/100/200 三个 checkpoint milestone 全部执行：
+
+```text
+24 cells × 3 milestones = 72 required 50k full-train cross-lane cells
+```
+
+这 72 cells 明确回答“50k binary 模型能否泛化到 50k continuous 数据，以及 50k continuous 模型能否泛化到 50k binary 数据”。它们是下一节 1,728-cell 全矩阵的必备子集，不额外重复计数，也不要求重复提交训练作业。
+
+两个方向的目标 test sample ID 不同，因此不能把正反方向样本强行配对。paired bootstrap 只在同一方向、同一目标 test IDs 上比较模型、seed 聚合或 epoch；方向间比较报告独立 CI 和 effect，不伪造逐样本配对。
+
+#### 4.4.3 50k/40k full-train 三个 epoch milestone
 
 对 train size 40k 的 epoch 20/100/200 分别执行同样的 576-cell 矩阵：
 
@@ -263,7 +283,7 @@ total = 576 cross-evaluation cells
 
 这三个 milestone 均为预注册结果，必须完整报告，不得只保留 test 上最好的 epoch。
 
-#### 4.4.3 8k/20k 跨路线数据规模对照
+#### 4.4.4 8k/20k 跨路线数据规模对照
 
 为控制推理规模，8k/20k 只执行最关键的连续/二值双向测试：
 
@@ -551,6 +571,7 @@ admission 失败时降并发为 6 或 3，但不改变科学矩阵。通过只�
 - 对所有预注册 milestone checkpoint 执行 native-64 共同 test；
 - test 结果全部报告，不用其反向改变训练；
 - 完成 8k/20k/40k × 20/100/200 的 paired comparison；
+- 训练完成后立即完成 50k/40k 的 72-cell binary → continuous 与 continuous → binary 双向交叉验证；
 - 冻结用于后续交叉评估和 inverse 的 checkpoint 角色。
 
 ### Stage 7：零样本分辨率与必做交叉评估
@@ -700,7 +721,7 @@ cross_environment_accepted
 - 两套嵌套 manifest 均证明 8k ⊂ 20k ⊂ 40k，且不与 val/test 相交；
 - 102 个旧 10k checkpoint 在 50k test 的原生训练分辨率推理结果完整；
 - 旧 10k 主矩阵的 576 个、50k/40k 的 1,728 个和 8k/20k 定向的 144 个 cross-evaluation cells 齐全，总计 2,448/2,448；
-- binary-trained → graded continuous 与 graded continuous-trained → binary 均有三 seed、四模型和 source-normalization 证据；
+- 其中 50k 新训练模型自身的 72/72 个 binary → continuous 与 continuous → binary full-train cells 单独成表，并具有三个 epoch milestones、三 seeds、四模型和 source-normalization 证据；
 - 252 条训练轨迹均有明确 terminal 状态；
 - 每条成功轨迹的 20/100/200 checkpoint、history、曲线、metrics 和 provenance 齐全；
 - 756 个 milestone observation 均有 native-resolution validation/test 记录或明确失败原因；
