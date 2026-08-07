@@ -11,9 +11,25 @@ config="${2:-}"
 wave_id="${3:-}"
 threshold="${4:-}"
 resolution="${5:-}"
+train_size="${6:-}"
+max_epochs="${7:-}"
 if [[ "$mode" != "probe" && "$mode" != "train" ]]; then
-  echo "usage: $0 probe|train CONFIG WAVE_ID [THRESHOLD] [RESOLUTION]" >&2
+  echo "usage: $0 probe|train CONFIG WAVE_ID [THRESHOLD] [RESOLUTION] [TRAIN_SIZE] [MAX_EPOCHS]" >&2
   exit 2
+fi
+if [[ "$mode" == "train" && ( -n "$train_size" || -n "$max_epochs" ) ]]; then
+  if [[ -z "$train_size" || -z "$max_epochs" ]]; then
+    echo "TRAIN_SIZE and MAX_EPOCHS must be supplied together" >&2
+    exit 2
+  fi
+  if [[ "$train_size" != "8000" && "$train_size" != "20000" && "$train_size" != "40000" ]]; then
+    echo "formal 50k TRAIN_SIZE must be 8000, 20000, or 40000" >&2
+    exit 2
+  fi
+  if [[ "$max_epochs" != "20" && "$max_epochs" != "100" && "$max_epochs" != "200" ]]; then
+    echo "formal 50k MAX_EPOCHS must be 20, 100, or 200" >&2
+    exit 2
+  fi
 fi
 if [[ ! -f "$config" || -z "$wave_id" ]]; then
   echo "CONFIG must exist and WAVE_ID must be non-empty" >&2
@@ -58,12 +74,12 @@ for model in "${models[@]}"; do
   for seed in "${seeds[@]}"; do
     run_dir="runs/$(date +%Y%m%d)/${wave_id}_${mode}_${timestamp}_${model}_seed${seed}"
     probe=0
-    time_limit="12:00:00"
+    time_limit="${PHC2D_FORWARD_TIME_LIMIT:-12:00:00}"
     if [[ "$mode" == "probe" ]]; then
       probe=1
       time_limit="00:10:00"
     fi
-    sbatch_args=(-p gpu_4090 --gres=gpu:1 -c 6 -t "$time_limit")
+    sbatch_args=(-p gpu_4090 --gres=gpu:1 -c 6 --mem=60000M -t "$time_limit")
     if (( task_index >= wave_concurrency )) && (( task_index % wave_concurrency == 0 )); then
       previous_group_ids=("${current_group_ids[@]}")
       current_group_ids=()
@@ -75,7 +91,7 @@ for model in "${models[@]}"; do
     job_id="$(sbatch --parsable "${sbatch_args[@]}" \
       -J "fc_${mode}_${model}_s${seed}" \
       -o "${run_dir}.slurm.out" -e "${run_dir}.slurm.err" \
-      --export="ALL,PHC2D_FORWARD_CONFIG=$config,PHC2D_FORWARD_MODEL=$model,PHC2D_FORWARD_SEED=$seed,PHC2D_FORWARD_RUN_DIR=$run_dir,PHC2D_FORWARD_ADMISSION_PROBE=$probe,PHC2D_FORWARD_THRESHOLD=$threshold,PHC2D_FORWARD_RESOLUTION=$resolution" \
+      --export="ALL,PHC2D_FORWARD_CONFIG=$config,PHC2D_FORWARD_MODEL=$model,PHC2D_FORWARD_SEED=$seed,PHC2D_FORWARD_RUN_DIR=$run_dir,PHC2D_FORWARD_ADMISSION_PROBE=$probe,PHC2D_FORWARD_THRESHOLD=$threshold,PHC2D_FORWARD_RESOLUTION=$resolution,PHC2D_FORWARD_TRAIN_SIZE=$train_size,PHC2D_FORWARD_MAX_EPOCHS=$max_epochs" \
       jobs/paracloud_full_cell_forward.sh)"
     current_group_ids+=("$job_id")
     task_index=$((task_index + 1))

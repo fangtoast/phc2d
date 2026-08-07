@@ -11,7 +11,7 @@
 
 | Metadata | Value |
 |---|---|
-| Status | Draft pending human review |
+| Status | Draft; execution authorized by owner on 2026-08-07 |
 | Primary layer | L3 experiment/evidence；L4 仅包含执行本计划所需的接口门 |
 | Authority | [生成网络调整研究计划](../fno_generative_network_adjustment_plan_20260617.md) |
 | 10k reference | [全胞双路线训练与混合算力计划](full_cell_dual_lane_hybrid_compute_plan.md) |
@@ -23,9 +23,9 @@
 | Last reviewed | Pending human review |
 | Reading time | 24 minutes |
 
-本文定义 binary/graded 两套 50k full-cell 数据上的神经网络训练、旧 10k checkpoint 迁移评估、嵌套训练规模实验、epoch 预算比较、跨分辨率零样本测试和 N40/M9 混合算力边界。它是待实现、待授权的实验计划，不表示 50k HDF5 已通过验收，也不表示任何 GPU 或 M9 作业已经提交。
+本文定义 binary/graded 两套 50k full-cell 数据上的神经网络训练、旧 10k checkpoint 迁移评估、嵌套训练规模实验、epoch 预算比较、跨分辨率零样本测试和 N40/M9 混合算力边界。2026-08-07，项目负责人已授权使用 N40 启动正式训练，并明确免除本轮“本地 WSL 物理 replay”训练前置门；该豁免只改变训练准入，不把数据状态提升为跨环境物理验收完成。
 
-本计划的核心设计是：每条训练轨迹最多运行到 200 epoch，并在 epoch `20/100/200` 原子保存不可变 checkpoint。这样能够在同一 seed、同一数据顺序和同一优化轨迹上比较三个训练预算，避免把完全相同的前 20 或 100 epoch 重复计算三次。
+本计划的执行设计修订为：`8k/20k/40k × 20/100/200` 使用彼此独立的正式训练作业。每个作业从同一冻结初始化协议独立训练到指定 epoch，关闭 early stopping，保存自己的 best/last checkpoint、完整 `history.csv` 和训练曲线。这样不依赖 runner 的 milestone/resume 能力，也不会把 20/100 epoch 结果误当成同一 200-epoch 轨迹的中间快照。
 
 **目录：** [一、目标与边界](#fc50k-goal) · [二、当前证据与准入](#fc50k-evidence) · [三、数据与嵌套 split](#fc50k-data) · [四、实验矩阵](#fc50k-matrix) · [五、epoch 协议](#fc50k-epoch) · [六、跨分辨率测试](#fc50k-resolution) · [七、N40/M9 资源编排](#fc50k-compute) · [八、执行阶段](#fc50k-stages) · [九、统计与报告](#fc50k-report) · [十、制品与恢复](#fc50k-artifacts) · [十一、验收](#fc50k-acceptance) · [十二、人工理解记录](#fc50k-human-record)
 
@@ -70,7 +70,7 @@
 - 不把 threshold proxy 误写成 threshold structure 的真实物理响应。
 - 不把 64→32/128 输入测试写成“跨分辨率重新训练”。
 - 不把 50k 数据生成、GPU 训练完成或 M9 shard 完成提升为模型物理验证完成。
-- 不自动提交、取消、重启或恢复计费作业；每个正式阶段需要人工授权。
+- 不自动取消、重启或恢复计费作业；本轮 N40 正式训练已获项目负责人明确授权，后续改变科学矩阵或 M9 物理作业仍需单独授权。
 
 [↑ 回顶部](#full-cell-dual-lane-50000-training-plan)
 
@@ -84,24 +84,22 @@
 |---|---|---|
 | 10k Forward | 102/102 正式训练已完成；84-run 主矩阵、18-run 分辨率重训和冻结 test 已有报告 | checkpoint 作为冻结旧基线，不重新选择或微调 |
 | 50k 数据配置 | binary/graded 配置均声明 50,000 samples 和 `40000/5000/5000` split | `config_ready` 不等于 HDF5 已完成或已验收 |
-| 50k HDF5 | 执行时必须读取真实下载产物、manifest 和哈希；本文不预填尚未核实的值 | 两条路线均达到 `cross_environment_accepted` 前，正式训练 blocked |
+| 50k HDF5 | binary/graded 已导入 N40 与 M9；N40 目标文件与 Xingyi 源文件的大小和 SHA-256 完全一致 | 本轮训练按负责人豁免无需等待本地 WSL replay；仍不得称为跨环境物理验收完成 |
 | N40 | 既有证据确认 RTX4090 单卡训练与三卡分配；历史主矩阵曾使用 12-job 波次 | 50k HDF5 更大，必须重新做 12-job I/O/admission probe |
 | M9 | `amd_m9_768` CPU 超算可承担授权后的 real-MPB | 不承担神经网络训练，不因 N40 开始训练而自动提交 |
-| 50k 执行代码 | 当前 runner 对 100 epoch/patience 15 有固定约束 | 完成第八节 L4 实现门前不得启动本计划正式矩阵 |
+| 50k 执行代码 | runner 已增加确定性嵌套子集和独立 20/100/200 epoch 参数 | 通过实现测试并部署到 N40 后可启动正式矩阵 |
 
 50k 训练的硬数据门为：
 
 ```text
 remote final artifacts complete
--> download complete
--> remote/local SHA-256 equal
--> schema/content audit pass
--> WSL Ubuntu + meep_env acceptance pass
--> N40 copy SHA-256 equal
+-> Xingyi/N40 SHA-256 equal
+-> N40 file size and split contract equal
+-> owner waives local WSL replay as training prerequisite
 -> 50k training admission allowed
 ```
 
-任一条件缺失时，最高状态只能是 `cluster_generated_pending_download`、`downloaded_hash_verified` 或 `cluster_generated_pending_wsl_acceptance` 中的实际状态，不得写成 `training_ready`。
+本轮已满足上述训练准入。数据 provenance 仍保留 `cluster_generated_pending_wsl_acceptance` 的历史事实，但该状态不再阻塞神经网络训练；报告必须同时记录“训练已授权”和“本地 WSL 物理 replay 未执行”，不得把两者混为一谈。
 
 [↑ 回顶部](#full-cell-dual-lane-50000-training-plan)
 
@@ -210,23 +208,21 @@ manifest 记录 selection algorithm/version、salt、源 dataset/split hash、�
 
 ### 4.3 50k 嵌套训练主矩阵
 
-每条训练轨迹运行至 epoch 200，并保存 20/100/200 三个里程碑：
+每个训练规模和 epoch 预算都是独立作业：
 
 ```text
-3 train sizes × 7 representations × 4 models × 3 seeds
-= 252 unique training trajectories
-
-252 trajectories × 3 epoch milestones
-= 756 checkpoint observations
+3 train sizes × 3 epoch budgets × 7 representations × 4 models × 3 seeds
+= 756 independent training runs
 ```
 
 其中 `train_size=40000` 是用户要求的 50k 数据全量训练：
 
 ```text
-7 representations × 4 models × 3 seeds = 84 full-train trajectories
+3 epoch budgets × 7 representations × 4 models × 3 seeds
+= 252 full-train runs
 ```
 
-8k 和 20k 轨迹用于同源、共同 validation/test 的数据规模比较；40k 轨迹不得在“全量训练”和“数据消融”中重复运行。
+8k 和 20k 作业用于同源、共同 validation/test 的数据规模比较；40k 作业不得在“全量训练”和“数据消融”中重复运行。独立预算会重复计算训练前缀，但换来无需 milestone/resume 的清晰终态、独立曲线和可直接分卡并行的执行合同。
 
 ### 4.4 必做交叉表征和双向跨路线评估
 
@@ -257,31 +253,31 @@ total = 576 cross-evaluation cells
 
 这一组是 50k 新模型训练完成后的独立必做结果，不使用旧 10k checkpoint：
 
-| 方向 | 源 checkpoint | 目标 test | 单个 milestone |
+| 方向 | 源 checkpoint | 目标 test | 单个 epoch 预算 |
 |---|---|---|---:|
 | 50k binary → 50k continuous | binary 40k-train、64-resolution、4 models × 3 seeds | graded 50k 的 continuous `idx_test` 5,000 samples | 12 cells |
 | 50k continuous → 50k binary | graded-continuous 40k-train、64-resolution、4 models × 3 seeds | binary 50k 的 native `idx_test` 5,000 samples | 12 cells |
 | 双向合计 |  |  | **24 cells** |
 
-对 epoch 20/100/200 三个 checkpoint milestone 全部执行：
+对 epoch 20/100/200 三组独立训练 checkpoint 全部执行：
 
 ```text
-24 cells × 3 milestones = 72 required 50k full-train cross-lane cells
+24 cells × 3 epoch budgets = 72 required 50k full-train cross-lane cells
 ```
 
 这 72 cells 明确回答“50k binary 模型能否泛化到 50k continuous 数据，以及 50k continuous 模型能否泛化到 50k binary 数据”。它们是下一节 1,728-cell 全矩阵的必备子集，不额外重复计数，也不要求重复提交训练作业。
 
 两个方向的目标 test sample ID 不同，因此不能把正反方向样本强行配对。paired bootstrap 只在同一方向、同一目标 test IDs 上比较模型、seed 聚合或 epoch；方向间比较报告独立 CI 和 effect，不伪造逐样本配对。
 
-#### 4.4.3 50k/40k full-train 三个 epoch milestone
+#### 4.4.3 50k/40k full-train 三个独立 epoch 预算
 
-对 train size 40k 的 epoch 20/100/200 分别执行同样的 576-cell 矩阵：
+对 train size 40k 的 epoch 20/100/200 独立作业分别执行同样的 576-cell 矩阵：
 
 ```text
-576 cells × 3 milestones = 1,728 cross-evaluation cells
+576 cells × 3 epoch budgets = 1,728 cross-evaluation cells
 ```
 
-这三个 milestone 均为预注册结果，必须完整报告，不得只保留 test 上最好的 epoch。
+这三个预算均为预注册结果，必须完整报告，不得只保留 test 上最好的预算。
 
 #### 4.4.4 8k/20k 跨路线数据规模对照
 
@@ -290,7 +286,7 @@ total = 576 cross-evaluation cells
 ```text
 binary-trained -> graded continuous: 4 models × 3 seeds = 12 cells
 graded continuous-trained -> binary: 4 models × 3 seeds = 12 cells
-24 cells × 2 train sizes × 3 milestones = 144 cells
+24 cells × 2 train sizes × 3 epoch budgets = 144 cells
 ```
 
 因此本计划预注册的跨表征/跨路线总量为：
@@ -309,9 +305,9 @@ graded continuous-trained -> binary: 4 models × 3 seeds = 12 cells
 
 ## 五、20/100/200 epoch 协议
 
-### 5.1 单轨迹、多里程碑
+### 5.1 独立预算、独立作业
 
-每条训练轨迹使用相同：
+20、100、200 epoch 分别从头启动独立作业。相同 `(train_size, representation, model, seed)` 的三条作业使用相同：
 
 - 初始化 seed；
 - DataLoader seed 和样本顺序；
@@ -320,25 +316,26 @@ graded continuous-trained -> binary: 4 models × 3 seeds = 12 cells
 - precision 和 GPU 型号；
 - train subset、validation split 和 normalization。
 
-在 epoch 20、100、200 完成后分别原子保存：
+每条作业保存：
 
 ```text
-checkpoints/epoch_0020.pt
-checkpoints/epoch_0100.pt
-checkpoints/epoch_0200.pt
+model_best_validation.pt
+model_last.pt
+history.csv
+figures/training_curve.{png,pdf}
 ```
 
-同时保留 `model_best_validation.pt` 和 `model_last.pt`。里程碑 checkpoint 不得被后续 epoch 覆盖。
+run identity 必须包含 train size 和 max epochs；不同预算不得写入同一目录或覆盖 checkpoint。
 
 ### 5.2 为保证可比性的固定规则
 
 - 正式 epoch 对比关闭 early stopping；否则 200-epoch 组可能在 100 前终止，无法回答用户问题。
-- 学习率策略不得依赖声明的 `max_epochs=20/100/200`；本计划只有一个 200-epoch horizon。
-- 若采用 scheduler，必须按实际 optimizer step 定义并在三个里程碑共享同一轨迹。
+- 学习率策略固定且不得根据 test 结果为某个预算单独调参。
+- 若采用 scheduler，必须显式记录其是否依赖 `max_epochs`；主矩阵默认不使用依赖 horizon 的 scheduler。
 - 默认 effective batch size 保持 64；显存不足时只降低 micro-batch 并用梯度累积保持 64。
 - FP32、AMP 和 TF32 口径保持与 10k 主报告一致；若后续增加 AMP，只能作为单独性能实验，不混入主比较。
 - 每个 epoch 记录完整 train/validation 曲线；不得只保存三个终点。
-- 每个里程碑同时记录 optimizer steps、samples seen、数据遍历次数、wall time 和 GPU-hours。
+- 每个独立作业同时记录 optimizer steps、samples seen、数据遍历次数、wall time 和 GPU-hours。
 
 ### 5.3 两类公平比较
 
@@ -397,7 +394,7 @@ zero_shot_input_resolution_transfer
 2. 50k `train_size=40000` 下 epoch 20/100/200 的 CNN/FNO checkpoint：
 
    ```text
-   2 models × 7 representations × 3 seeds × 3 milestones
+   2 models × 7 representations × 3 seeds × 3 independent epoch budgets
    = 126 checkpoint bundles
    ```
 
@@ -415,9 +412,9 @@ zero_shot_input_resolution_transfer
 
 | 平台 | 负责 | 不负责 |
 |---|---|---|
-| N40 `gpu_4090` | 50k HDF5 I/O probe、252 条训练轨迹、旧 checkpoint 推理、零样本分辨率测试、指标汇总前的 GPU 推理 | real-MPB、跨站点 DDP、多个任务写同一 run |
+| N40 `gpu_4090` | 756 条独立训练作业、旧 checkpoint 推理、零样本分辨率测试、指标汇总前的 GPU 推理 | real-MPB、跨站点 DDP、多个任务写同一 run |
 | M9 `amd_m9_768` | 经授权的 threshold analytic MPB preflight/pilot、物理 replay 和 solver 证据 | 正式神经网络训练、替代 N40 checkpoint test |
-| 本地 WSL `Ubuntu + meep_env` | 下载后 schema/hash 审计、固定跨环境物理 acceptance、checkpoint 小规模复核 | 正式 50k 计划生成、批量 GPU 训练、批量 MPB 数据生成 |
+| 本地 WSL `Ubuntu + meep_env` | 可选的开发测试和 checkpoint 小规模复核 | 本轮训练前置物理验收、正式 50k 计划生成、批量 GPU 训练、批量 MPB 数据生成 |
 
 ### 7.2 N40 单任务资源
 
@@ -443,13 +440,13 @@ effective batch size: 64
 
 根据同一 50k HDF5 的实测选择 workers 和 time limit，不得用 10k 读取吞吐直接外推。
 
-### 7.3 21 个训练波次
+### 7.3 63 个训练波次
 
-每个 `(train_size, representation)` 形成一个完整波次：
+每个 `(train_size, max_epochs, representation)` 形成一个完整波次：
 
 ```text
 4 models × 3 seeds = 12 independent one-GPU tasks
-3 train sizes × 7 representations = 21 waves
+3 train sizes × 3 epoch budgets × 7 representations = 63 waves
 ```
 
 默认并发上限为 12 张 GPU。历史 18-task 提交曾触发账号提交上限，因此在新的 QoS/admission 证据出现前不得把并发上限写成 18 或 144。
@@ -457,22 +454,21 @@ effective batch size: 64
 推荐采用 rolling array/queue：
 
 ```text
-252 tasks, maximum 12 concurrently active
+756 tasks, maximum 12 concurrently active
 ```
 
 调度器可在一个任务 terminal 后立即补入下一任务，以减少整波等待；但波次 aggregation 必须等该波次 12 个任务均 terminal。并发度只影响墙钟时间，不得改变 seed、数据顺序、batch 或训练协议。
 
-### 7.4 长作业分段
+### 7.4 长作业处理
 
-若 200 epoch 预计超过分区 wall-time，不增大单作业风险，而按 milestone 分成依赖式段：
+若独立 200-epoch 作业预计超过分区 wall-time，优先为该作业增加合理 wall-time。分区硬限制不允许时，才采用同一 run identity 的依赖式恢复段：
 
 ```text
-segment A: epoch 1-20
-segment B: epoch 21-100, afterok(A)
-segment C: epoch 101-200, afterok(B)
+segment A: epoch 1-N
+segment B: epoch N+1-200, afterok(A)
 ```
 
-分段恢复必须保存并恢复 model、optimizer、scheduler、gradient scaler（如有）、epoch、global step、Python/NumPy/Torch/CUDA RNG 和 DataLoader sampler state。只有相同 commit、config hash、dataset hash、subset hash 和 run ID 才允许显式恢复。不得用“重新从 checkpoint 启动但改变数据顺序”的近似恢复冒充连续轨迹。
+分段恢复必须保存并恢复 model、optimizer、scheduler、gradient scaler（如有）、epoch、global step、Python/NumPy/Torch/CUDA RNG 和 DataLoader sampler state。只有相同 commit、config hash、dataset hash、subset hash 和 run ID 才允许显式恢复。20/100/200 三个预算之间不得相互续训；它们始终是独立实验。
 
 ### 7.5 HDF5 与共享存储
 
@@ -505,19 +501,19 @@ plan -> benchmark/admission -> solve array -> finalize
 
 正式运行前必须实现并测试：
 
-1. full-cell runner 不再强制 exactly 100 epochs；支持 `max_epochs=200` 和 milestones `[20,100,200]`；
-2. 支持关闭 early stopping，同时保存 milestone/best/last checkpoint；
-3. checkpoint/resume 完整保存 optimizer、scheduler、RNG 和 sampler state；
-4. 支持外部嵌套 index manifest，并核对 source split/subset hash；
+1. full-cell runner 不再强制 exactly 100 epochs；支持独立的 `max_epochs=20/100/200`；
+2. 支持关闭 early stopping，每个独立作业保存 best/last checkpoint 和完整训练曲线；
+3. run identity 包含 train size 和 epoch budget，禁止不同实验覆盖；
+4. 支持确定性嵌套 train subset，并核对 source split/subset hash；
 5. 旧 checkpoint 可在新 dataset test split 推理，且强制使用 source normalization；
 6. CNN/FNO 可变分辨率直接推理；MLP/ResMLP 必须明确拒绝 shape mismatch；
-7. 支持训练曲线、milestone metrics、resource metrics 和固定大小 campaign status；
+7. 支持训练曲线、独立预算 metrics、resource metrics 和固定大小 campaign status；
 8. N40 submit/status/aggregate 默认 dry-run，正式提交要求显式人工授权。
 
 自动测试至少覆盖：
 
 - 8k ⊂ 20k ⊂ 40k、无 train/val/test 泄漏和 hash 确定性；
-- 20/100/200 milestone 原子写入与不中断轨迹等价性；
+- 20/100/200 独立作业 identity、终态与曲线完整性；
 - 分段恢复与连续训练在容差内一致；
 - source normalization 不被 50k test 替换；
 - CNN/FNO 64→32/128 shape smoke；
@@ -527,7 +523,7 @@ plan -> benchmark/admission -> solve array -> finalize
 
 ### Stage 1：50k 数据门和 checkpoint inventory
 
-- 完成两套 50k HDF5 下载、SHA-256、内容审计和 WSL acceptance；
+- 核对 Xingyi 与 N40 两套 50k HDF5 的文件大小和 SHA-256；本轮按负责人豁免不要求本地 WSL replay；
 - 在 N40 复核文件 SHA-256；
 - 枚举 84 个主矩阵和 18 个分辨率重训 checkpoint，生成 102 行 `legacy_checkpoint_manifest.csv`；
 - 缺 checkpoint、重复 identity、hash 不符或 normalization 缺失即 blocked。
@@ -549,15 +545,15 @@ plan -> benchmark/admission -> solve array -> finalize
 - GPU utilization 和 I/O wait 可接受；
 - 所有任务原子写入最小制品并 terminal。
 
-admission 失败时降并发为 6 或 3，但不改变科学矩阵。通过只表示可请求正式训练授权，不自动提交 252 条轨迹。
+首波运行异常时降并发为 6 或 3，但不改变科学矩阵。项目负责人已于 2026-08-07 授权正式训练提交。
 
 ### Stage 4：旧 10k checkpoint → 50k test
 
 先执行 102 个原生路线无微调推理，并用其中 84 个 64-resolution 主矩阵 checkpoint 完成 576-cell 跨表征/跨路线评估。binary-trained → graded continuous 必须单独列出。该阶段在任何新 50k 模型训练前冻结结果，以避免根据新训练结果选择性报告旧 checkpoint。
 
-### Stage 5：252 条正式训练轨迹
+### Stage 5：756 条独立正式训练作业
 
-按资源估计和人工授权执行 21 个波次。优先顺序：
+按资源估计和已获授权执行 63 个波次。优先顺序：
 
 1. 40k full-train 的 binary 与 graded continuous；
 2. 40k t0.3–t0.7；
@@ -568,7 +564,7 @@ admission 失败时降并发为 6 或 3，但不改变科学矩阵。通过只�
 
 ### Stage 6：共同 test、epoch 与数据规模比较
 
-- 对所有预注册 milestone checkpoint 执行 native-64 共同 test；
+- 对所有预注册独立预算 checkpoint 执行 native-64 共同 test；
 - test 结果全部报告，不用其反向改变训练；
 - 完成 8k/20k/40k × 20/100/200 的 paired comparison；
 - 训练完成后立即完成 50k/40k 的 72-cell binary → continuous 与 continuous → binary 双向交叉验证；
@@ -578,7 +574,7 @@ admission 失败时降并发为 6 或 3，但不改变科学矩阵。通过只�
 
 - 执行第六节的 10k 和 50k CNN/FNO 32/64/128 bundle；
 - 记录 MLP/ResMLP 为不适用而不是失败样本；
-- 对 40k train 的 20/100/200 milestone 完成 1,728-cell 全交叉矩阵；
+- 对 40k train 的 20/100/200 独立 checkpoint 完成 1,728-cell 全交叉矩阵；
 - 对 8k/20k train 完成 144-cell binary ↔ graded continuous 定向矩阵；
 - 核对总计 2,448 个 cross-evaluation cells 的 source/target dataset、representation、checkpoint 和 normalization lineage。
 
@@ -601,7 +597,7 @@ admission 失败时降并发为 6 或 3，但不改变科学矩阵。通过只�
 - per-band、per-k 和 sample-level error；
 - band ordering violation 与 NaN/Inf；
 - train/validation loss 与 validation bands 2–10 MRE 曲线；
-- best epoch、milestone epoch 和 terminal epoch；
+- best epoch、configured max epoch 和 terminal epoch；
 - train/eval/inference time、samples/s、optimizer steps、samples seen；
 - GPU-hours、峰值显存、host memory、CPU 配额和 DataLoader workers；
 - failed/interrupted/resumed runs 和错误分类。
@@ -618,8 +614,8 @@ admission 失败时降并发为 6 或 3，但不改变科学矩阵。通过只�
 
 ### 9.3 选择边界
 
-- validation 可用于冻结模型、epoch milestone 和后续交叉评估 checkpoint；
-- test 上三个预注册 milestone 可以全部报告，但不得根据 test 继续调参或只发布最好一个；
+- validation 可用于冻结模型和后续交叉评估 checkpoint；
+- test 上三个预注册独立 epoch 预算可以全部报告，但不得根据 test 继续调参或只发布最好一个；
 - 10k→50k 是 domain/generalization comparison；
 - binary-trained → graded continuous 和反方向均属于跨路线 OOD，不证明两种介质或标签物理等价；
 - 8k/20k/40k 是同一 50k pool 内的数据规模 comparison；
@@ -655,17 +651,17 @@ run 目录遵循 `runs/{yyyymmdd}/{experiment_id}_{YYYYMMDDHHmm}/`，至少包�
 
 | 制品 | 必须内容 |
 |---|---|
-| `run.log` | admission、epoch/milestone、恢复和 terminal 摘要 |
+| `run.log` | admission、epoch、恢复和 terminal 摘要 |
 | `run.meta.json` | commit、配置、dataset/split/subset hash、Slurm/GPU/CPU/软件环境 |
-| `config.resolved.yaml` | train size、representation、model、seed、200-epoch 轨迹和 milestone 合同 |
+| `config.resolved.yaml` | train size、representation、model、seed 和独立 max-epoch 合同 |
 | `history.csv` | epoch 1–200 的 train/validation、learning rate、steps、samples seen、时间 |
 | `checkpoints/epoch_0020.pt` | epoch 20 不可变 checkpoint 和 SHA-256 |
 | `checkpoints/epoch_0100.pt` | epoch 100 不可变 checkpoint 和 SHA-256 |
 | `checkpoints/epoch_0200.pt` | epoch 200 不可变 checkpoint 和 SHA-256 |
 | `model_best_validation.pt` | validation-only 最优 checkpoint |
-| `resume_state.pt` | 最近安全恢复点；不替代 milestone checkpoint |
-| `metrics.json` | milestone/best 指标、runtime、throughput、GPU/CPU/memory |
-| `results.json` | success/failed/interrupted、completed milestones、下一 gate |
+| `resume_state.pt` | 同一独立作业的最近安全恢复点；不允许跨 epoch-budget 复用 |
+| `metrics.json` | configured-budget/best 指标、runtime、throughput、GPU/CPU/memory |
+| `results.json` | success/failed/interrupted、completed epoch、下一 gate |
 | `figures/` | 训练曲线 PNG/PDF |
 
 ### 10.2 Campaign 顶层
@@ -678,7 +674,7 @@ submission_manifest.csv
 legacy_checkpoint_manifest.csv
 nested_train_manifest.json
 trajectory_manifest.csv
-milestone_manifest.csv
+epoch_budget_manifest.csv
 cross_evaluation_manifest.csv
 cross_evaluation_cells.csv
 failed_tasks.csv
@@ -686,7 +682,7 @@ seed_summary.csv
 resource_summary.csv
 ```
 
-状态查询读取这些摘要，不递归扫描所有 checkpoint 或样本。252 条轨迹达到 terminal 不等于 test、aggregation 或物理验证完成。
+状态查询读取这些摘要，不递归扫描所有 checkpoint 或样本。756 条训练作业达到 terminal 不等于 test、aggregation 或物理验证完成。
 
 ### 10.3 状态词
 
@@ -698,7 +694,7 @@ legacy_inference_complete
 training_admission_pass
 training_running
 training_trajectories_complete
-evaluating_milestones
+evaluating_epoch_budgets
 resolution_transfer_complete
 neural_evidence_complete
 physical_validation_pending
@@ -717,26 +713,26 @@ cross_environment_accepted
 
 ### 11.1 自动完成判据
 
-- 两套 50k 数据均通过下载/hash/schema/content/WSL acceptance；
+- 两套 50k 数据在 Xingyi 与 N40 的大小和 SHA-256 一致；本轮本地 WSL replay 已由负责人明确豁免且证据边界已记录；
 - 两套嵌套 manifest 均证明 8k ⊂ 20k ⊂ 40k，且不与 val/test 相交；
 - 102 个旧 10k checkpoint 在 50k test 的原生训练分辨率推理结果完整；
 - 旧 10k 主矩阵的 576 个、50k/40k 的 1,728 个和 8k/20k 定向的 144 个 cross-evaluation cells 齐全，总计 2,448/2,448；
-- 其中 50k 新训练模型自身的 72/72 个 binary → continuous 与 continuous → binary full-train cells 单独成表，并具有三个 epoch milestones、三 seeds、四模型和 source-normalization 证据；
-- 252 条训练轨迹均有明确 terminal 状态；
-- 每条成功轨迹的 20/100/200 checkpoint、history、曲线、metrics 和 provenance 齐全；
-- 756 个 milestone observation 均有 native-resolution validation/test 记录或明确失败原因；
+- 其中 50k 新训练模型自身的 72/72 个 binary → continuous 与 continuous → binary full-train cells 单独成表，并具有三个独立 epoch 预算、三 seeds、四模型和 source-normalization 证据；
+- 756 条独立训练作业均有明确 terminal 状态；
+- 每条成功作业的 best/last checkpoint、history、曲线、metrics 和 provenance 齐全；
+- 756 个独立预算 checkpoint 均有 native-resolution validation/test 记录或明确失败原因；
 - 所有规定的 CNN/FNO 32/64/128 bundle 完成；
 - MLP/ResMLP 跨分辨率被正确标记为不适用，没有静默 resize；
 - 三 seed 汇总、paired CI、资源表、失败表和最终报告完整；
-- WSL `Ubuntu + meep_env` 相关实现测试通过；
+- 相关实现测试通过；本轮不把本地 WSL 物理 replay 设为训练完成条件；
 - 文档与索引通过 `phc2d report docs-audit --root README.md --strict`。
 
 ### 11.2 人工必须确认
 
-1. 252 条 200-epoch 训练轨迹及其预计 GPU-hours 是否接受；
+1. 756 条独立训练作业及其预计 GPU-hours 是否接受（已于 2026-08-07 授权启动）；
 2. 10k checkpoint inventory 和 source-normalization 边界是否正确；
 3. 8k/20k/40k nested selection 是否符合结构 strata 公平性；
-4. test 上公开三个预注册 epoch milestone、但不据此继续调参的统计口径；
+4. test 上公开三个预注册独立 epoch 预算、但不据此继续调参的统计口径；
 5. 64→32/128 只适用于 CNN/FNO 的架构边界；
 6. 是否在 neural evidence 完成后授权 M9 threshold real-MPB 验证。
 
@@ -752,10 +748,10 @@ cross_environment_accepted
 
 ```text
 解决了什么问题：
-把原 10k 双路线训练扩展为独立的 50k 训练合同，加入旧 checkpoint 共同 test、8k/20k/40k 嵌套训练、20/100/200 epoch 里程碑、2,448-cell 双向跨路线/跨表征评估和 64→32/128 零样本分辨率测试。
+把原 10k 双路线训练扩展为独立的 50k 训练合同，加入旧 checkpoint 共同 test、8k/20k/40k 嵌套训练、20/100/200 独立 epoch 预算、2,448-cell 双向跨路线/跨表征评估和 64→32/128 零样本分辨率测试。
 
 为什么采用这个方案：
-单条 200-epoch 轨迹保存三个 milestone，能够形成完整的 epoch 对比而不重复计算相同前缀；252 条轨迹可组织为 21 个 12-GPU 波次，兼顾全量矩阵、三 seed 和 N40 既有 QoS 证据。
+runner 不具备完整 milestone/resume 合同时，使用 756 条彼此独立的训练作业最清晰可靠；它们可组织为 63 个 12-GPU 波次，在不同 GPU 上并行执行，并为每个训练规模和 epoch 预算保留独立曲线与 checkpoint。
 
 改变了项目哪一层/哪一模块：
 主要改变 L3 实验/证据协议；未来需要 L4 runner、resume、evaluation 和 Slurm orchestration 支持，但不改变模型架构或物理数据定义。
@@ -764,7 +760,7 @@ cross_environment_accepted
 10k 102-run 结果、N40 RTX4090/6 CPU/60,000 MB 单卡证据、12-job 历史训练波次、50k 数据配置、当前模型输入形状实现与通用 M9 HPC campaign 合同。
 
 最大风险、未知或下一 gate：
-50k HDF5 尚需实际下载/hash/WSL acceptance 证据；当前 runner 尚不支持 20/100/200 milestone、完整分段恢复和跨 dataset checkpoint 推理。最近 gate 是先实现这些接口并完成 50k 单卡与 12-job I/O admission，而不是直接提交 252 条正式轨迹。
+两套 50k HDF5 已在 N40 与 Xingyi 源文件完成大小和 SHA-256 对齐；负责人明确豁免本地 WSL replay 训练前置门。当前最近 gate 是完成 runner 部署、启动首个 12-GPU 正式波次并基于实测吞吐滚动执行后续 62 个波次；跨 dataset checkpoint 推理和最终汇总仍是后续独立证据门。
 ```
 
 [↑ 回顶部](#full-cell-dual-lane-50000-training-plan)

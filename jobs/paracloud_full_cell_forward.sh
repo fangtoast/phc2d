@@ -29,4 +29,10 @@ fi
 if [[ -n "${PHC2D_FORWARD_RESOLUTION:-}" ]]; then
   args+=(--resolution "$PHC2D_FORWARD_RESOLUTION")
 fi
+if [[ -n "${PHC2D_FORWARD_TRAIN_SIZE:-}" ]]; then
+  args+=(--train-size "$PHC2D_FORWARD_TRAIN_SIZE")
+fi
+if [[ -n "${PHC2D_FORWARD_MAX_EPOCHS:-}" ]]; then
+  args+=(--max-epochs "$PHC2D_FORWARD_MAX_EPOCHS")
+fi
 python -m phc2d.forward.full_cell "${args[@]}"

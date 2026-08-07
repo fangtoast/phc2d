@@ -1,0 +1,33 @@
+# Formal graded-continuous full-cell 50k forward training wave.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment: {experiment_id: full_cell_forward_graded_continuous_50000_v1, family: full_cell_forward, lane: graded, evidence_status: authorized_formal_training_without_local_wsl_acceptance}
+dataset:
+  path: data/full_cell_graded_bz9_50000_xingyi_v1.h5
+  grid_field: material_weight_grid_64
+  expected_dataset_sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46
+  expected_idx_train_hash: c499158af6e9aff7fff74ffd2da8e4f7826887f19ba5c19bbcb03c5d3cd36180
+  expected_idx_val_hash: 2da23f8892443378a04e150c3042bbdd6cfc821f87e39b77e48e954f2be28349
+  expected_idx_test_hash: 09a9a4d19e8e1a9ebc5b2928adcb71416832b6da628fd03fd8154b7ffc3a3fdd
+representation: {source: material_weight_grid, sampling: continuous, threshold: null, resolution: 64, physical_equivalence: true, label_semantics: original_continuous_medium_Wh}
+models:
+  mlp: {hidden_dim: 256, depth: 6, dropout: 0.05, activation: gelu}
+  res_mlp_wide: {hidden_dim: 256, depth: 6, dropout: 0.05, activation: gelu}
+  lifted_cnn: {channels: 12, activation: gelu}
+  fno2d_band_v2: {width: 32, depth: 4, modes: [8, 8], band_modes: [5, 5], fourier_rank: 8, activation: gelu}
+training:
+  train_size: 40000
+  train_subset_salt: phc2d-full-cell-50k-v1
+  max_epochs: 20
+  early_stopping_patience: 0
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  learning_rates: {mlp: 3.0e-4, res_mlp_wide: 3.0e-4, lifted_cnn: 1.0e-3, fno2d_band_v2: 1.0e-3}
+  micro_batch_size: 64
+  effective_batch_size: 64
+  loss: normalized_full_matrix_mse
+  checkpoint_selection: validation_bands_2_10_mre
+runtime: {device: 'cuda:0', require_accelerator: true, precision: fp32, amp_enabled: false, tf32_enabled: false, num_workers: 4, pin_memory: true, non_blocking_transfer: true}
+output: {runs_dir: runs}

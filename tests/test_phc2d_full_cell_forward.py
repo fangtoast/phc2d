@@ -16,12 +16,67 @@ import numpy as np
 import pytest
 import yaml
 
-from phc2d.forward.full_cell import run_full_cell_forward
+from phc2d.forward.full_cell import (
+    _nested_train_indices,
+    _validate_and_resolve,
+    run_full_cell_forward,
+)
 from phc2d.runs import validate_run_artifacts
 
 
 def _hash(values: np.ndarray) -> str:
     return hashlib.sha256(np.asarray(values, dtype=np.int64).tobytes()).hexdigest()
+
+
+def test_nested_train_indices_are_deterministic_and_nested() -> None:
+    indices = np.arange(40, dtype=np.int64)
+    sample_ids = [f"sample_{index:03d}" for index in indices]
+    selected_8 = _nested_train_indices(indices, sample_ids, train_size=8, salt="frozen")
+    selected_20 = _nested_train_indices(indices, sample_ids, train_size=20, salt="frozen")
+    selected_40 = _nested_train_indices(indices, sample_ids, train_size=40, salt="frozen")
+
+    assert set(selected_8).issubset(set(selected_20))
+    assert set(selected_20).issubset(set(selected_40))
+    assert np.array_equal(
+        selected_20,
+        _nested_train_indices(indices, sample_ids, train_size=20, salt="frozen"),
+    )
+
+
+def test_formal_50k_overrides_accept_independent_epoch_and_train_size() -> None:
+    config = {
+        "experiment": {"experiment_id": "full_cell_50k", "lane": "binary"},
+        "dataset": {"path": "data.h5"},
+        "representation": {
+            "sampling": "continuous",
+            "threshold": None,
+            "resolution": 64,
+            "physical_equivalence": True,
+        },
+        "models": {"mlp": {}},
+        "training": {
+            "max_epochs": 20,
+            "early_stopping_patience": 0,
+            "optimizer": "adamw",
+            "effective_batch_size": 64,
+            "learning_rates": {"mlp": 3.0e-4},
+        },
+        "runtime": {"precision": "fp32", "amp_enabled": False, "tf32_enabled": False},
+        "output": {},
+    }
+
+    resolved = _validate_and_resolve(
+        config,
+        model_name="mlp",
+        seed=0,
+        admission_probe=False,
+        train_size_override=8000,
+        max_epochs_override=200,
+    )
+
+    assert resolved["training"]["train_size"] == 8000
+    assert resolved["training"]["max_epochs"] == 200
+    assert resolved["experiment"]["experiment_id"].endswith("_n8000_e200")
 
 
 def test_full_cell_forward_cpu_admission_probe_writes_contract(tmp_path: Path) -> None:

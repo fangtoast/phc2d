@@ -48,6 +48,32 @@ def _sha256_array(values: np.ndarray) -> str:
     return hashlib.sha256(np.asarray(values, dtype=np.int64).tobytes()).hexdigest()
 
 
+def _nested_train_indices(
+    idx_train: np.ndarray,
+    sample_ids: Sequence[str],
+    *,
+    train_size: int,
+    salt: str,
+) -> np.ndarray:
+    """Select a deterministic nested subset using stable sample-ID hashes."""
+
+    indices = np.asarray(idx_train, dtype=np.int64)
+    ids = [str(value) for value in sample_ids]
+    if len(ids) != int(indices.size):
+        raise ValueError("sample_ids must align one-to-one with idx_train")
+    size = int(train_size)
+    if size <= 0 or size > int(indices.size):
+        raise ValueError(f"train_size must be in [1, {indices.size}], got {size}")
+    ranked = sorted(
+        zip(indices.tolist(), ids, strict=True),
+        key=lambda item: (
+            hashlib.sha256(f"{salt}|{item[1]}".encode("utf-8")).digest(),
+            int(item[0]),
+        ),
+    )
+    return np.sort(np.asarray([item[0] for item in ranked[:size]], dtype=np.int64))
+
+
 def _sha256_checkpoint(path: Path) -> str:
     return _sha256_file(path)
 
@@ -139,6 +165,8 @@ def _validate_and_resolve(
     admission_probe: bool,
     threshold_override: float | None = None,
     resolution_override: int | None = None,
+    train_size_override: int | None = None,
+    max_epochs_override: int | None = None,
 ) -> dict[str, Any]:
     dataset = dict(config.get("dataset") or {})
     representation = dict(config.get("representation") or {})
@@ -174,12 +202,24 @@ def _validate_and_resolve(
 
     layout = "flat" if model_name in {"mlp", "res_mlp_wide"} else "image"
     learning_rates = dict(training.get("learning_rates") or {})
+    if train_size_override is not None:
+        training["train_size"] = int(train_size_override)
+    if max_epochs_override is not None:
+        training["max_epochs"] = int(max_epochs_override)
+    train_size = training.get("train_size")
+    if train_size is not None and int(train_size) <= 0:
+        raise ValueError("training.train_size must be positive")
+    max_epochs = int(training.get("max_epochs", 100))
+    if max_epochs <= 0:
+        raise ValueError("training.max_epochs must be positive")
     experiment_id = str(experiment.get("experiment_id", "full_cell_forward"))
     if sampling == "deterministic_threshold":
         experiment_id = f"{experiment_id}_t{int(round(float(threshold) * 10)):02d}"
     resolution = int(representation.get("resolution", 64))
     if resolution != 64:
         experiment_id = f"{experiment_id}_r{resolution}"
+    if train_size is not None:
+        experiment_id = f"{experiment_id}_n{int(train_size)}_e{max_epochs}"
     resolved = {
         "experiment": {
             **experiment,
@@ -197,17 +237,17 @@ def _validate_and_resolve(
             **training,
             "seed": int(seed),
             "learning_rate": float(learning_rates[model_name]),
-            "max_epochs": 1 if admission_probe else int(training.get("max_epochs", 100)),
+            "max_epochs": 1 if admission_probe else max_epochs,
             "max_train_batches": 1 if admission_probe else None,
         },
         "runtime": runtime,
         "output": output,
     }
     if not admission_probe:
-        if int(resolved["training"]["max_epochs"]) != 100:
-            raise ValueError("formal training requires exactly 100 maximum epochs")
-        if int(training.get("early_stopping_patience", 0)) != 15:
-            raise ValueError("formal training requires early_stopping_patience=15")
+        if int(resolved["training"]["max_epochs"]) not in {20, 100, 200}:
+            raise ValueError("formal training max_epochs must be one of 20, 100, or 200")
+        if int(training.get("early_stopping_patience", 0)) < 0:
+            raise ValueError("early_stopping_patience must be nonnegative")
         if int(training.get("effective_batch_size", 0)) != 64:
             raise ValueError("formal training requires effective_batch_size=64")
         if str(training.get("optimizer", "")).lower() != "adamw":
@@ -224,6 +264,7 @@ def _read_contract(resolved: Mapping[str, Any]) -> dict[str, Any]:
 
     dataset = dict(resolved["dataset"])
     representation = dict(resolved["representation"])
+    training = dict(resolved["training"])
     path = Path(str(dataset["path"]))
     grid_field = str(dataset.get("grid_field", "material_weight_grid_64"))
     with h5py.File(path, "r") as handle:
@@ -234,9 +275,28 @@ def _read_contract(resolved: Mapping[str, Any]) -> dict[str, Any]:
         idx_train = np.asarray(handle["idx_train"], dtype=np.int64)
         idx_val = np.asarray(handle["idx_val"], dtype=np.int64)
         idx_test = np.asarray(handle["idx_test"], dtype=np.int64)
+        sorted_train = np.sort(idx_train)
+        train_size = int(training.get("train_size", sorted_train.size))
+        subset_salt = str(training.get("train_subset_salt", "phc2d-full-cell-50k-v1"))
+        if train_size < int(sorted_train.size):
+            if "sample_id" not in handle:
+                raise KeyError("nested train subsets require the HDF5 sample_id field")
+            sample_ids = np.asarray(handle["sample_id"][sorted_train]).astype("U").tolist()
+            selected_train = _nested_train_indices(
+                sorted_train,
+                sample_ids,
+                train_size=train_size,
+                salt=subset_salt,
+            )
+        elif train_size == int(sorted_train.size):
+            selected_train = sorted_train
+        else:
+            raise ValueError(
+                f"training.train_size={train_size} exceeds idx_train size {sorted_train.size}"
+            )
         grid_shape = tuple(int(v) for v in handle[grid_field].shape[1:])
         target_shape = tuple(int(v) for v in handle["Wh"].shape[1:])
-        y_train = np.asarray(handle["Wh"][np.sort(idx_train)], dtype=np.float32)
+        y_train = np.asarray(handle["Wh"][selected_train], dtype=np.float32)
         schema_version = str(handle.attrs.get("schema_version", ""))
     if len(grid_shape) != 2 or len(target_shape) != 2:
         raise ValueError(f"unexpected grid/target shapes: {grid_shape}, {target_shape}")
@@ -263,6 +323,9 @@ def _read_contract(resolved: Mapping[str, Any]) -> dict[str, Any]:
         "target_shape": target_shape,
         "schema_version": schema_version,
         "idx_train": idx_train,
+        "selected_train": selected_train,
+        "train_subset_hash": _sha256_array(selected_train),
+        "train_subset_salt": subset_salt,
         "idx_val": idx_val,
         "idx_test": idx_test,
         "target_mean": target_mean,
@@ -335,6 +398,8 @@ def run_full_cell_forward(
     admission_probe: bool = False,
     threshold: float | None = None,
     resolution: int | None = None,
+    train_size: int | None = None,
+    max_epochs: int | None = None,
 ) -> Path:
     """Run one isolated model-plus-seed job from a frozen wave config."""
 
@@ -346,6 +411,8 @@ def run_full_cell_forward(
         admission_probe=admission_probe,
         threshold_override=threshold,
         resolution_override=resolution,
+        train_size_override=train_size,
+        max_epochs_override=max_epochs,
     )
     experiment = dict(resolved["experiment"])
     representation = dict(resolved["representation"])
@@ -406,7 +473,7 @@ def run_full_cell_forward(
         "target_mean": contract["target_mean"],
         "target_std": contract["target_std"],
     }
-    train_dataset = _FullCellH5Dataset(indices=contract["idx_train"], **dataset_kwargs)
+    train_dataset = _FullCellH5Dataset(indices=contract["selected_train"], **dataset_kwargs)
     val_dataset = _FullCellH5Dataset(indices=contract["idx_val"], **dataset_kwargs)
     generator = torch.Generator().manual_seed(seed)
     loader_kwargs = {
@@ -428,6 +495,8 @@ def run_full_cell_forward(
     stale_epochs = 0
     train_start = time.perf_counter()
     max_batches = training.get("max_train_batches")
+    optimizer_steps = 0
+    samples_seen = 0
     for epoch in range(1, int(training["max_epochs"]) + 1):
         epoch_start = time.perf_counter()
         model.train()
@@ -444,8 +513,10 @@ def run_full_cell_forward(
             if batch_index % accumulation == 0 or batch_index == len(train_loader):
                 optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
+                optimizer_steps += 1
             train_sum += float(loss.detach().cpu()) * int(xb.shape[0])
             train_count += int(xb.shape[0])
+            samples_seen += int(xb.shape[0])
             if max_batches is not None and batch_index >= int(max_batches):
                 break
         val = _evaluate(model, val_loader, device=device, mean=mean_t, std=std_t, torch=torch)
@@ -457,6 +528,8 @@ def run_full_cell_forward(
             "learning_rate": float(training["learning_rate"]),
             "epoch_time_s": time.perf_counter() - epoch_start,
             "wall_time_s": time.perf_counter() - wall_start,
+            "optimizer_steps": optimizer_steps,
+            "samples_seen": samples_seen,
         }
         history.append(row)
         logger.info(
@@ -490,7 +563,8 @@ def run_full_cell_forward(
         else:
             stale_epochs += 1
         _write_history(out / "history.csv", history)
-        if not admission_probe and stale_epochs >= int(training.get("early_stopping_patience", 15)):
+        patience = int(training.get("early_stopping_patience", 15))
+        if not admission_probe and patience > 0 and stale_epochs >= patience:
             logger.info("early stopping at epoch=%d best_epoch=%d", epoch, best_epoch)
             break
 
@@ -520,6 +594,9 @@ def run_full_cell_forward(
         "n_val": len(val_dataset),
         "effective_batch_size": int(training.get("effective_batch_size", 64)),
         "micro_batch_size": int(training.get("micro_batch_size", 64)),
+        "optimizer_steps": optimizer_steps,
+        "samples_seen": samples_seen,
+        "train_subset_hash": contract["train_subset_hash"],
     }
     _plot_history(out, history)
     write_metrics(out, metrics)
@@ -536,6 +613,9 @@ def run_full_cell_forward(
             "seed": int(seed),
             "lane": experiment.get("lane"),
             "representation": representation,
+            "train_size": len(train_dataset),
+            "max_epochs": int(training["max_epochs"]),
+            "train_subset_hash": contract["train_subset_hash"],
             "best_epoch": best_epoch,
             "checkpoint_path": str(checkpoint),
             "checkpoint_sha256": _sha256_checkpoint(checkpoint),
@@ -551,6 +631,8 @@ def run_full_cell_forward(
             "dataset_path": str(contract["path"]),
             "dataset_sha256": contract["dataset_sha256"],
             "idx_train_hash": contract["idx_train_hash"],
+            "train_subset_hash": contract["train_subset_hash"],
+            "train_subset_salt": contract["train_subset_salt"],
             "idx_val_hash": contract["idx_val_hash"],
             "idx_test_hash": contract["idx_test_hash"],
             "schema_version": contract["schema_version"],
@@ -578,6 +660,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--admission-probe", action="store_true")
     parser.add_argument("--threshold", type=float)
     parser.add_argument("--resolution", type=int)
+    parser.add_argument("--train-size", type=int)
+    parser.add_argument("--max-epochs", type=int)
     args = parser.parse_args(argv)
     print(
         run_full_cell_forward(
@@ -588,6 +672,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             admission_probe=args.admission_probe,
             threshold=args.threshold,
             resolution=args.resolution,
+            train_size=args.train_size,
+            max_epochs=args.max_epochs,
         )
     )
 
@@ -596,4 +682,4 @@ if __name__ == "__main__":
     main()
 
 
-__all__ = ["run_full_cell_forward"]
+__all__ = ["_nested_train_indices", "run_full_cell_forward"]
