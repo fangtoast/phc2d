@@ -79,7 +79,9 @@ for model in "${models[@]}"; do
       probe=1
       time_limit="00:10:00"
     fi
-    sbatch_args=(-p gpu_4090 --gres=gpu:1 -c 6 --mem=60000M -t "$time_limit")
+    # N40 assigns 60 GB host memory per requested RTX4090 by policy.  An
+    # explicit 60000M request is interpreted as exceeding that per-card limit.
+    sbatch_args=(-p gpu_4090 --gres=gpu:1 -c 6 -t "$time_limit")
     if (( task_index >= wave_concurrency )) && (( task_index % wave_concurrency == 0 )); then
       previous_group_ids=("${current_group_ids[@]}")
       current_group_ids=()
