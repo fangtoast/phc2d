@@ -7,6 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -125,3 +126,66 @@ def test_ablation_submitter_supports_selection_chunks(tmp_path: Path) -> None:
     assert len(rows) == 7
     assert all(row.startswith("graded,t06,") for row in rows[1:])
     assert all(",t06," in row for row in rows[1:])
+
+
+def test_main_wave_submitter_schedules_slowest_models_first(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_sbatch = fake_bin / "sbatch"
+    fake_sbatch.write_text(
+        "#!/usr/bin/env bash\n"
+        "counter_file=sbatch-counter\n"
+        "counter=200\n"
+        "if [[ -f $counter_file ]]; then counter=$(<\"$counter_file\"); fi\n"
+        "counter=$((counter + 1))\n"
+        "printf '%s\\n' \"$counter\" > \"$counter_file\"\n"
+        "printf '%s\\n' \"$counter\"\n",
+        encoding="utf-8",
+    )
+    fake_sbatch.chmod(0o755)
+    data = tmp_path / "dataset.h5"
+    data.write_bytes(b"frozen-dataset")
+    digest = hashlib.sha256(data.read_bytes()).hexdigest()
+    fake_env = tmp_path / "env"
+    (fake_env / "bin").mkdir(parents=True)
+    fake_python = fake_env / "bin" / "python"
+    fake_python.write_text(
+        "#!/usr/bin/env bash\nprintf '%s|%s\\n' \"$FAKE_DATA_PATH\" \"$FAKE_DATA_SHA\"\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    config = tmp_path / "config.yaml"
+    config.write_text("dataset: {}\n", encoding="utf-8")
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+            "PHC2D_ENV": str(fake_env),
+            "FAKE_DATA_PATH": str(data),
+            "FAKE_DATA_SHA": digest,
+        }
+    )
+
+    completed = subprocess.run(
+        [
+            "bash",
+            str(ROOT / "jobs" / "paracloud_submit_full_cell_forward_wave.sh"),
+            "train",
+            str(config),
+            "ordered_wave",
+            "",
+            "64",
+            "40000",
+            "20",
+        ],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    rows = (tmp_path / completed.stdout.strip()).read_text(encoding="utf-8").splitlines()[1:]
+    assert len(rows) == 12
+    assert all(row.startswith("fno2d_band_v2,") for row in rows[:3])
+    assert all(row.startswith("lifted_cnn,") for row in rows[3:6])
+    assert all(row.startswith("mlp,") for row in rows[-3:])

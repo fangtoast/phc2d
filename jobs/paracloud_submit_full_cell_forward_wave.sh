@@ -56,7 +56,10 @@ if [[ "$actual_dataset_sha256" != "$expected_dataset_sha256" ]]; then
   exit 3
 fi
 
-models=(mlp res_mlp_wide lifted_cnn fno2d_band_v2)
+# Submit the historically slowest model first.  With the N40 account capped at
+# eight concurrent GPUs, this keeps FNO on the first allocation group and lets
+# the faster MLP jobs drain the four-task tail of each 12-run wave.
+models=(fno2d_band_v2 lifted_cnn res_mlp_wide mlp)
 seeds=(0 1 2)
 wave_concurrency="${PHC2D_WAVE_CONCURRENCY:-12}"
 if [[ "$wave_concurrency" != "3" && "$wave_concurrency" != "6" && "$wave_concurrency" != "12" ]]; then
