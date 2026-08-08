@@ -167,6 +167,7 @@ def _validate_and_resolve(
     resolution_override: int | None = None,
     train_size_override: int | None = None,
     max_epochs_override: int | None = None,
+    head_kind_override: str | None = None,
 ) -> dict[str, Any]:
     dataset = dict(config.get("dataset") or {})
     representation = dict(config.get("representation") or {})
@@ -224,6 +225,13 @@ def _validate_and_resolve(
         experiment_id = f"{experiment_id}_r{resolution}"
     if train_size is not None:
         experiment_id = f"{experiment_id}_n{int(train_size)}_e{max_epochs}"
+    model_params = dict(models.get(model_name) or {})
+    if head_kind_override is not None:
+        if head_kind_override not in {"dense", "k_conditioned"}:
+            raise ValueError("head kind override must be dense or k_conditioned")
+        if not model_spec.accepts_k_points:
+            raise ValueError(f"model {model_name!r} does not support selectable Full-Wh heads")
+        model_params["head_kind"] = head_kind_override
     resolved = {
         "experiment": {
             **experiment,
@@ -236,7 +244,7 @@ def _validate_and_resolve(
         },
         "dataset": dataset,
         "representation": {**representation, "layout": layout, "flatten_order": "row_major"},
-        "model": {"name": model_name, "params": dict(models.get(model_name) or {})},
+        "model": {"name": model_name, "params": model_params},
         "training": {
             **training,
             "seed": int(seed),
@@ -481,6 +489,7 @@ def run_full_cell_forward(
     resolution: int | None = None,
     train_size: int | None = None,
     max_epochs: int | None = None,
+    head_kind: str | None = None,
 ) -> Path:
     """Run one isolated model-plus-seed job from a frozen wave config."""
 
@@ -494,6 +503,7 @@ def run_full_cell_forward(
         resolution_override=resolution,
         train_size_override=train_size,
         max_epochs_override=max_epochs,
+        head_kind_override=head_kind,
     )
     experiment = dict(resolved["experiment"])
     representation = dict(resolved["representation"])
@@ -822,6 +832,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--resolution", type=int)
     parser.add_argument("--train-size", type=int)
     parser.add_argument("--max-epochs", type=int)
+    parser.add_argument("--head-kind", choices=("dense", "k_conditioned"))
     args = parser.parse_args(argv)
     print(
         run_full_cell_forward(
@@ -834,6 +845,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             resolution=args.resolution,
             train_size=args.train_size,
             max_epochs=args.max_epochs,
+            head_kind=args.head_kind,
         )
     )
 

@@ -1,0 +1,38 @@
+# Balanced binary/graded dual-lane Full-Wh 10k training contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment: {experiment_id: full_cell_forward_upgrade_dual_lane_10k_v1, family: full_cell_forward_upgrade, lane: joint, evidence_status: authorized_admission_and_10k_training}
+datasets:
+  binary:
+    path: data/full_cell_binary_bz9_10000_xingyi_v1.h5
+    grid_field: material_weight_grid_64
+    expected_dataset_sha256: 1f131f2bda7ccb1f1736809bdf6bafd534096cb275e22ce3e56fc5d910530c2f
+    expected_idx_train_hash: b87806ed57802917be1ce827615667cf5a4eedc84ef8c5f596c17e804a96878e
+    expected_idx_val_hash: 8b40be085bb7815381a0623586f9f9af4f1abf3e7597a50ad0490f7dfc2fc6b6
+    expected_idx_test_hash: f9287656805062e01d2b4995278b04af73968f5026b38c30a52982b67c20eba1
+  graded:
+    path: data/full_cell_graded_bz9_10000_paracloud_m9_v1.h5
+    grid_field: material_weight_grid_64
+    expected_dataset_sha256: d16d838e098215c05dc299bf7c4bbc8c6bc00f6ef35b9772546aa4e7c2b8b728
+    expected_idx_train_hash: 34f595c40cc900df0962057dc8aa740ca03412144f87ad4708c627b3d6cd61fd
+    expected_idx_val_hash: 2b750661c3a728d915b44442876a83ccc3f1501c3fac63f5a023b4dead640305
+    expected_idx_test_hash: c54196a2f04ce8586ab5c0d1812c677e1829485e72f57f38a730b88e3eb75b61
+representation: {source: material_weight_grid, sampling: continuous, threshold: null, resolution: 64, physical_equivalence: true, label_semantics: lane_specific_Wh}
+model:
+  name: dual_lane_band_operator_v1
+  params: {width: 64, depth: 6, modes: [12, 12], factorization_rank: 0.75, norm_groups: 8, channel_expansion: 2, local_kernel: 3, drop_path: 0.1, num_lanes: 2, lane_embedding_dim: 16, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8], dropout: 0.05}
+training:
+  max_epochs: 100
+  early_stopping_patience: 15
+  optimizer: adamw
+  learning_rate: 5.0e-4
+  weight_decay: 1.0e-5
+  micro_batch_size: 64
+  effective_batch_size: 64
+  lane_batch_size: {binary: 32, graded: 32}
+  loss: equal_lane_normalized_full_matrix_mse
+  checkpoint_selection: equal_lane_validation_bands_2_10_mre
+runtime: {device: 'cuda:0', require_accelerator: true, precision: fp32, amp_enabled: false, tf32_enabled: false, num_workers: 4, pin_memory: true, non_blocking_transfer: true}
+output: {runs_dir: runs}

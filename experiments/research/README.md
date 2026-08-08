@@ -21,6 +21,7 @@
 ## Forward、Query 与 Field
 
 - [`a1_fair_forward_query.md`](a1_fair_forward_query.md)：A1 Full-Wh / Query 公平对照。
+- [`full_cell_forward_upgrade_10k.md`](full_cell_forward_upgrade_10k.md)：五个 Full-Wh 升级模型在 N40 的 admission 与 10k 七波训练合同。
 - [`field_eigen_te.md`](field_eigen_te.md)：TE Bloch eigenfield、Field FNO 与 adapted PINO。
 - [`near_field_surrogate.md`](near_field_surrogate.md)：near-field、NeurOLight 与 Maxwell residual 可行性边界。
 

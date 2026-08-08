@@ -38,4 +38,7 @@ fi
 if [[ -n "${PHC2D_FORWARD_MAX_EPOCHS:-}" ]]; then
   args+=(--max-epochs "$PHC2D_FORWARD_MAX_EPOCHS")
 fi
+if [[ -n "${PHC2D_FORWARD_HEAD_KIND:-}" ]]; then
+  args+=(--head-kind "$PHC2D_FORWARD_HEAD_KIND")
+fi
 python -m phc2d.forward.full_cell "${args[@]}"
