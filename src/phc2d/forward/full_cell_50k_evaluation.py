@@ -372,7 +372,35 @@ def plan_evaluation_campaign(
     )
     rows = build_evaluation_cells(sources, shard_count=int(shard_count))
     _write_csv(campaign / "checkpoint_inventory.csv", sources)
+    _write_csv(
+        campaign / "legacy_checkpoint_manifest.csv",
+        [row for row in sources if str(row["source_group"]).startswith("legacy10k")],
+    )
+    training_campaign = _read_json(paths["training_campaign_status"])
+    _write_csv(
+        campaign / "training_wave_manifest.csv",
+        [
+            {
+                "index": wave["index"],
+                "key": wave["key"],
+                "representation": wave["representation"],
+                "train_size": wave["train_size"],
+                "max_epochs": wave["max_epochs"],
+                "resolution": wave["resolution"],
+                "status": wave["status"],
+                "planned_runs": wave["planned_runs"],
+                "manifest": wave["manifest"],
+                "aggregation_dir": wave["aggregation_dir"],
+                "job_ids": "|".join(str(value) for value in wave["job_ids"]),
+            }
+            for wave in training_campaign["waves"]
+        ],
+    )
     _write_csv(campaign / "evaluation_plan.csv", rows)
+    _write_csv(
+        campaign / "cross_evaluation_manifest.csv",
+        [row for row in rows if "cross" in str(row["contracts"])],
+    )
     dataset_hashes = {
         "binary": _sha256_file(paths["binary_dataset"]),
         "graded": _sha256_file(paths["graded_dataset"]),
@@ -807,6 +835,35 @@ def finalize_evaluation_campaign(
     campaign = _resolve(root, campaign_dir)
     resolved = yaml.safe_load((campaign / "config.resolved.yaml").read_text(encoding="utf-8"))
     plan = _read_csv(campaign / "evaluation_plan.csv")
+    inventory = _read_csv(campaign / "checkpoint_inventory.csv")
+    _write_csv(
+        campaign / "legacy_checkpoint_manifest.csv",
+        [row for row in inventory if str(row["source_group"]).startswith("legacy10k")],
+    )
+    training_campaign = _read_json(_resolve(root, resolved["paths"]["training_campaign_status"]))
+    _write_csv(
+        campaign / "training_wave_manifest.csv",
+        [
+            {
+                "index": wave["index"],
+                "key": wave["key"],
+                "representation": wave["representation"],
+                "train_size": wave["train_size"],
+                "max_epochs": wave["max_epochs"],
+                "resolution": wave["resolution"],
+                "status": wave["status"],
+                "planned_runs": wave["planned_runs"],
+                "manifest": wave["manifest"],
+                "aggregation_dir": wave["aggregation_dir"],
+                "job_ids": "|".join(str(value) for value in wave["job_ids"]),
+            }
+            for wave in training_campaign["waves"]
+        ],
+    )
+    _write_csv(
+        campaign / "cross_evaluation_manifest.csv",
+        [row for row in plan if "cross" in str(row["contracts"])],
+    )
     executable_plan = {row["evaluation_id"]: row for row in plan if row["planned_status"] == "planned"}
     completed_rows: list[dict[str, str]] = []
     sample_metrics: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
@@ -824,14 +881,17 @@ def finalize_evaluation_campaign(
             continue
         rows = _read_csv(shard / "evaluation_cells.csv")
         completed_rows.extend(rows)
-        archive = np.load(shard / "sample_metrics.npz", allow_pickle=False)
-        ids = [str(value) for value in archive["evaluation_ids"]]
-        for index, evaluation_id in enumerate(ids):
-            sample_metrics[evaluation_id] = (
-                np.asarray(archive["sample_mre_pct"][index]),
-                np.asarray(archive["sample_mae"][index]),
-                np.asarray(archive["sample_mse"][index]),
-            )
+        with np.load(shard / "sample_metrics.npz", allow_pickle=False) as archive:
+            ids = [str(value) for value in archive["evaluation_ids"]]
+            shard_mre = np.asarray(archive["sample_mre_pct"])
+            shard_mae = np.asarray(archive["sample_mae"])
+            shard_mse = np.asarray(archive["sample_mse"])
+            for index, evaluation_id in enumerate(ids):
+                sample_metrics[evaluation_id] = (
+                    shard_mre[index].copy(),
+                    shard_mae[index].copy(),
+                    shard_mse[index].copy(),
+                )
         metrics = _read_json(shard / "metrics.json")
         meta = _read_json(shard / "run.meta.json")
         resource_rows.append({"shard_id": shard_id, **metrics, "slurm_job_id": meta.get("slurm_job_id"), "node": meta.get("slurm_node")})
@@ -890,6 +950,17 @@ def finalize_evaluation_campaign(
     _write_csv(campaign / "legacy_cross_evaluation_summary.csv", legacy_cross_summary)
     _write_csv(campaign / "current_40k_evaluation_summary.csv", current_summary)
     _write_csv(campaign / "resolution_transfer_summary.csv", resolution_summary)
+    cross_cells = [row for row in completed_rows if "cross" in row["contracts"]]
+    _write_csv(campaign / "cross_evaluation_cells.csv", cross_cells)
+    seed_summary: list[dict[str, Any]] = []
+    for analysis, rows in (
+        ("legacy_native_50k", legacy_native_summary),
+        ("legacy_cross_50k", legacy_cross_summary),
+        ("current_40k_native_and_cross", current_summary),
+        ("zero_shot_resolution", resolution_summary),
+    ):
+        seed_summary.extend({"analysis": analysis, **row} for row in rows)
+    _write_csv(campaign / "seed_summary.csv", seed_summary)
 
     lookup: dict[tuple[str, str, str, str, str, str], dict[str, str]] = {}
     for row in completed_rows:
@@ -1015,6 +1086,32 @@ def finalize_evaluation_campaign(
             "failed_cells": 0,
             "next_gate": "result_report_and_documentation_audit",
         },
+    )
+    (campaign / "campaign_manifest.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": resolved["schema_version"],
+                "status": "evaluation_complete_pending_report",
+                "plan_hash": resolved["plan_hash"],
+                "training_campaign_status": resolved["paths"]["training_campaign_status"],
+                "checkpoint_inventory": "checkpoint_inventory.csv",
+                "legacy_checkpoint_manifest": "legacy_checkpoint_manifest.csv",
+                "training_wave_manifest": "training_wave_manifest.csv",
+                "evaluation_plan": "evaluation_plan.csv",
+                "cross_evaluation_manifest": "cross_evaluation_manifest.csv",
+                "evaluation_cells": "evaluation_cells.csv",
+                "cross_evaluation_cells": "cross_evaluation_cells.csv",
+                "seed_summary": "seed_summary.csv",
+                "paired_comparisons": "paired_comparisons.csv",
+                "resource_summary": "resource_summary.csv",
+                "failed_tasks": "failed_tasks.csv",
+                "scientific_boundary": resolved["scientific_boundary"],
+                "next_gate": "result_report_and_documentation_audit",
+            },
+            sort_keys=False,
+            allow_unicode=True,
+        ),
+        encoding="utf-8",
     )
     return campaign
 

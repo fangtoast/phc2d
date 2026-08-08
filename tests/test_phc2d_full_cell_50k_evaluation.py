@@ -7,6 +7,9 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
 from phc2d.forward.full_cell_50k_evaluation import (
     EXPECTED_EXECUTABLE_CELLS,
     EXPECTED_NOT_APPLICABLE_CELLS,
@@ -106,3 +109,21 @@ def test_early_40k_result_without_checkpoint_role_remains_admissible() -> None:
     assert not _is_validation_checkpoint_result(
         {"selection_split": "validation", "test_executed": True}
     )
+
+
+def test_finalizer_loads_each_compressed_metric_array_once() -> None:
+    source = Path("src/phc2d/forward/full_cell_50k_evaluation.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    subscripts = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "archive"
+    ]
+    keys = {
+        node.slice.value
+        for node in subscripts
+        if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str)
+    }
+    assert keys == {"evaluation_ids", "sample_mre_pct", "sample_mae", "sample_mse"}
