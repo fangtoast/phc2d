@@ -11,6 +11,7 @@ from phc2d.forward.full_cell_50k_evaluation import (
     EXPECTED_EXECUTABLE_CELLS,
     EXPECTED_NOT_APPLICABLE_CELLS,
     EXPECTED_TOTAL_CELLS,
+    _is_validation_checkpoint_result,
     build_evaluation_cells,
 )
 from phc2d.forward.full_cell_wave import MODELS, SEEDS
@@ -93,3 +94,15 @@ def test_source_bundles_are_not_split_across_gpu_shards() -> None:
         by_source.setdefault(str(row["source_id"]), set()).add(int(row["shard_id"]))
     assert by_source
     assert all(len(shards) == 1 for shards in by_source.values())
+
+
+def test_early_40k_result_without_checkpoint_role_remains_admissible() -> None:
+    assert _is_validation_checkpoint_result(
+        {"selection_split": "validation", "test_executed": False}
+    )
+    assert not _is_validation_checkpoint_result(
+        {"selection_split": "none_final_fit", "test_executed": False}
+    )
+    assert not _is_validation_checkpoint_result(
+        {"selection_split": "validation", "test_executed": True}
+    )

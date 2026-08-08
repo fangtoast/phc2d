@@ -106,6 +106,16 @@ def _representation_label(value: str) -> str:
     return label
 
 
+def _is_validation_checkpoint_result(results: Mapping[str, Any]) -> bool:
+    """Accept pre-role-field runs only when the immutable split facts agree."""
+
+    return (
+        results.get("selection_split") == "validation"
+        and not bool(results.get("test_executed"))
+        and results.get("checkpoint_role", "best_validation") == "best_validation"
+    )
+
+
 def _checkpoint_record(root: Path, run_dir: Path) -> tuple[Path, str, dict[str, Any]]:
     results = _read_json(run_dir / "results.json")
     if results.get("status") != "formal_training_success":
@@ -201,7 +211,7 @@ def _load_sources(
         for row in _read_csv(manifest):
             run_dir = _resolve(root, row["run_dir"])
             checkpoint, checkpoint_hash, results = _checkpoint_record(root, run_dir)
-            if results.get("checkpoint_role") != "best_validation":
+            if not _is_validation_checkpoint_result(results):
                 raise RuntimeError(f"40k evaluation source is not validation-selected: {run_dir}")
             source = {
                 "source_group": "current40k",
