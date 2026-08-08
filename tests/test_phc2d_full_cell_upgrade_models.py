@@ -167,6 +167,22 @@ def test_tfno_has_independent_positive_and_negative_spectral_gradients() -> None
     assert all(gradient is not None and bool(torch.isfinite(gradient).all()) for gradient in gradients.values())
 
 
+def test_tfno_default_width_reconstructs_modes_without_large_intermediate() -> None:
+    torch = _require_torch()
+    model = build_model(
+        "tfno2d_band_v3",
+        input_shape=(16, 16),
+        output_shape=(5, 3),
+        width=64,
+        depth=1,
+        modes=(12, 12),
+    ).eval()
+    with torch.no_grad():
+        output = model(torch.randn(1, 1, 16, 16))
+    assert tuple(output.shape) == (1, 5, 3)
+    assert bool(torch.isfinite(output).all())
+
+
 @pytest.mark.parametrize("name", UPGRADE_NAMES)
 @pytest.mark.parametrize("head_kind", ("dense", "k_conditioned"))
 def test_default_parameter_budget_is_two_to_eight_million(name: str, head_kind: str) -> None:

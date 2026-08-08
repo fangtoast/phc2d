@@ -588,13 +588,29 @@ def _build_factorized_band_operator(
 
         def weight(self, keep_y: int, keep_x: int) -> Any:
             dtype = self.core.dtype
-            return torch.einsum(
-                "ia,ob,yc,xd,abcd->ioyx",
+            # Reconstruct one Tucker mode at a time.  A single five-operand
+            # einsum can choose a catastrophically large contraction path on
+            # the CUDA/PyTorch version used by N40 (hundreds of GiB for the
+            # default width), even though the final tensor is only a few MiB.
+            weight = torch.einsum(
+                "ia,abcd->ibcd",
                 self.input_factor.to(dtype=dtype),
-                self.output_factor.to(dtype=dtype),
-                self.y_factor[:keep_y].to(dtype=dtype),
-                self.x_factor[:keep_x].to(dtype=dtype),
                 self.core,
+            )
+            weight = torch.einsum(
+                "ob,ibcd->iocd",
+                self.output_factor.to(dtype=dtype),
+                weight,
+            )
+            weight = torch.einsum(
+                "yc,iocd->ioyd",
+                self.y_factor[:keep_y].to(dtype=dtype),
+                weight,
+            )
+            return torch.einsum(
+                "xd,ioyd->ioyx",
+                self.x_factor[:keep_x].to(dtype=dtype),
+                weight,
             )
 
     class TuckerSpectralConv2d(nn.Module):
