@@ -1087,6 +1087,21 @@ def finalize_evaluation_campaign(
             "next_gate": "result_report_and_documentation_audit",
         },
     )
+    (campaign / "run.log").write_text(
+        "\n".join(
+            [
+                "status=formal_50k_forward_evaluation_success",
+                f"plan_hash={resolved['plan_hash']}",
+                f"completed_cells={len(completed_rows)}",
+                f"not_applicable_cells={EXPECTED_NOT_APPLICABLE_CELLS}",
+                "failed_cells=0",
+                f"paired_comparisons={len(comparisons)}",
+                "next_gate=result_report_and_documentation_audit",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
     (campaign / "campaign_manifest.yaml").write_text(
         yaml.safe_dump(
             {

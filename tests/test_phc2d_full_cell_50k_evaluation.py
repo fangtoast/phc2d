@@ -127,3 +127,17 @@ def test_finalizer_loads_each_compressed_metric_array_once() -> None:
         if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str)
     }
     assert keys == {"evaluation_ids", "sample_mre_pct", "sample_mae", "sample_mse"}
+
+
+def test_finalizer_publishes_standard_run_artifact_names() -> None:
+    source = Path("src/phc2d/forward/full_cell_50k_evaluation.py").read_text(encoding="utf-8")
+    for name in (
+        "run.log",
+        "run.meta.json",
+        "config.resolved.yaml",
+        "results.json",
+        "metrics.json",
+        "history.csv",
+        "campaign_manifest.yaml",
+    ):
+        assert name in source
