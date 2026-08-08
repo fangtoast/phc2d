@@ -18,7 +18,7 @@
 | Audience | 项目负责人、实验执行者、N40 运维人员、结果审阅者与 AI 协作者 |
 | Owner | 研究生维护，导师审阅 promotion 与科学主张 |
 | Last reviewed | Pending human review |
-| Reading time | 20 minutes |
+| Reading time | 28 minutes |
 
 本文只定义升级模型在 10k/50k full-cell 数据上的训练、验证、N40 调度和证据边界。模型源码当前是 `implemented / no_result`；本文不是付费训练授权，也不证明任何新模型优于当前 FNO。
 
@@ -61,11 +61,11 @@
 
 | 直接基线 | 升级模型 | 两种输出头 | 当前状态 |
 |---|---|---|---|
-| `mlp` | `mlp_mixer_band_v1` | dense / k-conditioned | planned, no_result |
-| `res_mlp_wide` | `res_mlp_gated_v2` | dense / k-conditioned | planned, no_result |
-| `lifted_cnn` | `convnext_band_v1` | dense / k-conditioned | planned, no_result |
-| `fno2d_band_v2` | `tfno2d_band_v3` | dense / k-conditioned | planned, no_result |
-| 两条独立 native 模型 | `dual_lane_band_operator_v1` | dense / k-conditioned | planned, no_result |
+| `mlp` | `mlp_mixer_band_v1` | dense / k-conditioned | implemented, no_result |
+| `res_mlp_wide` | `res_mlp_gated_v2` | dense / k-conditioned | implemented, no_result |
+| `lifted_cnn` | `convnext_band_v1` | dense / k-conditioned | implemented, no_result |
+| `fno2d_band_v2` | `tfno2d_band_v3` | dense / k-conditioned | implemented, no_result |
+| 两条独立 native 模型 | `dual_lane_band_operator_v1` | dense / k-conditioned | implemented, no_result |
 
 旧四模型、旧 checkpoint 和现有 10k/50k 报告保留为比较基线，不因新 campaign 改名、重训或覆盖。
 
@@ -229,29 +229,105 @@ $$
 
 8 张 GPU 用于同时运行 8 个独立 model/head/lane/seed 任务。2–8M 参数模型不采用 8 卡 DDP；这样可以最大化矩阵吞吐、隔离失败并保持单卡 checkpoint 身份。BF16 只允许在最终获胜模型上另建吞吐 profile，不与 FP32 精度结果合并。
 
-### 7.2 排队顺序与失败隔离
+### 7.2 GPU 槽位、任务编号与单任务资源
 
-任务清单按预计耗时排序：
+本文中的 `S0`–`S7` 是一个 wave 内的八个**并发槽位**，不是预先绑定的物理 GPU 编号。每个槽位提交一个单卡 Slurm task；调度器可以把它分配到任意一张可用 RTX4090。作业内通常只看到重新映射后的 `CUDA_VISIBLE_DEVICES=0`，因此每个 `run.meta.json` 必须额外记录 `SLURM_ARRAY_TASK_ID`、物理 GPU UUID、GPU 名称和节点名，不能用进程内的逻辑编号冒充物理卡身份。
 
-1. `tfno2d_band_v3` 与 `dual_lane_band_operator_v1`；
-2. `res_mlp_gated_v2`；
-3. `convnext_band_v1`；
-4. `mlp_mixer_band_v1`。
+冻结缩写如下：
 
-Slurm array 每行只负责一个独立 run directory。单任务失败不取消其他已运行任务；重提只允许使用相同 config/hash/seed 和新的 retry lineage，不覆盖旧目录。
+| 缩写 | 含义 |
+|---|---|
+| `MM` | `mlp_mixer_band_v1` |
+| `RM` | `res_mlp_gated_v2` |
+| `CX` | `convnext_band_v1` |
+| `TF` | `tfno2d_band_v3` |
+| `DL` | `dual_lane_band_operator_v1` |
+| `D` / `Q` | dense / k-conditioned head |
+| `B` / `G` / `J` | binary / graded / joint dual-lane |
+| `s0`–`s2` | seed 0–2 |
 
-### 7.3 授权与 dry-run 门
+单 lane 正式任务 ID 固定为 `{stage}_{model}_{head}_{lane}_{seed}`，例如 `10k_TF_Q_B_s1`；联合任务固定为 `{stage}_DL_{head}_J_{seed}`。每行任务资源均为 `1×RTX4090 + 6 CPU + FP32`，不允许在同一 GPU 上再启动第二个训练进程，也不允许一个任务跨两张卡。
+
+### 7.3 Admission：正式训练前的三波探针
+
+Admission 不计入 54 个正式 10k jobs。每项只执行一批 forward/backward、一次 optimizer step、validation forward 和 checkpoint save/load；禁止用 probe 指标选择模型或输出头。三波固定如下：
+
+| Admission wave | S0 | S1 | S2 | S3 | S4 | S5 | S6 | S7 |
+|---|---|---|---|---|---|---|---|---|
+| `A0` | `TF-D-B-s0` | `TF-D-G-s0` | `TF-Q-B-s0` | `TF-Q-G-s0` | `DL-D-J-s0` | `DL-Q-J-s0` | `MM-D-B-s0` | `MM-D-G-s0` |
+| `A1` | `MM-Q-B-s0` | `MM-Q-G-s0` | `RM-D-B-s0` | `RM-D-G-s0` | `RM-Q-B-s0` | `RM-Q-G-s0` | `CX-D-B-s0` | `CX-D-G-s0` |
+| `A2` | `CX-Q-B-s0` | `CX-Q-G-s0` | idle | idle | idle | idle | idle | idle |
+
+`A0` 先覆盖最接近当前强基线的 TFNO、联合模型和 Mixer dense；`A1` 覆盖剩余 Mixer、完整 ResMLP 和 ConvNeXt dense；`A2` 完成 ConvNeXt 查询头。只有 18 个组合的 shape、有限 loss/gradient、显存、checkpoint 和 artifact 均通过，才能创建正式 `10K-W1`。若某个 architecture 触发学习率减半，必须重跑该 architecture 的全部 admission 组合，不能只重跑失败槽位。
+
+### 7.4 10k 正式训练：七波 54 个任务
+
+以下是**全部模型均通过 admission**时的冻结波次。每个非 idle 槽位都是一个最多 100 epoch、patience 15 的独立单卡训练；同一波通过一个 `0-7%8` array 提交。第一波优先完成 TFNO dense 并启动联合模型 dense，第二波完成 TFNO query 和联合模型 dense，第三波补齐联合模型 query，随后依次完成 Mixer、ResMLP 和 ConvNeXt。
+
+| 10k wave | S0 | S1 | S2 | S3 | S4 | S5 | S6 | S7 | Jobs |
+|---|---|---|---|---|---|---|---|---|---:|
+| `10K-W1` | `TF-D-B-s0` | `TF-D-B-s1` | `TF-D-B-s2` | `TF-D-G-s0` | `TF-D-G-s1` | `TF-D-G-s2` | `DL-D-J-s0` | `DL-D-J-s1` | 8 |
+| `10K-W2` | `DL-D-J-s2` | `TF-Q-B-s0` | `TF-Q-B-s1` | `TF-Q-B-s2` | `TF-Q-G-s0` | `TF-Q-G-s1` | `TF-Q-G-s2` | `DL-Q-J-s0` | 8 |
+| `10K-W3` | `DL-Q-J-s1` | `DL-Q-J-s2` | `MM-D-B-s0` | `MM-D-B-s1` | `MM-D-B-s2` | `MM-D-G-s0` | `MM-D-G-s1` | `MM-D-G-s2` | 8 |
+| `10K-W4` | `MM-Q-B-s0` | `MM-Q-B-s1` | `MM-Q-B-s2` | `MM-Q-G-s0` | `MM-Q-G-s1` | `MM-Q-G-s2` | `RM-D-B-s0` | `RM-D-B-s1` | 8 |
+| `10K-W5` | `RM-D-B-s2` | `RM-D-G-s0` | `RM-D-G-s1` | `RM-D-G-s2` | `RM-Q-B-s0` | `RM-Q-B-s1` | `RM-Q-B-s2` | `RM-Q-G-s0` | 8 |
+| `10K-W6` | `RM-Q-G-s1` | `RM-Q-G-s2` | `CX-D-B-s0` | `CX-D-B-s1` | `CX-D-B-s2` | `CX-D-G-s0` | `CX-D-G-s1` | `CX-D-G-s2` | 8 |
+| `10K-W7` | `CX-Q-B-s0` | `CX-Q-B-s1` | `CX-Q-B-s2` | `CX-Q-G-s0` | `CX-Q-G-s1` | `CX-Q-G-s2` | idle | idle | 6 |
+
+第一波 `10K-W1` 的明确目标是得到 TFNO dense 的 binary/graded 三 seed 完整结果，并启动 dual-lane dense 的 seed0/1；它不执行 test、不做 head 选择。`10K-W2` 先补齐 dual-lane dense seed2，再一次性完成 TFNO query 的两 lane 三 seed，并启动 dual-lane query seed0。`10K-W3` 的前两个槽位补齐 dual-lane query，至此 TFNO 与联合模型形成完整 head 对比；余下六个槽位开始并完成 Mixer dense。
+
+每波结束必须生成 `wave_status.json` 和 artifact audit。只有本波所有非 idle 任务处于 `completed` 或具有已登记的 `failed_with_retry_lineage`，下一波才可提交。失败任务可以使用原 config/hash/seed 在本波末尾补提；不得把下一波的任务提前塞入空槽，也不得覆盖原 run directory。
+
+### 7.5 10k 结束后的固定评估顺序
+
+`10K-W7` 完成后按以下顺序处理，防止提前读取 test：
+
+1. 聚合 54 个任务的 validation、资源和完整性结果；
+2. 冻结四个 architecture×lane 和联合模型的输出头选择；
+3. 写入 `head_selection.lock.json`，包含输入 run hashes 和选择理由；
+4. 只对冻结 head 的 checkpoint 执行 10k held-out test；
+5. 根据第 5.3 节形成 `50k_admission.lock.json`；
+6. 未通过的模型保留为 `not_admitted`，不得进入 50k 训练。
+
+### 7.6 50k 正式训练：最多四波 27 个任务
+
+下表中的 `H_B`、`H_G` 分别表示该模型在 binary、graded validation 上冻结的胜出 head，取值只能是 `D` 或 `Q`；同一模型的两条 lane 可以选择不同 head。`H_J` 表示联合模型按两 lane 等权 validation 冻结的胜出 head。该矩阵是假定五个模型全部通过 50k admission 时的**最大矩阵**；生成机器清单时必须把 `H_*` 替换为 `head_selection.lock.json` 中的实际 `D/Q`，未通过的任务原位标为 `SKIP_NOT_ADMITTED`，任务编号和后续槽位不重新排序，避免事后改变比较结构。
+
+| 50k wave | S0 | S1 | S2 | S3 | S4 | S5 | S6 | S7 | Max jobs |
+|---|---|---|---|---|---|---|---|---|---:|
+| `50K-W1` | `TF-H_B-B-s0` | `TF-H_B-B-s1` | `TF-H_B-B-s2` | `TF-H_G-G-s0` | `TF-H_G-G-s1` | `TF-H_G-G-s2` | `DL-H_J-J-s0` | `DL-H_J-J-s1` | 8 |
+| `50K-W2` | `DL-H_J-J-s2` | `MM-H_B-B-s0` | `MM-H_B-B-s1` | `MM-H_B-B-s2` | `MM-H_G-G-s0` | `MM-H_G-G-s1` | `MM-H_G-G-s2` | `RM-H_B-B-s0` | 8 |
+| `50K-W3` | `RM-H_B-B-s1` | `RM-H_B-B-s2` | `RM-H_G-G-s0` | `RM-H_G-G-s1` | `RM-H_G-G-s2` | `CX-H_B-B-s0` | `CX-H_B-B-s1` | `CX-H_B-B-s2` | 8 |
+| `50K-W4` | `CX-H_G-G-s0` | `CX-H_G-G-s1` | `CX-H_G-G-s2` | idle | idle | idle | idle | idle | 3 |
+
+`50K-W1` 先确认最可能挑战当前 FNO 的 TFNO 和共享双路线模型；`50K-W2` 完成联合 seed2 并训练 Mixer；`50K-W3` 完成 ResMLP 和 ConvNeXt binary；`50K-W4` 完成 ConvNeXt graded。每个任务先执行到 epoch 100，再按第 6.2 节的预注册斜率门决定是否在**原作业 lineage**内继续到最多 200 epoch；“继续训练”不是新 seed，也不计作额外模型任务。
+
+若部分模型未获准进入 50k，实际提交任务数为 `27 - skipped`。可以减少 array 长度，但机器清单必须保留全部 27 行及其 `RUN/SKIP_NOT_ADMITTED` 状态，不能用新模型、额外 seed 或学习率搜索填补空位。
+
+### 7.7 波次级提交门、失败隔离与 GPU 利用率
+
+每波提交前必须同时满足：上一波终态冻结、artifact audit 通过、队列中不存在同 campaign 的重复 task ID、数据和部署 commit 未变化。若部署 commit 或 dataset hash 改变，后续波次整体阻断，不能在同一 campaign 内混合代码或数据身份。
+
+GPU 利用率按以下规则记录：
+
+- 每 60 秒采样 GPU utilization、显存、功耗和温度，写入 `n40_profile.json`；
+- 每个任务记录实际 GPU UUID；一张卡同时出现两个本 campaign 训练 PID 视为资源合同失败；
+- `10K-W7` 和 `50K-W4` 的 idle 槽位保持空闲，不自动运行 threshold、cross-lane、测试或其他项目任务；
+- 单任务失败不取消同波其他任务；重提沿用 task ID 并增加 `retry01`，保留失败目录；
+- 任何 OOM 先标记失败并审计，禁止在单个 seed 上临时降低 batch size 后混入主比较。
+
+### 7.8 授权与 dry-run 门
 
 未来 submitter 必须默认 dry-run，并在提交前输出：
 
 - campaign id、部署 commit 与授权 ID；
-- 54 或 27 行冻结任务清单；
+- admission 18 行、10k 54 行和 50k 最大 27 行冻结任务清单；
 - 两套数据与 split/k-point hashes；
 - 每行模型、head、lane、seed、资源和 run directory；
 - admission probe 汇总；
 - 预计 GPU-job 数和并发上限。
 
-只有显式 submit mode 与独立 `PHC2D_AUTHORIZE_UPGRADE_CAMPAIGN=YES` 同时存在才允许 `sbatch`。本文及其人工接受本身均不是授权。
+只有显式 submit mode 与独立 `PHC2D_AUTHORIZE_UPGRADE_CAMPAIGN=YES` 同时存在才允许 `sbatch`。授权还必须明确覆盖哪些波次；例如只授权 `A0-A2` 不允许继续提交 `10K-W1`，只授权 10k 不允许提交任何 `50K-W*`。本文及其人工接受本身均不是授权。
 
 ## 八、评估矩阵与统计
 
@@ -348,7 +424,7 @@ campaign 顶层必须有任务清单、提交清单、状态快照、失败/重�
 
 ## 十二、人工理解记录
 
-- 本文解决的问题：把五个 planned 模型的 10k 输出头筛选、50k 确认和 N40 八卡执行拆成可审计实验合同。
+- 本文解决的问题：把五个 implemented/no_result 模型的 admission、10k 七波输出头筛选、50k 最多四波确认和 N40 八卡槽位拆成可审计实验合同。
 - 关键选择：正式精度保持 FP32 与旧损失；8 卡并行独立任务；validation 选择 head；test 只在冻结后使用。
-- 当前没有解决的问题：没有模型代码、N40 admission、训练 job、checkpoint 或新结果。
-- 最近的下一 gate：先实现并通过 [代码实现规格](full_cell_forward_model_upgrade_implementation_plan.md) 的 WSL 测试，再由用户决定是否授权 54 个 10k jobs。
+- 当前没有解决的问题：没有 N40 admission、训练 job、checkpoint 或新结果；本文新增的波次表也不是执行制品。
+- 最近的下一 gate：先人工审阅 `A0-A2`、`10K-W1-W7` 和 `50K-W1-W4` 的任务分配，再由用户决定是否单独授权 admission 或 54 个 10k jobs。
