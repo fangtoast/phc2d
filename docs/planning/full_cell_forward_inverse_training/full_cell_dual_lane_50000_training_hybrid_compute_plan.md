@@ -11,12 +11,13 @@
 
 | Metadata | Value |
 |---|---|
-| Status | Draft; execution authorized by owner on 2026-08-07 |
+| Status | Draft；N40 training/evaluation completed on 2026-08-08，pending human review |
 | Primary layer | L3 experiment/evidence；L4 仅包含执行本计划所需的接口门 |
 | Authority | [生成网络调整研究计划](../fno_generative_network_adjustment_plan_20260617.md) |
 | 10k reference | [全胞双路线训练与混合算力计划](full_cell_dual_lane_hybrid_compute_plan.md) |
 | 10k evidence | [全胞双路线正向训练完整实验报告](../../results/forward/full_cell_dual_lane_forward_training_20260806.md) |
 | 50k data contract | [Xingyi 全胞双路线 50k 数据生成合同](../../../experiments/research/full_cell_dual_lane_50000_xingyi.md) |
+| 50k evidence | [50k 正向训练与冻结评估完整报告](../../results/forward/full_cell_dual_lane_50000_forward_training_20260808.md) |
 | Audience | 项目负责人、研究人员、N40/M9 执行人员与 AI 协作者 |
 | Owner | 研究生维护，导师审阅科学主张、资源预算与 promotion gate |
 | Created | 2026-08-07 |
@@ -26,6 +27,8 @@
 本文定义 binary/graded 两套 50k full-cell 数据上的神经网络训练、旧 10k checkpoint 迁移评估、epoch 预算比较、跨分辨率零样本测试和 N40/M9 混合算力边界。2026-08-07，项目负责人已授权使用 N40 启动正式训练，并明确免除本轮“本地 WSL 物理 replay”训练前置门；该豁免只改变训练准入，不把数据状态提升为跨环境物理验收完成。
 
 2026-08-07 的负责人修订将训练矩阵冻结为 **17 波、204 个独立作业**：binary native 与 graded continuous 分别执行 40k/50k × 20/100/200；graded t0.3–t0.7 只执行 50k/100 epoch。40k 使用互斥的 5k validation 选择 best checkpoint；50k 使用现有全部样本做 final-fit，保存最后 epoch checkpoint，原 `idx_val`/`idx_test` 只允许作为明确标记为训练重叠的 monitor，不得用于模型选择或泛化主张。8k/20k 训练和 threshold 的 20/200 epoch 已从本轮矩阵删除。
+
+2026-08-08 执行记录：训练 campaign `17/17 waves`、`204/204 runs`、`0 failed`；冻结评估 campaign 完成 `906/906` 个实际推理 cell、`156` 个架构不适用项、`300` 组 paired bootstrap 和 `0 failed`。旧 10k Stage 4 因执行顺序偏差在新模型训练之后补齐，因此报告明确记录该偏差；评估入口未使用新模型结果筛选旧 checkpoint，仍覆盖预注册的全部 102 个旧 checkpoint。
 
 **目录：** [一、目标与边界](#fc50k-goal) · [二、当前证据与准入](#fc50k-evidence) · [三、数据与训练边界](#fc50k-data) · [四、实验矩阵](#fc50k-matrix) · [五、epoch 协议](#fc50k-epoch) · [六、跨分辨率测试](#fc50k-resolution) · [七、N40/M9 资源编排](#fc50k-compute) · [八、执行阶段](#fc50k-stages) · [九、统计与报告](#fc50k-report) · [十、制品与恢复](#fc50k-artifacts) · [十一、验收](#fc50k-acceptance) · [十二、人工理解记录](#fc50k-human-record)
 
@@ -85,11 +88,11 @@
 | 对象 | 当前证据状态 | 本计划中的使用边界 |
 |---|---|---|
 | 10k Forward | 102/102 正式训练已完成；84-run 主矩阵、18-run 分辨率重训和冻结 test 已有报告 | checkpoint 作为冻结旧基线，不重新选择或微调 |
-| 50k 数据配置 | binary/graded 配置均声明 50,000 samples 和 `40000/5000/5000` split | `config_ready` 不等于 HDF5 已完成或已验收 |
+| 50k 数据配置 | binary/graded 均为 50,000 samples 和冻结的 `40000/5000/5000` split；训练时另建 50k final-fit 角色 | 40k checkpoint 用互斥 val/test；50k final-fit 不得形成无偏 test |
 | 50k HDF5 | binary/graded 已导入 N40 与 M9；N40 目标文件与 Xingyi 源文件的大小和 SHA-256 完全一致 | 本轮训练按负责人豁免无需等待本地 WSL replay；仍不得称为跨环境物理验收完成 |
-| N40 | 既有证据确认 RTX4090 单卡训练与三卡分配；历史主矩阵曾使用 12-job 波次 | 50k HDF5 更大，必须重新做 12-job I/O/admission probe |
+| N40 | 17 波训练以单任务 1×RTX4090、6 CPU、60,000 MB 完成 204/204 runs；评估以 8 张 RTX4090 并行完成 906 cells | 实测并发受账号最多 8 张 GPU 同时运行约束；其余任务由 Slurm 排队，不误报为资源故障 |
 | M9 | `amd_m9_768` CPU 超算可承担授权后的 real-MPB | 不承担神经网络训练，不因 N40 开始训练而自动提交 |
-| 50k 执行代码 | runner 支持 40k validation 训练、50k final-fit 边界和独立 epoch 参数 | 通过实现测试并部署到 N40 后可启动正式矩阵 |
+| 50k 执行代码 | runner、17-wave orchestrator、sharded evaluation 与 finalizer 均已实现、测试并部署 | 训练 commit `7498511`；评估/制品合同最终 commit `31d7ff0` |
 
 50k 训练的硬数据门为：
 
@@ -364,11 +367,11 @@ zero_shot_input_resolution_transfer
    2 models × 7 representations × 3 seeds = 42 checkpoint bundles
    ```
 
-2. 50k `train_size=40000` 下 epoch 20/100/200 的 CNN/FNO checkpoint：
+2. 50k `train_size=40000` 下 binary native 与 graded continuous、epoch 20/100/200 的 CNN/FNO checkpoint：
 
    ```text
-   2 models × 7 representations × 3 seeds × 3 independent epoch budgets
-   = 126 checkpoint bundles
+   2 models × 2 representations × 3 seeds × 3 independent epoch budgets
+   = 36 checkpoint bundles
    ```
 
 每个 bundle 在一个推理作业内依次测试 32/64/128，避免创建样本级或分辨率级碎片作业。报告以 64 为基准给出 32/128 的 MRE、MAE、RMSE 变化及 paired bootstrap CI。

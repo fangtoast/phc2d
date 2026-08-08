@@ -36,6 +36,7 @@
 
 ## Forward results
 
+- [`forward/full_cell_dual_lane_50000_forward_training_20260808.md`](forward/full_cell_dual_lane_50000_forward_training_20260808.md)：50k 双路线 17 波、204/204 runs、旧 10k→50k、40k held-out test、双向交叉与 CNN/FNO 32/64/128 零样本输入分辨率的完整 Draft 证据；50k final-fit 仅为训练重叠 monitor。
 - [`forward/full_cell_dual_lane_forward_training_20260806.md`](forward/full_cell_dual_lane_forward_training_20260806.md)：全胞双路线完整实验报告；展示 4 models × 3 seeds × 7 表征、七组训练曲线、576-cell 双向跨数据评估、独立分辨率重训与冻结后 test；threshold real-MPB 未执行。
 - [`forward/a1_forward_query_fair_v1_20260726.md`](forward/a1_forward_query_fair_v1_20260726.md)：A1 10k V2 Forward/Query 三 seed 公平协议结果。
 
