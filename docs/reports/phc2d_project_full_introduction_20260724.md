@@ -13,6 +13,7 @@
 |---|---|
 | 编制日期 | 2026-07-24 |
 | 本次证据更新 | 2026-07-31 |
+| 架构规划补充 | 2026-08-08；仅增加升级模型 Draft，不改变实现或结果状态 |
 | 项目仓库 | `POD-DeepONET-2d(codex)` / `phc2d` |
 | 研究对象 | 二维光子晶体能带、本征场、神经代理与生成式逆向设计 |
 | 当前主数据 | 10k V2 real-MPB 数据 |
@@ -893,6 +894,49 @@ $$
 | `fno_field_v2` | `periodic grid + (kx,ky,band) -> field + frequency` | 项目原生 FNO-style 场模型 |
 | adapted PINO | 与 `fno_field_v2` 相同 | 训练制度名称；在同一主干上加入 TE Bloch 物理残差 |
 
+### 5.8.1 规划中的 Full-Wh 升级模型
+
+2026-08-08 的代码实现规格新增了五个**已命名但尚未注册**的 Full-Wh 架构。它们的共同约束是：保留现有四模型和历史 checkpoint，不替换 [`baselines.py`](../../src/phc2d/models/baselines.py)；未来新实现单独进入 `full_cell_upgrades.py`；在当前 64×64、81×10 合同下控制在约 2–8M 参数。完整逐层公式、接口与代码测试见 [全胞正向模型升级代码实现规格](../planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_implementation_plan.md)。
+
+| 规划模型 | 对应旧基线 | 冻结默认结构 | 计划参数区间 | 当前状态 |
+|---|---|---|---:|---|
+| `mlp_mixer_band_v1` | `mlp` | 配置驱动的 16×16 token grid、256 维、8 个 Mixer block；每个 block 包含 128 维 token MLP 与 512 维 channel MLP，并使用 Pre-LN、layer-scale 和 drop-path | 2.8–3.2M | planned / not implemented / no_result |
+| `res_mlp_gated_v2` | `res_mlp_wide` | 展平输入投影到 320 维，8 个 Pre-LN GEGLU residual block，2× expansion、layer-scale、drop-path | 6–7M | planned / not implemented / no_result |
+| `convnext_band_v1` | `lifted_cnn` | 三阶段 `(48,96,192)`、深度 `(2,3,6)`；7×7 depthwise conv、channels-last LayerNorm、4× channel MLP，并在 stem、block 和下采样中保持周期 padding | 2–3M | planned / not implemented / no_result |
+| `tfno2d_band_v3` | `fno2d_band_v2` | width 64、depth 6、`(12,12)` modes、Tucker rank 0.75；显式处理正/负第一频轴，结合 GroupNorm、circular 3×3 local branch、2× channel MLP 与 soft-gated residual | 2.5–4M | planned / not implemented / no_result |
+| `dual_lane_band_operator_v1` | 新增联合模型 | 复用 width-64/depth-6 TFNO encoder；binary/graded 使用 16 维 lane embedding，在每个 operator block 中通过 FiLM 调制并保持各自 train-only target normalizer | 3–5M | planned / not implemented / no_result |
+
+这些结构分别借鉴 MLP-Mixer、ResMLP、ConvNeXt 与 factorized FNO/UNO 的公开架构思想，但计划要求项目原生实现，不复制外部源码，也不把 `tfno2d_band_v3` 称为官方 NeuralOperator TFNO 的 faithful code reproduction。
+
+### 5.8.2 Dense、k-conditioned 与双 lane 数据流
+
+五个模型都计划实现 `dense` 与 `k_conditioned` 两种 Full-Wh 输出头。前者保持 `latent -> Linear(Nk×Nb) -> [B,Nk,Nb]` 的固定拓扑；后者读取 HDF5 `k_points[Nk,2]`，使用原始坐标、频率 `(1,2,4,8)` 的 Fourier features、32 维 band embedding 和两层 256 维 query MLP，对所有 `(k,b)` 向量化求值：
+
+$$
+z_i,\ \phi(k),\ e_b
+\longrightarrow
+h_{i,k,b}
+\longrightarrow
+\hat W_{i,k,b}.
+$$
+
+公共输出仍是完整 `[B,Nk,Nb]` 矩阵。`Nk`、`Nb`、输入分辨率和真实 k 坐标必须来自 HDF5 schema、`TargetSpec`、`DataRepresentationSpec` 或解析配置，不得硬编码为当前数据值。查询头能接收重排或子集 k-grid 只属于接口设计；在没有未见 k 点真值前，不构成任意 k 泛化证据。
+
+联合模型另接收 `lane_id[B]`：`0=binary`、`1=graded`。lane embedding 在每个 operator block 的归一化之后产生通道级 `gamma/beta`，执行 `u*(1+gamma)+beta`；缺失或非法 lane 必须报错，不能静默回退。联合训练不自动等于已经解决跨 lane domain shift。
+
+### 5.8.3 实现、代码测试与实验验证的状态边界
+
+这组升级工作拆成两份 Draft，避免把方法设计、代码验收和性能结论混为同一层：
+
+| 文档/阶段 | Primary layer | 负责内容 | 当前允许状态 |
+|---|---|---|---|
+| [代码实现规格](../planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_implementation_plan.md) | L4 | 网络、输出头、registry/runner 接口、shape/梯度/参数/兼容性测试 | specification only |
+| [10k/50k 训练验证方案](../planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md) | L3 | 54 个 10k jobs、27 个 50k jobs、validation 选择、N40 8×4090 调度与 promotion | plan only / not authorized |
+| 后续代码任务 | L4 | 新源码、测试、配置与 runner | 未开始；通过 WSL tests 后最多提升为 implemented |
+| 后续实验任务 | L3 | checkpoint、独立 test、统计与报告 | 未开始；需要单独 N40 授权 |
+
+因此，这五个名称当前不进入实时 17-model registry、不进入 [`phc2d_model_inventory_v1.yaml`](phc2d_model_inventory_v1.yaml)，也不进入第 10 章当前结果。代码实现后必须另行同步 registry、inventory 和项目报告；只有正式训练与 held-out test 完成后才能改变 `no_result`。
+
 ## 5.9 统一训练目标与选择边界
 
 前述 5.1–5.7 已分别给出各前向代理的逐层结构与 PINO 训练机制。本节只保留跨模型共用的训练协议、场数据损失和物理损失边界，不再把任何完整模型架构嵌套在训练章节中。实现入口见 [`baselines.py`](../../src/phc2d/models/baselines.py)，A1 前向/查询协议分别见 [`a1_forward_fair_v1.yaml`](../../configs/research/a1_forward_fair_v1.yaml)、[`a1_forward_mlp_ablation_v1.yaml`](../../configs/research/a1_forward_mlp_ablation_v1.yaml) 与 [`a1_query_fair_v1.yaml`](../../configs/research/a1_query_fair_v1.yaml)。
@@ -941,6 +985,7 @@ $$
 | 模型或名称 | 当前状态 | 是否进入本文主结果 | 说明 |
 |---|---|---|---|
 | `mlp`、`res_mlp_wide`、`lifted_cnn`、`fno2d_band_v2` | A1 三 seed 正式测试完成 | 是 | 当前 Full-Wh 公平对照 |
+| `mlp_mixer_band_v1`、`res_mlp_gated_v2`、`convnext_band_v1`、`tfno2d_band_v3`、`dual_lane_band_operator_v1` | implementation specification only / no_result | 否 | 已冻结名称、网络与测试合同；尚未注册、实现、配置或训练，详见 5.8.1–5.8.3 |
 | `mlp_query`、`deep_onet_query_v2`、`fno2d_query_v2` | A1 三协议、三 seed 正式测试完成 | 是 | 当前 Query 公平对照 |
 | `unet_field_v2`、`fno_field_v2` | B3 三 seed 正式测试完成 | 是 | 当前 data-only 场模型 |
 | adapted PINO | B3 pilot 通过，但 B4/P6 inverse admission blocked | 是，带准入边界 | 与 `fno_field_v2` 共用网络身份，只改变训练制度 |
@@ -1692,6 +1737,8 @@ Physically verified inverse design
 | B4 candidate selector | `runs/20260723/field_eigen_te_b4_repair_validation_selector_202607231500`（本地） |
 | A1 Forward artifacts | `runs/20260724/a1_forward_fair_v1_202607240020`（本地） |
 | A1 Forward/Query 正式报告 | [`../results/forward/a1_forward_query_fair_v1_20260726.md`](../results/forward/a1_forward_query_fair_v1_20260726.md) |
+| Full-Wh 升级代码实现规格（Draft） | [`../planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_implementation_plan.md`](../planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_implementation_plan.md) |
+| Full-Wh 升级 10k/50k 训练验证方案（Draft，未授权） | [`../planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md`](../planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md) |
 | 第一版 reconstruction-only A2（已撤销） | [`../results/inverse/a2_inverse_single_seed_formal_20260727.md`](../results/inverse/a2_inverse_single_seed_formal_20260727.md)（仅保留问题定位与 warm-start 谱系） |
 | A2 100-target objective-bridge 报告 | [`../results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md`](../results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md) |
 | A2 100-target objective-bridge artifacts | `runs/20260727/a2_inverse_objective_bridge_seed0_v1_202607271804`（本地） |
@@ -1756,5 +1803,15 @@ Physically verified inverse design
 | MaxwellNet | feasibility/reference | 已完成 driven-field 复现 |
 | cINN / normalizing flow | literature/reference | 已接入统一运行时 |
 | AdjointDiffusion | literature/reference | 已实现或已有结果 |
+
+已命名但未注册的 Full-Wh 升级模型另列如下。它们不属于上面的 17 个实时注册模型，也不属于机器 inventory；表格只保证项目总介绍与 Draft 实现规格之间的命名一致。
+
+| Planned canonical name | 对应方向 | 实现状态 | 证据状态 | 文档位置 |
+|---|---|---|---|---|
+| `mlp_mixer_band_v1` | MLP-Mixer-style Full-Wh | implementation specification only | no_result | 5.8.1–5.8.3 |
+| `res_mlp_gated_v2` | gated deep ResMLP Full-Wh | implementation specification only | no_result | 5.8.1–5.8.3 |
+| `convnext_band_v1` | periodic ConvNeXt Full-Wh | implementation specification only | no_result | 5.8.1–5.8.3 |
+| `tfno2d_band_v3` | Tucker-factorized FNO-style Full-Wh | implementation specification only | no_result | 5.8.1–5.8.3 |
+| `dual_lane_band_operator_v1` | binary/graded conditional Full-Wh | implementation specification only | no_result | 5.8.1–5.8.3 |
 
 程序化结构生成器属于数据流水线组件，不计入神经网络模型数量。机器可审计的逐项字段、源路径和 SHA-256 以 [`phc2d_model_inventory_v1.yaml`](phc2d_model_inventory_v1.yaml) 为准。
