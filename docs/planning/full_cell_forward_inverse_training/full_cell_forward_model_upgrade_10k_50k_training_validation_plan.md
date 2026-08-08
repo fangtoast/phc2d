@@ -20,7 +20,7 @@
 | Last reviewed | Pending human review |
 | Reading time | 20 minutes |
 
-本文只定义升级模型在 10k/50k full-cell 数据上的训练、验证、N40 调度和证据边界。模型目前仍是 `planned / not implemented / no result`；本文不是付费训练授权，也不证明任何新模型优于当前 FNO。
+本文只定义升级模型在 10k/50k full-cell 数据上的训练、验证、N40 调度和证据边界。模型源码当前是 `implemented / no_result`；本文不是付费训练授权，也不证明任何新模型优于当前 FNO。
 
 ## 一、目标、前置门与禁止提升
 

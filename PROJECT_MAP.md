@@ -7,7 +7,7 @@
 
 > 2026-08-07 工程状态：通用超算物理 campaign 控制面与 `full_cell_band` 参考适配器已实现；query/k-path、field-eigen、resolution-convergence 与 inverse replay 仅完成适配器登记，尚未完成多节点迁移。详见 [`docs/hpc_physics_campaigns.md`](docs/hpc_physics_campaigns.md)。这不是新的物理验证结论。
 
-> 2026-08-08 架构规划状态：五个 Full-Wh 升级模型已经形成 [代码实现规格](docs/planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_implementation_plan.md) 与 [10k/50k 训练验证方案](docs/planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md)。它们仍是 `planned / not implemented / no_result`，未进入 registry、模型 inventory 或 N40 正式训练。
+> 2026-08-08 架构实现状态：五个 Full-Wh 升级模型已进入 registry、模型 inventory 和 Full-Wh runner，并形成 [实现记录](docs/planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_implementation_plan.md) 与 [10k/50k 训练验证方案](docs/planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md)。当前严格保持 `implemented / no_result`；未启动 N40 正式训练。
 
 # PROJECT MAP
 
@@ -41,7 +41,7 @@
 |---|---|---|---|
 | 数据与 MPB 物理底座 | 结构、k 路径、标签、provenance | V2 p4m 已物理复核；全胞 64+64 试点与分辨率门通过；二值与渐变两套 10k 均已通过 WSL 验收 | [数据目录](data/README.md) · [全胞试点](docs/results/data-provenance/full_cell_dual_lane_pilot_20260803.md) |
 | 表征与任务协议 | `rho`/`epsilon`、Full-Wh、Query、Field | spec、target 与 NPZ/HDF5 schema inspection 已实现；小样本表征实验仅属诊断 | [研究计划](docs/planning/fno_generative_network_adjustment_plan_20260617.md) · [公式手册](docs/reports/phc2d_physics_data_formula_guide_20260803.md) |
-| Forward / Query | 完整能带与任意 `(band,k)` 查询 | 10k 的 102-run 参考矩阵已完成；50k 的 17 波、204/204 runs、906-cell 冻结评估、300 组 paired bootstrap 和训练曲线均已完成，等待人工接受 Draft 报告；五个升级模型只有 Draft 实现/验证规格，代码与 N40 训练均未开始 | [升级实现规格](docs/planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_implementation_plan.md) · [升级训练方案](docs/planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md) · [50k 结果](docs/results/forward/full_cell_dual_lane_50000_forward_training_20260808.md) · [10k 结果](docs/results/forward/full_cell_dual_lane_forward_training_20260806.md) |
+| Forward / Query | 完整能带与任意 `(band,k)` 查询 | 10k 的 102-run 参考矩阵已完成；50k 的 17 波、204/204 runs、906-cell 冻结评估、300 组 paired bootstrap 和训练曲线均已完成，等待人工接受 Draft 报告；五个升级模型已实现并完成代码级验证，但仍无训练结果 | [升级实现记录](docs/planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_implementation_plan.md) · [升级训练方案](docs/planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md) · [50k 结果](docs/results/forward/full_cell_dual_lane_50000_forward_training_20260808.md) · [10k 结果](docs/results/forward/full_cell_dual_lane_forward_training_20260806.md) |
 | Field / adapted PINO | TE Bloch 本征场与物理残差 | U-Net、Field FNO、adapted PINO 已实现；介电加权指标需重算，residual–frequency 门未过，inverse 准入仍 `blocked` | [指标修正](docs/results/field-physics/field_electric_metric_correction_20260803.md) · [准入结果](docs/results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md) |
 | 生成式逆向与 replay | 多候选、筛选、真实 MPB 复核 | objective-bridge 已完成 seed0 的 100-target 与 test625 replay；full-cell codec 与真实 10k 的 15-case Stage-A CPU 合同已通过，N40/正式训练/replay 尚未准入 | [逆向 seed0](docs/results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md) · [Stage-A CPU 预检](docs/results/inverse/full_cell_inverse_stage_a_cpu_preflight_20260806.md) |
 | 工程与证据治理 | CLI、配置、run 产物、审计 | 统一源码/配置/实验/运行结构已建立；N40 已证明可同时分配 3×RTX4090，单卡训练预检已通过；N50 登录权限仍受平台阻塞 | [GPU 准备报告](docs/results/data-provenance/paracloud_gpu_preflight_20260806.md) · [仓库约定](docs/conventions.md) |

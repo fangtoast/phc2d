@@ -21,7 +21,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 import yaml
 
-from phc2d.models import build_model
+from phc2d.models import ModelSpec, build_model, get_model_spec
 from phc2d.runs import (
     RUN_LOG_NAME,
     ensure_figures_dir,
@@ -183,9 +183,11 @@ def _validate_and_resolve(
     experiment = dict(config.get("experiment") or {})
     output = dict(config.get("output") or {})
 
-    required_models = {"mlp", "res_mlp_wide", "lifted_cnn", "fno2d_band_v2"}
-    if model_name not in required_models:
-        raise ValueError(f"model must be one of {sorted(required_models)}")
+    if model_name not in models:
+        raise ValueError(f"model {model_name!r} is not configured under models")
+    model_spec = get_model_spec(model_name)
+    if model_spec.output_target != "Wh":
+        raise ValueError(f"model {model_name!r} does not produce the Wh target")
     if int(seed) not in {0, 1, 2}:
         raise ValueError("formal full-cell forward seeds are fixed to 0, 1, 2")
     sampling = str(representation.get("sampling", "continuous"))
@@ -200,8 +202,10 @@ def _validate_and_resolve(
     elif threshold is not None:
         raise ValueError("continuous representation requires threshold=null")
 
-    layout = "flat" if model_name in {"mlp", "res_mlp_wide"} else "image"
+    layout = model_spec.input_layout
     learning_rates = dict(training.get("learning_rates") or {})
+    if model_name not in learning_rates:
+        raise ValueError(f"training.learning_rates is missing {model_name!r}")
     if train_size_override is not None:
         training["train_size"] = int(train_size_override)
     if max_epochs_override is not None:
@@ -303,9 +307,14 @@ def _read_contract(resolved: Mapping[str, Any]) -> dict[str, Any]:
         grid_shape = tuple(int(v) for v in handle[grid_field].shape[1:])
         target_shape = tuple(int(v) for v in handle["Wh"].shape[1:])
         y_train = np.asarray(handle["Wh"][selected_train], dtype=np.float32)
+        k_points = np.asarray(handle["k_points"], dtype=np.float32) if "k_points" in handle else None
         schema_version = str(handle.attrs.get("schema_version", ""))
     if len(grid_shape) != 2 or len(target_shape) != 2:
         raise ValueError(f"unexpected grid/target shapes: {grid_shape}, {target_shape}")
+    if k_points is not None and k_points.shape != (target_shape[0], 2):
+        raise ValueError(
+            f"k_points shape {tuple(k_points.shape)} does not match target k-axis {target_shape[0]}"
+        )
     expected_resolution = int(representation.get("resolution", grid_shape[0]))
     if grid_shape != (expected_resolution, expected_resolution):
         raise ValueError(f"grid field shape {grid_shape} does not match resolution {expected_resolution}")
@@ -339,11 +348,58 @@ def _read_contract(resolved: Mapping[str, Any]) -> dict[str, Any]:
         "test_overlap_count": int(np.intersect1d(selected_train, idx_test).size),
         "target_mean": target_mean,
         "target_std": target_std,
+        "k_points": k_points,
+        "k_points_sha256": (
+            hashlib.sha256(np.ascontiguousarray(k_points).tobytes()).hexdigest()
+            if k_points is not None
+            else None
+        ),
         **hashes,
     }
 
 
-def _evaluate(model: Any, loader: Any, *, device: Any, mean: Any, std: Any, torch: Any) -> dict[str, float]:
+def _lane_index(lane_name: Any) -> int:
+    normalized = str(lane_name or "").strip().lower()
+    if "binary" in normalized:
+        return 0
+    if "graded" in normalized or "continuous" in normalized:
+        return 1
+    raise ValueError(f"cannot map experiment lane {lane_name!r} to binary=0 or graded=1")
+
+
+def _forward_model(
+    model: Any,
+    xb: Any,
+    *,
+    model_spec: ModelSpec,
+    k_points: Any,
+    lane_index: int | None,
+    torch: Any,
+) -> Any:
+    kwargs: dict[str, Any] = {}
+    if model_spec.accepts_k_points:
+        kwargs["k_points"] = k_points
+    if model_spec.accepts_lane_id:
+        if lane_index is None:
+            raise ValueError(f"model {model_spec.name!r} requires a lane id")
+        kwargs["lane_id"] = torch.full(
+            (int(xb.shape[0]),), lane_index, dtype=torch.long, device=xb.device
+        )
+    return model(xb, **kwargs)
+
+
+def _evaluate(
+    model: Any,
+    loader: Any,
+    *,
+    device: Any,
+    mean: Any,
+    std: Any,
+    model_spec: ModelSpec,
+    k_points: Any,
+    lane_index: int | None,
+    torch: Any,
+) -> dict[str, float]:
     model.eval()
     squared = 0.0
     absolute = 0.0
@@ -355,7 +411,14 @@ def _evaluate(model: Any, loader: Any, *, device: Any, mean: Any, std: Any, torc
         for xb, yb in loader:
             xb = xb.to(device, non_blocking=True)
             yb = yb.to(device, non_blocking=True)
-            prediction_norm = model(xb)
+            prediction_norm = _forward_model(
+                model,
+                xb,
+                model_spec=model_spec,
+                k_points=k_points,
+                lane_index=lane_index,
+                torch=torch,
+            )
             normalized_diff = prediction_norm - yb
             normalized_squared += float(torch.sum(normalized_diff * normalized_diff).detach().cpu())
             prediction = prediction_norm * std + mean
@@ -470,12 +533,16 @@ def run_full_cell_forward(
     contract = _read_contract(resolved)
     final_fit = bool(contract["full_dataset_final_fit"])
     layout = str(representation["layout"])
+    model_spec = get_model_spec(model_name)
     input_shape = contract["grid_shape"] if layout == "image" else (int(np.prod(contract["grid_shape"])),)
+    model_kwargs = dict(resolved["model"]["params"])
+    if model_spec.accepts_k_points:
+        model_kwargs["k_points"] = contract["k_points"]
     model = build_model(
         model_name,
         input_shape=input_shape,
         output_shape=contract["target_shape"],
-        **dict(resolved["model"]["params"]),
+        **model_kwargs,
     ).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -504,6 +571,12 @@ def run_full_cell_forward(
     val_loader = DataLoader(val_dataset, shuffle=False, **loader_kwargs)
     mean_t = torch.as_tensor(contract["target_mean"], dtype=torch.float32, device=device)
     std_t = torch.as_tensor(contract["target_std"], dtype=torch.float32, device=device)
+    k_points_t = (
+        torch.as_tensor(contract["k_points"], dtype=torch.float32, device=device)
+        if model_spec.accepts_k_points and contract["k_points"] is not None
+        else None
+    )
+    lane_index = _lane_index(experiment.get("lane")) if model_spec.accepts_lane_id else None
     accumulation = int(training.get("effective_batch_size", 64)) // int(training.get("micro_batch_size", 64))
     if accumulation < 1 or int(training.get("effective_batch_size", 64)) % int(training.get("micro_batch_size", 64)):
         raise ValueError("effective_batch_size must be an integer multiple of micro_batch_size")
@@ -525,7 +598,15 @@ def run_full_cell_forward(
         for batch_index, (xb, yb) in enumerate(train_loader, start=1):
             xb = xb.to(device, non_blocking=True)
             yb = yb.to(device, non_blocking=True)
-            loss = loss_fn(model(xb), yb)
+            prediction = _forward_model(
+                model,
+                xb,
+                model_spec=model_spec,
+                k_points=k_points_t,
+                lane_index=lane_index,
+                torch=torch,
+            )
+            loss = loss_fn(prediction, yb)
             if not bool(torch.isfinite(loss).item()):
                 raise RuntimeError(f"non-finite training loss at epoch {epoch}, batch {batch_index}")
             (loss / accumulation).backward()
@@ -538,7 +619,17 @@ def run_full_cell_forward(
             samples_seen += int(xb.shape[0])
             if max_batches is not None and batch_index >= int(max_batches):
                 break
-        val = _evaluate(model, val_loader, device=device, mean=mean_t, std=std_t, torch=torch)
+        val = _evaluate(
+            model,
+            val_loader,
+            device=device,
+            mean=mean_t,
+            std=std_t,
+            model_spec=model_spec,
+            k_points=k_points_t,
+            lane_index=lane_index,
+            torch=torch,
+        )
         row = {
             "epoch": epoch,
             "train_loss": train_sum / max(train_count, 1),
@@ -577,6 +668,13 @@ def run_full_cell_forward(
                     "model_params": dict(resolved["model"]["params"]),
                     "input_shape": input_shape,
                     "output_shape": contract["target_shape"],
+                    "k_points": (
+                        torch.as_tensor(contract["k_points"], dtype=torch.float32)
+                        if contract["k_points"] is not None
+                        else None
+                    ),
+                    "k_points_sha256": contract["k_points_sha256"],
+                    "lane_index": lane_index,
                     "target_mean": torch.as_tensor(contract["target_mean"], dtype=torch.float32),
                     "target_std": torch.as_tensor(contract["target_std"], dtype=torch.float32),
                     "epoch": epoch,
@@ -606,7 +704,17 @@ def run_full_cell_forward(
     except TypeError:  # PyTorch 2.1 supports the legacy default only on some builds.
         checkpoint_payload = torch.load(checkpoint, map_location=device)
     model.load_state_dict(checkpoint_payload["state_dict"])
-    final_val = _evaluate(model, val_loader, device=device, mean=mean_t, std=std_t, torch=torch)
+    final_val = _evaluate(
+        model,
+        val_loader,
+        device=device,
+        mean=mean_t,
+        std=std_t,
+        model_spec=model_spec,
+        k_points=k_points_t,
+        lane_index=lane_index,
+        torch=torch,
+    )
     peak_mb = float(torch.cuda.max_memory_allocated(device) / (1024**2)) if device_info.is_cuda else 0.0
     checkpoint_epoch = int(checkpoint_payload["epoch"])
     metrics = {
@@ -683,6 +791,7 @@ def run_full_cell_forward(
             "train_subset_salt": contract["train_subset_salt"],
             "idx_val_hash": contract["idx_val_hash"],
             "idx_test_hash": contract["idx_test_hash"],
+            "k_points_sha256": contract["k_points_sha256"],
             "full_dataset_final_fit": final_fit,
             "validation_overlap_count": contract["validation_overlap_count"],
             "test_overlap_count": contract["test_overlap_count"],

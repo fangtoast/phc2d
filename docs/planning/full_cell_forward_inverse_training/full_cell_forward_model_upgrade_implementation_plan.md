@@ -11,7 +11,7 @@
 
 | Metadata | Value |
 |---|---|
-| Status | Draft implementation specification |
+| Status | Draft implementation record / implemented / no_result |
 | Primary layer | L4 implementation |
 | Authority | [生成网络调整研究计划](../fno_generative_network_adjustment_plan_20260617.md) |
 | Audience | 模型实现者、代码审阅者、测试维护者与 AI 协作者 |
@@ -19,7 +19,7 @@
 | Last reviewed | Pending human review |
 | Reading time | 24 minutes |
 
-本文冻结全胞 Full-Wh 网络升级的**代码实现合同**：新增哪些模型、每个模型如何计算、输入输出如何表示、怎样注册以及未来代码测试必须覆盖什么。本文不证明这些模型已经实现或优于当前基线；10k/50k 训练矩阵、N40 调度和性能 promotion 见 [10k/50k 训练验证方案](full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md)。
+本文既冻结全胞 Full-Wh 网络升级的**代码实现合同**，也记录 2026-08-08 的 L4 实现：新增哪些模型、每个模型如何计算、输入输出如何表示、怎样注册以及代码测试覆盖什么。`implemented` 只表示代码门通过，不证明这些模型优于当前基线；10k/50k 训练矩阵、N40 调度和性能 promotion 见 [10k/50k 训练验证方案](full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md)。
 
 ## 一、目标、证据输入与非目标
 
@@ -33,7 +33,7 @@
 - `tfno2d_band_v3`
 - `dual_lane_band_operator_v1`
 
-所有新名称当前均为 `planned / not implemented / no result`。本文完成后也不得把它们写成 `implemented`、`config_ready`、`smoke_pass` 或 `formal_completed`。
+所有新名称当前均为 `implemented / no_result`。它们已注册并通过代码级 shape、梯度、参数、lane、checkpoint 和 runner 检查，但没有训练 checkpoint、held-out 指标或 performance promotion。
 
 ### 1.2 当前证据账本
 
@@ -458,6 +458,16 @@ model:
 即使以上全部通过，证据状态仍为 `no_result`，直到 10k/50k 独立 test 产出完成并通过人工审阅。
 
 ## 十五、人工理解记录
+
+### 15.1 2026-08-08 实现与代码验收记录
+
+- 新增实现：[`src/phc2d/models/full_cell_upgrades.py`](../../../src/phc2d/models/full_cell_upgrades.py)，包含五个模型、dense/k-conditioned 输出头、周期 ConvNeXt block、双侧 Tucker 频谱卷积和双 lane FiLM。
+- 注册与 runner：`ModelSpec` 已增加 `input_layout`、`accepts_k_points`、`accepts_lane_id`；Full-Wh runner 从注册规格解析 layout，并从 HDF5 注入动态 `k_points` 和 lane id。
+- 默认参数量（dense / k-conditioned）：Mixer `2,918,186 / 2,921,025`；gated ResMLP `6,508,010 / 6,475,265`；ConvNeXt `2,298,138 / 2,336,561`；TFNO `2,690,652 / 2,800,243`；dual-lane operator `2,703,740 / 2,813,331`。
+- WSL `Ubuntu` + conda `meep_env`：升级模型、registry、runner 与报告审计定向测试 `62 passed`；完整 `tests/` 回归 `431 passed`；`compileall`、基础 CLI 与 22-model registry 检查通过。
+- 未执行事项：没有训练、checkpoint、admission probe、Slurm job、MPB/Meep 或新性能结果；10k/50k campaign 仍需独立授权。
+
+因此，本实现可标记为 `implemented / code-tested / no_result`，不能标记为 `trained`、`validated` 或 `promoted`。
 
 - 本文解决的问题：把“加深网络”拆成五个具体、可测试、可注册且不覆盖旧基线的模型实现合同。
 - 关键设计：容量统一到约 2–8M；CNN 引入周期 ConvNeXt；FNO 引入双侧 Tucker 频谱；所有编码器都对比 dense 与显式 k-conditioned head；联合模型通过 lane FiLM 共享编码。

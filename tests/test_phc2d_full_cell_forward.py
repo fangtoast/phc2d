@@ -92,6 +92,7 @@ def test_full_cell_forward_cpu_admission_probe_writes_contract(tmp_path: Path) -
         handle.attrs["schema_version"] = "phc2d.full_cell.v1"
         handle.create_dataset("material_weight_grid_8", data=rng.random((10, 8, 8), dtype=np.float32))
         handle.create_dataset("Wh", data=0.2 + rng.random((10, 3, 2), dtype=np.float32))
+        handle.create_dataset("k_points", data=rng.random((3, 2), dtype=np.float32))
         handle.create_dataset("idx_train", data=idx_train)
         handle.create_dataset("idx_val", data=idx_val)
         handle.create_dataset("idx_test", data=idx_test)
@@ -115,13 +116,21 @@ def test_full_cell_forward_cpu_admission_probe_writes_contract(tmp_path: Path) -
             "res_mlp_wide": {"hidden_dim": 8, "depth": 1},
             "lifted_cnn": {"channels": 4},
             "fno2d_band_v2": {"width": 4, "depth": 1, "modes": [2, 2], "band_modes": [2, 2], "fourier_rank": 2},
+            "res_mlp_gated_v2": {
+                "hidden_dim": 8,
+                "depth": 1,
+                "head_kind": "k_conditioned",
+                "head_hidden_dim": 8,
+                "band_embedding_dim": 4,
+                "fourier_frequencies": [1, 2],
+            },
         },
         "training": {
             "max_epochs": 100,
             "early_stopping_patience": 15,
             "optimizer": "adamw",
             "weight_decay": 1.0e-5,
-            "learning_rates": {"mlp": 3.0e-4, "res_mlp_wide": 3.0e-4, "lifted_cnn": 1.0e-3, "fno2d_band_v2": 1.0e-3},
+            "learning_rates": {"mlp": 3.0e-4, "res_mlp_wide": 3.0e-4, "lifted_cnn": 1.0e-3, "fno2d_band_v2": 1.0e-3, "res_mlp_gated_v2": 3.0e-4},
             "micro_batch_size": 2,
             "effective_batch_size": 2,
         },
@@ -169,6 +178,16 @@ def test_full_cell_forward_cpu_admission_probe_writes_contract(tmp_path: Path) -
     assert final_fit_metrics["monitor_is_unbiased_validation"] is False
     assert final_fit_meta["validation_overlap_count"] == 2
     assert final_fit_meta["test_overlap_count"] == 2
+
+    query_dir = run_full_cell_forward(
+        config_path,
+        model_name="res_mlp_gated_v2",
+        seed=0,
+        run_dir=tmp_path / "probe_query_head",
+        admission_probe=True,
+    )
+    query_meta = json.loads((query_dir / "run.meta.json").read_text(encoding="utf-8"))
+    assert query_meta["k_points_sha256"]
 
 
 def test_threshold_proxy_requires_false_physical_equivalence(tmp_path: Path) -> None:

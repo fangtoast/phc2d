@@ -25,7 +25,7 @@
 
 | 优先级 | 文档 | 状态 | 负责内容 |
 |---|---|---|---|
-| 1. 代码实现规格 | [全胞正向模型升级代码实现规格](full_cell_forward_model_upgrade_implementation_plan.md) | Draft implementation specification / not implemented | 五个新增模型、dense/k-conditioned 输出头、registry/runner 接口、参数预算、未来 WSL 代码测试与兼容门；不包含性能结论 |
+| 1. 代码实现记录 | [全胞正向模型升级代码实现规格](full_cell_forward_model_upgrade_implementation_plan.md) | Draft implementation record / implemented / no_result | 五个新增模型、dense/k-conditioned 输出头、registry/runner 接口、参数预算与 WSL 代码测试；不包含性能结论 |
 | 2. 实验验证方案 | [全胞正向升级模型 10k/50k 训练与验证方案](full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md) | Draft experiment plan / not authorized | 54 个 10k jobs、27 个 50k jobs、validation-only head 选择、N40 8×4090 独立单卡调度与 promotion |
 | 10k 历史证据合同 | [全胞双路线训练与混合算力计划](full_cell_dual_lane_hybrid_compute_plan.md) | Historical Draft / experiment completed | 连续/五阈值表征、三 seed、102 个训练 run、12-job GPU 波次及其原始验收合同 |
 | 50k 历史证据合同 | [全胞双路线 50k 训练、迁移评估与混合算力计划](full_cell_dual_lane_50000_training_hybrid_compute_plan.md) | Historical Draft / experiment completed | 17 波、204 个独立训练 run、旧 10k checkpoint→50k test、40k 的 20/100/200、50k final-fit、72-cell binary↔continuous 与零样本输入分辨率测试；结果见 [50k Forward 报告](../../results/forward/full_cell_dual_lane_50000_forward_training_20260808.md) |
@@ -34,8 +34,8 @@
 
 ## 二、执行顺序
 
-1. 人工审阅 [模型升级代码实现规格](full_cell_forward_model_upgrade_implementation_plan.md)，冻结五个 canonical name、逐层结构、输出头、接口、参数预算和测试边界。
-2. 另开 L4 任务实现模型与测试；只有 WSL `meep_env` 单元、集成和旧模型回归全部通过，状态才能从 `planned` 提升为 `implemented`。
+1. 人工审阅 [模型升级代码实现记录](full_cell_forward_model_upgrade_implementation_plan.md)，确认五个 canonical name、逐层结构、输出头、接口、参数预算和测试边界。
+2. 五个模型的 L4 实现与代码测试已经完成；`implemented` 只表示源码可构建、可前后向和可接入 runner，不代表性能提升。
 3. 人工审阅 [10k/50k 训练验证方案](full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md)，检查 54/27 任务、validation-only 选择、N40 `%8` 调度和 promotion。
 4. 在新的明确授权下先执行 10k admission 与三 seed/head 矩阵；未通过 10k 门的模型不得进入 50k。
 5. 保留已完成的旧 10k/50k Forward 结果和 checkpoint inventory，作为新模型比较基线，不重新解释旧模型身份。
@@ -48,6 +48,6 @@
 - 10k 参考计划和 50k 当前计划均采用固定阈值 `0.3/0.4/0.5/0.6/0.7`，**不使用 Bernoulli 随机采样**。
 - 10k 已完成训练总数为 **102 runs**；50k 当前冻结矩阵为 **17 波、204 个独立 runs**。8k/20k 与 threshold 20/200 epoch 已被负责人移除，不得恢复旧 63 波/756 观察矩阵。
 - 新升级 campaign 与历史 102/204-run 矩阵相互独立；文档命名、代码实现、admission、正式训练和 held-out test 是五个不同状态。
-- 五个升级模型目前均为 `planned / not implemented / no_result`；它们尚不进入实时 registry、模型 inventory 或当前项目排行榜。
+- 五个升级模型目前均为 `implemented / no_result`；它们已进入实时 registry 和模型 inventory，但尚不进入当前结果排行榜。
 - inverse 扩展只能使用前向计划冻结的原生 binary 与 graded continuous surrogate；阈值代理不能直接充当物理等价的 inverse ranker。
 - 运行制品、结果报告和 solver 输出高于规划文档；计划不得被引用为实验完成证据。

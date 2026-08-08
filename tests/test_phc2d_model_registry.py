@@ -53,6 +53,13 @@ def test_phc2d_models_import_does_not_import_torch() -> None:
 def test_builtin_model_specs_are_registered() -> None:
     names = set(list_models())
     assert {"mlp", "res_mlp", "pod_res_mlp", "lifted_cnn", "fno_lite", "fno2d_band"}.issubset(names)
+    assert {
+        "mlp_mixer_band_v1",
+        "res_mlp_gated_v2",
+        "convnext_band_v1",
+        "tfno2d_band_v3",
+        "dual_lane_band_operator_v1",
+    }.issubset(names)
 
     specs = {spec.name: spec for spec in list_model_specs()}
     assert specs["mlp"].alias_of is None
@@ -68,6 +75,9 @@ def test_builtin_model_specs_are_registered() -> None:
     assert specs["fno2d_band"].input_repr == "epsilon_grid"
     assert specs["fno2d_band"].output_target == "Wh"
     assert "torch" in specs["fno_lite"].requires
+    assert specs["res_mlp_gated_v2"].input_layout == "flat"
+    assert specs["tfno2d_band_v3"].accepts_k_points is True
+    assert specs["dual_lane_band_operator_v1"].accepts_lane_id is True
 
     placeholder = get_model_spec("pod_res_mlp")
     assert "pod_basis" in placeholder.requires

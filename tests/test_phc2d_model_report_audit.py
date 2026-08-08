@@ -32,7 +32,7 @@ def test_project_inventory_matches_registered_models_and_manual_methods() -> Non
     assert registered == set(AUDITED_REGISTERED_MODELS)
     entry_ids = {entry["id"] for entry in entries}
     assert REQUIRED_NON_REGISTRY_ENTRIES <= entry_ids
-    assert len(registered) == 17
+    assert len(registered) == 22
 
     by_id = {entry["id"]: entry for entry in entries}
     assert by_id["pod_res_mlp"]["implementation_status"] == "placeholder"
@@ -92,7 +92,7 @@ def test_model_audit_checks_report_tokens_links_and_source_hashes(tmp_path: Path
         require_source_artifacts=True,
     )
     assert result["status"] == "pass"
-    assert result["registered_model_count"] == 17
+    assert result["registered_model_count"] == 22
     assert result["broken_report_links"] == []
     assert result["source_artifact_checks"] == [
         {
