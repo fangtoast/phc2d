@@ -17,6 +17,7 @@ import pytest
 import yaml
 
 from phc2d.forward.full_cell import (
+    _epoch_100_continue_decision,
     _nested_train_indices,
     _validate_and_resolve,
     run_full_cell_forward,
@@ -41,6 +42,20 @@ def test_nested_train_indices_are_deterministic_and_nested() -> None:
         selected_20,
         _nested_train_indices(indices, sample_ids, train_size=20, salt="frozen"),
     )
+
+
+def test_epoch_100_continuation_gate_uses_preregistered_windows() -> None:
+    improving = [
+        {"epoch": epoch, "val_bands_2_10_mre_pct": 1.0 if epoch <= 90 else 0.99}
+        for epoch in range(1, 101)
+    ]
+    flat = [
+        {"epoch": epoch, "val_bands_2_10_mre_pct": 1.0 if epoch <= 90 else 0.997}
+        for epoch in range(1, 101)
+    ]
+    assert _epoch_100_continue_decision(improving)["decision"] == "continue_to_max_200"
+    assert _epoch_100_continue_decision(flat)["decision"] == "stop_at_100"
+    assert _epoch_100_continue_decision(improving)["relative_improvement"] == pytest.approx(0.01)
 
 
 def test_formal_50k_overrides_accept_independent_epoch_and_train_size() -> None:

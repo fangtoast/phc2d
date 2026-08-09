@@ -1,0 +1,35 @@
+# Upgraded Full-Wh graded-lane 50k confirmation contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment: {experiment_id: full_cell_forward_upgrade_graded_50k_v1, family: full_cell_forward_upgrade, lane: graded, evidence_status: authorized_formal_50k_confirmation}
+dataset:
+  path: data/full_cell_graded_bz9_50000_xingyi_v1.h5
+  grid_field: material_weight_grid_64
+  expected_dataset_sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46
+  expected_idx_train_hash: c499158af6e9aff7fff74ffd2da8e4f7826887f19ba5c19bbcb03c5d3cd36180
+  expected_idx_val_hash: 2da23f8892443378a04e150c3042bbdd6cfc821f87e39b77e48e954f2be28349
+  expected_idx_test_hash: 09a9a4d19e8e1a9ebc5b2928adcb71416832b6da628fd03fd8154b7ffc3a3fdd
+representation: {source: material_weight_grid, sampling: continuous, threshold: null, resolution: 64, physical_equivalence: true, label_semantics: original_continuous_medium_Wh}
+models:
+  mlp_mixer_band_v1: {token_grid: [16, 16], embed_dim: 256, depth: 8, token_mlp_dim: 128, channel_mlp_dim: 512, dropout: 0.05, drop_path: 0.1, layer_scale_init: 1.0e-4, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8]}
+  res_mlp_gated_v2: {hidden_dim: 320, depth: 8, expansion: 2, dropout: 0.05, drop_path: 0.1, layer_scale_init: 1.0e-4, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8]}
+  convnext_band_v1: {stage_dims: [48, 96, 192], stage_depths: [2, 3, 6], stem_stride: 4, kernel_size: 7, channel_expansion: 4, drop_path: 0.1, layer_scale_init: 1.0e-6, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8], dropout: 0.05}
+  tfno2d_band_v3: {width: 64, depth: 6, modes: [12, 12], factorization_rank: 0.75, norm_groups: 8, channel_expansion: 2, local_kernel: 3, drop_path: 0.1, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8], dropout: 0.05}
+training:
+  train_size: 40000
+  train_subset_salt: phc2d-full-cell-50k-v1
+  max_epochs: 200
+  epoch_100_continue_gate: true
+  continue_gate_min_relative_improvement: 0.005
+  early_stopping_patience: 15
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  learning_rates: {mlp_mixer_band_v1: 3.0e-4, res_mlp_gated_v2: 3.0e-4, convnext_band_v1: 1.0e-3, tfno2d_band_v3: 5.0e-4}
+  micro_batch_size: 64
+  effective_batch_size: 64
+  loss: normalized_full_matrix_mse
+  checkpoint_selection: validation_bands_2_10_mre
+runtime: {device: 'cuda:0', require_accelerator: true, precision: fp32, amp_enabled: false, tf32_enabled: false, num_workers: 4, pin_memory: true, non_blocking_transfer: true}
+output: {runs_dir: runs}

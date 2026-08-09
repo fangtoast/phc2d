@@ -90,6 +90,35 @@ def _write_history(path: Path, rows: list[Mapping[str, Any]]) -> None:
         writer.writerows(rows)
 
 
+def _epoch_100_continue_decision(
+    history: Sequence[Mapping[str, Any]],
+    *,
+    threshold: float = 0.005,
+) -> dict[str, Any]:
+    """Apply the preregistered epoch-100 validation-improvement gate."""
+
+    by_epoch = {int(row["epoch"]): float(row["val_bands_2_10_mre_pct"]) for row in history}
+    required = set(range(81, 101))
+    if not required.issubset(by_epoch):
+        raise ValueError("epoch-100 continuation gate requires finite epochs 81 through 100")
+    first = np.asarray([by_epoch[epoch] for epoch in range(81, 91)], dtype=np.float64)
+    second = np.asarray([by_epoch[epoch] for epoch in range(91, 101)], dtype=np.float64)
+    if not np.all(np.isfinite(first)) or not np.all(np.isfinite(second)):
+        raise ValueError("epoch-100 continuation gate received non-finite validation values")
+    mean_81_90 = float(np.mean(first))
+    mean_91_100 = float(np.mean(second))
+    if mean_81_90 <= 0.0:
+        raise ValueError("epoch-100 continuation reference mean must be positive")
+    relative_improvement = (mean_81_90 - mean_91_100) / mean_81_90
+    return {
+        "mean_epoch_81_90": mean_81_90,
+        "mean_epoch_91_100": mean_91_100,
+        "relative_improvement": relative_improvement,
+        "threshold": float(threshold),
+        "decision": "continue_to_max_200" if relative_improvement >= threshold else "stop_at_100",
+    }
+
+
 def _load_yaml(path: Path) -> dict[str, Any]:
     payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(payload, Mapping):
@@ -268,6 +297,15 @@ def _validate_and_resolve(
             raise ValueError("formal training requires FP32")
         if bool(runtime.get("amp_enabled")) or bool(runtime.get("tf32_enabled")):
             raise ValueError("formal training forbids AMP and TF32")
+        gate_enabled = bool(training.get("epoch_100_continue_gate", False))
+        if gate_enabled:
+            if int(resolved["training"]["max_epochs"]) != 200:
+                raise ValueError("epoch-100 continuation gate requires max_epochs=200")
+            threshold = float(training.get("continue_gate_min_relative_improvement", 0.005))
+            if threshold != 0.005:
+                raise ValueError("preregistered continuation threshold must equal 0.005")
+            if int(training.get("early_stopping_patience", 0)) != 15:
+                raise ValueError("epoch-100 continuation requires early_stopping_patience=15")
     return resolved
 
 
@@ -599,6 +637,9 @@ def run_full_cell_forward(
     max_batches = training.get("max_train_batches")
     optimizer_steps = 0
     samples_seen = 0
+    gate_enabled = bool(training.get("epoch_100_continue_gate", False)) and not admission_probe
+    gate_record: dict[str, Any] | None = None
+    epoch100_snapshot: Path | None = None
     for epoch in range(1, int(training["max_epochs"]) + 1):
         epoch_start = time.perf_counter()
         model.train()
@@ -699,12 +740,50 @@ def run_full_cell_forward(
             )
             os.replace(checkpoint_tmp, out / "model.pt")
         _write_history(out / "history.csv", history)
+        if gate_enabled and epoch == 100:
+            gate_record = _epoch_100_continue_decision(
+                history,
+                threshold=float(training.get("continue_gate_min_relative_improvement", 0.005)),
+            )
+            epoch100_snapshot = out / "epoch100.pt"
+            torch.save(
+                {
+                    "state_dict": model.state_dict(),
+                    "epoch": 100,
+                    "checkpoint_role": "epoch_100_gate_snapshot",
+                    "gate_record": gate_record,
+                },
+                epoch100_snapshot,
+            )
+            logger.info(
+                "epoch-100 gate relative_improvement=%.8f threshold=%.8f decision=%s",
+                gate_record["relative_improvement"],
+                gate_record["threshold"],
+                gate_record["decision"],
+            )
+            if gate_record["decision"] == "stop_at_100":
+                break
+            stale_epochs = 0
         patience = int(training.get("early_stopping_patience", 15))
-        if not final_fit and not admission_probe and patience > 0 and stale_epochs >= patience:
+        patience_active = not gate_enabled or (epoch > 100 and gate_record is not None)
+        if not final_fit and not admission_probe and patience_active and patience > 0 and stale_epochs >= patience:
             logger.info("early stopping at epoch=%d best_epoch=%d", epoch, best_epoch)
             break
 
     train_time = time.perf_counter() - train_start
+    stop_epoch = int(history[-1]["epoch"])
+    stop_snapshot = epoch100_snapshot
+    if gate_enabled and stop_epoch > 100:
+        stop_snapshot = out / "continuation_stop.pt"
+        torch.save(
+            {
+                "state_dict": model.state_dict(),
+                "epoch": stop_epoch,
+                "checkpoint_role": "post_gate_actual_stop_snapshot",
+                "gate_record": gate_record,
+            },
+            stop_snapshot,
+        )
     checkpoint = out / "model.pt"
     if not checkpoint.is_file():
         role = "final-epoch final-fit" if final_fit else "best-validation"
@@ -735,7 +814,8 @@ def run_full_cell_forward(
         "best_epoch": checkpoint_epoch if final_fit else best_epoch,
         "best_monitor_epoch": best_epoch,
         "checkpoint_epoch": checkpoint_epoch,
-        "stop_epoch": int(history[-1]["epoch"]),
+        "stop_epoch": stop_epoch,
+        "epoch_100_continue_gate": gate_record,
         "train_time_s": train_time,
         "wall_time_total_s": time.perf_counter() - wall_start,
         "inference_time_per_sample_ms": 1000.0 * final_val["eval_time_s"] / max(len(val_dataset), 1),
@@ -756,6 +836,21 @@ def run_full_cell_forward(
         monitor_label="training-overlap monitor" if final_fit else "validation",
     )
     write_metrics(out, metrics)
+    (out / "model_summary.json").write_text(
+        json.dumps(
+            {
+                "model": model_name,
+                "parameter_count": metrics["parameter_count"],
+                "input_shape": list(input_shape),
+                "output_shape": list(contract["target_shape"]),
+                "best_validation_checkpoint": str(checkpoint),
+                "best_validation_checkpoint_sha256": _sha256_checkpoint(checkpoint),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     status = "full_cell_forward_admission_probe_pass" if admission_probe else "formal_training_success"
     write_results(
         out,
@@ -779,6 +874,11 @@ def run_full_cell_forward(
             "best_monitor_epoch": best_epoch,
             "checkpoint_path": str(checkpoint),
             "checkpoint_sha256": _sha256_checkpoint(checkpoint),
+            "epoch_100_continue_gate": gate_record,
+            "epoch_100_checkpoint_path": str(epoch100_snapshot) if epoch100_snapshot else None,
+            "epoch_100_checkpoint_sha256": _sha256_checkpoint(epoch100_snapshot) if epoch100_snapshot else None,
+            "actual_stop_checkpoint_path": str(stop_snapshot) if stop_snapshot else None,
+            "actual_stop_checkpoint_sha256": _sha256_checkpoint(stop_snapshot) if stop_snapshot else None,
             "next_gate": (
                 "wave_admission_decision"
                 if admission_probe
@@ -854,4 +954,4 @@ if __name__ == "__main__":
     main()
 
 
-__all__ = ["_nested_train_indices", "run_full_cell_forward"]
+__all__ = ["_epoch_100_continue_decision", "_nested_train_indices", "run_full_cell_forward"]

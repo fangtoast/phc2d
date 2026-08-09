@@ -21,6 +21,7 @@ import yaml
 from phc2d.forward.full_cell import (
     _FullCellH5Dataset,
     _evaluate,
+    _epoch_100_continue_decision,
     _git_commit,
     _plot_history,
     _read_contract,
@@ -83,6 +84,14 @@ def _validate_and_resolve(
     max_epochs = int(training.get("max_epochs", 100))
     if not admission_probe and max_epochs not in {100, 200}:
         raise ValueError("formal dual-lane max_epochs must be 100 or 200")
+    gate_enabled = bool(training.get("epoch_100_continue_gate", False))
+    if not admission_probe and gate_enabled:
+        if max_epochs != 200:
+            raise ValueError("dual-lane epoch-100 continuation gate requires max_epochs=200")
+        if float(training.get("continue_gate_min_relative_improvement", 0.005)) != 0.005:
+            raise ValueError("preregistered continuation threshold must equal 0.005")
+        if int(training.get("early_stopping_patience", 0)) != 15:
+            raise ValueError("dual-lane epoch-100 continuation requires patience 15")
     params = dict(model_cfg.get("params") or {})
     params["head_kind"] = head_kind
     experiment_id = str(experiment.get("experiment_id", "full_cell_forward_upgrade_dual_lane_10k_v1"))
@@ -248,6 +257,9 @@ def run_full_cell_dual_lane(
     samples_seen = 0
     wall_start = time.perf_counter()
     train_start = time.perf_counter()
+    gate_enabled = bool(resolved["training"].get("epoch_100_continue_gate", False)) and not admission_probe
+    gate_record: dict[str, Any] | None = None
+    epoch100_snapshot: Path | None = None
     for epoch in range(1, int(resolved["training"]["max_epochs"]) + 1):
         epoch_start = time.perf_counter()
         model.train()
@@ -354,11 +366,49 @@ def run_full_cell_dual_lane(
             row["graded_val_bands_2_10_mre_pct"],
             score,
         )
+        if gate_enabled and epoch == 100:
+            gate_record = _epoch_100_continue_decision(
+                history,
+                threshold=float(resolved["training"].get("continue_gate_min_relative_improvement", 0.005)),
+            )
+            epoch100_snapshot = out / "epoch100.pt"
+            torch.save(
+                {
+                    "state_dict": model.state_dict(),
+                    "epoch": 100,
+                    "checkpoint_role": "epoch_100_gate_snapshot",
+                    "gate_record": gate_record,
+                },
+                epoch100_snapshot,
+            )
+            logger.info(
+                "epoch-100 gate relative_improvement=%.8f threshold=%.8f decision=%s",
+                gate_record["relative_improvement"],
+                gate_record["threshold"],
+                gate_record["decision"],
+            )
+            if gate_record["decision"] == "stop_at_100":
+                break
+            stale_epochs = 0
         patience = int(resolved["training"].get("early_stopping_patience", 15))
-        if not admission_probe and patience > 0 and stale_epochs >= patience:
+        patience_active = not gate_enabled or (epoch > 100 and gate_record is not None)
+        if not admission_probe and patience_active and patience > 0 and stale_epochs >= patience:
             break
 
     train_time = time.perf_counter() - train_start
+    stop_epoch = int(history[-1]["epoch"])
+    stop_snapshot = epoch100_snapshot
+    if gate_enabled and stop_epoch > 100:
+        stop_snapshot = out / "continuation_stop.pt"
+        torch.save(
+            {
+                "state_dict": model.state_dict(),
+                "epoch": stop_epoch,
+                "checkpoint_role": "post_gate_actual_stop_snapshot",
+                "gate_record": gate_record,
+            },
+            stop_snapshot,
+        )
     checkpoint = out / "model.pt"
     if not checkpoint.is_file():
         raise RuntimeError("best-validation dual-lane checkpoint was not written")
@@ -390,7 +440,8 @@ def run_full_cell_dual_lane(
         "binary_validation_bands_2_10_mre_pct": final_evaluations["binary"]["bands_2_10_mre_pct"],
         "graded_validation_bands_2_10_mre_pct": final_evaluations["graded"]["bands_2_10_mre_pct"],
         "best_epoch": int(checkpoint_payload["epoch"]),
-        "stop_epoch": int(history[-1]["epoch"]),
+        "stop_epoch": stop_epoch,
+        "epoch_100_continue_gate": gate_record,
         "train_time_s": train_time,
         "wall_time_total_s": time.perf_counter() - wall_start,
         "parameter_count": int(sum(parameter.numel() for parameter in model.parameters())),
@@ -404,6 +455,21 @@ def run_full_cell_dual_lane(
     }
     _plot_history(out, history, monitor_label="equal-lane validation")
     write_metrics(out, metrics)
+    (out / "model_summary.json").write_text(
+        json.dumps(
+            {
+                "model": spec.name,
+                "parameter_count": metrics["parameter_count"],
+                "input_shape": list(reference["grid_shape"]),
+                "output_shape": list(reference["target_shape"]),
+                "best_validation_checkpoint": str(checkpoint),
+                "best_validation_checkpoint_sha256": _sha256_checkpoint(checkpoint),
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     status = "dual_lane_admission_probe_pass" if admission_probe else "dual_lane_training_success"
     write_results(
         out,
@@ -419,6 +485,11 @@ def run_full_cell_dual_lane(
             "checkpoint_path": str(checkpoint),
             "checkpoint_sha256": _sha256_checkpoint(checkpoint),
             "best_epoch": int(checkpoint_payload["epoch"]),
+            "epoch_100_continue_gate": gate_record,
+            "epoch_100_checkpoint_path": str(epoch100_snapshot) if epoch100_snapshot else None,
+            "epoch_100_checkpoint_sha256": _sha256_checkpoint(epoch100_snapshot) if epoch100_snapshot else None,
+            "actual_stop_checkpoint_path": str(stop_snapshot) if stop_snapshot else None,
+            "actual_stop_checkpoint_sha256": _sha256_checkpoint(stop_snapshot) if stop_snapshot else None,
             "selection_metric": "equal_lane_validation_bands_2_10_mre_pct",
             "next_gate": "dual_lane_admission_decision" if admission_probe else "10k_head_selection",
         },

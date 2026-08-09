@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SUBMITTER = ROOT / "jobs" / "paracloud_submit_full_cell_upgrade_wave.sh"
 TEST_SUBMITTER = ROOT / "jobs" / "paracloud_submit_full_cell_upgrade_test.sh"
 TEST_WORKER = ROOT / "jobs" / "paracloud_full_cell_upgrade_test.sh"
+FIFTY_K_SUBMITTER = ROOT / "jobs" / "paracloud_submit_full_cell_upgrade_50k.sh"
+FIFTY_K_WORKER = ROOT / "jobs" / "paracloud_full_cell_upgrade_50k_train.sh"
 
 
 def test_upgrade_10k_configs_freeze_models_data_and_balanced_lane_batch() -> None:
@@ -106,3 +108,27 @@ def test_frozen_test_worker_profiles_gpu_and_runs_only_manifest_task() -> None:
     assert "full_cell_upgrade_test run-task" in text
     assert "PHC2D_UPGRADE_TEST_MANIFEST" in text
     assert "row=\"${row%$'\\r'}\"" in text
+
+
+def test_50k_submitter_is_dry_run_gated_and_uses_four_preregistered_waves() -> None:
+    text = FIFTY_K_SUBMITTER.read_text(encoding="utf-8")
+    assert 'mode="${1:-}"' in text
+    assert "PHC2D_AUTHORIZE_UPGRADE_50K" in text
+    assert "PHC2D_EXPECTED_50K_AUTHORIZATION_ID" in text
+    assert "50K-W1) previous_end=-1" in text
+    assert "50K-W2) previous_end=7" in text
+    assert "50K-W3) previous_end=15" in text
+    assert "50K-W4) previous_end=23" in text
+    assert '--array="${indices}%8"' in text
+    assert "--gres=gpu:1" in text and "-c 6" in text
+    assert "full_cell_upgrade_50k" in text
+    assert 'wave_key="${submit_wave//-/_}"' in text
+
+
+def test_50k_worker_requires_gate_snapshot_and_checkpoint_alias() -> None:
+    text = FIFTY_K_WORKER.read_text(encoding="utf-8")
+    assert "SLURM_ARRAY_TASK_ID" in text
+    assert "nvidia-smi" in text
+    assert "epoch100.pt" in text
+    assert "model_summary.json" in text
+    assert 'ln "$run_dir/model.pt" "$run_dir/checkpoint.pt"' in text
