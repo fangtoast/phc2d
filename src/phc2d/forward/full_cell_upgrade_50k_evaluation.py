@@ -1104,6 +1104,327 @@ def finalize_evaluation_campaign(
     return campaign
 
 
+def plan_threshold_diagnostic(
+    campaign_dir: str | Path,
+    *,
+    repository_root: str | Path = ".",
+) -> Path:
+    """Freeze five threshold proxies for the native graded winner only."""
+
+    root = Path(repository_root).resolve()
+    campaign = _resolve(root, campaign_dir)
+    parent_result = _read_json(campaign / "results.json")
+    if parent_result.get("status") != "formal_upgrade_50k_evaluation_success":
+        raise RuntimeError("threshold planning requires a finalized frozen 50k evaluation")
+    native = _read_csv(campaign / "native_test_summary.csv")
+    candidates = [
+        row for row in native
+        if row["source_group"] == "upgrade50k" and row["target_lane"] == "G"
+    ]
+    if len(candidates) != 5:
+        raise RuntimeError(f"threshold winner requires five graded upgrade candidates, got {len(candidates)}")
+    winner = min(candidates, key=lambda row: (float(row["mean_mre_pct"]), row["model"]))
+    inventory = _read_csv(campaign / "checkpoint_inventory.csv")
+    sources = [
+        row for row in inventory
+        if row["source_group"] == "upgrade50k"
+        and row["model"] == winner["model"]
+        and row["source_lane"] == winner["source_lane"]
+    ]
+    sources.sort(key=lambda row: int(row["seed"]))
+    if [int(row["seed"]) for row in sources] != [0, 1, 2]:
+        raise RuntimeError("threshold winner lacks exactly three frozen seed checkpoints")
+    threshold_dir = campaign / "threshold_diagnostic"
+    if threshold_dir.exists() and any(threshold_dir.iterdir()):
+        raise FileExistsError(f"threshold campaign is not empty: {threshold_dir}")
+    threshold_dir.mkdir(parents=True, exist_ok=True)
+    rows: list[dict[str, Any]] = []
+    for source in sources:
+        for threshold in (0.3, 0.4, 0.5, 0.6, 0.7):
+            label = f"t{int(round(threshold * 10)):02d}"
+            rows.append(
+                {
+                    **source,
+                    "threshold": threshold,
+                    "threshold_label": label,
+                    "target_lane": "G",
+                    "evaluation_resolution": 64,
+                    "contract": "threshold_representation_proxy",
+                    "planned_status": "planned",
+                    "shard_id": int(source["seed"]),
+                    "evaluation_id": f"threshold_{winner['model']}_s{source['seed']}_{label}",
+                }
+            )
+    _write_csv(threshold_dir / "threshold_plan.csv", rows)
+    parent_config = yaml.safe_load((campaign / "config.resolved.yaml").read_text(encoding="utf-8"))
+    config = {
+        "schema_version": "phc2d.full_cell_upgrade_50k_threshold.v1",
+        "parent_campaign": _relative(root, campaign),
+        "parent_plan_hash": parent_config["plan_hash"],
+        "winner_model": winner["model"],
+        "winner_head": winner["head"],
+        "winner_source_lane": winner["source_lane"],
+        "winner_native_graded_mean_mre_pct": float(winner["mean_mre_pct"]),
+        "winner_selection_rule": "lowest_frozen_native_graded_test_mean_among_five_upgrade_models",
+        "thresholds": [0.3, 0.4, 0.5, 0.6, 0.7],
+        "datasets": {"G": parent_config["datasets"]["G"]},
+        "plan_hash": hashlib.sha256((threshold_dir / "threshold_plan.csv").read_bytes()).hexdigest(),
+        "evidence_boundary": "representation_proxy_not_physical_equivalence_or_native_promotion",
+    }
+    (threshold_dir / "config.resolved.yaml").write_text(
+        yaml.safe_dump(config, sort_keys=False, allow_unicode=True), encoding="utf-8"
+    )
+    _write_json(
+        threshold_dir / "campaign_status.json",
+        {
+            "status": "threshold_plan_ready",
+            "winner_model": winner["model"],
+            "planned_cells": 15,
+            "test_influence": "winner_selection_only_after_native_promotion_frozen",
+            "next_gate": "authorized_threshold_diagnostic_submission",
+        },
+    )
+    return threshold_dir
+
+
+def run_threshold_shard(
+    threshold_dir: str | Path,
+    *,
+    shard_id: int,
+    repository_root: str | Path = ".",
+) -> Path:
+    """Evaluate one winner seed across the five frozen threshold proxies."""
+
+    root = Path(repository_root).resolve()
+    threshold = _resolve(root, threshold_dir)
+    config = yaml.safe_load((threshold / "config.resolved.yaml").read_text(encoding="utf-8"))
+    rows = [row for row in _read_csv(threshold / "threshold_plan.csv") if int(row["shard_id"]) == int(shard_id)]
+    if len(rows) != 5 or len({row["source_id"] for row in rows}) != 1:
+        raise RuntimeError(f"threshold shard {shard_id} must contain five cells for one source")
+    out = threshold / "shards" / f"shard_{int(shard_id):02d}"
+    out.mkdir(parents=True, exist_ok=False)
+    import torch
+
+    device_info = resolve_device(
+        DeviceConfig(
+            device="cuda:0",
+            require_accelerator=True,
+            precision="fp32",
+            amp_enabled=False,
+            tf32_enabled=False,
+            num_workers=4,
+            pin_memory=True,
+        ),
+        torch_module=torch,
+    )
+    torch.cuda.reset_peak_memory_stats(device_info.torch_device)
+    checkpoint = _resolve(root, rows[0]["checkpoint_path"])
+    if _sha256(checkpoint) != rows[0]["checkpoint_sha256"]:
+        raise RuntimeError("threshold winner checkpoint hash changed")
+    payload = _checkpoint_payload(checkpoint, device=device_info.torch_device, torch=torch)
+    spec = get_model_spec(rows[0]["model"])
+    model_kwargs = dict(payload["model_params"])
+    if spec.accepts_k_points:
+        model_kwargs["k_points"] = payload.get("k_points")
+    model = build_model(
+        spec.name,
+        input_shape=tuple(payload["input_shape"]),
+        output_shape=tuple(payload["output_shape"]),
+        **model_kwargs,
+    ).to(device_info.torch_device)
+    model.load_state_dict(payload["state_dict"])
+    parameter_count = int(sum(parameter.numel() for parameter in model.parameters()))
+    completed: list[dict[str, Any]] = []
+    band_rows: list[dict[str, Any]] = []
+    evaluation_ids: list[str] = []
+    dataset_indices: list[np.ndarray] = []
+    sample_mre: list[np.ndarray] = []
+    started = time.perf_counter()
+    for row in sorted(rows, key=lambda item: float(item["threshold"])):
+        dataset_contract = dict(config["datasets"]["G"])
+        dataset_contract["sampling"] = "deterministic_threshold"
+        dataset_contract["threshold"] = float(row["threshold"])
+        metrics, per_band, indices, values = _evaluate_cell(
+            model=model,
+            model_spec=spec,
+            payload=payload,
+            row=row,
+            dataset_contract=dataset_contract,
+            root=root,
+            device_info=device_info,
+            torch=torch,
+        )
+        completed.append(
+            {
+                **row,
+                **metrics,
+                "status": "completed",
+                "fine_tuned": False,
+                "parameter_count": parameter_count,
+            }
+        )
+        band_rows.extend(per_band)
+        evaluation_ids.append(row["evaluation_id"])
+        dataset_indices.append(indices)
+        sample_mre.append(values)
+        _write_csv(out / "history.csv", completed)
+    _write_csv(out / "evaluation_cells.csv", completed)
+    _write_csv(out / "per_band_metrics.csv", band_rows)
+    with (out / "sample_metrics.npz").open("wb") as handle:
+        np.savez_compressed(
+            handle,
+            evaluation_ids=np.asarray(evaluation_ids),
+            dataset_indices=np.stack(dataset_indices),
+            sample_mre_pct=np.stack(sample_mre),
+        )
+    wall = time.perf_counter() - started
+    _write_json(
+        out / "metrics.json",
+        {
+            "completed_cells": 5,
+            "wall_time_total_s": wall,
+            "eval_time_total_s": sum(float(row["eval_time_s"]) for row in completed),
+            "peak_gpu_memory_mb": float(torch.cuda.max_memory_allocated(device_info.torch_device) / (1024**2)),
+        },
+    )
+    _write_json(
+        out / "results.json",
+        {
+            "status": "formal_threshold_diagnostic_shard_success",
+            "shard_id": int(shard_id),
+            "completed_cells": 5,
+            "plan_hash": config["plan_hash"],
+        },
+    )
+    _write_json(
+        out / "run.meta.json",
+        {
+            "script": "python -m phc2d.forward.full_cell_upgrade_50k_evaluation run-threshold-shard",
+            "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
+            "slurm_array_task_id": os.environ.get("SLURM_ARRAY_TASK_ID"),
+            **device_info.metadata(),
+        },
+    )
+    (out / "config.resolved.yaml").write_text(
+        yaml.safe_dump({"threshold_campaign": _relative(root, threshold), "shard_id": int(shard_id)}),
+        encoding="utf-8",
+    )
+    (out / "run.log").write_text("frozen winner threshold diagnostic shard completed.\n", encoding="utf-8")
+    return out
+
+
+def finalize_threshold_diagnostic(
+    threshold_dir: str | Path,
+    *,
+    repository_root: str | Path = ".",
+) -> Path:
+    """Aggregate the three winner-seed threshold shards and close the proxy gate."""
+
+    root = Path(repository_root).resolve()
+    threshold = _resolve(root, threshold_dir)
+    config = yaml.safe_load((threshold / "config.resolved.yaml").read_text(encoding="utf-8"))
+    plan = _read_csv(threshold / "threshold_plan.csv")
+    completed: list[dict[str, Any]] = []
+    profiles: list[dict[str, Any]] = []
+    for shard_id in range(3):
+        shard = threshold / "shards" / f"shard_{shard_id:02d}"
+        required = (
+            "run.log",
+            "run.meta.json",
+            "config.resolved.yaml",
+            "results.json",
+            "metrics.json",
+            "history.csv",
+            "evaluation_cells.csv",
+            "per_band_metrics.csv",
+            "sample_metrics.npz",
+            "n40_profile.csv",
+            "n40_profile.json",
+        )
+        missing = [name for name in required if not (shard / name).is_file() or not (shard / name).stat().st_size]
+        if missing:
+            raise RuntimeError(f"threshold shard {shard_id} is incomplete: {missing}")
+        result = _read_json(shard / "results.json")
+        metrics = _read_json(shard / "metrics.json")
+        profile = _read_json(shard / "n40_profile.json")
+        if result.get("status") != "formal_threshold_diagnostic_shard_success":
+            raise RuntimeError(f"threshold shard {shard_id} failed")
+        if result.get("plan_hash") != config["plan_hash"] or profile.get("status") != "profile_collected":
+            raise RuntimeError(f"threshold shard {shard_id} identity/profile mismatch")
+        rows = _read_csv(shard / "evaluation_cells.csv")
+        for row in rows:
+            row["evaluation_peak_gpu_memory_mb"] = float(metrics["peak_gpu_memory_mb"])
+        completed.extend(rows)
+        profiles.append({"shard_id": shard_id, **metrics, **profile})
+    if len(completed) != 15 or {row["evaluation_id"] for row in completed} != {row["evaluation_id"] for row in plan}:
+        raise RuntimeError("threshold shards do not exactly cover the frozen 15-cell plan")
+    summary = _summary(
+        completed,
+        ("model", "head", "source_lane", "target_lane", "threshold", "threshold_label"),
+    )
+    _write_csv(threshold / "evaluation_cells.csv", completed)
+    _write_csv(threshold / "threshold_summary.csv", summary)
+    _write_csv(threshold / "resource_summary.csv", profiles)
+    import matplotlib.pyplot as plt
+
+    figures = threshold / "figures"
+    figures.mkdir(parents=True, exist_ok=True)
+    ordered = sorted(summary, key=lambda row: float(row["threshold"]))
+    figure, axis = plt.subplots(figsize=(7.5, 4.8))
+    axis.errorbar(
+        [float(row["threshold"]) for row in ordered],
+        [float(row["mean_mre_pct"]) for row in ordered],
+        yerr=[float(row["std_mre_pct"]) for row in ordered],
+        marker="o",
+        capsize=3,
+    )
+    axis.set_xlabel("Deterministic threshold")
+    axis.set_ylabel("Bands 2–10 MRE (%)")
+    axis.set_title("Frozen graded winner threshold proxy")
+    axis.grid(alpha=0.25)
+    figure.tight_layout()
+    figure.savefig(figures / "threshold_proxy.png", dpi=180)
+    figure.savefig(figures / "threshold_proxy.pdf")
+    plt.close(figure)
+    _write_json(
+        threshold / "metrics.json",
+        {
+            "evaluation_cells": 15,
+            "thresholds": 5,
+            "seeds": 3,
+            "sum_shard_wall_time_s": sum(float(row["wall_time_total_s"]) for row in profiles),
+        },
+    )
+    _write_json(
+        threshold / "results.json",
+        {
+            "status": "formal_threshold_representation_proxy_success",
+            "winner_model": config["winner_model"],
+            "evidence_role": "representation_proxy_not_physical_equivalence",
+            "native_promotion_influence": False,
+            "next_gate": "final_report_and_human_understanding_record",
+        },
+    )
+    _write_json(
+        threshold / "run.meta.json",
+        {
+            "script": "python -m phc2d.forward.full_cell_upgrade_50k_evaluation finalize-threshold",
+            "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            "plan_hash": config["plan_hash"],
+        },
+    )
+    _write_csv(threshold / "history.csv", completed)
+    (threshold / "run.log").write_text("formal threshold representation proxy finalized.\n", encoding="utf-8")
+    parent = _resolve(root, config["parent_campaign"])
+    parent_result = _read_json(parent / "results.json")
+    parent_result["threshold_diagnostic_status"] = "formal_threshold_representation_proxy_success"
+    parent_result["threshold_winner_model"] = config["winner_model"]
+    parent_result["next_gate"] = "final_report_and_human_understanding_record"
+    _write_json(parent / "results.json", parent_result)
+    return threshold
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1121,6 +1442,16 @@ def main(argv: Sequence[str] | None = None) -> None:
     finalize = subparsers.add_parser("finalize")
     finalize.add_argument("--campaign-dir", required=True)
     finalize.add_argument("--repository-root", default=".")
+    threshold_plan = subparsers.add_parser("plan-threshold")
+    threshold_plan.add_argument("--campaign-dir", required=True)
+    threshold_plan.add_argument("--repository-root", default=".")
+    threshold_shard = subparsers.add_parser("run-threshold-shard")
+    threshold_shard.add_argument("--threshold-dir", required=True)
+    threshold_shard.add_argument("--shard-id", type=int, required=True)
+    threshold_shard.add_argument("--repository-root", default=".")
+    threshold_finalize = subparsers.add_parser("finalize-threshold")
+    threshold_finalize.add_argument("--threshold-dir", required=True)
+    threshold_finalize.add_argument("--repository-root", default=".")
     args = parser.parse_args(argv)
     if args.command == "plan":
         print(
@@ -1141,8 +1472,20 @@ def main(argv: Sequence[str] | None = None) -> None:
                 repository_root=args.repository_root,
             )
         )
-    else:
+    elif args.command == "finalize":
         print(finalize_evaluation_campaign(args.campaign_dir, repository_root=args.repository_root))
+    elif args.command == "plan-threshold":
+        print(plan_threshold_diagnostic(args.campaign_dir, repository_root=args.repository_root))
+    elif args.command == "run-threshold-shard":
+        print(
+            run_threshold_shard(
+                args.threshold_dir,
+                shard_id=args.shard_id,
+                repository_root=args.repository_root,
+            )
+        )
+    else:
+        print(finalize_threshold_diagnostic(args.threshold_dir, repository_root=args.repository_root))
 
 
 if __name__ == "__main__":
@@ -1152,6 +1495,9 @@ if __name__ == "__main__":
 __all__ = [
     "build_evaluation_cells",
     "finalize_evaluation_campaign",
+    "finalize_threshold_diagnostic",
+    "plan_threshold_diagnostic",
     "plan_evaluation_campaign",
     "run_evaluation_shard",
+    "run_threshold_shard",
 ]

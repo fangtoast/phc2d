@@ -21,6 +21,8 @@ FIFTY_K_SUBMITTER = ROOT / "jobs" / "paracloud_submit_full_cell_upgrade_50k.sh"
 FIFTY_K_WORKER = ROOT / "jobs" / "paracloud_full_cell_upgrade_50k_train.sh"
 FIFTY_K_EVAL_SUBMITTER = ROOT / "jobs" / "paracloud_submit_full_cell_upgrade_50k_eval.sh"
 FIFTY_K_EVAL_WORKER = ROOT / "jobs" / "paracloud_full_cell_upgrade_50k_eval.sh"
+FIFTY_K_THRESHOLD_SUBMITTER = ROOT / "jobs" / "paracloud_submit_full_cell_upgrade_50k_threshold.sh"
+FIFTY_K_THRESHOLD_WORKER = ROOT / "jobs" / "paracloud_full_cell_upgrade_50k_threshold.sh"
 
 
 def test_upgrade_10k_configs_freeze_models_data_and_balanced_lane_batch() -> None:
@@ -154,3 +156,20 @@ def test_50k_evaluation_worker_profiles_gpu_and_runs_one_shard() -> None:
     assert "nvidia-smi" in text
     assert "n40_profile.json" in text
     assert "full_cell_upgrade_50k_evaluation run-shard" in text
+
+
+def test_50k_threshold_submitter_runs_only_three_winner_seed_shards() -> None:
+    text = FIFTY_K_THRESHOLD_SUBMITTER.read_text(encoding="utf-8")
+    assert "PHC2D_AUTHORIZE_UPGRADE_50K_EVAL" in text
+    assert "PHC2D_EXPECTED_50K_EVAL_AUTHORIZATION_ID" in text
+    assert "threshold_plan.csv" in text and "plan_hash" in text
+    assert "--array=0-2%3" in text
+    assert "--dependency=\"afterok:$shard_job_id\"" in text
+
+
+def test_50k_threshold_worker_profiles_gpu_and_runs_threshold_shard() -> None:
+    text = FIFTY_K_THRESHOLD_WORKER.read_text(encoding="utf-8")
+    assert "SLURM_ARRAY_TASK_ID" in text
+    assert "nvidia-smi" in text
+    assert "n40_profile.json" in text
+    assert "run-threshold-shard" in text

@@ -351,6 +351,8 @@ GPU 利用率按以下规则记录：
 
 冻结评估清单必须包含 27 个升级 checkpoint、24 个旧基线 checkpoint 和 checkpoint SHA-256。原生、cross-lane 与 32/128 输入分辨率合计 126 个可执行 evaluation cells；另保留 18 个 `not_applicable` cells（ResMLP 的 32/128 固定展平形状 12 项、联合模型无单源 cross-lane 方向 6 项），不得删除或按零误差汇总。
 
+上述 126 cells 聚合并冻结 native graded 胜者后，才生成独立 threshold 清单：只对该胜者的 3 个 seed 执行 `0.3/0.4/0.5/0.6/0.7`，共 15 cells、最多 3 个并行单 GPU shards。threshold 结果不得回写 native promotion，也不得据此改选胜者。
+
 ### 8.2 诊断评估
 
 | 诊断 | 范围 | 证据身份 |
