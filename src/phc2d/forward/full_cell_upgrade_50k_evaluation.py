@@ -120,6 +120,18 @@ def _training_runtime(result: Mapping[str, Any], metrics: Mapping[str, Any]) -> 
     return float("nan")
 
 
+def _last_history_epoch(path: Path) -> int:
+    rows = _read_csv(path)
+    if not rows or "epoch" not in rows[-1]:
+        raise RuntimeError(f"training history lacks an epoch column: {path}")
+    epochs = [int(row["epoch"]) for row in rows]
+    if epochs != list(range(1, epochs[-1] + 1)):
+        raise RuntimeError(f"training history epochs are not contiguous: {path}")
+    if not 100 <= epochs[-1] <= 200:
+        raise RuntimeError(f"50k actual stop epoch must be in [100, 200], got {epochs[-1]}")
+    return epochs[-1]
+
+
 def _load_upgrade_sources(root: Path, campaign: Path) -> list[dict[str, Any]]:
     manifest = _read_csv(campaign / "task_manifest.csv")
     selected = [row for row in manifest if row["action"] == "RUN"]
@@ -150,6 +162,8 @@ def _load_upgrade_sources(root: Path, campaign: Path) -> list[dict[str, Any]]:
         expected_status = "dual_lane_training_success" if row["lane"] == "J" else "formal_training_success"
         if result.get("status") != expected_status or profile.get("status") != "profile_collected":
             raise RuntimeError(f"50k training task is not admissible: {row['task_id']}")
+        if result.get("selection_split", "validation") != "validation" or bool(result.get("test_executed")):
+            raise RuntimeError(f"50k checkpoint was not selected without test leakage: {row['task_id']}")
         if not _finite_json(result) or not _finite_json(metrics):
             raise RuntimeError(f"non-finite 50k training artifact: {row['task_id']}")
         gate = result.get("epoch_100_continue_gate")
@@ -157,6 +171,9 @@ def _load_upgrade_sources(root: Path, campaign: Path) -> list[dict[str, Any]]:
             raise RuntimeError(f"missing epoch-100 gate record: {row['task_id']}")
         checkpoint = run / "checkpoint.pt"
         digest = _checkpoint_hash(result, checkpoint)
+        actual_stop_epoch = _last_history_epoch(run / "history.csv")
+        if gate["decision"] == "stop_at_100" and actual_stop_epoch != 100:
+            raise RuntimeError(f"epoch-100 stop decision/history mismatch: {row['task_id']}")
         source = {
             "source_id": f"upgrade_{row['task_id']}",
             "source_group": "upgrade50k",
@@ -167,7 +184,7 @@ def _load_upgrade_sources(root: Path, campaign: Path) -> list[dict[str, Any]]:
             "checkpoint_path": _relative(root, checkpoint),
             "checkpoint_sha256": digest,
             "source_run_dir": _relative(root, run),
-            "actual_stop_epoch": int(result.get("actual_stop_epoch", 0)),
+            "actual_stop_epoch": actual_stop_epoch,
             "best_validation_epoch": int(result.get("best_epoch", result.get("best_validation_epoch", 0))),
             "train_time_s": _training_runtime(result, metrics),
             "training_peak_gpu_memory_mib": float(profile.get("memory_used_mib_max", float("nan"))),
@@ -179,6 +196,9 @@ def _load_upgrade_sources(root: Path, campaign: Path) -> list[dict[str, Any]]:
     identities = {(row["model"], row["source_lane"], row["seed"]) for row in sources}
     if len(identities) != EXPECTED_UPGRADE_SOURCES:
         raise RuntimeError("upgrade 50k source identities are incomplete or duplicated")
+    commits = {str(row["git_commit"]) for row in sources}
+    if len(commits) != 1 or "" in commits:
+        raise RuntimeError(f"upgrade 50k source commits are not homogeneous: {sorted(commits)}")
     return sources
 
 

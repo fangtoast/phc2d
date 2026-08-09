@@ -16,6 +16,7 @@ import yaml
 
 from phc2d.forward.full_cell_upgrade_50k_evaluation import (
     DIRECT_BASELINES,
+    _last_history_epoch,
     build_evaluation_cells,
     finalize_evaluation_campaign,
     finalize_threshold_diagnostic,
@@ -94,6 +95,12 @@ def test_evaluation_matrix_freezes_native_cross_resolution_and_na_cells() -> Non
         row["model"] != "res_mlp_gated_v2" or int(row["evaluation_resolution"]) == 64
         for row in planned
     )
+
+
+def test_actual_stop_epoch_is_derived_from_contiguous_history(tmp_path: Path) -> None:
+    history = tmp_path / "history.csv"
+    _write_csv(history, [{"epoch": epoch, "val": 1.0 / epoch} for epoch in range(1, 133)])
+    assert _last_history_epoch(history) == 132
 
 
 def _value(row: dict[str, object]) -> float:
