@@ -352,3 +352,6 @@ def test_threshold_diagnostic_runs_only_frozen_graded_winner(tmp_path: Path) -> 
     assert "Cross-lane 诊断" in report
     assert "32/128 零样本输入分辨率诊断" in report
     assert "Threshold Proxy" in report
+    assert "Promotion 门逐项判定" in report
+    assert "Checkpoint 存储比例" in report
+    assert "50.00%" in report

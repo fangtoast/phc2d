@@ -1620,6 +1620,33 @@ def render_final_markdown_report(
         )
         for row in sorted(threshold_summary, key=lambda item: float(item["threshold"]))
     ]
+    independent_promotion_rows = [
+        (
+            row["model"],
+            row["status"],
+            _relative_percent(row["binary_relative_improvement"]),
+            _relative_percent(row["graded_relative_improvement"]),
+            f"{float(row['binary_ci95_high']):+.4f}",
+            f"{float(row['graded_ci95_high']):+.4f}",
+            row["parameter_budget_met"],
+        )
+        for row in promotion
+        if row["model"] != "dual_lane_band_operator_v1"
+    ]
+    joint = next(row for row in promotion if row["model"] == "dual_lane_band_operator_v1")
+    joint_promotion_rows = [
+        (
+            joint["status"],
+            joint["best_binary_independent"],
+            joint["best_graded_independent"],
+            _relative_percent(joint["binary_relative_degradation"]),
+            _relative_percent(joint["graded_relative_degradation"]),
+            _relative_percent(joint["binary_worst_seed_relative_regression"]),
+            _relative_percent(joint["graded_worst_seed_relative_regression"]),
+            f"{100.0 * float(joint['parameter_fraction']):.2f}%",
+            f"{100.0 * float(joint['checkpoint_storage_fraction']):.2f}%",
+        )
+    ]
     promoted = results.get("promoted_over_direct_baseline") or []
     overall = results.get("overall_better_than_current_fno_models") or []
     conclusion = (
@@ -1653,33 +1680,43 @@ def render_final_markdown_report(
 
 {_markdown_table(('模型', 'Lane', 'Seed 0', 'Seed 1', 'Seed 2', 'Mean ± std', '相对直接基线', '直接基线 paired CI', '相对 FNO-e200', 'Promotion'), native_rows)}
 
-## 三、逐 Band 结果
+## 三、Promotion 门逐项判定
+
+### 3.1 独立升级模型相对直接基线
+
+{_markdown_table(('模型', '判定', 'Binary relative improvement', 'Graded relative improvement', 'Binary paired CI 上界', 'Graded paired CI 上界', '参数预算门'), independent_promotion_rows)}
+
+### 3.2 联合模型替代两个独立模型
+
+{_markdown_table(('判定', 'Binary 最佳独立模型', 'Graded 最佳独立模型', 'Binary mean 退化', 'Graded mean 退化', 'Binary worst-seed 退化', 'Graded worst-seed 退化', '参数比例', 'Checkpoint 存储比例'), joint_promotion_rows)}
+
+## 四、逐 Band 结果
 
 {_markdown_table(('模型', 'Lane', 'Band 1', 'Band 2', 'Band 3', 'Band 4', 'Band 5', 'Band 6', 'Band 7', 'Band 8', 'Band 9', 'Band 10'), band_rows)}
 
-## 四、Cross-lane 诊断
+## 五、Cross-lane 诊断
 
 {_markdown_table(('模型', '方向', 'Seed 0', 'Seed 1', 'Seed 2', 'Mean ± std'), cross_rows)}
 
 联合模型因同时在两条 lane 上训练，没有单源 cross-lane 方向，对应 6 项保留为 `not_applicable_joint_trained_both_lanes`。
 
-## 五、32/128 零样本输入分辨率诊断
+## 六、32/128 零样本输入分辨率诊断
 
 {_markdown_table(('模型', 'Lane', '输入分辨率', 'Mean MRE', 'Std'), resolution_rows)}
 
 ResMLP 固定展平输入的 12 项记录为 `not_applicable_fixed_flatten_shape`，不按失败或零误差汇总。
 
-## 六、冻结 graded 胜者 Threshold Proxy
+## 七、冻结 graded 胜者 Threshold Proxy
 
 {_markdown_table(('冻结胜者', 'Threshold', 'Seed 0', 'Seed 1', 'Seed 2', 'Mean ± std'), threshold_rows)}
 
 该表在 native graded 胜者冻结后生成，不影响 promotion；threshold 结构不被视为与真实二值结构物理等价。
 
-## 七、参数与推理资源
+## 八、参数与推理资源
 
 {_markdown_table(('模型', 'Lane', '参数量', 'Checkpoint MiB', '评估峰值显存 MiB', 'Eval time s', 'ms/sample', 'samples/s'), resource_rows)}
 
-## 八、证据与复核入口
+## 九、证据与复核入口
 
 - `native_test_summary.csv`：native 三 seed 汇总。
 - `paired_bootstrap_comparisons.csv`：10,000 次 paired sample bootstrap。
@@ -1690,7 +1727,7 @@ ResMLP 固定展平输入的 12 项记录为 `not_applicable_fixed_flatten_shape
 - `threshold_diagnostic/threshold_summary.csv`：冻结胜者 threshold proxy。
 - `resource_summary.csv` 与各 shard `n40_profile.json`：资源证据。
 
-## 九、人工理解记录
+## 十、人工理解记录
 
 - 本报告解决的问题：以冻结 checkpoint 和 held-out test 汇总五个升级模型的主结果、对比、负结果及诊断边界。
 - 关键规则：validation 决定 checkpoint；test 只用于冻结后的统计和 promotion；不从 20/100/200 基线预算中事后择优。
