@@ -16,4 +16,6 @@
 | 模型实现、验证和阻塞状态清单 | [`phc2d_model_inventory_v1.yaml`](phc2d_model_inventory_v1.yaml) |
 | 精选图表、来源和哈希 | [`assets/phc2d_project_full_introduction_20260724/figure_index.md`](assets/phc2d_project_full_introduction_20260724/figure_index.md) |
 
+旁支研究计划与调研见 [`side_project/README.md`](side_project/README.md)。
+
 单项实验的当前结论见 [`../results/README.md`](../results/README.md)。报告中的 surrogate、physics residual 与 real-MPB replay 证据不可互相替代。

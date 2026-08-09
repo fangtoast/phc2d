@@ -228,9 +228,11 @@ $$
 对离散点 $\mathbf k_0,\ldots,\mathbf k_{N_k-1}$，绘图横坐标使用累计弧长
 
 $$
-s_0=0,qquad
+s_0=0,\qquad
 s_j=s_{j-1}+\|\mathbf k_j-\mathbf k_{j-1}\|_2.
 $$
+
+> **审查补充：$\mathbf k$ 空间的无量纲化约定。** MPB 数据中的 $\mathbf k=(k_x,k_y)$ 是以倒格基矢为基底的 reduced reciprocal coordinate。若 $\mathbf a_i\cdot\mathbf b_j=2\pi\delta_{ij}$，则有量纲物理 Bloch 波矢为 $\mathbf k_{\rm phys}=k_x\mathbf b_1+k_y\mathbf b_2$。对当前晶格常数为 $a$ 的方形晶格，$\mathbf k=(a/2\pi)\mathbf k_{\rm phys}$。请在实现中核实无量纲化方案是否和文档一致：在不同场合有时会出现 $2\pi$ 或者 $\pi$ 的系数差异。
 
 当前 V2 每段共享端点，总计 $N_k=31$，segment index 为 $0$–$10$、$10$–$20$、$20$–$30$。首尾都是 $\Gamma$，但它们是路径上两个不同位置：索引 $0$ 和 $30$；不能因坐标相同而去重。
 
@@ -276,15 +278,15 @@ guard bands 用于提高截断边界附近的稳健性，不改变最终 target 
 Full-Wh 前向任务是
 
 $$
-F_{\phi}^{\rm full}:\rho\longmapsto \widehat W_h,qquad
+F_{\phi}^{\rm full}:\rho\longmapsto \widehat W_h,\qquad
 \widehat W_h\in\mathbb R^{N_k\times N_b}.
 $$
 
 Query 任务把每个结构和单个查询点组成样本：
 
 $$
-F_{\psi}^{\rm query}:(\rho,\mathbf k)longmapsto
-\widehat{\mathbf w}(\mathbf k),qquad
+F_{\psi}^{\rm query}:(\rho,\mathbf k)\longmapsto
+\widehat{\mathbf w}(\mathbf k),\qquad
 \widehat{\mathbf w}\in\mathbb R^{N_b}.
 $$
 
@@ -362,7 +364,12 @@ $$
 e^{-i\arg(a)}(\mathbf E,\mathbf H).
 $$
 
-这样消除本征向量任意全局相位造成的标签跳变，同时保留 E/H 的相对相位。
+这样固定每个样本的任意全局相位，同时保留 E/H 的相对相位；它不保证场沿参数或 $\mathbf k$ 路径连续。
+
+> **审查建议：**
+> 大模型审查代码明确此处 anchor 通过寻找场的最大值位置确定，请明确这个判断是否准确。这种方法 @陈伟 使用过，在做可视化的时候效果不错。但考虑本项目后续还需要比较场之间的 L2 距离，相似性等数据处理，可能会因为最大值位置的跳变导致结果不稳定。
+> **场比较宜采用最大重叠相位规范，而不是依赖两个场各自的 anchor。** 定义介电加权内积 $\langle\mathbf E_1,\mathbf E_2\rangle_\varepsilon=\sum\mathbf E_1^*\varepsilon\mathbf E_2$，则使 $\|\mathbf E_1-e^{i\theta}\mathbf E_2\|_\varepsilon^2$ 最小的相对相位为 $e^{i\theta}=e^{-i\arg\langle\mathbf E_1,\mathbf E_2\rangle_\varepsilon}$，且最小距离为 $\|\mathbf E_1\|_\varepsilon^2+\|\mathbf E_2\|_\varepsilon^2-2|\langle\mathbf E_1,\mathbf E_2\rangle_\varepsilon|$。
+> 若希望场沿 $\mathbf k$ 路径连续，可令每个场与前一个场按此最大重叠规则对齐；逐样本 anchor 只保留为首个参考场的初始规范。
 
 - **来源**：[`data/field_eigen.py`](../../src/phc2d/data/field_eigen.py)、[`physics/eigen_residual.py`](../../src/phc2d/physics/eigen_residual.py)。
 - **状态**：当前本征场数据规范化实现。
@@ -388,7 +395,7 @@ $$
 当前 TE E-field residual 的两个分量为
 
 $$
-r_x=D_yC_z-\Omega^2\varepsilon E_x,qquad
+r_x=D_yC_z-\Omega^2\varepsilon E_x,\qquad
 r_y=-D_xC_z-\Omega^2\varepsilon E_y,
 $$
 
@@ -409,6 +416,8 @@ r_{\rm rel}=\frac{R}{\max(S,10^{-12})}.
 $$
 
 边界相对残差使用同一公式，但求和区域限制到网格外圈 $\partial\Omega_h$。它用于识别 Bloch 回绕处的误差集中。
+
+> **审查意见：** 考虑归一化后，S=1，此处区分相对残差是否还必要？
 
 ### 5.5 Rayleigh 频率
 
@@ -455,12 +464,16 @@ $$
 \mathcal L_f=\operatorname{MSE}(\widehat y_f,y_f).
 $$
 
+> **实现核对：** 在当前 `field_eigen_v2` 训练器中，$y_f$ 不是原始频率，而是 MPB 无量纲频率 $f$ 的对数标准化值：$y_f=(\log f-\mu_{\log f})/\sigma_{\log f}$；$\widehat y_f$ 是模型 frequency head 的直接输出。预测的物理表示通过 $\widehat f=\exp(\sigma_{\log f}\widehat y_f+\mu_{\log f})$ 还原。因此 $\mathcal L_f$ 是在标准化 log-frequency 空间中的 MSE。$\mu_{\log f}$ 和 $\sigma_{\log f}$ 由训练归一化集合计算；启用 dense frequency supervision 时，该集合还包含实现加载的 dense-frequency 训练样本。
+
 当前 field data loss 为
 
 $$
 \mathcal L_{\rm data}=1.0\left(0.5\mathcal L_E+0.5\mathcal L_H\right)
 +0.1\mathcal L_f.
 $$
+
+> **概念边界：** $\mathcal L_E$、$\mathcal L_H$ 和 $\mathcal L_f$ 都通过预测值与 real-MPB 标签比较，因而全部属于监督数据误差；$\mathcal L_E/\mathcal L_H$ 使用介电加权、公共相位对齐等物理合适的度量，但不直接衡量 Maxwell 方程是否满足。当前实现中真正称为 physics loss 的是下一节由离散 Maxwell residual 与场归一化项组成的 $\mathcal L_{\rm phys}$；$\mathcal L_R$ 则是额外的 Rayleigh 一致性项。
 
 ### 5.7 PINO residual、归一化与 Rayleigh 项
 
@@ -473,13 +486,15 @@ $$
 
 $$
 \mathcal L_{{\rm norm},q}=
-\mathbb E\left[(\|\widehat{\mathbf E}\|_{\varepsilon,h}-1)^2\right],
+\mathbb E\left[(\|\widehat{\mathbf E}\|_{\varepsilon,q}-1)^2\right],
 $$
 
 $$
 \mathcal L_{{\rm phys},q}=
 \mathcal L_{{\rm res},q}+0.1\mathcal L_{{\rm norm},q}.
 $$
+
+> **实现核对：** 当前训练器直接从配置项 `physics_solver_floor_factors` 读取 $s_{64}=1$、$s_{96}=1.6675113730849558$、$s_{128}=2.479351271327766$。请检查这些数值的来源及含义。
 
 当前多分辨率候选为 $64,96,128$。每个 batch 只轮换选择一个高分辨率 $q_{\rm hi}\in\{96,128\}$，再与监督分辨率 64 聚合：
 
@@ -496,6 +511,8 @@ $$
 $$
 
 当前 P4 权重为 $0$，P5 权重为 $0.05$。physics frequency 默认 `detach`，即 residual 不通过频率头反向传播。
+
+> **实现核对：** P1--P5 是递进的实验候选标签，而不是同一个权重的五档取值：P1 使用频率监督权重 $0.1$ 并阻断 PDE 项到频率头的梯度，P2 使用权重 $0.5$ 并保留该梯度，P3 使用权重 $0.5$ 并阻断该梯度；随后 P4 沿用 P1 的设置，加入 dense-$k$ 频率监督和多分辨率 PDE 项，P5 再加入 Rayleigh 一致性项。因此这里所称 P4、P5 的“权重”专指 Rayleigh 一致性系数 $\lambda_R$：P4 取 $0$，P5 取 $0.05$；两者都保留 $\lambda_{\rm pde}$。
 
 ### 5.8 $\lambda_{\rm pde}$ warmup-ramp
 
@@ -576,6 +593,8 @@ $$
 
 实现默认权重为 $1.0,0.5,0.05,0.02$，可由 config `loss_params` 覆盖；若 `loss_name=mse`，训练则使用普通 MSE。指标实现分别位于 [`forward/runner.py`](../../src/phc2d/forward/runner.py) 和 [`query/runner.py`](../../src/phc2d/query/runner.py)。
 
+> **审核意见：**此处和其他所有设计权重的部分，都应该检查一下权重是否合适。一方面可以参考一下模型的建议，另一方面我的直觉是训练接近收敛时，权重相关的各项应有相当的数量级。
+
 ## 7. 逆向生成、目标桥接与候选筛选
 
 ### 7.1 条件生成映射与投影
@@ -588,11 +607,17 @@ $$
 
 其中 $W_h^*$ 是目标频带，$m$ 是混合模式或分支 context，$z$ 是 latent。连续候选的硬二值投影为
 
+> 需要更进一步解释 $m$ 是什么，为什么不能合并入 z？
+
 $$
 b_i=\mathbf 1[\widehat\rho_i\ge\tau],
 $$
 
 当前 $\tau=0.5$。候选去重以投影后的二值向量为 key；需要保留多样性时，再施加最小 pairwise/nearest-neighbor Hamming 间隔。
+
+> **审核意见：** 此处可以考虑之前讨论的噪声方案，也许能提高效果：
+> $$ b_i = \mathbf 1[\hat\rho_i + \delta_i \ge \tau] $$
+> 其中 $\delta_i$ 是均值为0的白噪声，加入适当的空间相关性。
 
 ### 7.2 频带目标与 cross-surrogate consistency
 
@@ -604,6 +629,8 @@ $$
 \frac{|F_{\rm full}(\widehat\rho)_{jn}-W^*_{h,jn}|}
 {|W^*_{h,jn}|+\epsilon}.
 $$
+
+> **审核意见：** 目前的 loss 设计方案会对于频率 $\omega$ 的相对0点的选择非常敏感。这也和我们从训练结果中观察到的 $\omega=0$ 附近的预测效果很好这一现象吻合。如若考虑把 loss 的评估对象都从 $\omega$ 改成 $\omega - \omega_0$，其中$\omega_0$ 是我们感兴趣的区域的中心位置，考虑重复实验看看效果如何。
 
 Full-Wh 与 Query 在相同查询网格上的一致性项为
 

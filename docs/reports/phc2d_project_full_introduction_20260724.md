@@ -31,7 +31,7 @@
 项目当前最成熟的证据是：
 
 - 10k V2 数据上的 full-band forward surrogate；
-- 具有显式 physical-\(k\) 输入的 query surrogate；
+- 具有显式 physical-$k$ 输入的 query surrogate；
 - 625 个 pure-test 目标上的多候选逆向设计；
 - 每目标 Top-5 候选的 real-MPB replay；
 - 9,216 条 real-MPB eigenfield 数据上的 U-Net、FNO-style 与 adapted PINO 实验。
@@ -158,18 +158,18 @@ $$
 \varepsilon(\mathbf r),
 $$
 
-需要在不同 Bloch 波矢 \(\mathbf k\) 下求解多个本征频率：
+需要在不同 Bloch 波矢 $\mathbf k$ 下求解多个本征频率：
 
 $$
 \omega_n(\mathbf k),
 $$
 
-其中 \(n\) 表示能带编号。
+其中 $n$ 表示能带编号。
 
 传统 MPB、平面波展开或 FEM 方法能够提供可靠结果，但在以下场景中计算成本很高：
 
 - 成百上千个候选晶胞的高通量筛选；
-- 同一结构在大量 \(k\) 点上的 Bloch 本征求解；
+- 同一结构在大量 $k$ 点上的 Bloch 本征求解；
 - 遗传算法和拓扑优化中的反复评价；
 - 生成式模型提出的大量候选结构验证；
 - 本征场、Maxwell residual 与跨分辨率分析；
@@ -230,6 +230,8 @@ $$
 
 该任务适合批量计算完整能带图。
 
+> **建议：** 当前上游频率数据集只保存 $\Gamma-X-M-\Gamma$ 高对称路径上的能带，31 个路径索引仅含 30 个唯一物理坐标；Field 数据也从同一路径选取 8 个位置。因此，Full-Wh、Query 和 Field 任务都继承了同一数据覆盖限制，这不是 Query 模型单独造成的。高对称路径数据适合生成标准能带图和比较路径带隙，但只覆盖二维布里渊区中的一维分段曲线，无法验证离开路径后的方向依赖、内部极值或一般 $\vec k=(k_x,k_y)$ 响应。建议保留现有 path dataset 作为标准基准，同时另建二维 $k$ 数据集：在完整第一布里渊区，或利用晶格对称性约化后的不可约布里渊区边界与内部共同采样，并记录采样域、对称轨道和统计权重；训练、验证和测试应包含独立的二维区域划分，路径内指标与 off-path 指标分别报告。考虑一下是否能够在小规模的计算中，比较是否包含高对称点之外的 $k$ 数据对于模型效果的影响。
+
 ## 3.2 Task 2：Continuous-query band prediction
 
 Full-Wh 模型一次输出固定路径上的全部频率，而 Query 模型把波矢作为显式输入：
@@ -243,11 +245,11 @@ $$
 
 其意义在于：
 
-- 可以查询单个或任意一组 \(k\) 点；
+- 可以查询单个或任意一组 $k$ 点；
 - 将结构编码与波矢坐标分离；
-- 支持 \(k\) 点插值和路径分段评估；
-- 为未来更密集的 \(k\)-space 查询提供接口；
-- 避免把所有任务永久固定为 \(31\times10\) 矩阵回归。
+- 支持 $k$ 点插值和路径分段评估；
+- 为未来更密集的 $k$-space 查询提供接口；
+- 避免把所有任务永久固定为 $31\times10$ 矩阵回归。
 
 项目设置了 MLP-query、DeepONet-style query 和 FNO-style query 等模型进行比较。
 
@@ -269,12 +271,25 @@ $$
 
 并使用实部、虚部分通道表示。
 
+> **建议（仅限二维 TE）：** 对二维、各向同性、无源、非磁且 TE/TM 可解耦的 Bloch 本征问题，$E_x,E_y,H_z$ 是非零分量，但并非独立自由度。本计划建议改用 $H_z$-only 表示，即学习
+> $$
+> (\varepsilon,\vec k,n)\rightarrow(H_{z,n},\omega_n),
+> $$
+> 再由 Maxwell 旋度方程和 Bloch 边界条件重建
+> $$
+> E_x=\frac{i}{\omega\varepsilon}D_yH_z,\qquad
+> E_y=-\frac{i}{\omega\varepsilon}D_xH_z,
+> $$
+> 其中 $D_x,D_y$ 是带 Bloch 边界条件的离散导数；正负号随时间谐波约定相应调整。给定 $\varepsilon$、$\vec k$ 和非零 $\omega$ 后，$H_z\mapsto(E_x,E_y)$ 是线性映射，可写成 $[E_x,E_y]^{\mathsf T}=A(\varepsilon,\vec k,\omega)H_z$。因此可将其实现为无须训练的可微线性物理层，也可等价表示为一个权重由 $\varepsilon$、$\vec k$、$\omega$ 确定的单层线性网络；梯度可从 $E_x,E_y$ 直接回传至 $H_z$。这里的线性仅指固定这些条件后关于 $H_z$ 的线性，并不表示该映射对 $\varepsilon$ 或 $\omega$ 也线性。这一标量化方案不应外推到三维结构、具有 $z$ 向变化的结构、各向异性或磁性介质，以及 TE/TM 不能严格解耦的情形；这些情形仍需采用完整矢量场描述。
+>
+> 后文相关部分请参照此处修订。
+
 该任务用于研究：
 
 - 场分布快速预测；
 - Maxwell residual 计算；
 - 数据驱动模型与 physics loss 的比较；
-- 不同 \(k\) 点上的本征场泛化；
+- 不同 $k$ 点上的本征场泛化；
 - 跨空间分辨率稳定性；
 - 将来可能的场级筛选或逆向优化。
 
@@ -318,18 +333,18 @@ $$
 | 内容 | 当前设置 |
 |---|---:|
 | 结构数量 | 10,000 |
-| 结构参数 `rho` | \(10{,}000\times36\) |
-| 能带 `Wh` | \(10{,}000\times31\times10\) |
+| 结构参数 `rho` | $10{,}000\times36$ |
+| 能带 `Wh` | $10{,}000\times31\times10$ |
 | 训练集 | 6,875 |
 | 验证集 | 2,500 |
 | 测试集 | 625 |
 | 标签来源 | real MPB |
 | 主要物理类型 | TE Bloch eigenproblem |
-| 高对称路径 | \(\Gamma-X-M-\Gamma\) |
+| 高对称路径 | $\Gamma-X-M-\Gamma$ |
 
 ## 4.1 表征一：`rho_wedge`
 
-利用当前 \(p4m\) 对称性，仅保存独立结构自由度：
+利用当前 $p4m$ 对称性，仅保存独立结构自由度：
 
 $$
 \rho_{\mathrm{wedge}}
@@ -351,7 +366,7 @@ $$
 
 该表征更适合 CNN、FNO-inspired spectral encoder 和 field operator。
 
-虽然当前数据有确定的 36 维、31 个 \(k\) 点和 10 条能带，但项目代码通过数据元信息、`DataRepresentationSpec` 和 `TargetSpec` 读取维度，不把这些数字视为永久不变的模型常数。
+虽然当前数据有确定的 36 维、31 个 $k$ 点和 10 条能带，但项目代码通过数据元信息、`DataRepresentationSpec` 和 `TargetSpec` 读取维度，不把这些数字视为永久不变的模型常数。
 
 ---
 
@@ -381,7 +396,7 @@ $$
 W_h.
 $$
 
-`mlp` 和 `res_mlp_wide` 将 `rho_wedge` 作为固定长度向量，通过 Linear block 回归 \(W_h\)；`lifted_cnn` 虽然读取 `epsilon_grid`，但主要通过局部卷积提取空间图案，并在 global average pooling 后压缩为固定向量。它们是本项目中的普通神经网络基线。
+`mlp` 和 `res_mlp_wide` 将 `rho_wedge` 作为固定长度向量，通过 Linear block 回归 $W_h$；`lifted_cnn` 虽然读取 `epsilon_grid`，但主要通过局部卷积提取空间图案，并在 global average pooling 后压缩为固定向量。它们是本项目中的普通神经网络基线。
 
 `fno2d_band_v2` 则在介电常数网格上执行二维 Fourier 变换、截断谱模态变换和逆变换：
 
@@ -397,7 +412,7 @@ $$
 W_h.
 $$
 
-这种计算使单个谱卷积能够混合相距较远的空间区域，是它在本项目中最明显的神经算子式特征。不过，`fno2d_band_v2` 最后仍通过 global pooling 输出固定形状的 \(W_h\)，当前也没有完成任意网格分辨率上的零样本迁移证明。因此，本报告将它准确称为 **FNO-inspired band-aware spectral encoder**，而不是已经证明网格无关的通用算子求解器。
+这种计算使单个谱卷积能够混合相距较远的空间区域，是它在本项目中最明显的神经算子式特征。不过，`fno2d_band_v2` 最后仍通过 global pooling 输出固定形状的 $W_h$，当前也没有完成任意网格分辨率上的零样本迁移证明。因此，本报告将它准确称为 **FNO-inspired band-aware spectral encoder**，而不是已经证明网格无关的通用算子求解器。
 
 ### 5.0.2 Query：神经算子思想最直接的体现
 
@@ -411,11 +426,11 @@ $$
 \mathbf k=[k_x,k_y]^{\mathsf T}.
 $$
 
-三类 Query 模型的区别主要体现在结构信息与查询坐标 \(\mathbf k\) 的融合位置：
+三类 Query 模型的区别主要体现在结构信息与查询坐标 $\mathbf k$ 的融合位置：
 
-- `mlp_query`：在输入端拼接展开后的结构和波矢分量 \(k_x,k_y\)，再执行固定向量回归；
-- `deep_onet_query_v2`：Branch 编码结构，Trunk 编码查询坐标，在公共特征空间做 Hadamard 乘积，再输出该 \(\mathbf k\) 点的 10 条频带；
-- `fno2d_query_v2`：先通过 Fourier 层形成结构的全局频谱表征，再由 \(\mathbf k\) 条件产生通道 gate，调节该位置的频带输出。
+- `mlp_query`：在输入端拼接展开后的结构和波矢分量 $k_x,k_y$，再执行固定向量回归；
+- `deep_onet_query_v2`：Branch 编码结构，Trunk 编码查询坐标，在公共特征空间做 Hadamard 乘积，再输出该 $\mathbf k$ 点的 10 条频带；
+- `fno2d_query_v2`：先通过 Fourier 层形成结构的全局频谱表征，再由 $\mathbf k$ 条件产生通道 gate，调节该位置的频带输出。
 
 其中 `deep_onet_query_v2` 最直接对应算子求值形式：
 
@@ -427,7 +442,7 @@ t=\operatorname{Trunk}(\mathbf k),
 \hat\omega(\mathbf k)=\operatorname{Head}(b\odot t).
 $$
 
-它近似学习的是从结构函数到可在不同 \(\mathbf k\) 上查询的能带函数。`fno2d_query_v2` 则同时体现频域全局编码和连续查询条件。这是本项目中“神经算子”与普通向量网络差别最清楚的任务。
+它近似学习的是从结构函数到可在不同 $\mathbf k$ 上查询的能带函数。`fno2d_query_v2` 则同时体现频域全局编码和连续查询条件。这是本项目中“神经算子”与普通向量网络差别最清楚的任务。
 
 ### 5.0.3 Field：图像式编码器与场到场谱算子
 
@@ -439,7 +454,7 @@ $$
 \left(E_x(x,y),E_y(x,y),H_z(x,y),\omega\right).
 $$
 
-`unet_field_v2` 使用局部卷积、下采样/上采样、skip connection 和 FiLM 条件调制，属于多尺度图像式场预测网络。`fno_field_v2` 则在 OperatorBlock 中使用截断 Fourier 模态，并在各 block 中保留 \(H\times W\) 网格，直接逐点输出复场的 6 个实通道。后者因而更接近“介电常数场到电磁场”的算子映射：
+`unet_field_v2` 使用局部卷积、下采样/上采样、skip connection 和 FiLM 条件调制，属于多尺度图像式场预测网络。`fno_field_v2` 则在 OperatorBlock 中使用截断 Fourier 模态，并在各 block 中保留 $H\times W$ 网格，直接逐点输出复场的 6 个实通道。后者因而更接近“介电常数场到电磁场”的算子映射：
 
 $$
 \mathcal G:
@@ -448,7 +463,7 @@ $$
 \left(E(x,y),H(x,y)\right).
 $$
 
-但是，函数到函数的接口本身不保证更高精度。第 10.5 节的正式结果显示，当前 `unet_field_v2` 的 E/H relative \(L_2\)、frequency MRE 和 Maxwell residual 均优于 data-only `fno_field_v2`。因此，本项目不把“神经算子”当成天然优于普通神经网络的标签，而是通过同数据、同划分和多 seed 对照判断其归纳偏置是否适合具体任务。
+但是，函数到函数的接口本身不保证更高精度。第 10.5 节的正式结果显示，当前 `unet_field_v2` 的 E/H relative $L_2$、frequency MRE 和 Maxwell residual 均优于 data-only `fno_field_v2`。因此，本项目不把“神经算子”当成天然优于普通神经网络的标签，而是通过同数据、同划分和多 seed 对照判断其归纳偏置是否适合具体任务。
 
 adapted PINO 也不是第三类网络。它复用 `fno_field_v2` 的网络主干，只在训练时加入离散 TE Bloch 物理残差；目前 residual 降低尚未转化为逆向候选排序或 real-MPB replay 改善，inverse admission 仍为 blocked。
 
@@ -501,7 +516,7 @@ $$
 
 ### 5.1.1 完整层级与参数构成
 
-当前 A1 输入为 36 维 `rho_wedge`，输出为 \(31\times10\) 的 \(W_h\)。两种模型都执行
+当前 A1 输入为 36 维 `rho_wedge`，输出为 $31\times10$ 的 $W_h$。两种模型都执行
 
 ```text
 rho_wedge [B,36]
@@ -521,13 +536,15 @@ rho_wedge [B,36]
 | 输出 `Linear(256,310)` | 79,670 |
 | 总计 | **878,646** |
 
-因此这是一项严格的残差连接消融：两者的参数张量数量、宽度、深度、激活、Dropout 和训练协议相同，唯一的函数差异是是否计算 \(x+F(x)\)。
+因此这是一项严格的残差连接消融：两者的参数张量数量、宽度、深度、激活、Dropout 和训练协议相同，唯一的函数差异是是否计算 $x+F(x)$。
 
 ![图 5-1：mlp 与 res_mlp_wide 的同容量残差消融网络架构](assets/phc2d_project_full_introduction_20260724/figure_5_1_mlp_residual.svg)
 
 *图 5-1　`mlp` 与 `res_mlp_wide` 的端到端数据流。两条模型路径上下并列，单个 block 的主支与残差旁路在中部放大；深蓝 identity shortcut 是二者唯一的结构差异。*
 
 ## 5.2 Lifted CNN
+
+> **审核建议**：CNN 和 U-Net 的思路都基于输入位图的局部关系和结构会对结果产生主要影响。而 Maxwell 方程的频率响应（不同于时间响应）天然是全局的。因此这两者**可能**都不是针对这一问题很好的神经网络结构。如果在实验中能证实这点，将会是很好的结果。此外，FNO 或者其他恰当设计的 NN 的结构可能都是针对这一问题的好的对比对象。
 
 `lifted_cnn` 使用展开后的网格结构：
 $$
@@ -540,7 +557,7 @@ $$
 
 ### 5.2.1 输入、张量尺寸与逐层结构
 
-`lifted_cnn` 接收由 `rho_wedge` 展开得到的 `epsilon_grid`。当前 A1 数据中的网格为单通道 \(16\times16\)，但构造器实际读取 `input_shape`，因此网络接口写成一般形式
+`lifted_cnn` 接收由 `rho_wedge` 展开得到的 `epsilon_grid`。当前 A1 数据中的网格为单通道 $16\times16$，但构造器实际读取 `input_shape`，因此网络接口写成一般形式
 $$
 X_0\in\mathbb R^{B\times C_{\mathrm{in}}\times H\times W}.
 $$
@@ -570,7 +587,7 @@ z &= \operatorname{GAP}(X_2),\\
 \end{aligned}
 $$
 
-这里的输出 310 和 reshape 到 \(31\times10\) 是当前数据目标；代码本身使用 `output_shape` 计算输出维度。名称中的 `lifted` 指输入已经由低维 wedge 表征展开为二维介电常数网格，不表示 CNN 内部另有一个 learned lifting layer。A1 artifact 记录的总参数量为 **5,458**。实现见 [`build_lifted_cnn`](../../src/phc2d/models/baselines.py)，参数与正式测试记录见 [`A1 Forward 公平对照`](../results/forward/a1_forward_query_fair_v1_20260726.md)。
+这里的输出 310 和 reshape 到 $31\times10$ 是当前数据目标；代码本身使用 `output_shape` 计算输出维度。名称中的 `lifted` 指输入已经由低维 wedge 表征展开为二维介电常数网格，不表示 CNN 内部另有一个 learned lifting layer。A1 artifact 记录的总参数量为 **5,458**。实现见 [`build_lifted_cnn`](../../src/phc2d/models/baselines.py)，参数与正式测试记录见 [`A1 Forward 公平对照`](../results/forward/a1_forward_query_fair_v1_20260726.md)。
 
 ### 5.2.2 该 CNN 能学到什么、不能学到什么
 
@@ -605,11 +622,11 @@ epsilon_grid [B,1,H,W]
 
 ![图 5-3：fno2d_band_v2 网络架构](assets/phc2d_project_full_introduction_20260724/figure_5_3_fno2d_band.svg)
 
-*图 5-3　`fno2d_band_v2` 的横向主数据流与单个 `BandBlock` 的竖向内部结构。上部强调 grid-to-\(W_h\) 的模型身份，下部区分截断谱卷积、局部 1×1 卷积、band gate、低秩全局支路与 block residual。*
+*图 5-3　`fno2d_band_v2` 的横向主数据流与单个 `BandBlock` 的竖向内部结构。上部强调 grid-to-$W_h$ 的模型身份，下部区分截断谱卷积、局部 1×1 卷积、band gate、低秩全局支路与 block residual。*
 
 ### 5.3.2 截断 Fourier 卷积
 
-设第 \(l\) 个 block 的输入为 \(X_l\in\mathbb R^{B\times32\times H\times W}\)。频域支路先执行二维实数 FFT：
+设第 $l$ 个 block 的输入为 $X_l\in\mathbb R^{B\times32\times H\times W}$。频域支路先执行二维实数 FFT：
 
 $$
 \tilde X_l=\operatorname{RFFT2}(X_l).
@@ -619,8 +636,8 @@ $$
 
 | 权重 | 当前形状 | 作用区域 |
 |---|---:|---|
-| `weight_full` | `[32,32,8,8]` complex | 主截断 modes \(8\times8\) |
-| `weight_band` | `[32,32,5,5]` complex | 额外的较小 band-aware modes \(5\times5\) |
+| `weight_full` | `[32,32,8,8]` complex | 主截断 modes $8\times8$ |
+| `weight_band` | `[32,32,5,5]` complex | 额外的较小 band-aware modes $5\times5$ |
 
 它们都只作用于 `rfft2` 张量左上角保留的低频区域，并以通道 Einstein summation 完成输入/输出通道混合：
 
@@ -632,7 +649,7 @@ $$
 \sum_i \tilde X_{b,i,p,q}W^{\mathrm{band}}_{i,o,p,q}.
 $$
 
-第二项只在 \(p<5,q<5\) 的重叠低频区域存在；其余被保留的 \(8\times8\) 区域只有 `weight_full`。未保留的频率位置置零，再用 `irfft2(..., s=(H,W))` 回到空间域。实现使用 `min(modes,H)` 和 `min(modes,W/2+1)` 裁剪，因此可以接收不同网格分辨率，但可学习的 modes 上限仍由配置决定。
+第二项只在 $p<5,q<5$ 的重叠低频区域存在；其余被保留的 $8\times8$ 区域只有 `weight_full`。未保留的频率位置置零，再用 `irfft2(..., s=(H,W))` 回到空间域。实现使用 `min(modes,H)` 和 `min(modes,W/2+1)` 裁剪，因此可以接收不同网格分辨率，但可学习的 modes 上限仍由配置决定。
 
 ### 5.3.3 一个 BandBlock 内部如何组合
 
@@ -650,7 +667,7 @@ X_{l+1} &= \operatorname{GELU}\!\left(
 \end{aligned}
 $$
 
-其中 \(r_l\) 在加入二维特征图前 reshape 为 `[B,32,1,1]` 并广播。低秩 MLP 使用 `Linear(32,8) -> ReLU -> Linear(8,32)`；band gate 使用 `1×1 Conv -> Sigmoid`；最后的 shortcut 保证 block 输入能直接进入输出。对应实现骨架为：
+其中 $r_l$ 在加入二维特征图前 reshape 为 `[B,32,1,1]` 并广播。低秩 MLP 使用 `Linear(32,8) -> ReLU -> Linear(8,32)`；band gate 使用 `1×1 Conv -> Sigmoid`；最后的 shortcut 保证 block 输入能直接进入输出。对应实现骨架为：
 
 ```python
 h = self.spectral(x) + self.pointwise(x)
@@ -664,13 +681,13 @@ out = self.act(h + x)
 
 它借用了“在 Fourier 空间学习截断谱卷积”的核心思想，但具有三项项目特定改造：一是双复数权重 `weight_full/weight_band`；二是 band gate 与低秩全局通道支路；三是通过 global pooling 和线性 head 输出能带矩阵，而不是输出同一空间网格上的函数场。当前实现也没有标准 FNO 中常见的显式坐标网格拼接。
 
-因此 `fno2d_band_v2` 的准确作用是：用频域全局混合提取结构表征，再回归完整 \(W_h\)。它的 `band-aware` 指额外谱权重、门控和面向能带矩阵的 head，不表示网络在每个 block 内直接逐条求解物理能带。A1 使用 `width=32`、`depth=4`、`modes=(8,8)`、`band_modes=(5,5)`、`fourier_rank=8`，以 MSE 和 AdamW 训练，validation 选择的学习率为 `1e-3`。
+因此 `fno2d_band_v2` 的准确作用是：用频域全局混合提取结构表征，再回归完整 $W_h$。它的 `band-aware` 指额外谱权重、门控和面向能带矩阵的 head，不表示网络在每个 block 内直接逐条求解物理能带。A1 使用 `width=32`、`depth=4`、`modes=(8,8)`、`band_modes=(5,5)`、`fourier_rank=8`，以 MSE 和 AdamW 训练，validation 选择的学习率为 `1e-3`。
 
 ## 5.4 Query 模型
 
 Query 任务目前包括：
 
-- `mlp_query`：结构编码与 \(k\) 坐标拼接；
+- `mlp_query`：结构编码与 $k$ 坐标拼接；
 - `deep_onet_query_v2`：采用 DeepONet-style branch/trunk 思想；
 - `fno2d_query_v2`：结构的频域编码与 query conditioning。
 
@@ -686,25 +703,25 @@ $$
 
 它保留了 DeepONet 的核心思想，但没有直接复用官方实现，因此应称为适配模型，而不是 faithful DeepONet reproduction。
 
-当前 A1 query 输入的结构网格为 `[B,1,16,16]`，物理波矢为 `[B,2]`，一次查询输出 10 条能带 `[B,10]`。三种模型真正不同的地方不是输出维度，而是结构信息与 \(k\) 条件在网络何处融合。
+当前 A1 query 输入的结构网格为 `[B,1,16,16]`，物理波矢为 `[B,2]`，一次查询输出 10 条能带 `[B,10]`。三种模型真正不同的地方不是输出维度，而是结构信息与 $k$ 条件在网络何处融合。
 
 ![图 5-4：三种 Continuous-query 模型的网络架构](assets/phc2d_project_full_introduction_20260724/figure_5_4_query_models.svg)
 
-*图 5-4　三种 Continuous-query 网络的结构与条件融合位置。`mlp_query` 在输入端拼接，`deep_onet_query_v2` 在 Branch/Trunk 公共特征空间做 Hadamard 乘积，`fno2d_query_v2` 用 \(k\) 条件产生通道 gate，并保留未门控的结构特征。*
+*图 5-4　三种 Continuous-query 网络的结构与条件融合位置。`mlp_query` 在输入端拼接，`deep_onet_query_v2` 在 Branch/Trunk 公共特征空间做 Hadamard 乘积，`fno2d_query_v2` 用 $k$ 条件产生通道 gate，并保留未门控的结构特征。*
 
 ### 5.4.1 `mlp_query`：输入级早期融合
 
-`mlp_query` 直接展平介电常数网格，并与二维 \(k\) 坐标拼接：
+`mlp_query` 直接展平介电常数网格，并与二维 $k$ 坐标拼接：
 
 $$
 u_0=[\operatorname{vec}(\varepsilon);k_x;k_y].
 $$
 
-当前网络为 `Linear(258,64) -> GELU -> Dropout(0) -> Linear(64,64) -> GELU -> Linear(64,10)`，参数量 **21,386**。它允许每一个隐藏单元同时看到所有网格像素和 \(k\) 坐标，但没有显式空间局部性、频域算子或 branch/trunk 分解，因此是 query 任务的最低复杂度全连接基线。
+当前网络为 `Linear(258,64) -> GELU -> Dropout(0) -> Linear(64,64) -> GELU -> Linear(64,10)`，参数量 **21,386**。它允许每一个隐藏单元同时看到所有网格像素和 $k$ 坐标，但没有显式空间局部性、频域算子或 branch/trunk 分解，因此是 query 任务的最低复杂度全连接基线。
 
 ### 5.4.2 `deep_onet_query_v2`：Branch/Trunk 乘积融合
 
-Branch 接收展平后的结构，Trunk 只接收 \(k_x,k_y\)。两支均使用 128 宽、depth 4 的 GELU MLP，最后投影到同一个 128 维共享特征空间：
+Branch 接收展平后的结构，Trunk 只接收 $k_x,k_y$。两支均使用 128 宽、depth 4 的 GELU MLP，最后投影到同一个 128 维共享特征空间：
 
 $$
 b=\operatorname{Branch}(\varepsilon)\in\mathbb R^{128},\qquad
@@ -731,19 +748,19 @@ X_{l+1}=\operatorname{GELU}\left(
 \right).
 $$
 
-四层之后用 global average pooling 得到 \(p\in\mathbb R^{32}\)。查询侧把二维 \(k\) 坐标编码为 32 维 Sigmoid gate：
+四层之后用 global average pooling 得到 $p\in\mathbb R^{32}$。查询侧把二维 $k$ 坐标编码为 32 维 Sigmoid gate：
 
 $$
 g(\mathbf k)=\sigma\left(W_2\operatorname{GELU}(W_1\mathbf k+b_1)+b_2\right),
 $$
 
-其中 query encoder 为 `Linear(2,64) -> GELU -> Linear(64,32) -> Sigmoid`。最终不是只使用 \(p\odot g\)，而是保留原始结构特征并拼接门控特征：
+其中 query encoder 为 `Linear(2,64) -> GELU -> Linear(64,32) -> Sigmoid`。最终不是只使用 $p\odot g$，而是保留原始结构特征并拼接门控特征：
 
 $$
 h=[p;\,p\odot g(\mathbf k)]\in\mathbb R^{64},
 $$
 
-再经 `Linear(64,64) -> GELU -> Linear(64,10)` 输出，参数量 **273,514**。这一路径让 \(k\) 条件以通道门控方式调节结构谱特征，同时保留未门控的结构摘要。它与 `fno2d_band_v2` 不同：没有 `weight_band`、band gate、低秩全局支路或 block residual，输出也是单个 \(k\) 点的 band vector，而不是完整 \(W_h\)。
+再经 `Linear(64,64) -> GELU -> Linear(64,10)` 输出，参数量 **273,514**。这一路径让 $k$ 条件以通道门控方式调节结构谱特征，同时保留未门控的结构摘要。它与 `fno2d_band_v2` 不同：没有 `weight_band`、band gate、低秩全局支路或 block residual，输出也是单个 $k$ 点的 band vector，而不是完整 $W_h$。
 
 三种 query 模型均使用 `torch.nn.MSELoss()` 训练；A1 对每个 protocol、模型和 seed 独立进行 validation 学习率选择。模型结构和参数量来自本地运行制品 `runs/20260724/a1_query_fair_v1_202607240803/model_identity_summary.json`，而不是根据名称推测；该原始运行目录不进入 Git。
 
@@ -753,9 +770,9 @@ $$
 
 | 对比项 | `lifted_cnn` | `unet_field_v2` |
 |---|---|---|
-| 任务 | 完整能带矩阵回归 | 给定结构、\(k\) 和 band 的 TE 本征场与频率预测 |
+| 任务 | 完整能带矩阵回归 | 给定结构、$k$ 和 band 的 TE 本征场与频率预测 |
 | 输入 | 单通道 `epsilon_grid` | 5 通道周期网格 + 3 维场 context |
-| 输出 | \(W_h\) 矩阵 | 6 个场实通道 + 1 个频率 |
+| 输出 | $W_h$ 矩阵 | 6 个场实通道 + 1 个频率 |
 | 空间结构 | 两层 3×3 CNN + global average pooling | 三层 encoder/decoder、bottleneck 和跨尺度 skip concat |
 | 边界处理 | 普通零填充 | circular padding |
 | 条件注入 | 无 | 每层 FiLM 调制 |
@@ -771,7 +788,7 @@ $$
 
 当前 B3 规格为 `grid_channels=5`、`context_dim=3`、`field_channels=6`、基础宽度 48、深度 3，并开启 FiLM；三层 encoder 的特征宽度依次为 48/96/192，bottleneck 宽度为 384。
 
-在 9,216 条 real-MPB operator-style TE 数据的三 seed test 上，`unet_field_v2` 的 E relative \(L_2\) 为 **0.5015 +/- 0.0091**、frequency MRE 为 **1.7591% +/- 0.0475%**、Maxwell residual 为 **2.7183 +/- 0.2413**，三项均优于同期 data-only `fno_field_v2`。这证明当前监督场任务中 U-Net 是更强的精度基线；它不意味着 U-Net 已成为 Full-Wh 代理，也不意味着它已经接入 inverse。
+在 9,216 条 real-MPB operator-style TE 数据的三 seed test 上，`unet_field_v2` 的 E relative $L_2$ 为 **0.5015 +/- 0.0091**、frequency MRE 为 **1.7591% +/- 0.0475%**、Maxwell residual 为 **2.7183 +/- 0.2413**，三项均优于同期 data-only `fno_field_v2`。这证明当前监督场任务中 U-Net 是更强的精度基线；它不意味着 U-Net 已成为 Full-Wh 代理，也不意味着它已经接入 inverse。
 
 ## 5.6 `fno_field_v2`：条件频谱本征场模型
 
@@ -779,9 +796,9 @@ $$
 
 ![图 5-6：fno_field_v2 条件频谱本征场网络架构](assets/phc2d_project_full_introduction_20260724/figure_5_6_fno_field.svg)
 
-*图 5-6　`fno_field_v2` 的横向主网络与单个 `OperatorBlock`。四个 block 始终保持 \(H\times W\)，场头直接在网格上输出 6 个实通道；频率头只读取全局池化特征和 context。adapted PINO 复用这张图中的网络主干，差异位于训练目标而非网络拓扑。*
+*图 5-6　`fno_field_v2` 的横向主网络与单个 `OperatorBlock`。四个 block 始终保持 $H\times W$，场头直接在网格上输出 6 个实通道；频率头只读取全局池化特征和 context。adapted PINO 复用这张图中的网络主干，差异位于训练目标而非网络拓扑。*
 
-设 block 输入为 \(X_l\)，当前 `corrected_spectral_modes=true` 时，谱支路分别学习 RFFT 张量第一频轴的正向低频切片和负向低频切片；两侧均最多保留 \(16\times16\) modes。谱支路与局部 `1×1 Conv` 相加后先经 GroupNorm，再由 `(kx,ky,band)` 经过独立线性层产生通道级 FiLM scale/shift，最后计算
+设 block 输入为 $X_l$，当前 `corrected_spectral_modes=true` 时，谱支路分别学习 RFFT 张量第一频轴的正向低频切片和负向低频切片；两侧均最多保留 $16\times16$ modes。谱支路与局部 `1×1 Conv` 相加后先经 GroupNorm，再由 `(kx,ky,band)` 经过独立线性层产生通道级 FiLM scale/shift，最后计算
 
 $$
 X_{l+1}
@@ -897,13 +914,13 @@ $$
 \left(\hat y_{ij}-y_{ij}\right)^2,
 $$
 
-其中 \(D=|W_h|\)（Full-Wh）或 \(D=|\omega(\mathbf k)|\)（Query）。前向 runner 的默认 `loss.name` 为 `mse`，query runner 直接实例化 `torch.nn.MSELoss()`；前向框架也支持 `band_aware` 可选损失，但它**不是**此处 A1 配置所声明的训练目标。对应实现见 [`forward/runner.py`](../../src/phc2d/forward/runner.py) 与 [`query/runner.py`](../../src/phc2d/query/runner.py)。
+其中 $D=|W_h|$（Full-Wh）或 $D=|\omega(\mathbf k)|$（Query）。前向 runner 的默认 `loss.name` 为 `mse`，query runner 直接实例化 `torch.nn.MSELoss()`；前向框架也支持 `band_aware` 可选损失，但它**不是**此处 A1 配置所声明的训练目标。对应实现见 [`forward/runner.py`](../../src/phc2d/forward/runner.py) 与 [`query/runner.py`](../../src/phc2d/query/runner.py)。
 
-训练/选择协议为：AdamW、`weight_decay=1e-5`、batch size 64、最多 200 epochs、checkpoint epochs 为 10/30/50/100/150/200；每个模型在学习率 \(\{10^{-3},3\times10^{-4},10^{-4}\}\) 和 seed \(\{0,1,2\}\) 上训练。学习率由 validation split 的指定指标选择，最终仅在独立 test split 上汇总；报告的 MRE、MAE、RMSE 与排序违例率是评估量，不应倒写成训练损失。A1 前向指标是 `avg_MRE_bands_2_10_pct`，query 指标是 `query_mre_bands_2_10_pct`。
+训练/选择协议为：AdamW、`weight_decay=1e-5`、batch size 64、最多 200 epochs、checkpoint epochs 为 10/30/50/100/150/200；每个模型在学习率 $\{10^{-3},3\times10^{-4},10^{-4}\}$ 和 seed $\{0,1,2\}$ 上训练。学习率由 validation split 的指定指标选择，最终仅在独立 test split 上汇总；报告的 MRE、MAE、RMSE 与排序违例率是评估量，不应倒写成训练损失。A1 前向指标是 `avg_MRE_bands_2_10_pct`，query 指标是 `query_mre_bands_2_10_pct`。
 
 ### 5.9.2 TE 本征场的数据损失与物理损失边界
 
-本征场分支是与 Full-Wh/Query 代理平行的任务：输入为 5 通道周期网格与 3 维 context（归一化的 \(k_x\)、\(k_y\) 与 band 位置），同时预测 6 个实通道表示的 3 个复场分量以及一个归一化频率。数据驱动基线和 adapted PINO 的实现见 [`models/field.py`](../../src/phc2d/models/field.py)、[`field_eigen_v2.py`](../../src/phc2d/forward/field_eigen_v2.py)，相应 B3/B4 配置见 [`field_eigen_te_v2_baseline_9216.yaml`](../../configs/research/field_eigen_te_v2_baseline_9216.yaml) 与 [`field_eigen_te_pino_b4_repair_validation_9216.yaml`](../../configs/research/field_eigen_te_pino_b4_repair_validation_9216.yaml)。
+本征场分支是与 Full-Wh/Query 代理平行的任务：输入为 5 通道周期网格与 3 维 context（归一化的 $k_x$、$k_y$ 与 band 位置），同时预测 6 个实通道表示的 3 个复场分量以及一个归一化频率。数据驱动基线和 adapted PINO 的实现见 [`models/field.py`](../../src/phc2d/models/field.py)、[`field_eigen_v2.py`](../../src/phc2d/forward/field_eigen_v2.py)，相应 B3/B4 配置见 [`field_eigen_te_v2_baseline_9216.yaml`](../../configs/research/field_eigen_te_v2_baseline_9216.yaml) 与 [`field_eigen_te_pino_b4_repair_validation_9216.yaml`](../../configs/research/field_eigen_te_pino_b4_repair_validation_9216.yaml)。
 
 | 模型或训练身份 | 网络身份 | 当前 B3/B4 训练规格 |
 |---|---|---|
@@ -911,7 +928,7 @@ $$
 | `fno_field_v2` | 独立 FNO-style 场网络，详见 5.6 | B3 data-only；与 U-Net 使用相同数据目标和三 seed 测试协议。 |
 | adapted PINO | 复用 5.6 的 `fno_field_v2` 主干，不是另一种网络 | B4 仅为 validation-only repair：`lambda_pde=0.01`，20 epoch warmup + 20 epoch ramp，物理分辨率 64/96/128，频率梯度 `detach`。 |
 
-数据驱动部分不是普通像素 MSE。代码先在复数域按电场内积对齐全局相位，再分别计算电场和磁场的相对 \(L_2\)；其加权平均与频率 z-space MSE 构成
+数据驱动部分不是普通像素 MSE。代码先在复数域按电场内积对齐全局相位，再分别计算电场和磁场的相对 $L_2$；其加权平均与频率 z-space MSE 构成
 
 $$
 \mathcal L_{\mathrm{data}}
@@ -920,7 +937,7 @@ $$
 +0.1\,\operatorname{MSE}(\hat f_z,f_z).
 $$
 
-对 adapted PINO，训练损失再加上激活后的 \(\lambda_{\mathrm{pde}}\mathcal L_{\mathrm{TE\ residual}}\)，必要时还会加 dense-frequency 与 Rayleigh-consistency 项；P4/P5 配置中的 PDE 残差按 64/96/128 分辨率加权平均。该分支当前仍有 residual-frequency calibration 和跨分辨率门控，因此这些物理损失的存在不等价于已获准 field inverse 或 inverse reranking。
+对 adapted PINO，训练损失再加上激活后的 $\lambda_{\mathrm{pde}}\mathcal L_{\mathrm{TE\ residual}}$，必要时还会加 dense-frequency 与 Rayleigh-consistency 项；P4/P5 配置中的 PDE 残差按 64/96/128 分辨率加权平均。该分支当前仍有 residual-frequency calibration 和跨分辨率门控，因此这些物理损失的存在不等价于已获准 field inverse 或 inverse reranking。
 
 ## 5.10 模型覆盖审计：哪些已经实验，哪些仍未完成
 
@@ -936,7 +953,7 @@ $$
 | `deep_onet_query`、`fno2d_query` | 历史 Query 实现/实验 | 不进入当前主表 | 当前主表使用 `*_v2` |
 | `unet_field`、`fno_field` | B1/B2 早期场模型 | 不进入当前 B3 主表 | v1 表示和训练协议已被 v2 替代 |
 | `pod_res_mlp` | 仅注册占位 | 否 | native POD basis/projection 尚未实现，当前 A1 不使用 POD |
-| `conditional_vae_rho` | 历史配置名 | 否，必须按真实实现重命名解释 | 实际执行的是 latent conditional MLP decoder，没有 posterior encoder、\(\mu/\sigma\) 或 KL loss，不是 cVAE |
+| `conditional_vae_rho` | 历史配置名 | 否，必须按真实实现重命名解释 | 实际执行的是 latent conditional MLP decoder，没有 posterior encoder、$\mu/\sigma$ 或 KL loss，不是 cVAE |
 | `conditional_diffusion_grid` | smoke/decision-gate 配置 | 否 | 没有可进入当前结论的正式训练与 real-MPB replay |
 | GLOnet-style pilot | surrogate-objective 训练配方 | 否 | 复用条件生成器，不是已经交付的独立 GLOnet 网络复现 |
 | cINN/flow、MaxwellNet、NeurOLight | 计划或参考模型 | 否 | 当前没有完成与主协议可比的正式实现和结果 |
@@ -950,7 +967,7 @@ $$
 | 图 5-1 | `mlp` / `res_mlp_wide` | 同容量条件下是否存在 identity shortcut |
 | 图 5-2 | `lifted_cnn` | 两层局部卷积、空间尺寸保持与 GAP |
 | 图 5-3 | `fno2d_band_v2` | Full-Wh 主流程和 `BandBlock` 五条计算路径 |
-| 图 5-4 | 三种 Query 模型 | 结构与 \(k\) 在输入、乘积空间或 gate 处融合 |
+| 图 5-4 | 三种 Query 模型 | 结构与 $k$ 在输入、乘积空间或 gate 处融合 |
 | 图 5-5 | `unet_field_v2` | U 形多尺度路径、三条 skip、FiLM 和双输出头 |
 | 图 5-6 | `fno_field_v2` / adapted PINO 主干 | 正负频轴谱卷积、FiLM residual block 和双输出头 |
 
@@ -968,7 +985,7 @@ $$
 
 ![图 6-1：三种可训练 inverse 网络架构](assets/phc2d_project_full_introduction_20260724/figure_6_1_inverse_generators.svg)
 
-*图 6-1　三种已实现 inverse 网络的横向数据流。`direct_inverse_mlp` 只有确定性 MLP；single-mode 与 mixture 共用 condition encoder 和四层 conditional decoder，前者只有一个可学习 mode embedding，后者有四个 mode embedding。两种生成器都通过独立高斯 \(z\) 产生 \(K\) 个连续候选。*
+*图 6-1　三种已实现 inverse 网络的横向数据流。`direct_inverse_mlp` 只有确定性 MLP；single-mode 与 mixture 共用 condition encoder 和四层 conditional decoder，前者只有一个可学习 mode embedding，后者有四个 mode embedding。两种生成器都通过独立高斯 $z$ 产生 $K$ 个连续候选。*
 
 生成过程可表示为：
 
@@ -983,10 +1000,10 @@ $$
 
 其中：
 
-- \(W_h^{*}\) 是目标能带；
-- \(m\) 是离散 mode；
-- \(z\) 是连续 latent noise；
-- \(\hat\rho\) 是候选结构。
+- $W_h^{*}$ 是目标能带；
+- $m$ 是离散 mode；
+- $z$ 是连续 latent noise；
+- $\hat\rho$ 是候选结构。
 
 这里的 `mixture` 表示离散 mode 与轮换式 mode sampling，不表示 mixture-density network。
 
@@ -1007,8 +1024,8 @@ $$
 
 | 方法 | 从目标到候选的机制 | 可训练 | 多候选来源 |
 |---|---|---:|---|
-| train-only retrieval | 按目标 \(W_h\) 在 train split 中检索最近频谱并返回对应结构 | 否 | 取最近的 \(K\) 个训练样本 |
-| `direct_inverse_mlp` | 确定性 MLP：\(W_h\rightarrow\rho\) | 是 | 每目标只有一个有效输出 |
+| train-only retrieval | 按目标 $W_h$ 在 train split 中检索最近频谱并返回对应结构 | 否 | 取最近的 $K$ 个训练样本 |
+| `direct_inverse_mlp` | 确定性 MLP：$W_h\rightarrow\rho$ | 是 | 每目标只有一个有效输出 |
 | single-mode latent generator | 条件编码器 + Gaussian latent MLP decoder，`mode_count=1` | 是 | 不同 latent noise |
 | mixture conditional generator | single-mode 架构再加入离散 mode embedding，`mode_count=4` | 是 | mode 与 latent noise 联合变化 |
 
@@ -1016,15 +1033,15 @@ retrieval 是重要的非参数基线，但不会提出训练库之外的新结�
 
 ## 6.2 Mixture 实际网络结构与当前参数
 
-当前主线的实现类是 [`_MixtureConditionalGenerator`](../../src/phc2d/inverse/runner.py)，训练/采样配置分别见 [`inverse_mixture_generator_v2_10000_pretrain.yaml`](../../configs/research/inverse_mixture_generator_v2_10000_pretrain.yaml) 与 [`inverse_mixture_generator_v2_10000_objective.yaml`](../../configs/research/inverse_mixture_generator_v2_10000_objective.yaml)。其输入条件维度 \(C=|W_h|\) 和候选维度 \(R=|\rho_{\mathrm{wedge}}|\) 来自实际数据；当前宽度、深度与潜变量规格如下。
+当前主线的实现类是 [`_MixtureConditionalGenerator`](../../src/phc2d/inverse/runner.py)，训练/采样配置分别见 [`inverse_mixture_generator_v2_10000_pretrain.yaml`](../../configs/research/inverse_mixture_generator_v2_10000_pretrain.yaml) 与 [`inverse_mixture_generator_v2_10000_objective.yaml`](../../configs/research/inverse_mixture_generator_v2_10000_objective.yaml)。其输入条件维度 $C=|W_h|$ 和候选维度 $R=|\rho_{\mathrm{wedge}}|$ 来自实际数据；当前宽度、深度与潜变量规格如下。
 
 | 组成 | 代码中的运算 | 当前主配置 |
 |---|---|---|
 | 条件编码器 | `Linear(C,256) -> GELU -> Linear(256,256) -> GELU` | `hidden_dim=256` |
 | 离散 mode | `Embedding(mode_count, 256)`，与条件特征处于同一宽度 | `mode_count=4` |
-| 连续 latent | 每个候选独立采样 \(z\sim\mathcal N(0,I)\)，与条件/模式特征拼接 | `latent_dim=32` |
-| 解码器 | 拼接后的 \(256+256+32=544\) 维向量先进入 256 宽 GELU 层，重复 4 次，再经 `Linear(256,R) -> Sigmoid` | `depth=4`，输出范围为 \((0,1)\) |
-| 二值候选 | 神经网络先输出连续 \(\hat\rho\)，后续候选流程按阈值投影 | `threshold=0.5` |
+| 连续 latent | 每个候选独立采样 $z\sim\mathcal N(0,I)$，与条件/模式特征拼接 | `latent_dim=32` |
+| 解码器 | 拼接后的 $256+256+32=544$ 维向量先进入 256 宽 GELU 层，重复 4 次，再经 `Linear(256,R) -> Sigmoid` | `depth=4`，输出范围为 $(0,1)$ |
+| 二值候选 | 神经网络先输出连续 $\hat\rho$，后续候选流程按阈值投影 | `threshold=0.5` |
 
 核心解码操作等价于下列代码骨架：
 
@@ -1034,14 +1051,14 @@ mode = mode_embedding(mode_ids)                  # [B, 256]
 rho_continuous = decoder(cat([encoded, mode, z])) # [B, R], with final Sigmoid
 ```
 
-预训练的 `reconstruct` 路径将 \(z\) 固定为零，并让 batch 内 mode id 循环；候选采样的 `sample` 路径则把同一个目标 \(W_h^*\) 复制 \(K\) 次，为每份条件输入独立的高斯噪声，并按 mode id 循环。因此 mode 与 noise 都会改变候选，不能把该网络简称为确定性 inverse MLP。另一方面，它也不是 cVAE：代码中没有后验 encoder、\(\mu/\sigma\) 参数化、重参数化采样或 KL 散度项。
+预训练的 `reconstruct` 路径将 $z$ 固定为零，并让 batch 内 mode id 循环；候选采样的 `sample` 路径则把同一个目标 $W_h^*$ 复制 $K$ 次，为每份条件输入独立的高斯噪声，并按 mode id 循环。因此 mode 与 noise 都会改变候选，不能把该网络简称为确定性 inverse MLP。另一方面，它也不是 cVAE：代码中没有后验 encoder、$\mu/\sigma$ 参数化、重参数化采样或 KL 散度项。
 
 ## 6.3 训练与采样的运行参数
 
 | 阶段 | 训练时长与优化 | 候选设置 | 物理边界 |
 |---|---|---|---|
 | 结构重建预训练 | 200 epochs；学习率候选 `1e-3 / 3e-4 / 1e-4`；AdamW；`weight_decay=1e-5`；batch size 64 | 只形成 objective-bridge 的 warm start | 明确 `replay.enabled=false`；不调用 MPB/Meep；该阶段本身不再形成可接受的 inverse 结果 |
-| objective-bridge finetune | 50 epochs；固定 LR `1e-4`；AdamW；`weight_decay=1e-5`；batch size 64 | 每目标 \(K=128\)，训练时每条件 16 个候选，排名后 Top-5 | 冻结 surrogate 可微评价；训练阶段不调用 MPB/Meep |
+| objective-bridge finetune | 50 epochs；固定 LR `1e-4`；AdamW；`weight_decay=1e-5`；batch size 64 | 每目标 $K=128$，训练时每条件 16 个候选，排名后 Top-5 | 冻结 surrogate 可微评价；训练阶段不调用 MPB/Meep |
 
 这里的 128 和 Top-5 是该主配置的候选/筛选预算，而不是模型层的固定 shape。真正的 real-MPB replay 只能在候选健康检查和独立 replay 配置满足门槛后启动；它不参与任何一次梯度反传。
 
@@ -1139,7 +1156,7 @@ $$
 
 对于同一目标的 16 个候选，连续 diversity loss 是“目标 Hamming 距离减去平均两两 L1 距离”的 ReLU hinge（目标 0.05）；binary diversity loss 先用温度 0.08、阈值 0.5 的 soft binarization 再做同类 hinge（目标 0.08）。latent response loss 要求组内候选的平均标准差至少达到 0.04；collision loss 以 soft-binary 最近邻 Hamming 距离为核心，并按候选的 surrogate 质量加权，当前目标最近邻距离为 0.05。精确定义与实现位于 [`inverse/objective.py`](../../src/phc2d/inverse/objective.py)。本配置未启用 fill fraction、binarization 或 total-variation 正则项，因此不应把这些框架可选项写入当前损失公式。
 
-每个 objective batch 先对同一 \(W_h^*\) 生成一组随机 noise/mode 候选，再送入冻结代理。当前可接受的 A2 objective-bridge 以 A1 `fno2d_band_v2` 为主可微 objective/ranker，以 A1 `fno2d_query_v2` 计算 cross-surrogate consistency。随后只把上述损失反传到生成器，所有代理参数保持冻结。两个 surrogate 提供的是可微、低成本的近似物理信号，不能替代 MPB 的物理验收。
+每个 objective batch 先对同一 $W_h^*$ 生成一组随机 noise/mode 候选，再送入冻结代理。当前可接受的 A2 objective-bridge 以 A1 `fno2d_band_v2` 为主可微 objective/ranker，以 A1 `fno2d_query_v2` 计算 cross-surrogate consistency。随后只把上述损失反传到生成器，所有代理参数保持冻结。两个 surrogate 提供的是可微、低成本的近似物理信号，不能替代 MPB 的物理验收。
 
 需要特别说明：
 
@@ -1155,7 +1172,7 @@ $$
 \hat F_\phi:\rho\rightarrow \hat W_h,
 $$
 
-从而把生成结构 \(\hat\rho=G_\theta(W_h^*,z,m)\) 再映射回预测频谱，并形成可微闭环：
+从而把生成结构 $\hat\rho=G_\theta(W_h^*,z,m)$ 再映射回预测频谱，并形成可微闭环：
 
 $$
 W_h^*
@@ -1167,17 +1184,17 @@ W_h^*
 \nabla_\theta.
 $$
 
-其中 \(\phi\) 在 inverse 训练时冻结，只有生成器参数 \(\theta\) 更新。因此它更准确的名称是“冻结的正向物理代理”，而不是 inverse 网络内部另一个共同训练的 decoder。
+其中 $\phi$ 在 inverse 训练时冻结，只有生成器参数 $\theta$ 更新。因此它更准确的名称是“冻结的正向物理代理”，而不是 inverse 网络内部另一个共同训练的 decoder。
 
 ### 7.3.1 四种角色不能混为一谈
 
 | 位置 | 当前作用 | 是否反向传播到生成器 | 是否给出最终物理结论 |
 |---|---|---:|---:|
-| reconstruction pretrain | 直接比较 \(\hat\rho\) 与配对 \(\rho\) | 是，但不使用 forward surrogate | 否 |
-| primary differentiable objective | 计算 \(\hat W_h\) 与目标 \(W_h^*\) 的 bands 2–10 误差 | 是 | 否 |
+| reconstruction pretrain | 直接比较 $\hat\rho$ 与配对 $\rho$ | 是，但不使用 forward surrogate | 否 |
+| primary differentiable objective | 计算 $\hat W_h$ 与目标 $W_h^*$ 的 bands 2–10 误差 | 是 | 否 |
 | secondary/cross surrogate | 检查两个代理是否对候选给出一致响应 | 是或作为门禁诊断，取决于协议 | 否 |
 | candidate ranker | 在固定候选池中选出 Top-M | 否，只做推理和排序 | 否 |
-| real-MPB replay | 重新求解候选的真实 \(W_h\) | 否 | 是，限已声明的 replay 协议 |
+| real-MPB replay | 重新求解候选的真实 $W_h$ | 否 | 是，限已声明的 replay 协议 |
 
 ### 7.3.2 当前 Objective-Bridge 使用的确切模型
 
@@ -1185,8 +1202,8 @@ $$
 
 | 角色 | 模型 | 输入 | 协议 |
 |---|---|---|---|
-| 主 objective / 主 ranker | `fno2d_band_v2` seed 0，LR `1e-3` | `epsilon_grid` | 直接输出完整 \(W_h\)，按 bands 2–10 MRE 排序 |
-| 次代理 | `fno2d_query_v2` seed 0，LR `1e-3` | `epsilon_grid + physical k` | 扫描 all-k 后重建完整 \(W_h\)，用于交叉一致性和诊断 |
+| 主 objective / 主 ranker | `fno2d_band_v2` seed 0，LR `1e-3` | `epsilon_grid` | 直接输出完整 $W_h$，按 bands 2–10 MRE 排序 |
+| 次代理 | `fno2d_query_v2` seed 0，LR `1e-3` | `epsilon_grid + physical k` | 扫描 all-k 后重建完整 $W_h$，用于交叉一致性和诊断 |
 | 最终裁判 | real MPB | 二值候选结构 | 不参与训练，仅在 Top-M 上回放 |
 
 对应 checkpoint 路径、SHA-256、warm-start 谱系和角色冻结在 [`a2_inverse_objective_bridge_seed0_v1.yaml`](../../configs/research/a2_inverse_objective_bridge_seed0_v1.yaml) 与 [`a2_inverse_objective_bridge_seed0_test625_v1.yaml`](../../configs/research/a2_inverse_objective_bridge_seed0_test625_v1.yaml)。主表中的 surrogate MRE 来自 `fno2d_band_v2`；`fno2d_query_v2` 只承担 cross-surrogate consistency 与诊断，不是最终物理裁判。
@@ -1195,7 +1212,7 @@ $$
 
 通用 rerank runner 支持 `query`、`forward` 和加权 `hybrid` 三种 strategy。一个 forward component 通过 `model_name`、`input_repr`、checkpoint/run lineage 和权重声明，因此可以在**固定候选池**上替换 `res_mlp`、`fno2d_band`、`fno_lite` 等已训练前向代理，而无需重训生成器。
 
-但要回答“哪个代理更适合训练 inverse”，仅替换候选排序器还不够。代理同时影响 objective 梯度、候选池分布和最终 Top-M；严格实验需要固定 generator 初始化、训练预算、target、\(K\)、Top-M、seed 与 MPB budget，分别用不同冻结代理重新 objective-finetune，再做配对 real-MPB replay。仓库目前完成的是“固定旧候选池上的代理替换诊断”和“objective-bridge 的冻结 FNO 主/次代理协议”，尚未完成所有 A1 代理作为 inverse objective 的全矩阵公平消融。
+但要回答“哪个代理更适合训练 inverse”，仅替换候选排序器还不够。代理同时影响 objective 梯度、候选池分布和最终 Top-M；严格实验需要固定 generator 初始化、训练预算、target、$K$、Top-M、seed 与 MPB budget，分别用不同冻结代理重新 objective-finetune，再做配对 real-MPB replay。仓库目前完成的是“固定旧候选池上的代理替换诊断”和“objective-bridge 的冻结 FNO 主/次代理协议”，尚未完成所有 A1 代理作为 inverse objective 的全矩阵公平消融。
 
 ---
 
@@ -1268,7 +1285,7 @@ $$
 
 # 9. MPB replay 到底验证什么？
 
-对于生成结构 \(\hat\rho\)，真实 MPB replay 计算：
+对于生成结构 $\hat\rho$，真实 MPB replay 计算：
 
 $$
 \hat W_h^{\mathrm{MPB}}
@@ -1337,14 +1354,14 @@ bands 2-10 neural-surrogate test MRE、模型规模和实测运行开销为：
 
 *图 10-2　由冻结 `history.csv` 重建的 A1 学习曲线；独立 A1.1 `mlp` run 已纳入。阴影为三个 seed 的观测范围，不是置信区间。*
 
-10k 数据的 physical-\(k\) path 已通过 5 样本 real-MPB 对齐验证并完成 sidecar promotion。
+10k 数据的 physical-$k$ path 已通过 5 样本 real-MPB 对齐验证并完成 sidecar promotion。
 
 A1 Query 也已完成 `81 validation / 27 selected-LR test / 9 summary`。三个协议的 validation-selected 三 seed test MRE 为：
 
 | 协议 | `mlp_query` MRE / ordering | `deep_onet_query_v2` MRE / ordering | `fno2d_query_v2` MRE / ordering |
 |---|---:|---:|---:|
 | all-k | 2.1800% / **0.83%** | 1.7937% / 1.35% | **1.1004%** / 2.96% |
-| physical-\(k\) interpolation | 2.2079% / 0.42% | 1.6308% / **0.41%** | **1.0470%** / 2.16% |
+| physical-$k$ interpolation | 2.2079% / 0.42% | 1.6308% / **0.41%** | **1.0470%** / 2.16% |
 | physical held-out segment | 4.2548% / 1.00% | 3.7604% / **0.99%** | **3.6747%** / 9.22% |
 
 `fno2d_query_v2` 在三个协议上 MRE 最低，但 held-out segment 的 ordering violation 为 9.22%，高于 `deep_onet_query_v2` 的 0.99% 和 `mlp_query` 的 1.00%。因此它是当前误差最优 Query 代理，不是所有物理排序指标上的绝对赢家。
@@ -1357,7 +1374,7 @@ A1 Query 也已完成 `81 validation / 27 selected-LR test / 9 summary`。三个
 
 第一版 reconstruction-only A2 在训练阶段存在问题，不能代表有效的 inverse 训练结果。本报告撤销该轮四方法数值、统计比较和结果图，不再把它作为历史基线或当前结论。其 reconstruction checkpoint 只保留为 objective-bridge 的 warm start 谱系；warm start 的存在不恢复被撤销结果的证据资格。
 
-修正后的 objective-bridge 固定 seed 0、同一组 100 个 test targets、A1 `fno2d_band_v2` 主 objective/ranker、`fno2d_query_v2` cross-surrogate、\(K=128\)、Top-5 和相同 real-MPB budget。single-mode 与 mixture 均从 warm start 继续训练 50 epochs，LR 为 `1e-4`。当前有效的 100-target 结果为：
+修正后的 objective-bridge 固定 seed 0、同一组 100 个 test targets、A1 `fno2d_band_v2` 主 objective/ranker、`fno2d_query_v2` cross-surrogate、$K=128$、Top-5 和相同 real-MPB budget。single-mode 与 mixture 均从 warm start 继续训练 50 epochs，LR 为 `1e-4`。当前有效的 100-target 结果为：
 
 | 方法 | Real-MPB mean MRE | 95% bootstrap CI | Median | P10 / P90 | Surrogate MRE | Surrogate–replay gap | Effective K / M |
 |---|---:|---|---:|---:|---:|---:|---:|
@@ -1372,7 +1389,7 @@ retrieval 与 direct inverse 没有在修正后的 objective-bridge 下重新训
 
 ## 10.3 A2 Objective-Bridge：完整 test625 real-MPB replay
 
-100-target 调整通过后，仓库冻结相同 seed0 checkpoint、主/次代理、候选规则和 solver protocol，不再训练，直接扩展到完整 pure-test split 的 625 个目标。每目标生成 \(K=128\) 个候选并回放 Top-5；当前主结果为：
+100-target 调整通过后，仓库冻结相同 seed0 checkpoint、主/次代理、候选规则和 solver protocol，不再训练，直接扩展到完整 pure-test split 的 625 个目标。每目标生成 $K=128$ 个候选并回放 Top-5；当前主结果为：
 
 | 方法 | Real-MPB mean MRE | 95% bootstrap CI | Median | P10 / P90 | Surrogate MRE | Surrogate–replay gap | Effective K / M |
 |---|---:|---|---:|---:|---:|---:|---:|
@@ -1494,7 +1511,7 @@ inverse_status = blocked
 | 真实数据来源 | FEM band solver | real MPB band/field solver |
 | 结构输入 | 固定低维像素参数 | `rho_wedge` 与 `epsilon_grid` 多表征 |
 | 前向输出 | 固定 band map | Full-Wh + Query + eigenfield |
-| 波矢处理 | 固定 \(k\)-grid | 显式 physical-\(k\) query |
+| 波矢处理 | 固定 $k$-grid | 显式 physical-$k$ query |
 | 前向模型 | POD-DeepONet | MLP、CNN、DeepONet-style、FNO-inspired |
 | 逆向模型 | 单一监督 inverse | mode + latent 多候选生成器 |
 | 候选数量 | 通常单候选 | 当前每目标 128 候选 |
@@ -1571,7 +1588,7 @@ field-physics result
 - 频率一致性；
 - 场误差；
 - residual-error calibration；
-- unseen-\(k\)；
+- unseen-$k$；
 - 跨分辨率；
 - 固定预算真实求解器收益。
 
@@ -1597,10 +1614,10 @@ field-physics result
 | 优先级 | 下一步任务 | 当前阻碍 | 固定条件与最小门槛 | 完成后必须形成的证据 |
 |---|---|---|---|---|
 | P0 | 重建七 surrogate inverse screen 的中立候选谱系 | 当前 validation100 候选来自已撤销的 reconstruction checkpoint，且三个目标不足 Top-5 | 使用修正后的 generator 谱系；记录 validity、effective-K、Hamming 和每目标 Top-5 coverage；coverage 不足时禁止启动 replay | candidate-health 报告、冻结候选 manifest、blocked/promote 决策 |
-| P0 | 完成不同 A1 primary surrogate 的 objective-train + paired replay 消融 | 固定旧候选池只回答 ranker 替换，不能回答 objective 代理贡献 | 固定 generator warm start、target、seed、\(K\)、Top-M、训练预算和 MPB budget；每个 surrogate 必须重新 finetune | surrogate/replay 分离主表、配对统计、运行时间、谱系和失败分析 |
+| P0 | 完成不同 A1 primary surrogate 的 objective-train + paired replay 消融 | 固定旧候选池只回答 ranker 替换，不能回答 objective 代理贡献 | 固定 generator warm start、target、seed、$K$、Top-M、训练预算和 MPB budget；每个 surrogate 必须重新 finetune | surrogate/replay 分离主表、配对统计、运行时间、谱系和失败分析 |
 | P0 | 完成 single-mode 与 mixture 的跨 seed 稳定性 | 当前 100-target 与 test625 只有 seed0 | seeds 1/2 必须具有独立 reconstruction、objective finetune、采样和 replay 谱系 | 三 seed 聚合、配对置信区间、cross-seed 结论与正式 A2 状态 |
-| P1 | 完成 \(K\)、effective-K、Top-M 和 mode-count 消融 | 当前无法分离候选预算与离散 mode 的贡献 | 相同目标、seed 和总 MPB budget；同时报告采样、排序与 replay 开销 | 预算—精度—多样性曲线和推荐运行点 |
-| P1 | 修复 PINO residual-error calibration 与跨分辨率退化 | P6 residual 与真实频率误差负相关，96/128 zero-shot 未过线 | 先通过 frequency fidelity、dense-\(k\)、64→96/128 和 residual-error calibration；任一失败继续 blocked | candidate selection、跨分辨率指标、准入裁决和失败案例 |
+| P1 | 完成 $K$、effective-K、Top-M 和 mode-count 消融 | 当前无法分离候选预算与离散 mode 的贡献 | 相同目标、seed 和总 MPB budget；同时报告采样、排序与 replay 开销 | 预算—精度—多样性曲线和推荐运行点 |
+| P1 | 修复 PINO residual-error calibration 与跨分辨率退化 | P6 residual 与真实频率误差负相关，96/128 zero-shot 未过线 | 先通过 frequency fidelity、dense-$k$、64→96/128 和 residual-error calibration；任一失败继续 blocked | candidate selection、跨分辨率指标、准入裁决和失败案例 |
 | P2 | 建立 OOD 结构族与目标能带协议 | 当前结果只覆盖 V2 同分布 pure-test targets | 冻结 generator/fill-ratio/morphology/gap 等 OOD 元数据与分层 target；采用 WSL `meep_env` replay | OOD benchmark、分层 replay、域内/域外差距和适用范围 |
 | P2 | 决定是否实现真正的 cVAE、flow/cINN 或 diffusion | 当前生成器已能产生多候选，但架构增益尚未与预算因素分离 | 仅在 P0/P1 的候选与 replay 协议稳定后立项；不得沿用误导性配置名代替实现 | 新架构实现、同预算基线、正式 replay 与模型身份审计 |
 | P3 | 扩展到复杂形态、多材料、制造约束和 PCSEL 相关结构 | 当前数据、表示和 solver protocol 均针对现有 p4m/TE 主线 | 每次扩展先定义数据 schema、结构合法性、solver 配置和 OOD 边界 | 新数据说明、基线、物理验证与适用范围声明 |
@@ -1677,7 +1694,7 @@ Physically verified inverse design
 | 七 surrogate inverse screen（blocked） | `runs/20260731/a2_inverse_surrogate_screen_v1_202607311402`（本地） |
 | 多正向代理 rerank 诊断 | [`../results/inverse/inverse_surrogate_rerank_v2_10000_20260630.md`](../results/inverse/inverse_surrogate_rerank_v2_10000_20260630.md) |
 | P6 seed0 target-residual gate | [`../results/field-physics/field_eigen_te_p6_seed0_target_residual_pilot_20260729.md`](../results/field-physics/field_eigen_te_p6_seed0_target_residual_pilot_20260729.md) |
-| Physical-\(k\) validation | `runs/20260724/k_path_physical_validation_v2_10000_a1_202607240017`（本地） |
+| Physical-$k$ validation | `runs/20260724/k_path_physical_validation_v2_10000_a1_202607240017`（本地） |
 
 说明：
 
