@@ -338,9 +338,13 @@ def test_threshold_diagnostic_runs_only_frozen_graded_winner(tmp_path: Path) -> 
     finalize_evaluation_campaign(campaign, repository_root=tmp_path)
     threshold = plan_threshold_diagnostic(campaign, repository_root=tmp_path)
     plan = list(csv.DictReader((threshold / "threshold_plan.csv").open(encoding="utf-8")))
+    threshold_config = yaml.safe_load((threshold / "config.resolved.yaml").read_text(encoding="utf-8"))
     assert len(plan) == 15
     assert {row["model"] for row in plan} == {"tfno2d_band_v3"}
     assert {float(row["threshold"]) for row in plan} == {0.3, 0.4, 0.5, 0.6, 0.7}
+    assert len(threshold_config["parent_results_sha256"]) == 64
+    assert len(threshold_config["parent_native_summary_sha256"]) == 64
+    assert len(threshold_config["parent_promotion_sha256"]) == 64
     _materialize_threshold_shards(threshold)
     finalize_threshold_diagnostic(threshold, repository_root=tmp_path)
     result = json.loads((threshold / "results.json").read_text(encoding="utf-8"))

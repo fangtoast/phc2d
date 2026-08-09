@@ -165,6 +165,8 @@ def test_50k_threshold_submitter_runs_only_three_winner_seed_shards() -> None:
     assert "PHC2D_AUTHORIZE_UPGRADE_50K_EVAL" in text
     assert "PHC2D_EXPECTED_50K_EVAL_AUTHORIZATION_ID" in text
     assert "threshold_plan.csv" in text and "plan_hash" in text
+    assert "parent native evaluation artifact changed" in text
+    assert "parent_plan_hash" in text
     assert "--array=0-2%3" in text
     assert "--dependency=\"afterok:$shard_job_id\"" in text
     assert text.index('> "$threshold_dir/submission.env"') < text.index('finalizer_job_id="$(sbatch')

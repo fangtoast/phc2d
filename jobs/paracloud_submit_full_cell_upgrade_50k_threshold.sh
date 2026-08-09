@@ -51,6 +51,16 @@ parent = pathlib.Path.cwd() / config["parent_campaign"]
 result = json.loads((parent / "results.json").read_text(encoding="utf-8"))
 if result.get("status") != "formal_upgrade_50k_evaluation_success":
     raise SystemExit("parent native evaluation is not frozen")
+parent_config = yaml.safe_load((parent / "config.resolved.yaml").read_text(encoding="utf-8"))
+if parent_config.get("plan_hash") != config["parent_plan_hash"]:
+    raise SystemExit("parent evaluation plan hash changed")
+for name, key in (
+    ("results.json", "parent_results_sha256"),
+    ("native_test_summary.csv", "parent_native_summary_sha256"),
+    ("promotion_decisions.csv", "parent_promotion_sha256"),
+):
+    if hashlib.sha256((parent / name).read_bytes()).hexdigest() != config[key]:
+        raise SystemExit(f"parent native evaluation artifact changed: {name}")
 PY
 
 mkdir -p "$threshold_dir/slurm"
