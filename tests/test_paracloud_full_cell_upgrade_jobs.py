@@ -19,6 +19,8 @@ TEST_SUBMITTER = ROOT / "jobs" / "paracloud_submit_full_cell_upgrade_test.sh"
 TEST_WORKER = ROOT / "jobs" / "paracloud_full_cell_upgrade_test.sh"
 FIFTY_K_SUBMITTER = ROOT / "jobs" / "paracloud_submit_full_cell_upgrade_50k.sh"
 FIFTY_K_WORKER = ROOT / "jobs" / "paracloud_full_cell_upgrade_50k_train.sh"
+FIFTY_K_EVAL_SUBMITTER = ROOT / "jobs" / "paracloud_submit_full_cell_upgrade_50k_eval.sh"
+FIFTY_K_EVAL_WORKER = ROOT / "jobs" / "paracloud_full_cell_upgrade_50k_eval.sh"
 
 
 def test_upgrade_10k_configs_freeze_models_data_and_balanced_lane_batch() -> None:
@@ -132,3 +134,23 @@ def test_50k_worker_requires_gate_snapshot_and_checkpoint_alias() -> None:
     assert "epoch100.pt" in text
     assert "model_summary.json" in text
     assert 'ln "$run_dir/model.pt" "$run_dir/checkpoint.pt"' in text
+
+
+def test_50k_evaluation_submitter_is_hash_and_authorization_gated() -> None:
+    text = FIFTY_K_EVAL_SUBMITTER.read_text(encoding="utf-8")
+    assert "PHC2D_AUTHORIZE_UPGRADE_50K_EVAL" in text
+    assert "PHC2D_EXPECTED_50K_EVAL_AUTHORIZATION_ID" in text
+    assert "DEPLOYED_GIT_COMMIT" in text
+    assert "evaluation_plan.csv" in text and "plan_hash" in text
+    assert "dataset hash mismatch" in text
+    assert "--array=0-7%8" in text
+    assert "--dependency=\"afterok:$shard_job_id\"" in text
+    assert "--gres=gpu:1" in text and "-c 6" in text
+
+
+def test_50k_evaluation_worker_profiles_gpu_and_runs_one_shard() -> None:
+    text = FIFTY_K_EVAL_WORKER.read_text(encoding="utf-8")
+    assert "SLURM_ARRAY_TASK_ID" in text
+    assert "nvidia-smi" in text
+    assert "n40_profile.json" in text
+    assert "full_cell_upgrade_50k_evaluation run-shard" in text

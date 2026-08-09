@@ -342,6 +342,15 @@ GPU 利用率按以下规则记录：
 - `train_time_s`、`eval_time_s`、`inference_time_per_sample_ms`、throughput；
 - 10,000 次 paired sample bootstrap 的差值、95% CI 和方向。
 
+在任何升级模型 50k test 被读取前，比较 checkpoint 冻结为：
+
+- 升级模型使用 `50K-W1-W4` 各任务的单一 `best-validation` checkpoint；epoch 100 快照只用于继续训练门记录，不作为第二个独立结果；
+- 四个直接旧基线统一使用既有 50k campaign 中 `source_group=current40k`、`epoch_budget=200`、`training_resolution=64` 的 `best-validation` checkpoint，每模型、lane、seed 各一项，共 24 项；
+- “相对当前最佳 FNO”同样使用上述 `fno2d_band_v2 / current40k / epoch_budget=200` checkpoint，不在读取 test 后从 20/100/200 epoch 预算中择优；
+- 第 2.2 节的 FNO 100 epoch 数字继续作为历史锚点汇报，但不参与本轮 promotion 的 paired comparator 选择。
+
+冻结评估清单必须包含 27 个升级 checkpoint、24 个旧基线 checkpoint 和 checkpoint SHA-256。原生、cross-lane 与 32/128 输入分辨率合计 126 个可执行 evaluation cells；另保留 18 个 `not_applicable` cells（ResMLP 的 32/128 固定展平形状 12 项、联合模型无单源 cross-lane 方向 6 项），不得删除或按零误差汇总。
+
 ### 8.2 诊断评估
 
 | 诊断 | 范围 | 证据身份 |
