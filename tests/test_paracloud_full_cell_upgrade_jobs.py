@@ -167,6 +167,7 @@ def test_50k_threshold_submitter_runs_only_three_winner_seed_shards() -> None:
     assert "threshold_plan.csv" in text and "plan_hash" in text
     assert "parent native evaluation artifact changed" in text
     assert "parent_plan_hash" in text
+    assert "threshold dataset hash mismatch for graded lane" in text
     assert "--array=0-2%3" in text
     assert "--dependency=\"afterok:$shard_job_id\"" in text
     assert text.index('> "$threshold_dir/submission.env"') < text.index('finalizer_job_id="$(sbatch')

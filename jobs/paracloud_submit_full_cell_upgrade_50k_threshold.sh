@@ -61,6 +61,14 @@ for name, key in (
 ):
     if hashlib.sha256((parent / name).read_bytes()).hexdigest() != config[key]:
         raise SystemExit(f"parent native evaluation artifact changed: {name}")
+dataset_contract = config["datasets"]["G"]
+dataset = pathlib.Path.cwd() / dataset_contract["path"]
+digest = hashlib.sha256()
+with dataset.open("rb") as handle:
+    for block in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+        digest.update(block)
+if digest.hexdigest() != dataset_contract["sha256"]:
+    raise SystemExit("threshold dataset hash mismatch for graded lane")
 PY
 
 mkdir -p "$threshold_dir/slurm"
