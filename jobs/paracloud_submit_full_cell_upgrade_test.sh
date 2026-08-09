@@ -9,8 +9,13 @@ set -euo pipefail
 mode="${1:-}"
 input="${2:-}"
 authorization_id="${3:-}"
+test_wave="${4:-}"
 if [[ "$mode" != "dry-run" && "$mode" != "submit" ]]; then
-  echo "usage: $0 dry-run HEAD_LOCK AUTHORIZATION_ID | submit DRY_RUN_CAMPAIGN AUTHORIZATION_ID" >&2
+  echo "usage: $0 dry-run HEAD_LOCK AUTHORIZATION_ID | submit DRY_RUN_CAMPAIGN AUTHORIZATION_ID T1..T7" >&2
+  exit 2
+fi
+if [[ "$mode" == "submit" && ! "$test_wave" =~ ^T[1-7]$ ]]; then
+  echo "test submit requires wave T1..T7" >&2
   exit 2
 fi
 if [[ -z "$input" || -z "$authorization_id" ]]; then
@@ -75,15 +80,39 @@ test "$(sha256sum "$manifest" | awk '{print $1}')" = "$manifest_sha256"
 test "$(sha256sum "$head_selection_lock" | awk '{print $1}')" = "$head_selection_lock_sha256"
 test "$(($(wc -l < "$manifest") - 1))" = "51"
 
+case "$test_wave" in
+  T1) array_start=0; array_end=7; previous_end=-1 ;;
+  T2) array_start=8; array_end=15; previous_end=7 ;;
+  T3) array_start=16; array_end=23; previous_end=15 ;;
+  T4) array_start=24; array_end=31; previous_end=23 ;;
+  T5) array_start=32; array_end=39; previous_end=31 ;;
+  T6) array_start=40; array_end=47; previous_end=39 ;;
+  T7) array_start=48; array_end=50; previous_end=47 ;;
+esac
+if grep -q "^test_wave_${test_wave}_job_id=" "$campaign_dir/submission.env"; then
+  echo "test wave $test_wave was already submitted" >&2
+  exit 5
+fi
+if (( previous_end >= 0 )); then
+  for task_index in $(seq 0 "$previous_end"); do
+    row="$(sed -n "$((task_index + 2))p" "$manifest")"
+    result_dir="$(printf '%s' "$row" | cut -d, -f11)"
+    test -f "$result_dir/results.json" || { echo "previous test task $task_index missing results.json" >&2; exit 5; }
+    test -f "$result_dir/n40_profile.json" || { echo "previous test task $task_index missing N40 profile" >&2; exit 5; }
+    python3 -c 'import json,sys; assert json.load(open(sys.argv[1]))["status"] == "frozen_checkpoint_test_success"' "$result_dir/results.json"
+  done
+fi
+
 job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t 02:00:00 \
-  --array="0-50%8" -J fcup_10k_test \
+  --array="${array_start}-${array_end}%8" -J "fcup_${test_wave}" \
   -o "$campaign_dir/slurm_%A_%a.out" -e "$campaign_dir/slurm_%A_%a.err" \
   --export="ALL,PHC2D_UPGRADE_TEST_MANIFEST=$manifest" \
   jobs/paracloud_full_cell_upgrade_test.sh)"
 {
   echo "submitted_authorization_id=$submit_authorization_id"
-  echo "array_job_id=$job_id"
-  echo "submitted_at=$(date -Is)"
+  echo "test_wave_${test_wave}_job_id=$job_id"
+  echo "test_wave_${test_wave}_range=${array_start}-${array_end}"
+  echo "test_wave_${test_wave}_submitted_at=$(date -Is)"
 } >> "$campaign_dir/submission.env"
 echo "$campaign_dir" > runs/full_cell_upgrade_active_test.txt
 echo "$campaign_dir"

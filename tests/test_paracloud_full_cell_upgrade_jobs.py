@@ -89,10 +89,12 @@ def test_frozen_test_submitter_uses_51_single_gpu_tasks_and_fail_closed_gates() 
     assert "PHC2D_AUTHORIZE_UPGRADE_TEST" in text
     assert "PHC2D_EXPECTED_TEST_AUTHORIZATION_ID" in text
     assert 'test "$(sha256sum "$manifest"' in text
-    assert '--array="0-50%8"' in text
+    assert '--array="${array_start}-${array_end}%8"' in text
     assert "--gres=gpu:1" in text
     assert "-c 6" in text
     assert "full_cell_upgrade_test plan" in text
+    assert "previous test task $task_index missing results.json" in text
+    assert "test wave $test_wave was already submitted" in text
 
 
 def test_frozen_test_worker_profiles_gpu_and_runs_only_manifest_task() -> None:
