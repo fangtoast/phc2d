@@ -148,6 +148,8 @@ def test_50k_evaluation_submitter_is_hash_and_authorization_gated() -> None:
     assert "--array=0-7%8" in text
     assert "--dependency=\"afterok:$shard_job_id\"" in text
     assert "--gres=gpu:1" in text and "-c 6" in text
+    assert text.index('> "$campaign_dir/submission.env"') < text.index('finalizer_job_id="$(sbatch')
+    assert text.index('>> "$campaign_dir/submission.env"') > text.index('finalizer_job_id="$(sbatch')
 
 
 def test_50k_evaluation_worker_profiles_gpu_and_runs_one_shard() -> None:
@@ -165,6 +167,8 @@ def test_50k_threshold_submitter_runs_only_three_winner_seed_shards() -> None:
     assert "threshold_plan.csv" in text and "plan_hash" in text
     assert "--array=0-2%3" in text
     assert "--dependency=\"afterok:$shard_job_id\"" in text
+    assert text.index('> "$threshold_dir/submission.env"') < text.index('finalizer_job_id="$(sbatch')
+    assert text.index('>> "$threshold_dir/submission.env"') > text.index('finalizer_job_id="$(sbatch')
 
 
 def test_50k_threshold_worker_profiles_gpu_and_runs_threshold_shard() -> None:

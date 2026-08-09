@@ -59,16 +59,19 @@ shard_job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t 02:00:00 \
   -o "$threshold_dir/slurm/shard_%A_%a.out" -e "$threshold_dir/slurm/shard_%A_%a.err" \
   --export="ALL,PHC2D_UPGRADE_50K_THRESHOLD_DIR=$threshold_dir" \
   jobs/paracloud_full_cell_upgrade_50k_threshold.sh)"
+{
+  echo "authorization_id=$authorization_id"
+  echo "deployed_git_commit=$actual_commit"
+  echo "shard_job_id=$shard_job_id"
+  echo "submitted_at=$(date -Is)"
+} > "$threshold_dir/submission.env"
 finalizer_job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t 01:00:00 \
   --dependency="afterok:$shard_job_id" -J fcup50_threshold_finalize \
   -o "$threshold_dir/slurm/finalizer_%j.out" -e "$threshold_dir/slurm/finalizer_%j.err" \
   --export="ALL,PHC2D_UPGRADE_50K_THRESHOLD_DIR=$threshold_dir" \
   jobs/paracloud_full_cell_upgrade_50k_threshold_finalize.sh)"
 {
-  echo "authorization_id=$authorization_id"
-  echo "deployed_git_commit=$actual_commit"
-  echo "shard_job_id=$shard_job_id"
   echo "finalizer_job_id=$finalizer_job_id"
-  echo "submitted_at=$(date -Is)"
-} > "$threshold_dir/submission.env"
+  echo "finalizer_submitted_at=$(date -Is)"
+} >> "$threshold_dir/submission.env"
 printf 'shard_job_id=%s\nfinalizer_job_id=%s\n' "$shard_job_id" "$finalizer_job_id"
