@@ -15,6 +15,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 SUBMITTER = ROOT / "jobs" / "paracloud_submit_full_cell_upgrade_wave.sh"
+TEST_SUBMITTER = ROOT / "jobs" / "paracloud_submit_full_cell_upgrade_test.sh"
+TEST_WORKER = ROOT / "jobs" / "paracloud_full_cell_upgrade_test.sh"
 
 
 def test_upgrade_10k_configs_freeze_models_data_and_balanced_lane_batch() -> None:
@@ -79,3 +81,24 @@ def test_submitter_is_dry_run_by_default_and_requires_explicit_authorization() -
     assert 'PHC2D_EXPECTED_COMMIT' in text
     assert '--array="0-${array_max}%8"' in text
     assert "sbatch" not in text.split('if [[ "$mode" == "dry-run" ]]', maxsplit=1)[0]
+
+
+def test_frozen_test_submitter_uses_51_single_gpu_tasks_and_fail_closed_gates() -> None:
+    text = TEST_SUBMITTER.read_text(encoding="utf-8")
+    assert 'mode="${1:-}"' in text
+    assert "PHC2D_AUTHORIZE_UPGRADE_TEST" in text
+    assert "PHC2D_EXPECTED_TEST_AUTHORIZATION_ID" in text
+    assert 'test "$(sha256sum "$manifest"' in text
+    assert '--array="0-50%8"' in text
+    assert "--gres=gpu:1" in text
+    assert "-c 6" in text
+    assert "full_cell_upgrade_test plan" in text
+
+
+def test_frozen_test_worker_profiles_gpu_and_runs_only_manifest_task() -> None:
+    text = TEST_WORKER.read_text(encoding="utf-8")
+    assert "SLURM_ARRAY_TASK_ID" in text
+    assert "nvidia-smi" in text
+    assert "sample_interval_s\": 10" in text
+    assert "full_cell_upgrade_test run-task" in text
+    assert "PHC2D_UPGRADE_TEST_MANIFEST" in text
