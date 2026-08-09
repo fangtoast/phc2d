@@ -1095,9 +1095,16 @@ def finalize_evaluation_campaign(
         int(native_lookup[("upgrade50k", best_independent[lane], lane)]["parameter_count"])
         for lane in ("B", "G")
     )
+    joint_checkpoint_bytes = float(joint_native["B"]["checkpoint_bytes_mean"])
+    independent_checkpoint_bytes = sum(
+        float(native_lookup[("upgrade50k", best_independent[lane], lane)]["checkpoint_bytes_mean"])
+        for lane in ("B", "G")
+    )
+    checkpoint_storage_fraction = joint_checkpoint_bytes / independent_checkpoint_bytes
     joint_replace = (
         all(value <= 0.03 for value in joint_degradation.values())
         and joint_params <= 0.60 * independent_params
+        and checkpoint_storage_fraction <= 0.60
         and all(value <= 0.05 for value in joint_worst_regression.values())
     )
     promotion.append(
@@ -1107,6 +1114,9 @@ def finalize_evaluation_campaign(
             "parameter_count": joint_params,
             "independent_parameter_count_sum": independent_params,
             "parameter_fraction": joint_params / independent_params,
+            "joint_checkpoint_bytes_mean": joint_checkpoint_bytes,
+            "independent_checkpoint_bytes_mean_sum": independent_checkpoint_bytes,
+            "checkpoint_storage_fraction": checkpoint_storage_fraction,
             "best_binary_independent": best_independent["B"],
             "best_graded_independent": best_independent["G"],
             "binary_relative_degradation": joint_degradation["B"],

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -119,7 +120,12 @@ def _value(row: dict[str, object]) -> float:
     return 1.2
 
 
-def _materialize_single_shard(campaign: Path, cells: list[dict[str, object]]) -> None:
+def _materialize_single_shard(
+    campaign: Path,
+    cells: list[dict[str, object]],
+    *,
+    value_fn: Callable[[dict[str, object]], float] = _value,
+) -> None:
     shard = campaign / "shards" / "shard_00"
     shard.mkdir(parents=True)
     completed = []
@@ -128,7 +134,7 @@ def _materialize_single_shard(campaign: Path, cells: list[dict[str, object]]) ->
     indices = []
     samples = []
     for row in cells:
-        value = _value(row)
+        value = value_fn(row)
         completed.append(
             {
                 **row,
@@ -214,6 +220,41 @@ def test_finalizer_applies_promotion_and_evidence_boundaries(tmp_path: Path) -> 
     assert results["resolution_evidence_role"].startswith("zero_shot_input_resolution")
     assert len(list(csv.DictReader((campaign / "native_test_summary.csv").open(encoding="utf-8")))) == 18
     assert len(list(csv.DictReader((campaign / "paired_bootstrap_comparisons.csv").open(encoding="utf-8")))) == 20
+
+
+def test_joint_replacement_rejects_checkpoint_storage_over_budget(tmp_path: Path) -> None:
+    campaign = tmp_path / "campaign"
+    campaign.mkdir()
+    sources = _sources()
+    for source in sources:
+        if source["source_group"] == "upgrade50k" and source["model"] == "dual_lane_band_operator_v1":
+            source["checkpoint_bytes"] = 200
+    all_cells = build_evaluation_cells(sources, shard_count=1)
+    planned = [row for row in all_cells if row["planned_status"] == "planned"]
+    _write_csv(campaign / "evaluation_plan.csv", all_cells)
+    (campaign / "config.resolved.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "shard_count": 1,
+                "bootstrap_replicates": 100,
+                "plan_hash": "test-plan",
+                "datasets": {"G": {"path": "graded.h5"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_csv(campaign / "checkpoint_inventory.csv", sources)
+
+    def equal_native_value(row: dict[str, object]) -> float:
+        return 1.0 if str(row["contract"]).startswith("native") else 1.2
+
+    _materialize_single_shard(campaign, planned, value_fn=equal_native_value)
+    finalize_evaluation_campaign(campaign, repository_root=tmp_path)
+    decisions = list(csv.DictReader((campaign / "promotion_decisions.csv").open(encoding="utf-8")))
+    joint = next(row for row in decisions if row["model"] == "dual_lane_band_operator_v1")
+    assert joint["status"] == "joint_replacement_not_met"
+    assert float(joint["parameter_fraction"]) == 0.6
+    assert float(joint["checkpoint_storage_fraction"]) == 1.0
 
 
 def _materialize_threshold_shards(threshold: Path) -> None:
