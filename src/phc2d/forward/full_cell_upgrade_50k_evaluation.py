@@ -804,6 +804,42 @@ def _plot_summaries(
     )
 
 
+def _native_per_band_summary(
+    band_rows: Sequence[Mapping[str, Any]],
+    completed: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    cells = {str(row["evaluation_id"]): row for row in completed}
+    grouped: dict[tuple[str, str, str, int], list[float]] = defaultdict(list)
+    for row in band_rows:
+        cell = cells[str(row["evaluation_id"])]
+        if cell["source_group"] != "upgrade50k" or not str(cell["contract"]).startswith("native"):
+            continue
+        key = (
+            str(cell["model"]),
+            str(cell["head"]),
+            str(cell["target_lane"]),
+            int(row["band_one_based"]),
+        )
+        grouped[key].append(float(row["mre_pct"]))
+    output: list[dict[str, Any]] = []
+    for key, values in sorted(grouped.items()):
+        if len(values) != 3:
+            raise RuntimeError(f"native per-band group lacks three seeds: {key}")
+        output.append(
+            {
+                "model": key[0],
+                "head": key[1],
+                "lane": key[2],
+                "band_one_based": key[3],
+                "mean_mre_pct": statistics.fmean(values),
+                "std_mre_pct": statistics.stdev(values),
+            }
+        )
+    if len(output) != 100:
+        raise RuntimeError(f"native upgrade per-band summary must contain 100 rows, got {len(output)}")
+    return output
+
+
 def finalize_evaluation_campaign(
     campaign_dir: str | Path,
     *,
@@ -868,6 +904,7 @@ def finalize_evaluation_campaign(
         raise RuntimeError("evaluation shards do not exactly cover the frozen plan")
     _write_csv(campaign / "evaluation_cells.csv", completed)
     _write_csv(campaign / "per_band_metrics.csv", band_rows)
+    _write_csv(campaign / "native_per_band_summary.csv", _native_per_band_summary(band_rows, completed))
     _write_csv(campaign / "not_applicable_cells.csv", not_applicable)
     native_rows = [row for row in completed if row["contract"].startswith("native")]
     cross_rows = [row for row in completed if row["contract"].startswith("cross_lane")]
@@ -1422,7 +1459,217 @@ def finalize_threshold_diagnostic(
     parent_result["threshold_winner_model"] = config["winner_model"]
     parent_result["next_gate"] = "final_report_and_human_understanding_record"
     _write_json(parent / "results.json", parent_result)
+    render_final_markdown_report(parent, threshold_dir=threshold, repository_root=root)
     return threshold
+
+
+def _markdown_table(headers: Sequence[str], rows: Sequence[Sequence[Any]]) -> str:
+    def clean(value: Any) -> str:
+        return str(value).replace("|", "\\|").replace("\n", " ")
+
+    lines = ["| " + " | ".join(clean(value) for value in headers) + " |"]
+    lines.append("| " + " | ".join("---" for _ in headers) + " |")
+    lines.extend("| " + " | ".join(clean(value) for value in row) + " |" for row in rows)
+    return "\n".join(lines)
+
+
+def _percent(value: Any, digits: int = 4) -> str:
+    return f"{float(value):.{digits}f}%"
+
+
+def _relative_percent(value: Any, digits: int = 2) -> str:
+    return f"{100.0 * float(value):+.{digits}f}%"
+
+
+def render_final_markdown_report(
+    campaign_dir: str | Path,
+    *,
+    threshold_dir: str | Path,
+    repository_root: str | Path = ".",
+) -> Path:
+    """Render the machine-audited experiment tables into a Chinese Draft report."""
+
+    root = Path(repository_root).resolve()
+    campaign = _resolve(root, campaign_dir)
+    threshold = _resolve(root, threshold_dir)
+    results = _read_json(campaign / "results.json")
+    native = [row for row in _read_csv(campaign / "native_test_summary.csv") if row["source_group"] == "upgrade50k"]
+    comparisons = _read_csv(campaign / "paired_bootstrap_comparisons.csv")
+    promotion = _read_csv(campaign / "promotion_decisions.csv")
+    cross = _read_csv(campaign / "cross_lane_summary.csv")
+    resolution = _read_csv(campaign / "resolution_transfer_summary.csv")
+    per_band = _read_csv(campaign / "native_per_band_summary.csv")
+    threshold_summary = _read_csv(threshold / "threshold_summary.csv")
+    direct = {
+        (row["model"], row["lane"]): row
+        for row in comparisons
+        if row["comparison"] == "direct_baseline"
+    }
+    fno = {
+        (row["model"], row["lane"]): row
+        for row in comparisons
+        if row["comparison"] == "current_best_fno_e200"
+    }
+    decisions = {row["model"]: row["status"] for row in promotion}
+
+    native_rows = []
+    for row in sorted(native, key=lambda item: (item["model"], item["target_lane"])):
+        key = (row["model"], row["target_lane"])
+        direct_row = direct.get(key)
+        fno_row = fno[key]
+        native_rows.append(
+            (
+                row["model"],
+                row["target_lane"],
+                _percent(row["seed_0"]),
+                _percent(row["seed_1"]),
+                _percent(row["seed_2"]),
+                f"{_percent(row['mean_mre_pct'])} ± {_percent(row['std_mre_pct'])}",
+                _relative_percent(direct_row["relative_improvement"]) if direct_row else "joint model",
+                (
+                    f"[{float(direct_row['ci95_low']):+.4f}, {float(direct_row['ci95_high']):+.4f}]"
+                    if direct_row else "see joint comparison"
+                ),
+                _relative_percent(fno_row["relative_improvement"]),
+                decisions[row["model"]],
+            )
+        )
+
+    cross_rows = [
+        (
+            row["model"],
+            f"{row['source_lane']}→{row['target_lane']}",
+            _percent(row["seed_0"]),
+            _percent(row["seed_1"]),
+            _percent(row["seed_2"]),
+            f"{_percent(row['mean_mre_pct'])} ± {_percent(row['std_mre_pct'])}",
+        )
+        for row in sorted(cross, key=lambda item: (item["model"], item["source_lane"]))
+    ]
+    resolution_rows = [
+        (
+            row["model"],
+            row["target_lane"],
+            row["evaluation_resolution"],
+            _percent(row["mean_mre_pct"]),
+            _percent(row["std_mre_pct"]),
+        )
+        for row in sorted(
+            resolution,
+            key=lambda item: (item["model"], item["target_lane"], int(item["evaluation_resolution"])),
+        )
+    ]
+    band_groups: dict[tuple[str, str], dict[int, str]] = defaultdict(dict)
+    for row in per_band:
+        band_groups[(row["model"], row["lane"])][int(row["band_one_based"])] = _percent(row["mean_mre_pct"])
+    band_rows = [
+        (model, lane, *(values[index] for index in range(1, 11)))
+        for (model, lane), values in sorted(band_groups.items())
+    ]
+    resource_rows = [
+        (
+            row["model"],
+            row["target_lane"],
+            f"{int(row['parameter_count']):,}",
+            f"{float(row['checkpoint_bytes_mean']) / (1024**2):.2f}",
+            f"{float(row['evaluation_peak_gpu_memory_mb_max']):.1f}",
+            f"{float(row['eval_time_s_mean']):.2f}",
+            f"{float(row['inference_time_per_sample_ms_mean']):.4f}",
+            f"{float(row['throughput_samples_per_s_mean']):.2f}",
+        )
+        for row in sorted(native, key=lambda item: (item["model"], item["target_lane"]))
+    ]
+    threshold_rows = [
+        (
+            row["model"],
+            row["threshold"],
+            _percent(row["seed_0"]),
+            _percent(row["seed_1"]),
+            _percent(row["seed_2"]),
+            f"{_percent(row['mean_mre_pct'])} ± {_percent(row['std_mre_pct'])}",
+        )
+        for row in sorted(threshold_summary, key=lambda item: float(item["threshold"]))
+    ]
+    promoted = results.get("promoted_over_direct_baseline") or []
+    overall = results.get("overall_better_than_current_fno_models") or []
+    conclusion = (
+        f"直接基线 promotion 通过模型：{', '.join(promoted) if promoted else '无'}；"
+        f"同时在 binary/graded 两条 native lane 满足当前 FNO 总体胜出门的模型："
+        f"{', '.join(overall) if overall else '无'}。"
+    )
+    content = f"""<!--
+  Draft machine-rendered report for the Full-Wh upgrade 50k experiment.
+  Author: fangtoast
+  Email: fangtoast@foxmail.com
+  Copyright (c) 2026 fangtoast. All rights reserved.
+-->
+
+<a id="full-cell-upgrade-50k-report"></a>
+
+# Full-Cell 升级模型 50K 正式训练与验证报告
+
+> **Status:** Draft machine-audited experimental report<br>
+> **Primary layer:** L3 experiment/evidence<br>
+> **Evidence campaign:** `{_relative(root, campaign)}`<br>
+> **Threshold campaign:** `{_relative(root, threshold)}`
+
+## 一、结论
+
+{conclusion}
+
+本结论只基于冻结 40k/5k/5k split 的 held-out surrogate test。cross-lane 是 domain-shift 诊断，32/128 是零样本输入分辨率诊断，threshold 是 representation proxy；三者均不替代 native 结果，也不构成 real-MPB 或 inverse replay 结论。
+
+## 二、Native held-out test 主结果
+
+{_markdown_table(('模型', 'Lane', 'Seed 0', 'Seed 1', 'Seed 2', 'Mean ± std', '相对直接基线', '直接基线 paired CI', '相对 FNO-e200', 'Promotion'), native_rows)}
+
+## 三、逐 Band 结果
+
+{_markdown_table(('模型', 'Lane', 'Band 1', 'Band 2', 'Band 3', 'Band 4', 'Band 5', 'Band 6', 'Band 7', 'Band 8', 'Band 9', 'Band 10'), band_rows)}
+
+## 四、Cross-lane 诊断
+
+{_markdown_table(('模型', '方向', 'Seed 0', 'Seed 1', 'Seed 2', 'Mean ± std'), cross_rows)}
+
+联合模型因同时在两条 lane 上训练，没有单源 cross-lane 方向，对应 6 项保留为 `not_applicable_joint_trained_both_lanes`。
+
+## 五、32/128 零样本输入分辨率诊断
+
+{_markdown_table(('模型', 'Lane', '输入分辨率', 'Mean MRE', 'Std'), resolution_rows)}
+
+ResMLP 固定展平输入的 12 项记录为 `not_applicable_fixed_flatten_shape`，不按失败或零误差汇总。
+
+## 六、冻结 graded 胜者 Threshold Proxy
+
+{_markdown_table(('冻结胜者', 'Threshold', 'Seed 0', 'Seed 1', 'Seed 2', 'Mean ± std'), threshold_rows)}
+
+该表在 native graded 胜者冻结后生成，不影响 promotion；threshold 结构不被视为与真实二值结构物理等价。
+
+## 七、参数与推理资源
+
+{_markdown_table(('模型', 'Lane', '参数量', 'Checkpoint MiB', '评估峰值显存 MiB', 'Eval time s', 'ms/sample', 'samples/s'), resource_rows)}
+
+## 八、证据与复核入口
+
+- `native_test_summary.csv`：native 三 seed 汇总。
+- `paired_bootstrap_comparisons.csv`：10,000 次 paired sample bootstrap。
+- `promotion_decisions.csv`：预注册 promotion 门。
+- `native_per_band_summary.csv`：bands 1–10 结果。
+- `cross_lane_summary.csv`：跨路线诊断。
+- `resolution_transfer_summary.csv`：32/128 零样本输入诊断。
+- `threshold_diagnostic/threshold_summary.csv`：冻结胜者 threshold proxy。
+- `resource_summary.csv` 与各 shard `n40_profile.json`：资源证据。
+
+## 九、人工理解记录
+
+- 本报告解决的问题：以冻结 checkpoint 和 held-out test 汇总五个升级模型的主结果、对比、负结果及诊断边界。
+- 关键规则：validation 决定 checkpoint；test 只用于冻结后的统计和 promotion；不从 20/100/200 基线预算中事后择优。
+- 未解决的问题：本 campaign 不授予 `physically_verified`，也不自动授权 inverse surrogate 替换。
+- 最近下一 gate：人工核对源制品、数值引用和 promotion 标签后，将 Draft 同步至项目结果报告。
+"""
+    report = campaign / "report.md"
+    report.write_text(content, encoding="utf-8")
+    return report
 
 
 def main(argv: Sequence[str] | None = None) -> None:

@@ -139,7 +139,10 @@ def _materialize_single_shard(campaign: Path, cells: list[dict[str, object]]) ->
                 "parameter_count": 3_000_000 if row["model"] == "dual_lane_band_operator_v1" else 2_500_000,
             }
         )
-        band_rows.append({"evaluation_id": row["evaluation_id"], "band_one_based": 1, "mre_pct": value})
+        band_rows.extend(
+            {"evaluation_id": row["evaluation_id"], "band_one_based": band, "mre_pct": value}
+            for band in range(1, 11)
+        )
         ids.append(row["evaluation_id"])
         indices.append(np.arange(4, dtype=np.int64))
         samples.append(np.full(4, value, dtype=np.float64))
@@ -295,3 +298,9 @@ def test_threshold_diagnostic_runs_only_frozen_graded_winner(tmp_path: Path) -> 
     result = json.loads((threshold / "results.json").read_text(encoding="utf-8"))
     assert result["status"] == "formal_threshold_representation_proxy_success"
     assert result["evidence_role"] == "representation_proxy_not_physical_equivalence"
+    report = (campaign / "report.md").read_text(encoding="utf-8")
+    assert "Native held-out test 主结果" in report
+    assert "逐 Band 结果" in report
+    assert "Cross-lane 诊断" in report
+    assert "32/128 零样本输入分辨率诊断" in report
+    assert "Threshold Proxy" in report
