@@ -95,6 +95,7 @@ def test_frozen_test_submitter_uses_51_single_gpu_tasks_and_fail_closed_gates() 
     assert "full_cell_upgrade_test plan" in text
     assert "previous test task $task_index missing results.json" in text
     assert "test wave $test_wave was already submitted" in text
+    assert "row=\"${row%$'\\r'}\"" in text
 
 
 def test_frozen_test_worker_profiles_gpu_and_runs_only_manifest_task() -> None:
@@ -104,3 +105,4 @@ def test_frozen_test_worker_profiles_gpu_and_runs_only_manifest_task() -> None:
     assert "sample_interval_s\": 10" in text
     assert "full_cell_upgrade_test run-task" in text
     assert "PHC2D_UPGRADE_TEST_MANIFEST" in text
+    assert "row=\"${row%$'\\r'}\"" in text

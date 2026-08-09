@@ -96,6 +96,7 @@ fi
 if (( previous_end >= 0 )); then
   for task_index in $(seq 0 "$previous_end"); do
     row="$(sed -n "$((task_index + 2))p" "$manifest")"
+    row="${row%$'\r'}"
     result_dir="$(printf '%s' "$row" | cut -d, -f11)"
     test -f "$result_dir/results.json" || { echo "previous test task $task_index missing results.json" >&2; exit 5; }
     test -f "$result_dir/n40_profile.json" || { echo "previous test task $task_index missing N40 profile" >&2; exit 5; }

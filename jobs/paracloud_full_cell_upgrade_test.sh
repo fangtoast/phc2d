@@ -14,6 +14,7 @@ source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"
 : "${SLURM_ARRAY_TASK_ID:?This worker must run as a Slurm array task.}"
 
 row="$(sed -n "$((SLURM_ARRAY_TASK_ID + 2))p" "$PHC2D_UPGRADE_TEST_MANIFEST")"
+row="${row%$'\r'}"
 if [[ -z "$row" ]]; then
   echo "missing test manifest row for array index $SLURM_ARRAY_TASK_ID" >&2
   exit 2
