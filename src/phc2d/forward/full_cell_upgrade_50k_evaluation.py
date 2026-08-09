@@ -741,8 +741,22 @@ def _summary(rows: Sequence[Mapping[str, Any]], fields: Sequence[str]) -> list[d
                 ),
                 "parameter_count": int(members[0]["parameter_count"]),
                 "checkpoint_bytes_mean": statistics.fmean(float(row["checkpoint_bytes"]) for row in members),
+                "actual_stop_epoch_0": int(members[0]["actual_stop_epoch"]),
+                "actual_stop_epoch_1": int(members[1]["actual_stop_epoch"]),
+                "actual_stop_epoch_2": int(members[2]["actual_stop_epoch"]),
+                "best_validation_epoch_0": members[0]["best_validation_epoch"],
+                "best_validation_epoch_1": members[1]["best_validation_epoch"],
+                "best_validation_epoch_2": members[2]["best_validation_epoch"],
+                "epoch_100_decision_0": members[0]["epoch_100_decision"],
+                "epoch_100_decision_1": members[1]["epoch_100_decision"],
+                "epoch_100_decision_2": members[2]["epoch_100_decision"],
                 "train_time_s_mean": statistics.fmean(float(row["train_time_s"]) for row in members)
                 if all(str(row["train_time_s"]) not in {"", "nan"} for row in members)
+                else "",
+                "training_peak_gpu_memory_mib_max": max(
+                    float(row["training_peak_gpu_memory_mib"]) for row in members
+                )
+                if all(str(row["training_peak_gpu_memory_mib"]) not in {"", "nan"} for row in members)
                 else "",
                 "eval_time_s_mean": statistics.fmean(float(row["eval_time_s"]) for row in members),
                 "inference_time_per_sample_ms_mean": statistics.fmean(
@@ -1600,6 +1614,11 @@ def render_final_markdown_report(
         (
             row["model"],
             row["target_lane"],
+            "/".join(str(int(row[f"actual_stop_epoch_{seed}"])) for seed in range(3)),
+            "/".join(str(row[f"best_validation_epoch_{seed}"]) for seed in range(3)),
+            "/".join(str(row[f"epoch_100_decision_{seed}"]) for seed in range(3)),
+            f"{float(row['train_time_s_mean']) / 3600.0:.2f}",
+            f"{float(row['training_peak_gpu_memory_mib_max']):.1f}",
             f"{int(row['parameter_count']):,}",
             f"{float(row['checkpoint_bytes_mean']) / (1024**2):.2f}",
             f"{float(row['evaluation_peak_gpu_memory_mb_max']):.1f}",
@@ -1712,9 +1731,9 @@ ResMLP 固定展平输入的 12 项记录为 `not_applicable_fixed_flatten_shape
 
 该表在 native graded 胜者冻结后生成，不影响 promotion；threshold 结构不被视为与真实二值结构物理等价。
 
-## 八、参数与推理资源
+## 八、训练预算、参数与推理资源
 
-{_markdown_table(('模型', 'Lane', '参数量', 'Checkpoint MiB', '评估峰值显存 MiB', 'Eval time s', 'ms/sample', 'samples/s'), resource_rows)}
+{_markdown_table(('模型', 'Lane', '三 seed 停止 epoch', '三 seed best-validation epoch', '三 seed epoch-100 gate', '平均训练小时', '训练峰值显存 MiB', '参数量', 'Checkpoint MiB', '评估峰值显存 MiB', 'Eval time s', 'ms/sample', 'samples/s'), resource_rows)}
 
 ## 九、证据与复核入口
 

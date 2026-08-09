@@ -355,3 +355,5 @@ def test_threshold_diagnostic_runs_only_frozen_graded_winner(tmp_path: Path) -> 
     assert "Promotion 门逐项判定" in report
     assert "Checkpoint 存储比例" in report
     assert "50.00%" in report
+    assert "三 seed 停止 epoch" in report
+    assert "训练峰值显存 MiB" in report
