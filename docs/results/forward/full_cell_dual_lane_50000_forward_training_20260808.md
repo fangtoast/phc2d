@@ -50,7 +50,7 @@
 
 ### 3.1 每波次最低三 seed 均值
 
-| 波次 | 最低模型 | MRE mean (%) | 证据角色 |
+| 方法/epoch | 最低模型 | MRE mean (%) | 证据角色 |
 |---|---|---:|---|
 | binary 40k / 20 | FNO | 0.71578 | validation |
 | binary 40k / 100 | FNO | 0.63603 | validation |

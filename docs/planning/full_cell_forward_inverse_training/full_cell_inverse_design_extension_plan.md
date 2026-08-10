@@ -82,6 +82,57 @@
 
 HDF5 的 `params` 是按全数据最大宽度 padding 的原始数值表，不是网络应直接学习的统一向量。正式实现按变体拆分：
 
+> inverse 网络应该输出什么，以及如何把网络输出安全地还原成一个真正可计算的 full-cell 结构。
+
+### 为什么不能直接预测 HDF5 的 `params`？
+
+HDF5 为了把不同结构放进一个规则数组，对参数进行了 padding。
+
+例如 binary 文件里的数组是：
+
+```text
+params.shape = (10000, 580)
+```
+
+但这不代表每个 binary 样本都有 580 个需要预测的自由参数。
+
+例如：
+
+```text
+binary_polar_holes_1
+HDF5 实际字段：16 个
+真正学习：11 个
+```
+
+剩下的 5 个字段是：
+
+```text
+hole_count
+4 个 mode order
+```
+
+它们描述结构模板，不是连续的设计自由度。
+
+因此不能让网络统一输出 580 个数：
+
+```text
+错误思路：
+
+Wh → 网络 → 580 个参数
+```
+
+因为对 `binary_polar_holes_1` 来说，大部分位置根本没有意义；不同结构族中，同一个数组位置也未必具有同样的物理含义。
+
+正确方案是每种变体单独建立 codec 和模型输出：
+
+```text
+binary_polar_holes_1       → 学习 11 个物理标量
+binary_polar_holes_2       → 学习 22 个物理标量
+binary_spectral_threshold  → 学习 289 个物理标量
+graded_rbf_fourier_1       → 学习 57 个物理标量
+graded_rbf_fourier_2       → 学习 63 个物理标量
+```
+
 | 变体 | 样本数 | HDF5 原宽度 | 固定/辅助字段 | 学习的几何标量 |
 |---|---:|---:|---:|---:|
 | `binary_polar_holes_1` | 2,500 | 16 | 5：`hole_count` 与 4 个 mode order | 11 |
