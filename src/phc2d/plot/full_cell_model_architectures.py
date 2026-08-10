@@ -184,6 +184,57 @@ def _save_figure(figure: Any, output_base: Path, formats: Sequence[str]) -> list
     return paths
 
 
+def _plot_data_generation_pipeline(output_base: Path, formats: Sequence[str]) -> list[Path]:
+    figure, axis = _canvas(
+        title="Dual-lane Full-cell data generation: analytic truth, synchronized views",
+        subtitle="The MPB label is solved from the analytic periodic material function; 32/64/128 rasters are aligned learning and audit views, never the solver geometry.",
+        figsize=(18.0, 10.4),
+    )
+
+    _panel(axis, 2, 67, 96, 23, title="A | Frozen deterministic structure plan")
+    _box(axis, 5, 73, 13, 10, "config + seed", detail="master seed 20260806\nsample_id + family", kind="gray", fontsize=9.2)
+    _arrow(axis, (18, 78), (23, 78))
+    _box(axis, 23, 72, 18, 12, "stratified schedule", detail="B: 1/4 polar-1, 1/4 polar-2, 1/2 spectral\nG: 1/2 one-core, 1/2 two-core", kind="blue", fontsize=9.0)
+    _arrow(axis, (41, 78), (46, 78))
+    _box(axis, 46, 72, 18, 12, "analytic structure", detail="FullCellStructureSpec\nu(x,y), params, family", kind="green", fontsize=9.2)
+    _arrow(axis, (64, 78), (69, 78))
+    _box(axis, 69, 72, 12, 12, "audit gate", detail="256 x 256 stats\nreject / retry", kind="amber", fontsize=9.2)
+    _arrow(axis, (81, 78), (86, 78))
+    _box(axis, 86, 72, 9, 12, "freeze", detail="geometry hash\nsplit label", kind="green", fontsize=9.2)
+    axis.text(50, 69.2, "Resume validates sample index, family, stratum, split and geometry identity before any solver work.", ha="center", fontsize=9.0, color=PALETTE["muted"])
+
+    _panel(axis, 2, 34, 96, 30, title="B | Two synchronized paths from the same analytic structure")
+    _box(axis, 5, 43.5, 13, 9, "u(x,y)", detail="periodic weight in [0,1]", kind="green", fontsize=9.5)
+    _arrow(axis, (18, 48), (24, 53), blue=True)
+    _arrow(axis, (18, 48), (24, 41))
+
+    _box(axis, 24, 48, 18, 9, "physical path", detail="epsilon = 1 + 7.9 u\nlazy material callback", kind="blue", fontsize=9.3)
+    _arrow(axis, (42, 52.5), (47, 52.5), blue=True)
+    _box(axis, 47, 47, 17, 11, "real MPB", detail="square a=1, TE\nresolution 64, mesh 3", kind="blue", fontsize=9.3)
+    _arrow(axis, (64, 52.5), (69, 52.5), blue=True)
+    _box(axis, 69, 47, 12, 11, "full BZ", detail="9 x 9 = 81 k\nreduced coords", kind="gray", fontsize=9.2)
+    _arrow(axis, (81, 52.5), (86, 52.5), blue=True)
+    _box(axis, 86, 47, 9, 11, "Wh", detail="solve 14\nkeep 10", kind="green", fontsize=9.2)
+
+    _box(axis, 24, 36.5, 18, 9, "representation path", detail="cell-center sampling\nfrom the same u(x,y)", kind="gray", fontsize=9.3)
+    _arrow(axis, (42, 41), (47, 41))
+    _box(axis, 47, 36.5, 17, 9, "three rasters", detail="weight + epsilon\n32 / 64 / 128", kind="amber", fontsize=9.3)
+    _arrow(axis, (64, 41), (69, 41))
+    _box(axis, 69, 36.5, 26, 9, "learning and audit only", detail="forward input: weight_64; resolution checks: 32/128", kind="gray", fontsize=9.2)
+    axis.text(50, 32.4, "MPB does not read a PNG or a raster approximation of the structure.", ha="center", fontsize=9.2, color=PALETTE["amber_edge"], fontweight="bold")
+
+    _panel(axis, 2, 7, 96, 24, title="C | Recoverable solve, fail-closed merge and final HDF5 contract")
+    _box(axis, 5, 14.5, 14, 9, "one sample job", detail="all 81 k points\nidentity hashes", kind="gray", fontsize=9.2)
+    _arrow(axis, (19, 19), (24, 19))
+    _box(axis, 24, 14.5, 15, 9, "durable shards", detail="Wh hash + timing\nfailure ledger", kind="blue", fontsize=9.2)
+    _arrow(axis, (39, 19), (44, 19))
+    _box(axis, 44, 13, 16, 12, "atomic finalizer", detail="complete coverage\nzero failures\nfinite + band order", kind="amber", fontsize=9.2)
+    _arrow(axis, (60, 19), (65, 19))
+    _box(axis, 65, 12, 30, 14, "phc2d.full_cell.v1 HDF5", detail="structure_json / params / family | grids 32,64,128\nk_points[81,2] | Wh[N,81,10] | fixed train/val/test", kind="green", fontsize=9.2)
+    axis.text(50, 9.4, "50k per lane: 40k train / 5k validation / 5k test; lane files and normalization remain separate.", ha="center", fontsize=9.2, color=PALETTE["muted"])
+    return _save_figure(figure, output_base, formats)
+
+
 def _plot_baseline_mlp_residual(output_base: Path, formats: Sequence[str]) -> list[Path]:
     figure, axis = _canvas(
         title="Matched MLP baselines: the residual connection is the controlled difference",
@@ -585,6 +636,7 @@ def _plot_inverse_stage_a_models(output_base: Path, formats: Sequence[str]) -> l
 
 
 FIGURES: tuple[tuple[str, Callable[[Path, Sequence[str]], list[Path]]], ...] = (
+    ("figure_2_1_data_generation_pipeline", _plot_data_generation_pipeline),
     ("figure_4_1_baseline_mlp_residual", _plot_baseline_mlp_residual),
     ("figure_4_2_baseline_lifted_cnn", _plot_baseline_lifted_cnn),
     ("figure_4_3_baseline_fno2d_band", _plot_baseline_fno),

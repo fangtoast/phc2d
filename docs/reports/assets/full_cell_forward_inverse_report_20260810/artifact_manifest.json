@@ -3,9 +3,11 @@
   "created_at": "2026-08-10",
   "status": "full_cell_forward_inverse_report_figure_package_completed",
   "generator_path": "src/phc2d/plot/full_cell_model_architectures.py",
-  "generator_sha256": "0e45406123316d62636a8cc416051c85525d5e9b1721b925aa142b58b488d6e1",
-  "evidence_boundary": "Architecture diagrams reflect source and config identity. The comparison figure reflects frozen held-out surrogate metrics and is not real-MPB replay or component-level causal ablation.",
+  "generator_sha256": "62ecde7f139a1fe67d7c367fe2f85045aac25f7b045708a86c76f92de6f2c9e5",
+  "evidence_boundary": "The data diagram reflects the analytic-structure generation and HDF5 contracts without adding a new acceptance claim. Architecture diagrams reflect source and config identity. The comparison figure reflects frozen held-out surrogate metrics and is not real-MPB replay or component-level causal ablation.",
   "artifacts": [
+    {"path": "figure_2_1_data_generation_pipeline.png", "size_bytes": 604047, "sha256": "afe28cb4f033164836405dcb84045fad67e26a77caf8b9e20a9728c7dacfc6cd"},
+    {"path": "figure_2_1_data_generation_pipeline.svg", "size_bytes": 35047, "sha256": "4e36adb65c25b34abb92661535ce9a503a0ad35b890386db1a7fad3a385916f1"},
     {"path": "figure_4_1_baseline_mlp_residual.png", "size_bytes": 298756, "sha256": "67a302d4750c68597845debdf6a0fbdb8cca3be0ce9d0345bf978164d1a52fc4"},
     {"path": "figure_4_1_baseline_mlp_residual.svg", "size_bytes": 20055, "sha256": "87bcc4f66d349ec859d8da9df0568da20aae6cbd849bf84c25307661ed004e6f"},
     {"path": "figure_4_2_baseline_lifted_cnn.png", "size_bytes": 289917, "sha256": "d99aee30fdc103034661662abbf916c38b922dfd4cc408f37da52f3811619afc"},

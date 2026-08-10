@@ -12,7 +12,7 @@ import pytest
 from phc2d.plot import full_cell_model_architectures
 
 
-def test_model_architecture_renderer_covers_all_nine_figures(monkeypatch, tmp_path: Path) -> None:
+def test_model_architecture_renderer_covers_all_ten_figures(monkeypatch, tmp_path: Path) -> None:
     def fake_save(_figure, output_base: Path, formats):
         paths = []
         for suffix in formats:
@@ -29,9 +29,10 @@ def test_model_architecture_renderer_covers_all_nine_figures(monkeypatch, tmp_pa
     )
 
     assert result["status"] == "full_cell_model_architecture_figures_completed"
-    assert result["figure_count"] == 9
-    assert result["artifact_count"] == 18
+    assert result["figure_count"] == 10
+    assert result["artifact_count"] == 20
     assert {Path(path).stem for path in result["artifacts"]} == {
+        "figure_2_1_data_generation_pipeline",
         "figure_4_1_baseline_mlp_residual",
         "figure_4_2_baseline_lifted_cnn",
         "figure_4_3_baseline_fno2d_band",
