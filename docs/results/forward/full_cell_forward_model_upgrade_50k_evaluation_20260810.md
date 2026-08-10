@@ -7,7 +7,7 @@
 
 # Full-Cell 前向升级模型 50K 实验报告（2026-08-10）
 
-> **Status:** Draft experimental report; main evaluation complete; threshold diagnostic pending  
+> **Status:** Draft experimental report; main evaluation complete; threshold submission blocked by N40 QoS
 > **Primary layer:** L3 experiment/evidence  
 > **Audience:** 项目负责人、模型开发者与后续论文结果整理人员  
 > **Training platform:** N40，单任务 1×RTX 4090，最多 8 个独立任务并行  
@@ -15,7 +15,7 @@
 > **Seeds:** 0、1、2  
 > **Evidence campaign:** `runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944`  
 > **Evaluation jobs:** Slurm array `5401548`；finalizer `5401549`  
-> **Threshold campaign:** `pending_not_executed`
+> **Threshold campaign:** planned but not submitted; N40 returned `AssocMaxSubmitJobLimit`
 
 ## 1. 本轮最重要的实验结论
 
@@ -127,7 +127,9 @@ ConvNeXt 同时取得最低 native 误差、较小显存和较高吞吐，是本
 
 ## 8. 尚未完成的结果
 
-冻结 graded lane 胜者后的 threshold proxy 尚未执行，因此本报告不提供 threshold 数值。该诊断完成后，只会补充“同一冻结模型在阈值化结构上的代理误差”，不会改写本报告的 native promotion 判定，也不会将阈值化结构表述为真实二值结构的物理等价物。
+冻结 graded lane 胜者后的 threshold proxy 尚未执行，因此本报告不提供 threshold 数值。计划已冻结为 `convnext_band_v1`、G lane、dense head，包含 3 seeds × 5 thresholds（0.3/0.4/0.5/0.6/0.7）共 15 项，计划哈希为 `c4d5e01d0b5700507f866155a528eb022dca91b2aa484bfa8ce9367bd5acab44`。2026-08-10 使用既有授权尝试提交时，Slurm 返回 `AssocMaxSubmitJobLimit`；未生成 `submission.env` 或 job ID，因此没有任务进入队列，也没有发生 GPU 计算。按照失败即停合同，本轮没有自动重试。
+
+该诊断完成后，只会补充“同一冻结模型在阈值化结构上的代理误差”，不会改写本报告的 native promotion 判定，也不会将阈值化结构表述为真实二值结构的物理等价物。
 
 本轮也没有执行 real-MPB replay、inverse-design replay 或物理收敛验证。因此以下表述目前均不成立：
 
@@ -165,7 +167,7 @@ ConvNeXt 同时取得最低 native 误差、较小显存和较高吞吐，是本
 
 ### 本文档尚未完成
 
-- threshold proxy 数值；
+- threshold proxy 数值；其计划已冻结，但受 N40 `AssocMaxSubmitJobLimit` 阻断；
 - real-MPB 或 inverse replay；
 - 人工 owner 将 Draft 接受为 Reviewed/Canonical。
 
@@ -174,5 +176,4 @@ ConvNeXt 同时取得最低 native 误差、较小显存和较高吞吐，是本
 - **本文回答的问题：** 五个升级模型是否在冻结 50K 实验合同下优于各自直接基线，以及哪一个模型在 native Full-Wh 前向预测中最好。
 - **最关键结论：** ConvNeXt 是两条 lane 的共同最佳模型；Mixer 与 TFNO 也通过 promotion；Gated ResMLP 退化；联合模型不能替代两个最佳独立模型。
 - **最容易误读的边界：** cross-lane、32/128 与 threshold 都是诊断或代理证据，不能提升为物理验证。
-- **下一证据门：** 完成冻结 graded 胜者的 threshold campaign，并将其作为独立补充结果写回本报告。
-
+- **下一证据门：** 等待 N40 accounting/QoS submission limit 释放或由管理员确认后，按原计划重新提交冻结的 threshold campaign，并将其作为独立补充结果写回本报告。
