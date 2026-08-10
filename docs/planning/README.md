@@ -30,6 +30,7 @@
 
 这些文件提供早期审计、文献和验证矩阵，不高于当前计划或实际制品：
 
+- [`非 p4m 全布里渊区双路线数据生成方案.md`](非%20p4m%20全布里渊区双路线数据生成方案.md)：2026-08-03 的 `full_cell_v1` 双路线历史设计 Draft；当前完成状态以 `PROJECT_MAP.md` 和结果报告为准。
 - [`reference/experimental_validation_plan_20260617.md`](reference/experimental_validation_plan_20260617.md)
 - [`reference/network_literature_survey_20260617.md`](reference/network_literature_survey_20260617.md)
 - [`reference/repo_data_audit_20260617.md`](reference/repo_data_audit_20260617.md)
