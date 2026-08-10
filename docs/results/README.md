@@ -36,6 +36,7 @@
 
 ## Forward results
 
+- [`forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md`](forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md)：五个 Full-Wh 升级模型的 50K 三 seed held-out test、直接基线/FNO 对比、逐 band、cross-lane、32/128 与资源结果；主评估完成，threshold proxy 待补充。
 - [`forward/full_cell_dual_lane_50000_forward_training_20260808.md`](forward/full_cell_dual_lane_50000_forward_training_20260808.md)：50k 双路线 17 波、204/204 runs、旧 10k→50k、40k held-out test、双向交叉与 CNN/FNO 32/64/128 零样本输入分辨率的完整 Draft 证据；50k final-fit 仅为训练重叠 monitor。
 - [`forward/full_cell_dual_lane_forward_training_20260806.md`](forward/full_cell_dual_lane_forward_training_20260806.md)：全胞双路线完整实验报告；展示 4 models × 3 seeds × 7 表征、七组训练曲线、576-cell 双向跨数据评估、独立分辨率重训与冻结后 test；threshold real-MPB 未执行。
 - [`forward/a1_forward_query_fair_v1_20260726.md`](forward/a1_forward_query_fair_v1_20260726.md)：A1 10k V2 Forward/Query 三 seed 公平协议结果。
