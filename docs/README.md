@@ -26,7 +26,7 @@
 ### 导师路线：问题、主线、证据
 
 1. [项目地图](../PROJECT_MAP.md)：当前主线、已知结论、阻塞项和下一 gate。
-2. [完整项目报告](reports/phc2d_project_full_introduction_20260724.md)：带日期的完整技术叙述。
+2. [完整项目报告](reports/phc2d_project_full_introduction_20260724.md)：带日期的完整技术叙述；当前全胞网络专题见[全胞双路线正向与逆向模型报告](reports/全胞双路线正向与逆向模型报告_20260810.md)。
 3. [当前实验进展](results/README.md)：逐项证据与边界。
 4. [研究规划](planning/README.md)：计划、TODO 与尚未完成的 gate。
 
@@ -51,7 +51,7 @@
 |---|---|---|
 | 封面 | 项目是什么、从哪里进入？ | [`README.md`](../README.md) |
 | 当前状态 | 现在做到哪里、卡在哪里？ | [`PROJECT_MAP.md`](../PROJECT_MAP.md) |
-| 第一章：研究全貌 | 为什么做、实现了什么、证据多强？ | [综合报告索引](reports/README.md) · [完整项目报告](reports/phc2d_project_full_introduction_20260724.md) · [带隙—近远场—逆向设计科学动机](reports/phc2d_bandgap_field_inverse_design_rationale_20260806.md) |
+| 第一章：研究全貌 | 为什么做、实现了什么、证据多强？ | [综合报告索引](reports/README.md) · [完整项目报告](reports/phc2d_project_full_introduction_20260724.md) · [全胞双路线模型报告](reports/全胞双路线正向与逆向模型报告_20260810.md) · [带隙—近远场—逆向设计科学动机](reports/phc2d_bandgap_field_inverse_design_rationale_20260806.md) |
 | 第二章：物理与公式 | 结构怎样变成数据，损失和指标如何定义？ | [公式手册](reports/phc2d_physics_data_formula_guide_20260803.md) |
 | 第三章：代码架构 | 模块、数据流、CLI 和可选依赖怎样组织？ | [架构说明](architecture.md) |
 | 第四章：实验设计 | 每项实验的输入、非目标、命令和 gate 是什么？ | [实验 profiles](../experiments/README.md) |
@@ -65,7 +65,7 @@
 | 模块 | 方法叙述 | 公式 | 代码/配置 | 实验与证据 |
 |---|---|---|---|---|
 | 数据与 MPB | [报告：数据表征](reports/phc2d_project_full_introduction_20260724.md#report-data-representation) | [结构与数据](reports/phc2d_physics_data_formula_guide_20260803.md#formula-structure-data) | [`phc2d.data`](../src/phc2d/data) · [数据目录](../data/README.md) | [Data provenance](results/README.md#data-provenance-results) |
-| Full-Wh | [前向模型与升级实现](reports/phc2d_project_full_introduction_20260724.md#report-forward-models) | [损失与指标](reports/phc2d_physics_data_formula_guide_20260803.md#formula-forward-metrics) | [`phc2d.forward`](../src/phc2d/forward) · [A1 配置](../configs/research/a1_forward_fair_v1.yaml) · [升级实现记录](planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_implementation_plan.md) | [A1](results/forward/a1_forward_query_fair_v1_20260726.md) · [升级 50K 主结果](results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md) · [实验合同](planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md) |
+| Full-Wh | [全胞双路线模型报告](reports/全胞双路线正向与逆向模型报告_20260810.md) · [历史前向模型](reports/phc2d_project_full_introduction_20260724.md#report-forward-models) | [损失与指标](reports/phc2d_physics_data_formula_guide_20260803.md#formula-forward-metrics) | [`phc2d.forward`](../src/phc2d/forward) · [A1 配置](../configs/research/a1_forward_fair_v1.yaml) · [升级实现记录](planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_implementation_plan.md) | [A1](results/forward/a1_forward_query_fair_v1_20260726.md) · [升级 50K 主结果](results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md) · [实验合同](planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md) |
 | Query | [Query 模型](reports/phc2d_project_full_introduction_20260724.md#report-forward-models) | [数据表示](reports/phc2d_physics_data_formula_guide_20260803.md#formula-representation) | [`phc2d.query`](../src/phc2d/query) · [A1 配置](../configs/research/a1_query_fair_v1.yaml) | [Query 证据](results/README.md#query-results) |
 | Field / PINO | [Field 模型](reports/phc2d_project_full_introduction_20260724.md#report-forward-models) | [本征场与 PINO](reports/phc2d_physics_data_formula_guide_20260803.md#formula-field-pino) | [`phc2d.physics`](../src/phc2d/physics) · [Field profile](../experiments/research/field_eigen_te.md) | [Field 证据](results/README.md#field-physics-results) |
 | Inverse | [逆向模型](reports/phc2d_project_full_introduction_20260724.md#report-inverse-models) | [逆向目标](reports/phc2d_physics_data_formula_guide_20260803.md#formula-inverse) | [`phc2d.inverse`](../src/phc2d/inverse) · [A2 profile](../experiments/research/a2_inverse_single_seed.md) | [Inverse 证据](results/README.md#inverse-results) |

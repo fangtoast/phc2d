@@ -14,3 +14,4 @@ jobs/xingyi_*.sh text eol=lf
 
 # Preserve curated report artifacts byte-for-byte so recorded SHA-256 values remain portable.
 docs/reports/assets/phc2d_project_full_introduction_20260724/** -text
+docs/reports/assets/full_cell_forward_inverse_report_20260810/** -text

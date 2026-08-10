@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "created_at": "2026-08-10",
+  "status": "full_cell_forward_inverse_report_figure_package_completed",
+  "generator_path": "src/phc2d/plot/full_cell_model_architectures.py",
+  "generator_sha256": "0e45406123316d62636a8cc416051c85525d5e9b1721b925aa142b58b488d6e1",
+  "evidence_boundary": "Architecture diagrams reflect source and config identity. The comparison figure reflects frozen held-out surrogate metrics and is not real-MPB replay or component-level causal ablation.",
+  "artifacts": [
+    {"path": "figure_4_1_baseline_mlp_residual.png", "size_bytes": 298756, "sha256": "67a302d4750c68597845debdf6a0fbdb8cca3be0ce9d0345bf978164d1a52fc4"},
+    {"path": "figure_4_1_baseline_mlp_residual.svg", "size_bytes": 20055, "sha256": "87bcc4f66d349ec859d8da9df0568da20aae6cbd849bf84c25307661ed004e6f"},
+    {"path": "figure_4_2_baseline_lifted_cnn.png", "size_bytes": 289917, "sha256": "d99aee30fdc103034661662abbf916c38b922dfd4cc408f37da52f3811619afc"},
+    {"path": "figure_4_2_baseline_lifted_cnn.svg", "size_bytes": 16149, "sha256": "a13e3a2610d949d1322ddd64973de71e1e2bb9d4de84ceda86e5bbe144d1ca46"},
+    {"path": "figure_4_3_baseline_fno2d_band.png", "size_bytes": 338490, "sha256": "99dad5864e849023e015074bf16802702c54de09079e6c893c41a0036f032947"},
+    {"path": "figure_4_3_baseline_fno2d_band.svg", "size_bytes": 23362, "sha256": "18e53596d7a5e652859703c1eaa135bdb6b76420f516c92526c49df20ec73d44"},
+    {"path": "figure_5_1_full_wh_heads.png", "size_bytes": 344859, "sha256": "5352bd29f0b2ba559ff5f1da4488e20f2d569e7fdbe357d1ba7476e822c12579"},
+    {"path": "figure_5_1_full_wh_heads.svg", "size_bytes": 22844, "sha256": "098f5d756598963b7a6497775cf9b418cd1fa6a4969f6d1820aa906704e3a98b"},
+    {"path": "figure_5_2_mlp_upgrades.png", "size_bytes": 347473, "sha256": "d7bdec3934b7442a5940de87a5f39ceb7311d103985a38a8a59e987ed1ae2bcf"},
+    {"path": "figure_5_2_mlp_upgrades.svg", "size_bytes": 25210, "sha256": "0f88e589caed44860f8bac7fa977aa4906b41fec60eace9d670bb6ca4566a961"},
+    {"path": "figure_5_3_convnext_band.png", "size_bytes": 293635, "sha256": "eb6ee33a19905b19492a1a191a4e95ea5a5e7eea054596d02666d8ff499ea119"},
+    {"path": "figure_5_3_convnext_band.svg", "size_bytes": 22355, "sha256": "cf5baa672af9e57ac03e9b7ecd26e0959e3e9d68152d5a8a85d4072075236ab4"},
+    {"path": "figure_5_4_tfno_dual_lane.png", "size_bytes": 469575, "sha256": "d5a776af08fc41dea631c7c299b26c68e53c457363094f16ad77f82e22010a67"},
+    {"path": "figure_5_4_tfno_dual_lane.svg", "size_bytes": 28288, "sha256": "90e9b0c02bbfaaf923d13755c1d555deab49ec621acfd68381dd669966f8b82d"},
+    {"path": "figure_6_1_native_50k_model_comparison.png", "size_bytes": 364200, "sha256": "3398feb465ffc940152676a6505f3dfb271b7c5278ac981537d843bcfe29f361"},
+    {"path": "figure_6_1_native_50k_model_comparison.svg", "size_bytes": 46179, "sha256": "ec70347e20b0f4f7508ea0e2ec6d45978248d98936e0cc938b14ebb22e36eb89"},
+    {"path": "figure_7_1_inverse_stage_a_models.png", "size_bytes": 455939, "sha256": "5ab1b3936fcdd7da4bb9ccacb3faddda88d03a6d8fa72572e8b907c983ab954d"},
+    {"path": "figure_7_1_inverse_stage_a_models.svg", "size_bytes": 30425, "sha256": "bff449bc79b56fe4a0d3e4092a8ebf13433d9733a94009f924b8ffca974de072"}
+  ]
+}
