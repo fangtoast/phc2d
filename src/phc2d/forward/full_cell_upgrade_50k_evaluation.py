@@ -1182,6 +1182,7 @@ def finalize_evaluation_campaign(
     )
     _write_csv(campaign / "history.csv", completed)
     (campaign / "run.log").write_text("formal frozen upgrade 50k evaluation finalized.\n", encoding="utf-8")
+    render_final_markdown_report(campaign, threshold_dir=None, repository_root=root)
     return campaign
 
 
@@ -1531,14 +1532,19 @@ def _relative_percent(value: Any, digits: int = 2) -> str:
 def render_final_markdown_report(
     campaign_dir: str | Path,
     *,
-    threshold_dir: str | Path,
+    threshold_dir: str | Path | None = None,
     repository_root: str | Path = ".",
 ) -> Path:
-    """Render the machine-audited experiment tables into a Chinese Draft report."""
+    """Render the machine-audited experiment tables into a Chinese Draft report.
+
+    Native, cross-lane, resolution and promotion results can be reported as soon
+    as the frozen evaluation finalizer succeeds.  The threshold section remains
+    explicitly pending until the independently authorized proxy campaign closes.
+    """
 
     root = Path(repository_root).resolve()
     campaign = _resolve(root, campaign_dir)
-    threshold = _resolve(root, threshold_dir)
+    threshold = _resolve(root, threshold_dir) if threshold_dir is not None else None
     results = _read_json(campaign / "results.json")
     native = [row for row in _read_csv(campaign / "native_test_summary.csv") if row["source_group"] == "upgrade50k"]
     comparisons = _read_csv(campaign / "paired_bootstrap_comparisons.csv")
@@ -1546,7 +1552,7 @@ def render_final_markdown_report(
     cross = _read_csv(campaign / "cross_lane_summary.csv")
     resolution = _read_csv(campaign / "resolution_transfer_summary.csv")
     per_band = _read_csv(campaign / "native_per_band_summary.csv")
-    threshold_summary = _read_csv(threshold / "threshold_summary.csv")
+    threshold_summary = _read_csv(threshold / "threshold_summary.csv") if threshold is not None else []
     direct = {
         (row["model"], row["lane"]): row
         for row in comparisons
@@ -1642,6 +1648,17 @@ def render_final_markdown_report(
         )
         for row in sorted(threshold_summary, key=lambda item: float(item["threshold"]))
     ]
+    if not threshold_rows:
+        threshold_rows = [
+            (
+                "pending_frozen_winner_only",
+                "not executed",
+                "pending",
+                "pending",
+                "pending",
+                "pending",
+            )
+        ]
     independent_promotion_rows = [
         (
             row["model"],
@@ -1690,7 +1707,7 @@ def render_final_markdown_report(
 > **Status:** Draft machine-audited experimental report<br>
 > **Primary layer:** L3 experiment/evidence<br>
 > **Evidence campaign:** `{_relative(root, campaign)}`<br>
-> **Threshold campaign:** `{_relative(root, threshold)}`
+> **Threshold campaign:** `{_relative(root, threshold) if threshold is not None else 'pending_not_executed'}`
 
 ## 一、结论
 
@@ -1732,7 +1749,7 @@ ResMLP 固定展平输入的 12 项记录为 `not_applicable_fixed_flatten_shape
 
 {_markdown_table(('冻结胜者', 'Threshold', 'Seed 0', 'Seed 1', 'Seed 2', 'Mean ± std'), threshold_rows)}
 
-该表在 native graded 胜者冻结后生成，不影响 promotion；threshold 结构不被视为与真实二值结构物理等价。
+该表在 native graded 胜者冻结后生成，不影响 promotion；threshold 结构不被视为与真实二值结构物理等价。若本节显示 `pending_frozen_winner_only`，表示主评估已经完成，但独立 threshold campaign 尚未执行。
 
 ## 八、训练预算、参数与推理资源
 
@@ -1746,7 +1763,7 @@ ResMLP 固定展平输入的 12 项记录为 `not_applicable_fixed_flatten_shape
 - `native_per_band_summary.csv`：bands 1–10 结果。
 - `cross_lane_summary.csv`：跨路线诊断。
 - `resolution_transfer_summary.csv`：32/128 零样本输入诊断。
-- `threshold_diagnostic/threshold_summary.csv`：冻结胜者 threshold proxy。
+{('- `threshold_diagnostic/threshold_summary.csv`：冻结胜者 threshold proxy。' if threshold is not None else '- Threshold proxy：待独立授权 campaign 完成后补充；不影响上述 native promotion。')}
 - `resource_summary.csv` 与各 shard `n40_profile.json`：资源证据。
 
 ## 十、人工理解记录
@@ -1788,6 +1805,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     threshold_finalize = subparsers.add_parser("finalize-threshold")
     threshold_finalize.add_argument("--threshold-dir", required=True)
     threshold_finalize.add_argument("--repository-root", default=".")
+    render = subparsers.add_parser("render-report")
+    render.add_argument("--campaign-dir", required=True)
+    render.add_argument("--threshold-dir")
+    render.add_argument("--repository-root", default=".")
     args = parser.parse_args(argv)
     if args.command == "plan":
         print(
@@ -1820,8 +1841,16 @@ def main(argv: Sequence[str] | None = None) -> None:
                 repository_root=args.repository_root,
             )
         )
-    else:
+    elif args.command == "finalize-threshold":
         print(finalize_threshold_diagnostic(args.threshold_dir, repository_root=args.repository_root))
+    else:
+        print(
+            render_final_markdown_report(
+                args.campaign_dir,
+                threshold_dir=args.threshold_dir,
+                repository_root=args.repository_root,
+            )
+        )
 
 
 if __name__ == "__main__":

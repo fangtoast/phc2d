@@ -336,6 +336,9 @@ def test_threshold_diagnostic_runs_only_frozen_graded_winner(tmp_path: Path) -> 
     _write_csv(campaign / "checkpoint_inventory.csv", _sources())
     _materialize_single_shard(campaign, [row for row in all_cells if row["planned_status"] == "planned"])
     finalize_evaluation_campaign(campaign, repository_root=tmp_path)
+    preliminary_report = (campaign / "report.md").read_text(encoding="utf-8")
+    assert "pending_frozen_winner_only" in preliminary_report
+    assert "Native held-out test 主结果" in preliminary_report
     threshold = plan_threshold_diagnostic(campaign, repository_root=tmp_path)
     plan = list(csv.DictReader((threshold / "threshold_plan.csv").open(encoding="utf-8")))
     threshold_config = yaml.safe_load((threshold / "config.resolved.yaml").read_text(encoding="utf-8"))
@@ -351,6 +354,7 @@ def test_threshold_diagnostic_runs_only_frozen_graded_winner(tmp_path: Path) -> 
     assert result["status"] == "formal_threshold_representation_proxy_success"
     assert result["evidence_role"] == "representation_proxy_not_physical_equivalence"
     report = (campaign / "report.md").read_text(encoding="utf-8")
+    assert "| pending_frozen_winner_only |" not in report
     assert "Native held-out test 主结果" in report
     assert "逐 Band 结果" in report
     assert "Cross-lane 诊断" in report
