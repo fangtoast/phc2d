@@ -68,6 +68,7 @@ Windows `.venv` 只作为编辑期临时调试便利，不再作为测试验收�
 - 项目说明类 Markdown 使用 `md-write` skill。
 - 根 README 使用 README profile；架构、约定、模块说明使用 Project Docs profile；结果分析使用 Experimental Technical Report profile；完整项目报告使用 Full Project Report profile。
 - 中文为主，命令、路径、API、配置键保持英文原文。
+- `docs/` 下新建的面向人工阅读文档，文件名默认优先使用简洁、可辨识的中文；固定入口名、代码/API 标识、实验 ID、机器消费产物及兼容性敏感路径继续使用英文。不要仅为统一语言批量重命名已有稳定文档。
 - 新建或大改 Markdown 应包含 HTML 注释文件头。
 - 文档中的仓库路径优先写相对链接。
 - 根 README 只保留稳定定义、任务路由与最小 quick start；易变化状态进入 [`../PROJECT_MAP.md`](../PROJECT_MAP.md)。

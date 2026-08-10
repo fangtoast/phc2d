@@ -21,6 +21,7 @@ This file defines fixed implementation rules for future Codex tasks in this repo
 - Cross-layer reading is allowed. Do not infer L0/L1 motivation from incidental L4 code, promote a local L3 result into a project-wide claim, or change more than one primary layer without explicit user scope.
 - Keep the root README stable and free of volatile benchmark numbers, private absolute paths, and today-only status. Put current status in `PROJECT_MAP.md` and detailed evidence in `docs/results/`.
 - New or renamed canonical Markdown must be reachable from `docs/README.md` or a linked local index and pass `phc2d report docs-audit --root README.md --strict`.
+- New human-facing Markdown under `docs/` should use concise Chinese filenames by default. Keep required fixed names, code/API identifiers, experiment IDs, machine-consumed artifacts, and compatibility-sensitive paths in English; do not bulk-rename existing stable documents solely to enforce this preference.
 - AI-created documents are Draft by default. Only a human owner may accept them as Reviewed or Canonical.
 - Documentation completion is not experimental completion. End substantive tasks with the human-understanding record defined in `docs/collaboration.md`.
 
