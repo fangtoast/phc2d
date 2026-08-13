@@ -53,6 +53,7 @@ wandb/
 # Local literature and rendering scratch files
 /reference/
 /tmp/
+/site/
 
 # Keep the local data catalog versioned while datasets remain ignored.
 !data/
