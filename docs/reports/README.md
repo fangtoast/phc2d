@@ -1,3 +1,15 @@
+---
+title: "综合报告与公式参考"
+summary: "研究报告索引；连接稳定主题与完整报告。"
+page_type: landing
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 3 minutes
+primary_layer: L1
+---
+
 <!--
   Snapshot-report index for the synchronized phc2d workspace.
   Author: fangtoast
@@ -7,7 +19,7 @@
 
 # 综合报告与公式参考
 
-本目录保存带明确证据日期的综合报告、公式参考、模型清单和精选图件。它们适合系统阅读和汇报，但不自动代表今天的最新状态；当前状态先看 [`../../PROJECT_MAP.md`](../../PROJECT_MAP.md)。
+本目录保存带明确证据日期的综合报告、公式参考、模型清单和精选图件。它们适合系统阅读和汇报，但不自动代表今天的最新状态；当前状态先看 [`../../PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md)。
 
 | 角色 | 入口 | 边界 |
 |---|---|---|

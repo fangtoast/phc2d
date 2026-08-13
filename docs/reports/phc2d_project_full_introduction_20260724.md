@@ -1,3 +1,17 @@
+---
+title: "phc2d：二维光子晶体神经算子快速仿真与回放校准生成式逆向设计"
+summary: "日期化综合研究报告；正文保持原始证据语境。"
+page_type: evidence
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 88 minutes
+primary_layer: L1
+evidence_date: 2026-07-24
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+---
+
 <!--
   Full introduction to the phc2d neural-operator and generative inverse-design project.
   Author: fangtoast
@@ -21,7 +35,7 @@
 | 文档定位 | 面向项目汇报、开题报告和技术路线说明的完整项目介绍 |
 | 证据边界 | 以当前代码、配置和 run artifacts 为准；不把计划或 surrogate 指标升级为物理成功 |
 
-[项目地图](../../PROJECT_MAP.md) · [文档目录](../README.md) · [公式手册](phc2d_physics_data_formula_guide_20260803.md#formula-guide-home) · [当前实验进展](../results/README.md)
+[项目地图](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md) · [文档目录](../index.md) · [公式手册](phc2d_physics_data_formula_guide_20260803.md#formula-guide-home) · [当前实验进展](../results/README.md)
 
 > 本文是带证据日期的综合技术快照，不承担“今天的最新状态”职责。当前 gate 和阻塞项以项目地图、结果索引和源 artifacts 为准。
 
@@ -600,7 +614,7 @@ z &= \operatorname{GAP}(X_2),\\
 \end{aligned}
 $$
 
-这里的输出 310 和 reshape 到 $31\times10$ 是当前数据目标；代码本身使用 `output_shape` 计算输出维度。名称中的 `lifted` 指输入已经由低维 wedge 表征展开为二维介电常数网格，不表示 CNN 内部另有一个 learned lifting layer。A1 artifact 记录的总参数量为 **5,458**。实现见 [`build_lifted_cnn`](../../src/phc2d/models/baselines.py)，参数与正式测试记录见 [`A1 Forward 公平对照`](../results/forward/a1_forward_query_fair_v1_20260726.md)。
+这里的输出 310 和 reshape 到 $31\times10$ 是当前数据目标；代码本身使用 `output_shape` 计算输出维度。名称中的 `lifted` 指输入已经由低维 wedge 表征展开为二维介电常数网格，不表示 CNN 内部另有一个 learned lifting layer。A1 artifact 记录的总参数量为 **5,458**。实现见 [`build_lifted_cnn`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/models/baselines.py)，参数与正式测试记录见 [`A1 Forward 公平对照`](../results/forward/a1_forward_query_fair_v1_20260726.md)。
 
 ### 5.2.2 该 CNN 能学到什么、不能学到什么
 
@@ -631,7 +645,7 @@ epsilon_grid [B,1,H,W]
   -> reshape Wh
 ```
 
-当前目标下 `|Wh|=310`，最终输出 `[B,31,10]`；`H`、`W` 与输出 shape 仍由数据规格传入。正式 A1 artifact 记录的参数量为 **389,718**。实现见 [`build_fno2d_band`](../../src/phc2d/models/baselines.py)，参数与正式测试记录同样见 [`A1 Forward 公平对照`](../results/forward/a1_forward_query_fair_v1_20260726.md)。
+当前目标下 `|Wh|=310`，最终输出 `[B,31,10]`；`H`、`W` 与输出 shape 仍由数据规格传入。正式 A1 artifact 记录的参数量为 **389,718**。实现见 [`build_fno2d_band`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/models/baselines.py)，参数与正式测试记录同样见 [`A1 Forward 公平对照`](../results/forward/a1_forward_query_fair_v1_20260726.md)。
 
 ![图 5-3：fno2d_band_v2 网络架构](assets/phc2d_project_full_introduction_20260724/figure_5_3_fno2d_band.svg)
 
@@ -862,7 +876,7 @@ $$
 +0.1\,\operatorname{MSE}(\widehat f_z,f_z).
 $$
 
-这使 data-only `fno_field_v2` 成为一个有真实 MPB 场标签监督的场代理，而不是 Maxwell 方程的数值求解器。其实现和 TE active-component 编码分别位于 [`models/field.py`](../../src/phc2d/models/field.py) 与 [`forward/field_eigen_v2.py`](../../src/phc2d/forward/field_eigen_v2.py)。
+这使 data-only `fno_field_v2` 成为一个有真实 MPB 场标签监督的场代理，而不是 Maxwell 方程的数值求解器。其实现和 TE active-component 编码分别位于 [`models/field.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/models/field.py) 与 [`forward/field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_v2.py)。
 
 ## 5.7 adapted PINO：同一场 FNO 加入 TE Bloch 物理约束
 
@@ -913,7 +927,7 @@ $$
 
 ### 5.8.1 已实现、待实验的 Full-Wh 升级模型
 
-2026-08-08 已在 [`full_cell_upgrades.py`](../../src/phc2d/models/full_cell_upgrades.py) 中新增并注册五个 Full-Wh 架构。现有四模型、[`baselines.py`](../../src/phc2d/models/baselines.py) 和历史 checkpoint 均未替换；在当前 64×64、81×10 合同下，dense 与 k-conditioned 两种变体均控制在 2–8M 参数。完整逐层公式、接口与代码测试见 [全胞正向模型升级代码实现规格](../planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_implementation_plan.md)。
+2026-08-08 已在 [`full_cell_upgrades.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/models/full_cell_upgrades.py) 中新增并注册五个 Full-Wh 架构。现有四模型、[`baselines.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/models/baselines.py) 和历史 checkpoint 均未替换；在当前 64×64、81×10 合同下，dense 与 k-conditioned 两种变体均控制在 2–8M 参数。完整逐层公式、接口与代码测试见 [全胞正向模型升级代码实现规格](../planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_implementation_plan.md)。
 
 | 新模型 | 对应旧基线 | 冻结默认结构 | dense / k-conditioned 参数量 | 当前状态 |
 |---|---|---|---:|---|
@@ -956,7 +970,7 @@ $$
 
 ## 5.9 统一训练目标与选择边界
 
-前述 5.1–5.7 已分别给出各前向代理的逐层结构与 PINO 训练机制。本节只保留跨模型共用的训练协议、场数据损失和物理损失边界，不再把任何完整模型架构嵌套在训练章节中。实现入口见 [`baselines.py`](../../src/phc2d/models/baselines.py)，A1 前向/查询协议分别见 [`a1_forward_fair_v1.yaml`](../../configs/research/a1_forward_fair_v1.yaml)、[`a1_forward_mlp_ablation_v1.yaml`](../../configs/research/a1_forward_mlp_ablation_v1.yaml) 与 [`a1_query_fair_v1.yaml`](../../configs/research/a1_query_fair_v1.yaml)。
+前述 5.1–5.7 已分别给出各前向代理的逐层结构与 PINO 训练机制。本节只保留跨模型共用的训练协议、场数据损失和物理损失边界，不再把任何完整模型架构嵌套在训练章节中。实现入口见 [`baselines.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/models/baselines.py)，A1 前向/查询协议分别见 [`a1_forward_fair_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/a1_forward_fair_v1.yaml)、[`a1_forward_mlp_ablation_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/a1_forward_mlp_ablation_v1.yaml) 与 [`a1_query_fair_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/a1_query_fair_v1.yaml)。
 
 ### 5.9.1 Full-Wh 与 Query 的训练目标、优化器和选择边界
 
@@ -970,13 +984,13 @@ $$
 \left(\hat y_{ij}-y_{ij}\right)^2,
 $$
 
-其中 $D=|W_h|$（Full-Wh）或 $D=|\omega(\mathbf k)|$（Query）。前向 runner 的默认 `loss.name` 为 `mse`，query runner 直接实例化 `torch.nn.MSELoss()`；前向框架也支持 `band_aware` 可选损失，但它**不是**此处 A1 配置所声明的训练目标。对应实现见 [`forward/runner.py`](../../src/phc2d/forward/runner.py) 与 [`query/runner.py`](../../src/phc2d/query/runner.py)。
+其中 $D=|W_h|$（Full-Wh）或 $D=|\omega(\mathbf k)|$（Query）。前向 runner 的默认 `loss.name` 为 `mse`，query runner 直接实例化 `torch.nn.MSELoss()`；前向框架也支持 `band_aware` 可选损失，但它**不是**此处 A1 配置所声明的训练目标。对应实现见 [`forward/runner.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/runner.py) 与 [`query/runner.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/query/runner.py)。
 
 训练/选择协议为：AdamW、`weight_decay=1e-5`、batch size 64、最多 200 epochs、checkpoint epochs 为 10/30/50/100/150/200；每个模型在学习率 $\{10^{-3},3\times10^{-4},10^{-4}\}$ 和 seed $\{0,1,2\}$ 上训练。学习率由 validation split 的指定指标选择，最终仅在独立 test split 上汇总；报告的 MRE、MAE、RMSE 与排序违例率是评估量，不应倒写成训练损失。A1 前向指标是 `avg_MRE_bands_2_10_pct`，query 指标是 `query_mre_bands_2_10_pct`。
 
 ### 5.9.2 TE 本征场的数据损失与物理损失边界
 
-本征场分支是与 Full-Wh/Query 代理平行的任务：输入为 5 通道周期网格与 3 维 context（归一化的 $k_x$、$k_y$ 与 band 位置），同时预测 6 个实通道表示的 3 个复场分量以及一个归一化频率。数据驱动基线和 adapted PINO 的实现见 [`models/field.py`](../../src/phc2d/models/field.py)、[`field_eigen_v2.py`](../../src/phc2d/forward/field_eigen_v2.py)，相应 B3/B4 配置见 [`field_eigen_te_v2_baseline_9216.yaml`](../../configs/research/field_eigen_te_v2_baseline_9216.yaml) 与 [`field_eigen_te_pino_b4_repair_validation_9216.yaml`](../../configs/research/field_eigen_te_pino_b4_repair_validation_9216.yaml)。
+本征场分支是与 Full-Wh/Query 代理平行的任务：输入为 5 通道周期网格与 3 维 context（归一化的 $k_x$、$k_y$ 与 band 位置），同时预测 6 个实通道表示的 3 个复场分量以及一个归一化频率。数据驱动基线和 adapted PINO 的实现见 [`models/field.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/models/field.py)、[`field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_v2.py)，相应 B3/B4 配置见 [`field_eigen_te_v2_baseline_9216.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/field_eigen_te_v2_baseline_9216.yaml) 与 [`field_eigen_te_pino_b4_repair_validation_9216.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/field_eigen_te_pino_b4_repair_validation_9216.yaml)。
 
 | 模型或训练身份 | 网络身份 | 当前 B3/B4 训练规格 |
 |---|---|---|
@@ -1092,7 +1106,7 @@ retrieval 是重要的非参数基线，但不会提出训练库之外的新结�
 
 ## 6.2 Mixture 实际网络结构与当前参数
 
-当前主线的实现类是 [`_MixtureConditionalGenerator`](../../src/phc2d/inverse/runner.py)，训练/采样配置分别见 [`inverse_mixture_generator_v2_10000_pretrain.yaml`](../../configs/research/inverse_mixture_generator_v2_10000_pretrain.yaml) 与 [`inverse_mixture_generator_v2_10000_objective.yaml`](../../configs/research/inverse_mixture_generator_v2_10000_objective.yaml)。其输入条件维度 $C=|W_h|$ 和候选维度 $R=|\rho_{\mathrm{wedge}}|$ 来自实际数据；当前宽度、深度与潜变量规格如下。
+当前主线的实现类是 [`_MixtureConditionalGenerator`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/inverse/runner.py)，训练/采样配置分别见 [`inverse_mixture_generator_v2_10000_pretrain.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/inverse_mixture_generator_v2_10000_pretrain.yaml) 与 [`inverse_mixture_generator_v2_10000_objective.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/inverse_mixture_generator_v2_10000_objective.yaml)。其输入条件维度 $C=|W_h|$ 和候选维度 $R=|\rho_{\mathrm{wedge}}|$ 来自实际数据；当前宽度、深度与潜变量规格如下。
 
 | 组成 | 代码中的运算 | 当前主配置 |
 |---|---|---|
@@ -1213,7 +1227,7 @@ $$
 
 即默认从第 2 条能带开始计算相对误差，避免近零分母的第 1 条能带主导目标。`cross-surrogate loss` 使用相同的 bands-aware 相对差，比较主、次两个冻结代理的预测；分母取次代理预测的 detach 版本。`gap loss` 先以可微 soft-min/soft-max 计算相邻带的 complete-gap descriptor，再对预测与目标 descriptor 取 MSE。
 
-对于同一目标的 16 个候选，连续 diversity loss 是“目标 Hamming 距离减去平均两两 L1 距离”的 ReLU hinge（目标 0.05）；binary diversity loss 先用温度 0.08、阈值 0.5 的 soft binarization 再做同类 hinge（目标 0.08）。latent response loss 要求组内候选的平均标准差至少达到 0.04；collision loss 以 soft-binary 最近邻 Hamming 距离为核心，并按候选的 surrogate 质量加权，当前目标最近邻距离为 0.05。精确定义与实现位于 [`inverse/objective.py`](../../src/phc2d/inverse/objective.py)。本配置未启用 fill fraction、binarization 或 total-variation 正则项，因此不应把这些框架可选项写入当前损失公式。
+对于同一目标的 16 个候选，连续 diversity loss 是“目标 Hamming 距离减去平均两两 L1 距离”的 ReLU hinge（目标 0.05）；binary diversity loss 先用温度 0.08、阈值 0.5 的 soft binarization 再做同类 hinge（目标 0.08）。latent response loss 要求组内候选的平均标准差至少达到 0.04；collision loss 以 soft-binary 最近邻 Hamming 距离为核心，并按候选的 surrogate 质量加权，当前目标最近邻距离为 0.05。精确定义与实现位于 [`inverse/objective.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/inverse/objective.py)。本配置未启用 fill fraction、binarization 或 total-variation 正则项，因此不应把这些框架可选项写入当前损失公式。
 
 每个 objective batch 先对同一 $W_h^*$ 生成一组随机 noise/mode 候选，再送入冻结代理。当前可接受的 A2 objective-bridge 以 A1 `fno2d_band_v2` 为主可微 objective/ranker，以 A1 `fno2d_query_v2` 计算 cross-surrogate consistency。随后只把上述损失反传到生成器，所有代理参数保持冻结。两个 surrogate 提供的是可微、低成本的近似物理信号，不能替代 MPB 的物理验收。
 
@@ -1265,7 +1279,7 @@ $$
 | 次代理 | `fno2d_query_v2` seed 0，LR `1e-3` | `epsilon_grid + physical k` | 扫描 all-k 后重建完整 $W_h$，用于交叉一致性和诊断 |
 | 最终裁判 | real MPB | 二值候选结构 | 不参与训练，仅在 Top-M 上回放 |
 
-对应 checkpoint 路径、SHA-256、warm-start 谱系和角色冻结在 [`a2_inverse_objective_bridge_seed0_v1.yaml`](../../configs/research/a2_inverse_objective_bridge_seed0_v1.yaml) 与 [`a2_inverse_objective_bridge_seed0_test625_v1.yaml`](../../configs/research/a2_inverse_objective_bridge_seed0_test625_v1.yaml)。主表中的 surrogate MRE 来自 `fno2d_band_v2`；`fno2d_query_v2` 只承担 cross-surrogate consistency 与诊断，不是最终物理裁判。
+对应 checkpoint 路径、SHA-256、warm-start 谱系和角色冻结在 [`a2_inverse_objective_bridge_seed0_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/a2_inverse_objective_bridge_seed0_v1.yaml) 与 [`a2_inverse_objective_bridge_seed0_test625_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/a2_inverse_objective_bridge_seed0_test625_v1.yaml)。主表中的 surrogate MRE 来自 `fno2d_band_v2`；`fno2d_query_v2` 只承担 cross-surrogate consistency 与诊断，不是最终物理裁判。
 
 ### 7.3.3 可替换边界
 
@@ -1340,7 +1354,7 @@ $$
     × paired real-MPB replay
 ```
 
-只有该实验才能把“代理模型本身的贡献”与“生成器、训练目标和候选池变化”分离。历史配置与结果见 [`inverse_surrogate_rerank_v2_10000.yaml`](../../configs/research/inverse_surrogate_rerank_v2_10000.yaml) 和 [`多正向替代模型 rerank 报告`](../results/inverse/inverse_surrogate_rerank_v2_10000_20260630.md)。
+只有该实验才能把“代理模型本身的贡献”与“生成器、训练目标和候选池变化”分离。历史配置与结果见 [`inverse_surrogate_rerank_v2_10000.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/inverse_surrogate_rerank_v2_10000.yaml) 和 [`多正向替代模型 rerank 报告`](../results/inverse/inverse_surrogate_rerank_v2_10000_20260630.md)。
 
 ---
 

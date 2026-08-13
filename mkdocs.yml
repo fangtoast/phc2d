@@ -73,6 +73,7 @@ exclude_docs: |
   results/representation_benchmark_20260813.md
 
 not_in_nav: |
+  README.md
   getting-started.md
   reproducibility.md
   architecture.md

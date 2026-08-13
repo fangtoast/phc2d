@@ -35,8 +35,9 @@ _DEFAULT_ENTRY_DOCUMENTS = (
     "docs/reproducibility.md",
     "docs/collaboration.md",
 )
-_EXCLUDED_PREFIXES = ("manuscript/",)
+_EXCLUDED_PREFIXES = ("manuscript/", "runs/")
 _FRONT_MATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+_PYTHON_YAML_TAG = re.compile(r"!!python/name:[^\s]+")
 _DOCS_METADATA = (
     "title",
     "summary",
@@ -115,6 +116,14 @@ def _front_matter(text: str) -> dict[str, object] | None:
     except yaml.YAMLError:
         return None
     return value if isinstance(value, dict) else None
+
+
+def _mkdocs_contract(text: str) -> dict[str, object]:
+    """Load declarative MkDocs fields without constructing Python YAML tags."""
+
+    sanitized = _PYTHON_YAML_TAG.sub('"__python_name__"', text)
+    value = yaml.safe_load(sanitized) or {}
+    return value if isinstance(value, dict) else {}
 
 
 def _flatten_nav(value: object) -> set[str]:
@@ -238,7 +247,7 @@ def audit_documentation(
             failures.append(f"required entry document is missing: {relative}")
             continue
         text = path.read_text(encoding="utf-8")
-        if relative not in _ENTRY_METADATA_EXEMPT:
+        if relative not in _ENTRY_METADATA_EXEMPT and _front_matter(text) is None:
             missing = [field for field in _ENTRY_METADATA if field not in text]
             if missing:
                 metadata_failures[relative] = missing
@@ -282,7 +291,7 @@ def audit_documentation(
     mkdocs_failures: list[str] = []
     if mkdocs_path.is_file():
         try:
-            mkdocs_value = yaml.safe_load(mkdocs_path.read_text(encoding="utf-8")) or {}
+            mkdocs_value = _mkdocs_contract(mkdocs_path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
             mkdocs_value = {}
             mkdocs_failures.append(f"invalid YAML: {exc}")

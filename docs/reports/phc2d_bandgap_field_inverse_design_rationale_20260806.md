@@ -1,3 +1,17 @@
+---
+title: "为什么计算光子晶体带隙、近远场并开展逆向设计？"
+summary: "日期化综合研究报告；正文保持原始证据语境。"
+page_type: evidence
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 11 minutes
+primary_layer: L1
+evidence_date: 2026-08-06
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+---
+
 <!--
   Scientific rationale for bandgap, field-response, and inverse-design experiments.
   Author: fangtoast
@@ -18,7 +32,7 @@
 | Last reviewed | 2026-08-06 |
 | Reading time | 9 minutes |
 
-本文解释本项目为什么同时研究**能带/带隙、Bloch 本征场、有限结构近场、远场和逆向设计**，以及这些计算怎样组成一条可验证的科学证据链。它不替代公式定义、实验协议或结果报告；精确定义见[物理与数据公式手册](phc2d_physics_data_formula_guide_20260803.md)，当前状态见 [`PROJECT_MAP.md`](../../PROJECT_MAP.md)，实际证据见[结果索引](../results/README.md)。
+本文解释本项目为什么同时研究**能带/带隙、Bloch 本征场、有限结构近场、远场和逆向设计**，以及这些计算怎样组成一条可验证的科学证据链。它不替代公式定义、实验协议或结果报告；精确定义见[物理与数据公式手册](phc2d_physics_data_formula_guide_20260803.md)，当前状态见 [`PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md)，实际证据见[结果索引](../results/README.md)。
 
 **目录：** [一、核心结论](#rationale-core) · [二、带隙回答什么](#rationale-bandgap) · [三、场分布为什么不可缺少](#rationale-fields) · [四、为什么必须计算](#rationale-computation) · [五、为什么使用逆向设计](#rationale-inverse) · [六、项目中的完整证据链](#rationale-chain) · [七、当前边界与下一步](#rationale-boundaries)
 
@@ -238,7 +252,7 @@ flowchart LR
 ### 7.1 当前证据怎样使用
 
 - [全胞有限阵列近远场结果](../results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md)已经证明冻结的 5×5、TE 入射、PML 和 near-to-far 合同能够产生收敛的近场、Poynting 与归一化远场图；它不是任意源和任意器件边界下的普遍结论。
-- 项目已有 V2 数据上的逆向闭环证据，但当前最强结果仍受数据域、候选谱系和 seed 范围限制，不能直接推广成全胞双路线上的架构普遍优势；最新状态以 [`PROJECT_MAP.md`](../../PROJECT_MAP.md) 为准。
+- 项目已有 V2 数据上的逆向闭环证据，但当前最强结果仍受数据域、候选谱系和 seed 范围限制，不能直接推广成全胞双路线上的架构普遍优势；最新状态以 [`PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md) 为准。
 - Field/adapted PINO 分支仍必须通过修正场指标、residual–frequency 校准、dense-$k$ 和跨分辨率门，才能进入 inverse 候选重排；较低 residual 本身不是准入证据。
 - [全胞逆向设计扩展](../planning/full_cell_forward_inverse_training/full_cell_inverse_design_extension_plan.md)仍是 Deferred Draft，需要先冻结全胞双路线 forward surrogate，再独立授权训练、候选生成与 replay。
 

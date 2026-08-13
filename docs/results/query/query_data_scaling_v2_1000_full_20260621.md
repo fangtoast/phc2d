@@ -1,3 +1,17 @@
+---
+title: "N=1000 Guarded V2 Query Surrogate Full Benchmark"
+summary: "日期化实验与验证证据；正文保持原始记录。"
+page_type: evidence
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 6 minutes
+primary_layer: L3
+evidence_date: 2026-06-21
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+---
+
 <!--
   N=1000 guarded V2 query surrogate full benchmark report.
   Author: fangtoast
@@ -32,7 +46,7 @@
 | item | value |
 |---|---|
 | date | 2026-06-21 |
-| config | [`../../configs/research/data_scaling_benchmark_v2_1000_full.yaml`](../../../configs/research/data_scaling_benchmark_v2_1000_full.yaml) |
+| config | [`../../configs/research/data_scaling_benchmark_v2_1000_full.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/data_scaling_benchmark_v2_1000_full.yaml) |
 | dataset | `data/query_dataset_v2_pilot_1000_mpb.npz` |
 | parent run | `runs/20260621/query_data_scaling_v2_1000_full_202606211920` |
 | child run | `runs/20260621/query_data_scaling_v2_1000_full_N1000_202606211920` |

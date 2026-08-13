@@ -1,3 +1,15 @@
+---
+title: "全胞双路线 50k 训练、迁移评估与混合算力计划"
+summary: "研究计划或执行协议；实施前需与当前代码和证据重新核对。"
+page_type: plan
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 31 minutes
+primary_layer: L0
+---
+
 <!--
   Full-cell dual-lane 50k training, transfer evaluation, and hybrid-compute plan.
   Author: fangtoast
@@ -16,7 +28,7 @@
 | Authority | [生成网络调整研究计划](../fno_generative_network_adjustment_plan_20260617.md) |
 | 10k reference | [全胞双路线训练与混合算力计划](full_cell_dual_lane_hybrid_compute_plan.md) |
 | 10k evidence | [全胞双路线正向训练完整实验报告](../../results/forward/full_cell_dual_lane_forward_training_20260806.md) |
-| 50k data contract | [Xingyi 全胞双路线 50k 数据生成合同](../../../experiments/research/full_cell_dual_lane_50000_xingyi.md) |
+| 50k data contract | [Xingyi 全胞双路线 50k 数据生成合同](https://github.com/fangtoast/phc2d/blob/master/experiments/research/full_cell_dual_lane_50000_xingyi.md) |
 | 50k evidence | [50k 正向训练与冻结评估完整报告](../../results/forward/full_cell_dual_lane_50000_forward_training_20260808.md) |
 | Audience | 项目负责人、研究人员、N40/M9 执行人员与 AI 协作者 |
 | Owner | 研究生维护，导师审阅科学主张、资源预算与 promotion gate |
@@ -118,8 +130,8 @@ remote final artifacts complete
 
 | 路线 | 计划文件 | 预期本地训练文件 | 固定 split |
 |---|---|---|---|
-| binary | [`full_cell_binary_bz9_50000_xingyi_v1.yaml`](../../../configs/research/full_cell_binary_bz9_50000_xingyi_v1.yaml) | `data/full_cell_binary_bz9_50000_xingyi_v1.h5` | 40,000 / 5,000 / 5,000 |
-| graded | [`full_cell_graded_bz9_50000_xingyi_v1.yaml`](../../../configs/research/full_cell_graded_bz9_50000_xingyi_v1.yaml) | `data/full_cell_graded_bz9_50000_xingyi_v1.h5` | 40,000 / 5,000 / 5,000 |
+| binary | [`full_cell_binary_bz9_50000_xingyi_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_binary_bz9_50000_xingyi_v1.yaml) | `data/full_cell_binary_bz9_50000_xingyi_v1.h5` | 40,000 / 5,000 / 5,000 |
+| graded | [`full_cell_graded_bz9_50000_xingyi_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_graded_bz9_50000_xingyi_v1.yaml) | `data/full_cell_graded_bz9_50000_xingyi_v1.h5` | 40,000 / 5,000 / 5,000 |
 
 训练前必须冻结：
 

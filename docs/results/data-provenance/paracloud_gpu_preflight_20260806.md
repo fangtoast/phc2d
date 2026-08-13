@@ -1,3 +1,17 @@
+---
+title: "Paracloud GPU 全链路准备与单卡预检"
+summary: "日期化实验与验证证据；正文保持原始记录。"
+page_type: evidence
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 7 minutes
+primary_layer: L3
+evidence_date: 2026-08-06
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+---
+
 <!--
   Paracloud GPU and MPB handoff preflight evidence for phc2d.
   Author: fangtoast

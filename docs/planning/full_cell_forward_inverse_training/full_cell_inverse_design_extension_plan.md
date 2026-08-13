@@ -1,3 +1,15 @@
+---
+title: "全胞解析参数逆向设计扩展计划"
+summary: "研究计划或执行协议；实施前需与当前代码和证据重新核对。"
+page_type: plan
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 31 minutes
+primary_layer: L0
+---
+
 <!--
   Deferred analytic-parameter inverse-design extension after full-cell forward training.
   Author: fangtoast
@@ -285,9 +297,9 @@ Retrieval 不计训练 run。Stage A/B 在一个 run 内分阶段记录，不拆
 
 N40 当前环境为 PyTorch `2.1.2+cu118` / CUDA `11.8`；N50R5 在登录权限和独立 preflight 通过前保持 blocked。环境事实与瞬时队列容量见 [GPU 全链路预检报告](../../results/data-provenance/paracloud_gpu_preflight_20260806.md)。
 
-Stage-A 的 CPU 合同已在真实双路线 10k 数据上完成 15/15 cases；N40 preflight 冻结入口为 [`configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml`](../../../configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml) 与 [`jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh`](../../../jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh)。正式单任务训练入口为 [`configs/research/full_cell_inverse_stage_a_train_n40_v1.yaml`](../../../configs/research/full_cell_inverse_stage_a_train_n40_v1.yaml) 与 [`jobs/paracloud_gpu_full_cell_inverse_stage_a_train.sh`](../../../jobs/paracloud_gpu_full_cell_inverse_stage_a_train.sh)，每次只接收一个 variant、method、seed 和稳定 run dir，并校验 dataset/config/codec/code identity 后恢复 optimizer。
+Stage-A 的 CPU 合同已在真实双路线 10k 数据上完成 15/15 cases；N40 preflight 冻结入口为 [`configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml) 与 [`jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh`](https://github.com/fangtoast/phc2d/blob/master/jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh)。正式单任务训练入口为 [`configs/research/full_cell_inverse_stage_a_train_n40_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_inverse_stage_a_train_n40_v1.yaml) 与 [`jobs/paracloud_gpu_full_cell_inverse_stage_a_train.sh`](https://github.com/fangtoast/phc2d/blob/master/jobs/paracloud_gpu_full_cell_inverse_stage_a_train.sh)，每次只接收一个 variant、method、seed 和稳定 run dir，并校验 dataset/config/codec/code identity 后恢复 optimizer。
 
-波次入口为 [`jobs/paracloud_submit_full_cell_inverse_stage_a_wave.sh`](../../../jobs/paracloud_submit_full_cell_inverse_stage_a_wave.sh)，支持 1–2 个 variant，即 9/18 个任务，并只允许 `3|9|18` 并发节流；`probe` 使用单 case batch-64 gate，`train` 使用正式 epoch runner。每次提交先验证完整配置与双数据集 SHA-256，再写 `submission_manifest.csv`；[`jobs/paracloud_full_cell_inverse_stage_a_status.sh`](../../../jobs/paracloud_full_cell_inverse_stage_a_status.sh) 只读汇总 Slurm 状态、artifact status、epoch、validation loss 和 forward gate。`PHC2D_SUBMIT_DRY_RUN=1` 仅生成 manifest，不调用 `sbatch`、不写 active-wave 指针。2026-08-06 的 18-task/9-concurrency dry-run 已通过，但两类 N40 配置仍未在云端执行，不能据 dry-run 或 CPU 结果推断 9/18 卡容量、batch-64 显存、吞吐或正式收敛通过；证据见 [Stage-A wave dry-run](../../results/inverse/full_cell_inverse_stage_a_wave_dryrun_20260806.md)。
+波次入口为 [`jobs/paracloud_submit_full_cell_inverse_stage_a_wave.sh`](https://github.com/fangtoast/phc2d/blob/master/jobs/paracloud_submit_full_cell_inverse_stage_a_wave.sh)，支持 1–2 个 variant，即 9/18 个任务，并只允许 `3|9|18` 并发节流；`probe` 使用单 case batch-64 gate，`train` 使用正式 epoch runner。每次提交先验证完整配置与双数据集 SHA-256，再写 `submission_manifest.csv`；[`jobs/paracloud_full_cell_inverse_stage_a_status.sh`](https://github.com/fangtoast/phc2d/blob/master/jobs/paracloud_full_cell_inverse_stage_a_status.sh) 只读汇总 Slurm 状态、artifact status、epoch、validation loss 和 forward gate。`PHC2D_SUBMIT_DRY_RUN=1` 仅生成 manifest，不调用 `sbatch`、不写 active-wave 指针。2026-08-06 的 18-task/9-concurrency dry-run 已通过，但两类 N40 配置仍未在云端执行，不能据 dry-run 或 CPU 结果推断 9/18 卡容量、batch-64 显存、吞吐或正式收敛通过；证据见 [Stage-A wave dry-run](../../results/inverse/full_cell_inverse_stage_a_wave_dryrun_20260806.md)。
 
 [↑ 回顶部](#full-cell-inverse-design-extension-plan)
 

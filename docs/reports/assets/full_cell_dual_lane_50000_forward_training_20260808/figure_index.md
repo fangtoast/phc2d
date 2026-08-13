@@ -1,3 +1,15 @@
+---
+title: "50k 全胞正向训练精选图件索引"
+summary: "报告图件及来源索引；用于核对资产和证据出处。"
+page_type: asset-index
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 5 minutes
+primary_layer: L3
+---
+
 <!--
   Curated figure provenance for the 50k full-cell forward report.
   Author: fangtoast

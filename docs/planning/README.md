@@ -1,3 +1,15 @@
+---
+title: "研究规划与协议索引"
+summary: "研究计划索引；按任务族路由到现行协议与历史记录。"
+page_type: landing
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 3 minutes
+primary_layer: L0
+---
+
 <!--
   Authority-aware planning index for the synchronized phc2d workspace.
   Author: fangtoast
@@ -7,7 +19,7 @@
 
 # 研究规划与协议索引
 
-本目录记录“计划做什么、为什么这样安排、通过什么 gate”，不证明实验已经完成。当前完成状态从 [`../results/README.md`](../results/README.md)、运行制品和 [`../../PROJECT_MAP.md`](../../PROJECT_MAP.md) 判断。
+本目录记录“计划做什么、为什么这样安排、通过什么 gate”，不证明实验已经完成。当前完成状态从 [`../results/README.md`](../results/README.md)、运行制品和 [`../../PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md) 判断。
 
 ## 权威路由
 

@@ -125,6 +125,27 @@ def test_docs_audit_exempts_only_root_readme_from_entry_metadata(tmp_path: Path)
     }
 
 
+def test_docs_audit_accepts_front_matter_as_entry_metadata(tmp_path: Path) -> None:
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "README.md").write_text(
+        "# Root\n\n[Docs](docs/README.md)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "README.md").write_text(
+        f"{_FRONT_MATTER}# Docs\n",
+        encoding="utf-8",
+    )
+
+    result = audit_documentation(
+        repo_root=tmp_path,
+        tracked_markdown=["README.md", "docs/README.md"],
+        entry_documents=["README.md", "docs/README.md"],
+    )
+
+    assert result["status"] == "pass"
+    assert result["entry_metadata_failures"] == {}
+
+
 def test_docs_audit_checks_front_matter_and_mkdocs_navigation(tmp_path: Path) -> None:
     (tmp_path / "docs" / "hidden").mkdir(parents=True)
     (tmp_path / "README.md").write_text("# Root\n", encoding="utf-8")
@@ -160,6 +181,42 @@ def test_docs_audit_checks_front_matter_and_mkdocs_navigation(tmp_path: Path) ->
     assert result["unnavigated_documents"] == ["docs/guide.md"]
     assert result["intentionally_hidden_documents"] == ["docs/hidden/asset.md"]
     assert "docs/guide.md" in result["front_matter_failures"]
+
+
+def test_docs_audit_reads_mkdocs_python_name_tags_without_constructing_them(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "README.md").write_text(
+        "# Root\n\n[Home](docs/index.md)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "index.md").write_text(
+        f"{_FRONT_MATTER}# Home\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "mkdocs.yml").write_text(
+        """docs_dir: docs
+nav:
+  - Home: index.md
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          format: !!python/name:pymdownx.superfences.fence_div_format
+""",
+        encoding="utf-8",
+    )
+
+    result = audit_documentation(
+        repo_root=tmp_path,
+        tracked_markdown=["README.md", "docs/index.md"],
+        entry_documents=["README.md"],
+    )
+
+    assert result["status"] == "pass"
+    assert result["navigated_documents"] == ["docs/index.md"]
+    assert result["mkdocs_failures"] == []
 
 
 def test_docs_audit_requires_evidence_scope_and_date(tmp_path: Path) -> None:

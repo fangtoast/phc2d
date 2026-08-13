@@ -1,3 +1,17 @@
+---
+title: "非 p4m 全胞双路线数据生成：实现与试点报告"
+summary: "日期化实验与验证证据；正文保持原始记录。"
+page_type: evidence
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 9 minutes
+primary_layer: L3
+evidence_date: 2026-08-03
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+---
+
 <!--
   Full-cell dual-lane dataset implementation and pilot report.
   Author: fangtoast
@@ -11,7 +25,7 @@
 - 代码提交：`662df59`（主体实现）、`1032e93`（恢复分片身份校验）
 - 正式环境：WSL Ubuntu + conda `meep_env`
 - 求解器：Meep `1.33.0-beta`，MPB `1.12.0`
-- 实验协议：[full_cell_dual_lane_data.md](../../../experiments/research/full_cell_dual_lane_data.md)
+- 实验协议：[full_cell_dual_lane_data.md](https://github.com/fangtoast/phc2d/blob/master/experiments/research/full_cell_dual_lane_data.md)
 - 当前证据状态：生成规则调整后，旧 64+64 任务已作废；新规则每路线 4 样本真实 MPB 前置门已通过，正式 64+64 与分辨率收敛尚未完成
 
 ## 执行结论

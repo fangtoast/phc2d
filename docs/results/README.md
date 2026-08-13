@@ -1,3 +1,15 @@
+---
+title: "当前实验进展与证据索引"
+summary: "实验与证据索引；按任务族路由到日期化结果记录。"
+page_type: landing
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 8 minutes
+primary_layer: L3
+---
+
 <!--
   Evidence-oriented result index for the synchronized phc2d workspace.
   Author: fangtoast
@@ -13,7 +25,7 @@
 
 ## 项目级入口
 
-- [项目地图](../../PROJECT_MAP.md)
+- [项目地图](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md)
 - [完整项目报告](../reports/phc2d_project_full_introduction_20260724.md)
 - [模型清单](../reports/phc2d_model_inventory_v1.yaml)
 - [精选图表与哈希](../reports/assets/phc2d_project_full_introduction_20260724/figure_index.md)
@@ -87,4 +99,4 @@
 1. 先读报告顶部的数据、环境、状态和证据边界。
 2. 再核对关联 run、配置、hash、seed 和失败案例。
 3. 历史报告用于追溯，不覆盖更新后的 metric/data contract。
-4. 新结果应更新本索引和 [`../../PROJECT_MAP.md`](../../PROJECT_MAP.md)，而不是只写在聊天中。
+4. 新结果应更新本索引和 [`../../PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md)，而不是只写在聊天中。
