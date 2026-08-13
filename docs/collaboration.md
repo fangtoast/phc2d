@@ -73,7 +73,7 @@
 
 ## 5. 文档状态与元数据
 
-当前入口文档必须显示：`Status`、`Audience`、`Owner`、`Last reviewed`、`Reading time`。其他文档按职责记录：
+除面向外部读者的根 README 外，当前入口文档必须显示：`Status`、`Audience`、`Owner`、`Last reviewed`、`Reading time`。根 README 只保留稳定的项目定位、最小上手路径和文档入口，不展示内部维护元数据。其他文档按职责记录：
 
 - 计划：authority、状态、被什么 supersede；
 - 实验 profile：输入、非目标、执行 gate；
@@ -128,4 +128,4 @@ Human acceptance: 人类需要确认的内容
 python -m phc2d.cli report docs-audit --root README.md --strict
 ```
 
-审计检查 Git 已跟踪 Markdown 的链接、跨文件稳定锚点、入口可达性、入口元数据和本机绝对路径。它不替代对科学语义、数值来源和证据强度的人工审阅。
+审计检查 Git 已跟踪 Markdown 的链接、跨文件稳定锚点、入口可达性、非根入口元数据和本机绝对路径。它不替代对科学语义、数值来源和证据强度的人工审阅。

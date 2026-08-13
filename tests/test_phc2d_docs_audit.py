@@ -25,7 +25,7 @@ _META = """| Metadata | Value |
 def test_docs_audit_passes_reachable_graph_and_explicit_anchor(tmp_path: Path) -> None:
     (tmp_path / "docs").mkdir()
     (tmp_path / "README.md").write_text(
-        f"# Root\n\n{_META}\n[Docs](docs/README.md)\n",
+        "# Root\n\n[Docs](docs/README.md)\n",
         encoding="utf-8",
     )
     (tmp_path / "docs" / "README.md").write_text(
@@ -64,7 +64,7 @@ def test_docs_audit_reports_broken_orphan_metadata_and_local_path(tmp_path: Path
     assert result["status"] == "fail"
     assert result["orphan_documents"] == ["orphan.md"]
     assert result["entry_absolute_path_failures"] == ["README.md"]
-    assert "README.md" in result["entry_metadata_failures"]
+    assert "README.md" not in result["entry_metadata_failures"]
     assert result["broken_links"] == [
         {"source": "README.md", "target": "docs/missing.md"}
     ]
@@ -72,7 +72,7 @@ def test_docs_audit_reports_broken_orphan_metadata_and_local_path(tmp_path: Path
 
 def test_docs_audit_ignores_untracked_markdown_and_missing_artifacts(tmp_path: Path) -> None:
     (tmp_path / "README.md").write_text(
-        f"# Root\n\n{_META}\n[Run](runs/missing/report.md)\n",
+        "# Root\n\n[Run](runs/missing/report.md)\n",
         encoding="utf-8",
     )
     (tmp_path / "draft.md").write_text("# Untracked draft\n", encoding="utf-8")
@@ -88,3 +88,23 @@ def test_docs_audit_ignores_untracked_markdown_and_missing_artifacts(tmp_path: P
     assert result["external_artifact_links"] == [
         {"source": "README.md", "target": "runs/missing/report.md"}
     ]
+
+
+def test_docs_audit_exempts_only_root_readme_from_entry_metadata(tmp_path: Path) -> None:
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "README.md").write_text(
+        "# Root\n\n[Docs](docs/README.md)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "docs" / "README.md").write_text("# Docs\n", encoding="utf-8")
+
+    result = audit_documentation(
+        repo_root=tmp_path,
+        tracked_markdown=["README.md", "docs/README.md"],
+        entry_documents=["README.md", "docs/README.md"],
+    )
+
+    assert result["status"] == "fail"
+    assert result["entry_metadata_failures"] == {
+        "docs/README.md": ["Status", "Audience", "Owner", "Last reviewed", "Reading time"]
+    }

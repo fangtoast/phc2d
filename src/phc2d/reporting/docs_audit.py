@@ -22,6 +22,7 @@ _LOCAL_ABSOLUTE_PATH = re.compile(r"(?:\b[A-Za-z]:[\\/]|/mnt/[A-Za-z]/)")
 _EXTERNAL_PREFIXES = ("http://", "https://", "mailto:", "tel:", "data:")
 _ARTIFACT_NAMESPACES = ("data/", "runs/", "checkpoints/")
 _ENTRY_METADATA = ("Status", "Audience", "Owner", "Last reviewed", "Reading time")
+_ENTRY_METADATA_EXEMPT = frozenset({"README.md"})
 _DEFAULT_ENTRY_DOCUMENTS = (
     "README.md",
     "PROJECT_MAP.md",
@@ -165,10 +166,11 @@ def audit_documentation(
             failures.append(f"required entry document is missing: {relative}")
             continue
         text = path.read_text(encoding="utf-8")
-        missing = [field for field in _ENTRY_METADATA if field not in text]
-        if missing:
-            metadata_failures[relative] = missing
-            failures.append(f"entry metadata missing in {relative}: {missing}")
+        if relative not in _ENTRY_METADATA_EXEMPT:
+            missing = [field for field in _ENTRY_METADATA if field not in text]
+            if missing:
+                metadata_failures[relative] = missing
+                failures.append(f"entry metadata missing in {relative}: {missing}")
         if _LOCAL_ABSOLUTE_PATH.search(text):
             absolute_path_failures.append(relative)
             failures.append(f"entry document contains a local absolute path: {relative}")

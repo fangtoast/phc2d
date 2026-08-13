@@ -71,8 +71,8 @@ Windows `.venv` 只作为编辑期临时调试便利，不再作为测试验收�
 - `docs/` 下新建的面向人工阅读文档，文件名默认优先使用简洁、可辨识的中文；固定入口名、代码/API 标识、实验 ID、机器消费产物及兼容性敏感路径继续使用英文。不要仅为统一语言批量重命名已有稳定文档。
 - 新建或大改 Markdown 应包含 HTML 注释文件头。
 - 文档中的仓库路径优先写相对链接。
-- 根 README 只保留稳定定义、任务路由与最小 quick start；易变化状态进入 [`../PROJECT_MAP.md`](../PROJECT_MAP.md)。
-- 当前入口文档显示 `Status`、`Audience`、`Owner`、`Last reviewed` 和 `Reading time`。
+- 根 README 是面向外部读者的项目首页，只保留稳定定义、主要能力、最小 quick start 和文档入口；易变化状态进入 [`../PROJECT_MAP.md`](../PROJECT_MAP.md)。
+- 除根 README 外，当前入口文档显示 `Status`、`Audience`、`Owner`、`Last reviewed` 和 `Reading time`；根 README 不展示内部维护元数据。
 - 一个文档只承担一种主要角色；长细节通过链接下沉，不在多个权威文件中复制。
 - 新建或重命名正式文档后，更新相邻索引并运行 `phc2d report docs-audit --root README.md --strict`。
 
