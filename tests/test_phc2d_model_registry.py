@@ -345,7 +345,11 @@ def test_model_identity_payload_fields_for_forward_baselines() -> None:
         factory = get_model_factory(name)
 
         assert get_model_spec(name).canonical_name == get_canonical_model_name(name)
-        assert model.__class__.__module__ == "phc2d.models.baselines"
+        assert model.__class__.__module__ in {
+            "phc2d.models.band_cnn",
+            "phc2d.models.band_mlp",
+            "phc2d.models.band_operators",
+        }
         assert model.__class__.__name__ != ""
         assert callable(factory)
         assert get_model_factory_identity(name)

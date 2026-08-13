@@ -78,9 +78,21 @@ def architecture_fingerprint(model: Any) -> str:
     """Hash architecture-level features without depending on trained values."""
 
     implementation = type(model)
+    identity_module = getattr(
+        implementation,
+        "__phc2d_architecture_module__",
+        implementation.__module__,
+    )
+    identity_qualname = getattr(
+        implementation,
+        "__phc2d_architecture_qualname__",
+        implementation.__qualname__,
+    )
     payload = {
-        "implementation_module": implementation.__module__,
-        "implementation_class": implementation.__qualname__,
+        # Stable identity hooks let maintenance-only module moves preserve
+        # fingerprints already recorded in checkpoints and run artifacts.
+        "implementation_module": identity_module,
+        "implementation_class": identity_qualname,
         "state_dict_schema": state_dict_schema(model),
         "parameter_count": _parameter_count(model),
         "trainable_parameter_count": _parameter_count(model, trainable_only=True),

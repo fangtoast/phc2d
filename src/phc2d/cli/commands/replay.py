@@ -1,0 +1,38 @@
+"""Replay command parser and lazy runtime dispatch.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+
+def configure(sub: Any) -> None:
+    """Add this command domain to the top-level parser."""
+
+    replay = sub.add_parser("replay", help="Physics replay and formal validation helpers.")
+    replay_sub = replay.add_subparsers(dest="action", required=True)
+    replay_mpb = replay_sub.add_parser(
+        "mpb",
+        help="Run MPB replay through WSL Ubuntu conda meep_env.",
+        description="Run MPB replay through WSL Ubuntu conda meep_env.",
+    )
+    replay_mpb.add_argument("--config", type=Path, default=None)
+    replay_mpb.set_defaults(command="replay mpb")
+
+
+def run(ns: Any) -> bool:
+    """Run a parsed command when it belongs to this domain."""
+
+    if ns.command == "replay mpb":
+        from phc2d.replay import run_replay_mpb
+
+        if ns.config is None:
+            raise SystemExit("`phc2d replay mpb` requires --config <yaml-path>.")
+        print(run_replay_mpb(ns.config))
+        return True
+    return False
