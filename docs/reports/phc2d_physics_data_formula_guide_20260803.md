@@ -404,23 +404,62 @@ $$
 e^{i\theta}(\mathbf E,\mathbf H).
 $$
 
-因此随后选择 E 场中幅值最大的确定性 anchor $a$，对 E/H 同乘公共相位：
+当前数据生成实现随后把归一化 E 数组展平，在所有空间点与电场分量中取
+$|E|$ 最大位置的复分量作为 anchor $a$；`numpy.argmax` 在并列最大值时取展平顺序中的
+第一个位置。再对 E/H 同乘公共相位：
 
 $$
 (\mathbf E,\mathbf H)\leftarrow
 e^{-i\arg(a)}(\mathbf E,\mathbf H).
 $$
 
-这样固定每个样本的任意全局相位，同时保留 E/H 的相对相位；它不保证场沿参数或 $\mathbf k$ 路径连续。
+因此，“anchor 由 E 场最大值位置确定”这一判断基本准确，但更精确的说法是
+“由 E 场**模长最大**的空间点—分量确定”。该规范使所选 anchor 为非负实数，适合单场落盘、
+复现与可视化；它只为每个样本选定一个相位代表。若两个位置的模长接近或发生交换，anchor
+索引及其相位可能跳变，所以它既不保证标签沿参数或 $\mathbf k$ 路径连续，也不应作为两个场
+之间 $L_2$ 距离或相似性的对齐规则。
 
-> **审查建议：**
-> 大模型审查代码明确此处 anchor 通过寻找场的最大值位置确定，请明确这个判断是否准确。这种方法 @陈伟 使用过，在做可视化的时候效果不错。但考虑本项目后续还需要比较场之间的 L2 距离，相似性等数据处理，可能会因为最大值位置的跳变导致结果不稳定。
-> **场比较宜采用最大重叠相位规范，而不是依赖两个场各自的 anchor。** 定义介电加权内积 $\langle\mathbf E_1,\mathbf E_2\rangle_\varepsilon=\sum\mathbf E_1^*\varepsilon\mathbf E_2$，则使 $\|\mathbf E_1-e^{i\theta}\mathbf E_2\|_\varepsilon^2$ 最小的相对相位为 $e^{i\theta}=e^{-i\arg\langle\mathbf E_1,\mathbf E_2\rangle_\varepsilon}$，且最小距离为 $\|\mathbf E_1\|_\varepsilon^2+\|\mathbf E_2\|_\varepsilon^2-2|\langle\mathbf E_1,\mathbf E_2\rangle_\varepsilon|$。
-> 若希望场沿 $\mathbf k$ 路径连续，可令每个场与前一个场按此最大重叠规则对齐；逐样本 anchor 只保留为首个参考场的初始规范。
-这样使 anchor 为非负实数，消除标签的任意全局相位跳变，同时保留 E/H 的相对相位。H 没有被独立归一化；它沿用由 E 得到的缩放和相位，避免破坏两者的 Maxwell 关系。
+两个场的比较采用介电加权最大重叠相位规范。按本文内积约定，令
 
-- **来源**：[`data/field_eigen.py`](../../src/phc2d/data/field_eigen.py)、[`physics/eigen_residual.py`](../../src/phc2d/physics/eigen_residual.py)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md)。
-- **状态**：当前本征场数据规范化实现。
+$$
+c_{12}=\langle\mathbf E_1,\mathbf E_2\rangle_{\varepsilon,h},
+\qquad
+e^{i\theta_*}=\frac{c_{12}^*}{|c_{12}|}
+=e^{-i\arg c_{12}},\qquad c_{12}\ne0,
+$$
+
+则 $e^{i\theta_*}$ 使
+
+$$
+\left\|\mathbf E_1-e^{i\theta}\mathbf E_2\right\|_{\varepsilon,h}^2
+$$
+
+取得最小值，且
+
+$$
+\min_\theta
+\left\|\mathbf E_1-e^{i\theta}\mathbf E_2\right\|_{\varepsilon,h}^2
+=\|\mathbf E_1\|_{\varepsilon,h}^2
++\|\mathbf E_2\|_{\varepsilon,h}^2
+-2|c_{12}|.
+$$
+
+当 $c_{12}=0$ 时任意相位都给出同一距离；当 $|c_{12}|$ 接近零时，相对相位数值不稳定。
+实现应保留小量保护，并把低重叠样本作为诊断项，而不是从任一场的 anchor 推断相对相位。
+第 5.6 节的训练损失与报告指标已经按此最大重叠规则
+对齐预测场和真值，并把由 E 得到的同一相位施加到 H；因此当前场比较不依赖两个场各自的
+anchor。
+
+若后续要求同一非简并模沿 $\mathbf k$ 路径连续，可只对首个参考场使用单场 anchor，随后令每个
+场与前一个已对齐场按最大重叠规则递推对齐。该 parallel-transport 式连续规范**尚未在当前数据
+生成链路实现**；在能带交叉、近简并或模态次序交换处，逐模相位对齐仍不充分，应先做模态匹配，
+必要时对简并子空间做整体对齐。
+
+无论采用单场 anchor 还是两场最大重叠，H 都不独立归一化或独立定相；它沿用由 E 得到的缩放
+和相位，以保留 E/H 的相对相位及 Maxwell 关系。
+
+- **来源**：[`data/field_eigen.py`](../../src/phc2d/data/field_eigen.py)、[`forward/field_eigen_v2.py`](../../src/phc2d/forward/field_eigen_v2.py)、[`physics/eigen_residual.py`](../../src/phc2d/physics/eigen_residual.py)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md)。
+- **状态**：单场最大模长 anchor 与两场最大重叠比较均已实现；沿 $\mathbf k$ 路径的连续规范及简并子空间对齐尚未实现。
 
 ### 5.3 带 Bloch 相位回绕的中心差分
 
@@ -483,15 +522,19 @@ $$
 
 ### 5.6 相位不变 E/H 场损失
 
-对第 $n$ 个样本的预测复场 $\widehat{\mathbf E}_n$ 与目标 $\mathbf E_n$，先由介电加权电场内积求公共相位
+对第 $n$ 个样本的预测复场 $\widehat{\mathbf E}_n$ 与目标 $\mathbf E_n$，先由介电加权电场内积求最大重叠公共相位
 
 $$
 \alpha_n=
 \frac{\langle\widehat{\mathbf E}_n,\mathbf E_n\rangle_{\varepsilon,h}}
-{|\langle\widehat{\mathbf E}_n,\mathbf E_n\rangle_{\varepsilon,h}|+\delta}.
+{\max\!\left(|\langle\widehat{\mathbf E}_n,\mathbf E_n\rangle_{\varepsilon,h}|,\delta\right)}.
 $$
 
-代码求相位时省略了每个网格点共有的 $\Delta x\Delta y$，因为该正实因子在分子和绝对值分母中约去。对齐场为
+这里取 $\mathbf E_1=\mathbf E_n$、$\mathbf E_2=\widehat{\mathbf E}_n$；利用内积的共轭对称性，上式与第 5.2 节的
+$e^{-i\arg\langle\mathbf E_1,\mathbf E_2\rangle}$ 完全等价。代码求相位时省略了每个网格点共有的
+$\Delta x\Delta y$，因为该正实因子在通常的非退化分支中约去。当前实现取 $\delta=10^{-12}$；
+当内积模长小于 $\delta$ 时，$|\alpha_n|<1$，这是防止除零的数值保护，不再是严格的单位模相位。
+对齐场为
 
 $$
 (\widehat{\mathbf E}_n^{\rm align},
@@ -907,7 +950,7 @@ $$
 | wedge 几何、$D_4$/p4m、$\varepsilon(\chi)$ | [`data/lift.py`](../../src/phc2d/data/lift.py) | V2 `16×16`、$\varepsilon\in[1.0,8.9]$ | 已实现 |
 | MPB 像素与频带求解 | [`solvers/mpb.py`](../../src/phc2d/solvers/mpb.py) | resolution 64、TE、10+4 bands | 已实现 |
 | V2 采样和 k-path | [`query_dataset_v2_pilot_10000.yaml`](../../configs/research/query_dataset_v2_pilot_10000.yaml) | $p=0.32$、$N_k=31$ | 已实现配置 |
-| 复场数据规范化与度规 | [`data/field_eigen.py`](../../src/phc2d/data/field_eigen.py)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md) | $\langle E_1,E_2\rangle_\varepsilon$、公共 E/H 相位 | 已实现；旧数值属历史诊断 |
+| 复场数据规范化与度规 | [`data/field_eigen.py`](../../src/phc2d/data/field_eigen.py)、[`forward/field_eigen_v2.py`](../../src/phc2d/forward/field_eigen_v2.py)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md) | 单场最大模长 anchor；两场介电加权最大重叠；公共 E/H 相位 | 比较度规已实现；$\mathbf k$ 路径连续规范未实现；旧数值属历史诊断 |
 | NumPy 场残差 | [`physics/eigen_residual.py`](../../src/phc2d/physics/eigen_residual.py) | Bloch finite difference | 已实现诊断 |
 | Torch/PINO 场残差 | [`physics/torch_eigen_residual.py`](../../src/phc2d/physics/torch_eigen_residual.py) | solver-floor scaled | 已实现训练项 |
 | field 编码和训练制度 | [`forward/field_eigen_v2.py`](../../src/phc2d/forward/field_eigen_v2.py) | 5+3 输入、6 输出、log-$f$ | 已实现；inverse blocked |
@@ -928,7 +971,7 @@ $$
 5. 它能证明 surrogate 拟合、field physics consistency，还是 real-MPB replay？三者不能互换。
 6. 若涉及 adapted PINO，是否明确它属于 `fno_field_v2` 训练制度，且当前不能进入 inverse reranking？
 7. 若涉及 inverse，是否分别报告 `best_of_k_surrogate_mre`、`best_of_k_replay_mre` 与 `surrogate_replay_gap`？
-8. 若涉及场误差，E 是否使用介电加权度规？H 是否仍沿用 E 决定的公共相位？
+8. 若涉及场误差或相似性，是否使用介电加权最大重叠对齐，而不是比较两个场各自的 anchor？H 是否仍沿用 E 决定的公共相位？
 9. 是否区分了训练中的相对 $L_2$ 平方与报告中的相对 $L_2$，并说明正确归一化时只有 E 的分母理论上为 1？
 
 本文只整理当前已实现主线。尚未接入当前运行流程的参考架构，应在模型清单或专门研究计划中维护，不能以一条参考公式写成“项目已经实现”。
