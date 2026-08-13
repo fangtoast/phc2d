@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from phc2d.models._common import _numel, _require_torch, _shape_tuple
+from phc2d.models.torch_support import numel, require_torch, shape_tuple
 
 
 def build_mlp_query(
@@ -24,19 +24,19 @@ def build_mlp_query(
 ) -> Any:
     """Build a query MLP baseline for ``epsilon_grid + k_coordinate -> band_vector``."""
 
-    _, nn = _require_torch("mlp_query")
-    in_shape = _shape_tuple(input_shape, name="input_shape")
-    out_shape = _shape_tuple(output_shape, name="output_shape")
+    _, nn = require_torch("mlp_query")
+    in_shape = shape_tuple(input_shape, name="input_shape")
+    out_shape = shape_tuple(output_shape, name="output_shape")
     hidden = int(hidden_dim)
     n_layers = int(depth)
     q_dim = int(k_dim)
     if hidden <= 0 or n_layers <= 0 or q_dim <= 0:
         raise ValueError("hidden_dim, depth, and k_dim must be positive")
     activation_layer = nn.GELU if activation == "gelu" else nn.ReLU
-    layers: list[Any] = [nn.Linear(_numel(in_shape) + q_dim, hidden), activation_layer()]
+    layers: list[Any] = [nn.Linear(numel(in_shape) + q_dim, hidden), activation_layer()]
     for _ in range(n_layers - 1):
         layers.extend([nn.Dropout(float(dropout)), nn.Linear(hidden, hidden), activation_layer()])
-    layers.append(nn.Linear(hidden, _numel(out_shape)))
+    layers.append(nn.Linear(hidden, numel(out_shape)))
 
     class MLPQuery(nn.Module):
         def __init__(self) -> None:
@@ -74,9 +74,9 @@ def build_deep_onet_query(
 ) -> Any:
     """Build a minimal DeepONet-style query model with branch/trunk product fusion."""
 
-    _, nn = _require_torch("deep_onet_query")
-    in_shape = _shape_tuple(input_shape, name="input_shape")
-    out_shape = _shape_tuple(output_shape, name="output_shape")
+    _, nn = require_torch("deep_onet_query")
+    in_shape = shape_tuple(input_shape, name="input_shape")
+    out_shape = shape_tuple(output_shape, name="output_shape")
     q_dim = int(k_dim)
     latent = int(latent_dim)
     branch_hidden = int(branch_width)
@@ -99,10 +99,10 @@ def build_deep_onet_query(
             self.input_shape = in_shape
             self.output_shape = out_shape
             self.k_dim = q_dim
-            self.branch = _mlp(_numel(in_shape), branch_hidden, latent)
+            self.branch = _mlp(numel(in_shape), branch_hidden, latent)
             self.trunk = _mlp(q_dim, trunk_hidden, latent)
-            self.bias = nn.Parameter(__import__("torch").zeros(_numel(out_shape)))
-            self.band_head = nn.Linear(latent, _numel(out_shape), bias=False)
+            self.bias = nn.Parameter(__import__("torch").zeros(numel(out_shape)))
+            self.band_head = nn.Linear(latent, numel(out_shape), bias=False)
 
         def forward(self, structure: Any, k_coordinate: Any | None = None) -> Any:
             if isinstance(structure, dict):
@@ -133,9 +133,9 @@ def build_fno2d_query(
 ) -> Any:
     """Build a spectral-grid encoder with explicit k-query conditioning."""
 
-    torch, nn = _require_torch("fno2d_query")
-    in_shape = _shape_tuple(input_shape, name="input_shape")
-    out_shape = _shape_tuple(output_shape, name="output_shape")
+    torch, nn = require_torch("fno2d_query")
+    in_shape = shape_tuple(input_shape, name="input_shape")
+    out_shape = shape_tuple(output_shape, name="output_shape")
     if len(in_shape) == 2:
         in_channels = 1
     elif len(in_shape) == 3:
@@ -147,7 +147,7 @@ def build_fno2d_query(
     q_dim = int(k_dim)
     model_width = int(width)
     n_layers = int(depth)
-    modes_y, modes_x = _shape_tuple(modes, name="modes")
+    modes_y, modes_x = shape_tuple(modes, name="modes")
     query_hidden = int(query_hidden_dim)
     if min(q_dim, model_width, n_layers, query_hidden) <= 0:
         raise ValueError("fno2d_query dimensions must be positive")
@@ -209,7 +209,7 @@ def build_fno2d_query(
             self.head = nn.Sequential(
                 nn.Linear(model_width * 2, query_hidden),
                 activation_layer(),
-                nn.Linear(query_hidden, _numel(out_shape)),
+                nn.Linear(query_hidden, numel(out_shape)),
             )
 
         def forward(self, structure: Any, k_coordinate: Any | None = None) -> Any:

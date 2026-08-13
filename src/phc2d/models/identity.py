@@ -16,7 +16,6 @@ from typing import Any, Mapping
 from phc2d.models.registry import (
     ModelSpec,
     get_canonical_model_name,
-    get_model_factory,
     get_model_factory_identity,
     get_model_spec,
 )
@@ -121,7 +120,6 @@ def describe_model_identity(
     requested = str(requested_name)
     if spec is None:
         spec = get_model_spec(requested)
-    factory = get_model_factory(requested)
     implementation = type(model)
     source_file = inspect.getsourcefile(implementation) or inspect.getfile(implementation)
     return {
@@ -139,7 +137,7 @@ def describe_model_identity(
         "state_dict_key_names": state_dict_key_names(model),
         "state_dict_schema_hash": state_dict_schema_hash(model),
         "architecture_fingerprint": architecture_fingerprint(model),
-        "factory_function_identity": f"{factory.__module__}.{getattr(factory, '__qualname__', factory.__name__)}",
+        "factory_function_identity": get_model_factory_identity(requested),
     }
 
 

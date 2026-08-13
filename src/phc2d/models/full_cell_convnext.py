@@ -9,15 +9,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from phc2d.models._full_cell_common import (
-    _drop_path_rates,
-    _head_kind,
-    _image_contract,
-    _make_band_head,
-    _make_drop_path,
-    _require_torch,
-    _shape_tuple,
-    _target_contract,
+from phc2d.models.torch_support import (
+    drop_path_rates,
+    image_contract,
+    make_band_head,
+    make_drop_path,
+    normalize_head_kind,
+    require_torch,
+    shape_tuple,
+    target_contract,
 )
 
 
@@ -41,11 +41,11 @@ def build_convnext_band_v1(
 ) -> Any:
     """Build the periodic ConvNeXt-style Full-Wh upgrade."""
 
-    torch, nn, functional = _require_torch("convnext_band_v1")
-    in_shape, in_channels = _image_contract(input_shape, model_name="convnext_band_v1")
-    out_shape, _, _ = _target_contract(output_shape)
-    dims = _shape_tuple(stage_dims, name="stage_dims")
-    depths = _shape_tuple(stage_depths, name="stage_depths")
+    torch, nn, functional = require_torch("convnext_band_v1", need_functional=True)
+    in_shape, in_channels = image_contract(input_shape, model_name="convnext_band_v1")
+    out_shape, _, _ = target_contract(output_shape)
+    dims = shape_tuple(stage_dims, name="stage_dims")
+    depths = shape_tuple(stage_depths, name="stage_depths")
     if len(dims) != 3 or len(depths) != 3:
         raise ValueError("stage_dims and stage_depths must each contain three values")
     stride = int(stem_stride)
@@ -54,8 +54,8 @@ def build_convnext_band_v1(
     if stride <= 0 or kernel <= 0 or kernel % 2 == 0 or expansion_value <= 0:
         raise ValueError("invalid ConvNeXt stem/kernel/expansion")
     total_depth = sum(depths)
-    rates = iter(_drop_path_rates(total_depth, float(drop_path)))
-    DropPath = _make_drop_path(nn, torch)
+    rates = iter(drop_path_rates(total_depth, float(drop_path)))
+    DropPath = make_drop_path(nn, torch)
 
     def circular_pad2d(x: Any, padding: int) -> Any:
         """Periodic padding that also supports feature maps smaller than padding."""
@@ -99,7 +99,7 @@ def build_convnext_band_v1(
             super().__init__()
             self.input_shape = in_shape
             self.output_shape = out_shape
-            self.head_kind = _head_kind(head_kind)
+            self.head_kind = normalize_head_kind(head_kind)
             self.stem = nn.Conv2d(in_channels, dims[0], kernel_size=stride, stride=stride)
             self.stages = nn.ModuleList()
             self.downsamples = nn.ModuleList()
@@ -110,7 +110,7 @@ def build_convnext_band_v1(
                 if stage_index < len(dims) - 1:
                     self.downsamples.append(PeriodicDownsample(width, dims[stage_index + 1]))
             self.norm = nn.LayerNorm(dims[-1])
-            self.head = _make_band_head(
+            self.head = make_band_head(
                 torch=torch,
                 nn=nn,
                 latent_dim=dims[-1],

@@ -7,13 +7,31 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
-from phc2d.models.registry import (
-    ModelFactory,
-    ModelSpec,
-    _build_deep_onet_query,
-    _build_fno2d_query,
-    _build_mlp_query,
-)
+from typing import Any
+
+from phc2d.models.registry import ModelFactory, ModelSpec
+
+
+def _build_mlp_query(**kwargs: Any) -> Any:
+    from phc2d.models.query import build_mlp_query
+
+    return build_mlp_query(**kwargs)
+
+
+def _build_deep_onet_query(**kwargs: Any) -> Any:
+    from phc2d.models.query import build_deep_onet_query
+
+    return build_deep_onet_query(**kwargs)
+
+
+def _build_fno2d_query(**kwargs: Any) -> Any:
+    from phc2d.models.query import build_fno2d_query
+
+    return build_fno2d_query(**kwargs)
+
+
+for _factory in (_build_mlp_query, _build_deep_onet_query, _build_fno2d_query):
+    _factory.__phc2d_factory_identity__ = f"phc2d.models.registry.{_factory.__name__}"
 
 
 def model_specs() -> tuple[tuple[str, ModelFactory, ModelSpec], ...]:

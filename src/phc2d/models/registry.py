@@ -16,6 +16,21 @@ ModelFactory = Callable[..., Any]
 _REGISTRY: dict[str, ModelFactory] = {}
 _SPECS: dict[str, "ModelSpec"] = {}
 
+__all__ = [
+    "ModelFactory",
+    "ModelSpec",
+    "build_model",
+    "get_canonical_model_name",
+    "get_model_factory",
+    "get_model_factory_identity",
+    "get_model_spec",
+    "is_registered",
+    "list_model_specs",
+    "list_models",
+    "model_spec_to_dict",
+    "register_model",
+]
+
 
 @dataclass(frozen=True)
 class ModelSpec:
@@ -66,6 +81,12 @@ def register_model(
         _SPECS.pop(key, None)
 
 
+def is_registered(name: str) -> bool:
+    """Return whether a model name is present in the registry."""
+
+    return str(name) in _REGISTRY
+
+
 def build_model(name: str, **kwargs: Any) -> Any:
     """Build a registered model."""
     key = str(name)
@@ -114,7 +135,13 @@ def get_canonical_model_name(name: str) -> str:
 def get_model_factory_identity(name: str) -> str:
     """Return a stable identity string for the factory behind a model name."""
     factory = get_model_factory(name)
-    return f"{factory.__module__}.{factory.__name__}"
+    return str(
+        getattr(
+            factory,
+            "__phc2d_factory_identity__",
+            f"{factory.__module__}.{factory.__name__}",
+        )
+    )
 
 
 def list_model_specs() -> tuple[ModelSpec, ...]:
@@ -141,122 +168,3 @@ def model_spec_to_dict(spec: ModelSpec) -> dict[str, Any]:
         "defaults": dict(spec.defaults),
         "source": spec.source,
     }
-
-
-def _build_res_mlp(**kwargs: Any) -> Any:
-    from phc2d.models.baselines import build_res_mlp
-
-    return build_res_mlp(**kwargs)
-
-
-def _build_mlp(**kwargs: Any) -> Any:
-    from phc2d.models.baselines import build_mlp
-
-    return build_mlp(**kwargs)
-
-
-def _build_pod_res_mlp(**kwargs: Any) -> Any:
-    from phc2d.models.baselines import build_pod_res_mlp
-
-    return build_pod_res_mlp(**kwargs)
-
-
-def _build_lifted_cnn(**kwargs: Any) -> Any:
-    from phc2d.models.baselines import build_lifted_cnn
-
-    return build_lifted_cnn(**kwargs)
-
-
-def _build_fno_lite(**kwargs: Any) -> Any:
-    from phc2d.models.baselines import build_fno_lite
-
-    return build_fno_lite(**kwargs)
-
-
-def _build_fno2d_band(**kwargs: Any) -> Any:
-    from phc2d.models.baselines import build_fno2d_band
-
-    return build_fno2d_band(**kwargs)
-
-
-def _build_mlp_query(**kwargs: Any) -> Any:
-    from phc2d.models.baselines import build_mlp_query
-
-    return build_mlp_query(**kwargs)
-
-
-def _build_deep_onet_query(**kwargs: Any) -> Any:
-    from phc2d.models.baselines import build_deep_onet_query
-
-    return build_deep_onet_query(**kwargs)
-
-
-def _build_fno2d_query(**kwargs: Any) -> Any:
-    from phc2d.models.baselines import build_fno2d_query
-
-    return build_fno2d_query(**kwargs)
-
-
-def _build_mlp_mixer_band_v1(**kwargs: Any) -> Any:
-    from phc2d.models.full_cell_upgrades import build_mlp_mixer_band_v1
-
-    return build_mlp_mixer_band_v1(**kwargs)
-
-
-def _build_res_mlp_gated_v2(**kwargs: Any) -> Any:
-    from phc2d.models.full_cell_upgrades import build_res_mlp_gated_v2
-
-    return build_res_mlp_gated_v2(**kwargs)
-
-
-def _build_convnext_band_v1(**kwargs: Any) -> Any:
-    from phc2d.models.full_cell_upgrades import build_convnext_band_v1
-
-    return build_convnext_band_v1(**kwargs)
-
-
-def _build_tfno2d_band_v3(**kwargs: Any) -> Any:
-    from phc2d.models.full_cell_upgrades import build_tfno2d_band_v3
-
-    return build_tfno2d_band_v3(**kwargs)
-
-
-def _build_dual_lane_band_operator_v1(**kwargs: Any) -> Any:
-    from phc2d.models.full_cell_upgrades import build_dual_lane_band_operator_v1
-
-    return build_dual_lane_band_operator_v1(**kwargs)
-
-
-def _build_unet_field(**kwargs: Any) -> Any:
-    from phc2d.models.field import build_unet_field
-
-    return build_unet_field(**kwargs)
-
-
-def _build_fno_field(**kwargs: Any) -> Any:
-    from phc2d.models.field import build_fno_field
-
-    return build_fno_field(**kwargs)
-
-
-def _build_unet_field_v2(**kwargs: Any) -> Any:
-    from phc2d.models.field import build_unet_field_v2
-
-    return build_unet_field_v2(**kwargs)
-
-
-def _build_fno_field_v2(**kwargs: Any) -> Any:
-    from phc2d.models.field import build_fno_field_v2
-
-    return build_fno_field_v2(**kwargs)
-
-
-def _load_builtin_catalog() -> None:
-    # Import after the registry API and lazy factory adapters are defined.  The
-    # catalog imports these symbols to avoid importing optional torch at module load.
-    from phc2d.models._builtin_models import register_builtin_models
-
-    register_builtin_models()
-
-
-_load_builtin_catalog()

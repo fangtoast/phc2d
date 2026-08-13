@@ -7,12 +7,21 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
+import ast
 import inspect
+import pickle
 from pathlib import Path
 
 import pytest
 
-from phc2d.models import architecture_fingerprint, build_model
+from phc2d.models import (
+    architecture_fingerprint,
+    build_model,
+    get_model_factory,
+    get_model_factory_identity,
+    is_registered,
+)
+from phc2d.models import _builtin_models, torch_support
 from phc2d.models import registry
 from phc2d.models.band_cnn import build_lifted_cnn
 from phc2d.models.band_mlp import build_mlp, build_pod_res_mlp, build_res_mlp
@@ -70,8 +79,16 @@ def test_legacy_model_modules_are_thin_identity_preserving_facades() -> None:
 
 def test_registry_mechanism_is_separate_from_builtin_catalog() -> None:
     registry_source = inspect.getsource(registry)
+    registry_tree = ast.parse(registry_source)
+    registry_functions = {
+        node.name for node in registry_tree.body if isinstance(node, ast.FunctionDef)
+    }
     assert "ModelSpec(" not in registry_source
-    assert len(registry_source.splitlines()) <= 300
+    assert "phc2d.models._builtin_models" not in registry_source
+    assert not {name for name in registry_functions if name.startswith("_build_")}
+    assert "_REGISTRY" not in inspect.getsource(_builtin_models)
+    assert is_registered("mlp")
+    assert len(registry_source.splitlines()) <= 180
     catalog_dir = Path(inspect.getsourcefile(registry)).parent / "catalog"
     catalog_sizes = {
         path.name: len(path.read_text(encoding="utf-8").splitlines())
@@ -79,6 +96,33 @@ def test_registry_mechanism_is_separate_from_builtin_catalog() -> None:
     }
     assert catalog_sizes
     assert max(catalog_sizes.values()) <= 250
+
+    for name in ("mlp", "deep_onet_query", "unet_field_v2", "convnext_band_v1"):
+        factory = get_model_factory(name)
+        factory_path = Path(inspect.getsourcefile(factory) or "")
+        assert factory_path.parent == catalog_dir
+        assert factory.__module__.startswith("phc2d.models.catalog.")
+        assert pickle.loads(pickle.dumps(factory)) is factory
+
+    assert get_model_factory_identity("mlp") == "phc2d.models.registry._build_mlp"
+    assert (
+        get_model_factory_identity("convnext_band_v1")
+        == "phc2d.models.registry._build_convnext_band_v1"
+    )
+
+
+def test_model_builders_share_one_public_torch_support_module() -> None:
+    model_dir = Path(inspect.getsourcefile(registry)).parent
+    assert not (model_dir / "_common.py").exists()
+    assert not (model_dir / "_full_cell_common.py").exists()
+    assert {
+        "numel",
+        "require_torch",
+        "shape_tuple",
+        "image_contract",
+        "target_contract",
+        "make_band_head",
+    }.issubset(torch_support.__all__)
 
 
 @pytest.mark.parametrize(

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from phc2d.models._common import _numel, _require_torch, _shape_tuple
+from phc2d.models.torch_support import numel, require_torch, shape_tuple
 
 
 def build_fno_lite(
@@ -23,9 +23,9 @@ def build_fno_lite(
 ) -> Any:
     """Build a minimal spectral-convolution baseline for CPU shape smoke."""
 
-    torch, nn = _require_torch("fno_lite")
-    in_shape = _shape_tuple(input_shape, name="input_shape")
-    out_shape = _shape_tuple(output_shape, name="output_shape")
+    torch, nn = require_torch("fno_lite")
+    in_shape = shape_tuple(input_shape, name="input_shape")
+    out_shape = shape_tuple(output_shape, name="output_shape")
     if len(in_shape) == 2:
         in_channels = 1
     elif len(in_shape) == 3:
@@ -36,7 +36,7 @@ def build_fno_lite(
         )
     model_width = int(width)
     n_layers = int(depth)
-    modes_y, modes_x = _shape_tuple(modes, name="modes")
+    modes_y, modes_x = shape_tuple(modes, name="modes")
     if model_width <= 0 or n_layers <= 0:
         raise ValueError("width and depth must be positive")
     activation_layer = nn.GELU if activation == "gelu" else nn.ReLU
@@ -94,7 +94,7 @@ def build_fno_lite(
             self.lift = nn.Conv2d(in_channels, model_width, kernel_size=1)
             self.blocks = nn.Sequential(*[FnoBlock() for _ in range(n_layers)])
             self.pool = nn.AdaptiveAvgPool2d(1)
-            self.head = nn.Linear(model_width, _numel(out_shape))
+            self.head = nn.Linear(model_width, numel(out_shape))
 
         def forward(self, x: Any) -> Any:
             if x.ndim == 3:
@@ -120,9 +120,9 @@ def build_fno2d_band(
 ) -> Any:
     """Build a dedicated band-aware spectral baseline for the `epsilon_grid -> Wh` task."""
 
-    torch, nn = _require_torch("fno2d_band")
-    in_shape = _shape_tuple(input_shape, name="input_shape")
-    out_shape = _shape_tuple(output_shape, name="output_shape")
+    torch, nn = require_torch("fno2d_band")
+    in_shape = shape_tuple(input_shape, name="input_shape")
+    out_shape = shape_tuple(output_shape, name="output_shape")
     if len(in_shape) == 2:
         in_channels = 1
     elif len(in_shape) == 3:
@@ -133,8 +133,8 @@ def build_fno2d_band(
         )
     model_width = int(width)
     n_layers = int(depth)
-    modes_y, modes_x = _shape_tuple(modes, name="modes")
-    band_modes_y, band_modes_x = _shape_tuple(
+    modes_y, modes_x = shape_tuple(modes, name="modes")
+    band_modes_y, band_modes_x = shape_tuple(
         band_modes if band_modes is not None else modes,
         name="band_modes",
     )
@@ -232,7 +232,7 @@ def build_fno2d_band(
             self.lift = nn.Conv2d(in_channels, model_width, kernel_size=1)
             self.blocks = nn.Sequential(*[BandBlock() for _ in range(n_layers)])
             self.pool = nn.AdaptiveAvgPool2d(1)
-            self.head = nn.Linear(model_width, _numel(out_shape))
+            self.head = nn.Linear(model_width, numel(out_shape))
 
         def forward(self, x: Any) -> Any:
             if x.ndim == 3:

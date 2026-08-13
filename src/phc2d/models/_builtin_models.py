@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from phc2d.models.registry import ModelFactory, ModelSpec, _REGISTRY, register_model
+from phc2d.models.registry import ModelFactory, ModelSpec, is_registered, register_model
 
 CatalogProvider = Callable[[], tuple[tuple[str, ModelFactory, ModelSpec], ...]]
 
@@ -28,5 +28,5 @@ def register_builtin_models() -> None:
 
     for provider in _catalog_providers():
         for name, factory, spec in provider():
-            if name not in _REGISTRY:
+            if not is_registered(name):
                 register_model(name, factory, spec=spec)

@@ -10,15 +10,15 @@ from __future__ import annotations
 from math import prod
 from typing import Any
 
-from phc2d.models._full_cell_common import (
-    _drop_path_rates,
-    _head_kind,
-    _image_contract,
-    _make_band_head,
-    _make_drop_path,
-    _require_torch,
-    _shape_tuple,
-    _target_contract,
+from phc2d.models.torch_support import (
+    drop_path_rates,
+    image_contract,
+    make_band_head,
+    make_drop_path,
+    normalize_head_kind,
+    require_torch,
+    shape_tuple,
+    target_contract,
 )
 
 
@@ -42,10 +42,10 @@ def build_mlp_mixer_band_v1(
 ) -> Any:
     """Build the grid-token MLP-Mixer-style Full-Wh upgrade."""
 
-    torch, nn, functional = _require_torch("mlp_mixer_band_v1")
-    in_shape, in_channels = _image_contract(input_shape, model_name="mlp_mixer_band_v1")
-    out_shape, _, _ = _target_contract(output_shape)
-    token_shape = _shape_tuple(token_grid, name="token_grid")
+    torch, nn, functional = require_torch("mlp_mixer_band_v1", need_functional=True)
+    in_shape, in_channels = image_contract(input_shape, model_name="mlp_mixer_band_v1")
+    out_shape, _, _ = target_contract(output_shape)
+    token_shape = shape_tuple(token_grid, name="token_grid")
     if len(token_shape) != 2:
         raise ValueError("token_grid must contain two dimensions")
     width = int(embed_dim)
@@ -55,7 +55,7 @@ def build_mlp_mixer_band_v1(
     if min(width, n_blocks, token_hidden, channel_hidden) <= 0:
         raise ValueError("Mixer dimensions must be positive")
     n_tokens = int(prod(token_shape))
-    DropPath = _make_drop_path(nn, torch)
+    DropPath = make_drop_path(nn, torch)
 
     class MixerBlock(nn.Module):
         def __init__(self, probability: float) -> None:
@@ -89,16 +89,16 @@ def build_mlp_mixer_band_v1(
             super().__init__()
             self.input_shape = in_shape
             self.output_shape = out_shape
-            self.head_kind = _head_kind(head_kind)
+            self.head_kind = normalize_head_kind(head_kind)
             self.token_grid = token_shape
             self.token_projection = nn.Linear(in_channels, width)
             self.position = nn.Parameter(torch.zeros(1, n_tokens, width))
             nn.init.trunc_normal_(self.position, std=0.02)
             self.blocks = nn.ModuleList(
-                MixerBlock(rate) for rate in _drop_path_rates(n_blocks, float(drop_path))
+                MixerBlock(rate) for rate in drop_path_rates(n_blocks, float(drop_path))
             )
             self.norm = nn.LayerNorm(width)
-            self.head = _make_band_head(
+            self.head = make_band_head(
                 torch=torch,
                 nn=nn,
                 latent_dim=width,

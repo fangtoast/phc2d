@@ -1,4 +1,4 @@
-"""Shared contracts and heads for project-native Full-Wh upgrades.
+"""Shared lazy Torch, shape, and Full-Wh model-building helpers.
 
 Author: fangtoast
 Email: fangtoast@foxmail.com
@@ -7,23 +7,47 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
+from math import prod
 from typing import Any
 
+__all__ = [
+    "drop_path_rates",
+    "image_contract",
+    "make_band_head",
+    "make_drop_path",
+    "numel",
+    "normalize_head_kind",
+    "require_torch",
+    "shape_tuple",
+    "target_contract",
+]
 
-def _require_torch(model_name: str) -> tuple[Any, Any, Any]:
+
+def require_torch(
+    model_name: str,
+    *,
+    need_functional: bool = False,
+) -> tuple[Any, Any] | tuple[Any, Any, Any]:
+    """Import Torch lazily for a model builder."""
+
     try:
         import torch
         from torch import nn
-        from torch.nn import functional as functional
     except ImportError as exc:
         raise ImportError(
             f"Building model '{model_name}' requires optional dependency 'torch'. "
             "Install phc2d with the train extra or skip torch-only model checks."
         ) from exc
-    return torch, nn, functional
+    if need_functional:
+        from torch.nn import functional
+
+        return torch, nn, functional
+    return torch, nn
 
 
-def _shape_tuple(value: Any, *, name: str) -> tuple[int, ...]:
+def shape_tuple(value: Any, *, name: str) -> tuple[int, ...]:
+    """Normalize and validate a positive shape tuple."""
+
     if value is None:
         raise ValueError(f"{name} is required")
     shape = (int(value),) if isinstance(value, int) else tuple(int(dim) for dim in value)
@@ -32,8 +56,16 @@ def _shape_tuple(value: Any, *, name: str) -> tuple[int, ...]:
     return shape
 
 
-def _image_contract(input_shape: Any, *, model_name: str) -> tuple[tuple[int, ...], int]:
-    shape = _shape_tuple(input_shape, name="input_shape")
+def numel(shape: tuple[int, ...]) -> int:
+    """Return the number of elements represented by a shape."""
+
+    return int(prod(shape))
+
+
+def image_contract(input_shape: Any, *, model_name: str) -> tuple[tuple[int, ...], int]:
+    """Validate an image input shape and return its channel count."""
+
+    shape = shape_tuple(input_shape, name="input_shape")
     if len(shape) == 2:
         return shape, 1
     if len(shape) == 3:
@@ -43,27 +75,35 @@ def _image_contract(input_shape: Any, *, model_name: str) -> tuple[tuple[int, ..
     )
 
 
-def _target_contract(output_shape: Any) -> tuple[tuple[int, int], int, int]:
-    shape = _shape_tuple(output_shape, name="output_shape")
+def target_contract(output_shape: Any) -> tuple[tuple[int, int], int, int]:
+    """Validate a Full-Wh target shape."""
+
+    shape = shape_tuple(output_shape, name="output_shape")
     if len(shape) != 2:
         raise ValueError("Full-Wh output_shape must be (n_k_points, n_bands)")
     return (int(shape[0]), int(shape[1])), int(shape[0]), int(shape[1])
 
 
-def _head_kind(value: str) -> str:
+def normalize_head_kind(value: str) -> str:
+    """Normalize the supported Full-Wh head kind."""
+
     kind = str(value).strip().lower()
     if kind not in {"dense", "k_conditioned"}:
         raise ValueError("head_kind must be 'dense' or 'k_conditioned'")
     return kind
 
 
-def _drop_path_rates(depth: int, maximum: float) -> list[float]:
+def drop_path_rates(depth: int, maximum: float) -> list[float]:
+    """Return a linearly increasing stochastic-depth schedule."""
+
     if depth <= 1:
         return [float(maximum)]
     return [float(maximum) * index / (depth - 1) for index in range(depth)]
 
 
-def _make_drop_path(nn: Any, torch: Any) -> type[Any]:
+def make_drop_path(nn: Any, torch: Any) -> type[Any]:
+    """Build the lightweight stochastic-depth module used by upgrade models."""
+
     class DropPath(nn.Module):
         def __init__(self, probability: float) -> None:
             super().__init__()
@@ -82,7 +122,7 @@ def _make_drop_path(nn: Any, torch: Any) -> type[Any]:
     return DropPath
 
 
-def _make_band_head(
+def make_band_head(
     *,
     torch: Any,
     nn: Any,
@@ -95,8 +135,10 @@ def _make_band_head(
     fourier_frequencies: Any,
     dropout: float,
 ) -> Any:
+    """Build a dense or k-conditioned Full-Wh prediction head."""
+
     n_k_points, n_bands = output_shape
-    kind = _head_kind(head_kind)
+    kind = normalize_head_kind(head_kind)
     hidden = int(head_hidden_dim)
     embedding_dim = int(band_embedding_dim)
     frequencies = tuple(float(value) for value in fourier_frequencies)
@@ -127,7 +169,8 @@ def _make_band_head(
                 raise ValueError("k_points must have shape (n_k_points, 2)")
             if default.numel() and int(default.shape[0]) != n_k_points:
                 raise ValueError(
-                    f"default k_points count {default.shape[0]} does not match output_shape {n_k_points}"
+                    f"default k_points count {default.shape[0]} does not match "
+                    f"output_shape {n_k_points}"
                 )
             self.register_buffer("default_k_points", default.contiguous(), persistent=True)
             feature_dim = 2 + 4 * len(frequencies)

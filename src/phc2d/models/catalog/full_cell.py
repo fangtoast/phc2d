@@ -7,15 +7,49 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
-from phc2d.models.registry import (
-    ModelFactory,
-    ModelSpec,
-    _build_convnext_band_v1,
-    _build_dual_lane_band_operator_v1,
+from typing import Any
+
+from phc2d.models.registry import ModelFactory, ModelSpec
+
+
+def _build_mlp_mixer_band_v1(**kwargs: Any) -> Any:
+    from phc2d.models.full_cell_mixer import build_mlp_mixer_band_v1
+
+    return build_mlp_mixer_band_v1(**kwargs)
+
+
+def _build_res_mlp_gated_v2(**kwargs: Any) -> Any:
+    from phc2d.models.full_cell_resmlp import build_res_mlp_gated_v2
+
+    return build_res_mlp_gated_v2(**kwargs)
+
+
+def _build_convnext_band_v1(**kwargs: Any) -> Any:
+    from phc2d.models.full_cell_convnext import build_convnext_band_v1
+
+    return build_convnext_band_v1(**kwargs)
+
+
+def _build_tfno2d_band_v3(**kwargs: Any) -> Any:
+    from phc2d.models.full_cell_operators import build_tfno2d_band_v3
+
+    return build_tfno2d_band_v3(**kwargs)
+
+
+def _build_dual_lane_band_operator_v1(**kwargs: Any) -> Any:
+    from phc2d.models.full_cell_operators import build_dual_lane_band_operator_v1
+
+    return build_dual_lane_band_operator_v1(**kwargs)
+
+
+for _factory in (
     _build_mlp_mixer_band_v1,
     _build_res_mlp_gated_v2,
+    _build_convnext_band_v1,
     _build_tfno2d_band_v3,
-)
+    _build_dual_lane_band_operator_v1,
+):
+    _factory.__phc2d_factory_identity__ = f"phc2d.models.registry.{_factory.__name__}"
 
 
 def model_specs() -> tuple[tuple[str, ModelFactory, ModelSpec], ...]:

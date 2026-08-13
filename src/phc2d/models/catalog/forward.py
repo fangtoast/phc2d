@@ -7,16 +7,56 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
-from phc2d.models.registry import (
-    ModelFactory,
-    ModelSpec,
-    _build_fno2d_band,
-    _build_fno_lite,
-    _build_lifted_cnn,
+from typing import Any
+
+from phc2d.models.registry import ModelFactory, ModelSpec
+
+
+def _build_res_mlp(**kwargs: Any) -> Any:
+    from phc2d.models.band_mlp import build_res_mlp
+
+    return build_res_mlp(**kwargs)
+
+
+def _build_mlp(**kwargs: Any) -> Any:
+    from phc2d.models.band_mlp import build_mlp
+
+    return build_mlp(**kwargs)
+
+
+def _build_pod_res_mlp(**kwargs: Any) -> Any:
+    from phc2d.models.band_mlp import build_pod_res_mlp
+
+    return build_pod_res_mlp(**kwargs)
+
+
+def _build_lifted_cnn(**kwargs: Any) -> Any:
+    from phc2d.models.band_cnn import build_lifted_cnn
+
+    return build_lifted_cnn(**kwargs)
+
+
+def _build_fno_lite(**kwargs: Any) -> Any:
+    from phc2d.models.band_operators import build_fno_lite
+
+    return build_fno_lite(**kwargs)
+
+
+def _build_fno2d_band(**kwargs: Any) -> Any:
+    from phc2d.models.band_operators import build_fno2d_band
+
+    return build_fno2d_band(**kwargs)
+
+
+for _factory in (
+    _build_res_mlp,
     _build_mlp,
     _build_pod_res_mlp,
-    _build_res_mlp,
-)
+    _build_lifted_cnn,
+    _build_fno_lite,
+    _build_fno2d_band,
+):
+    _factory.__phc2d_factory_identity__ = f"phc2d.models.registry.{_factory.__name__}"
 
 
 def model_specs() -> tuple[tuple[str, ModelFactory, ModelSpec], ...]:

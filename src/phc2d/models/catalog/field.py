@@ -7,14 +7,42 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
-from phc2d.models.registry import (
-    ModelFactory,
-    ModelSpec,
-    _build_fno_field,
-    _build_fno_field_v2,
+from typing import Any
+
+from phc2d.models.registry import ModelFactory, ModelSpec
+
+
+def _build_unet_field(**kwargs: Any) -> Any:
+    from phc2d.models.field_baselines import build_unet_field
+
+    return build_unet_field(**kwargs)
+
+
+def _build_fno_field(**kwargs: Any) -> Any:
+    from phc2d.models.field_baselines import build_fno_field
+
+    return build_fno_field(**kwargs)
+
+
+def _build_unet_field_v2(**kwargs: Any) -> Any:
+    from phc2d.models.field_conditioned import build_unet_field_v2
+
+    return build_unet_field_v2(**kwargs)
+
+
+def _build_fno_field_v2(**kwargs: Any) -> Any:
+    from phc2d.models.field_conditioned import build_fno_field_v2
+
+    return build_fno_field_v2(**kwargs)
+
+
+for _factory in (
     _build_unet_field,
+    _build_fno_field,
     _build_unet_field_v2,
-)
+    _build_fno_field_v2,
+):
+    _factory.__phc2d_factory_identity__ = f"phc2d.models.registry.{_factory.__name__}"
 
 
 def model_specs() -> tuple[tuple[str, ModelFactory, ModelSpec], ...]:

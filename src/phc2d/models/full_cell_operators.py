@@ -9,15 +9,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from phc2d.models._full_cell_common import (
-    _drop_path_rates,
-    _head_kind,
-    _image_contract,
-    _make_band_head,
-    _make_drop_path,
-    _require_torch,
-    _shape_tuple,
-    _target_contract,
+from phc2d.models.torch_support import (
+    drop_path_rates,
+    image_contract,
+    make_band_head,
+    make_drop_path,
+    normalize_head_kind,
+    require_torch,
+    shape_tuple,
+    target_contract,
 )
 
 
@@ -44,12 +44,12 @@ def _build_factorized_band_operator(
     num_lanes: int,
     lane_embedding_dim: int,
 ) -> Any:
-    torch, nn, functional = _require_torch(model_name)
-    in_shape, in_channels = _image_contract(input_shape, model_name=model_name)
-    out_shape, _, _ = _target_contract(output_shape)
+    torch, nn, functional = require_torch(model_name, need_functional=True)
+    in_shape, in_channels = image_contract(input_shape, model_name=model_name)
+    out_shape, _, _ = target_contract(output_shape)
     model_width = int(width)
     n_blocks = int(depth)
-    mode_shape = _shape_tuple(modes, name="modes")
+    mode_shape = shape_tuple(modes, name="modes")
     if len(mode_shape) != 2:
         raise ValueError("modes must contain two values")
     modes_y, modes_x = mode_shape
@@ -69,7 +69,7 @@ def _build_factorized_band_operator(
         raise ValueError("factorization_rank must be in (0, 1]")
     if lane_conditioned and min(lane_count, lane_dim) <= 0:
         raise ValueError("lane dimensions must be positive")
-    DropPath = _make_drop_path(nn, torch)
+    DropPath = make_drop_path(nn, torch)
 
     rank_channel = max(1, round(model_width * rank_fraction))
     rank_y = max(1, round(modes_y * rank_fraction))
@@ -196,7 +196,7 @@ def _build_factorized_band_operator(
             super().__init__()
             self.input_shape = in_shape
             self.output_shape = out_shape
-            self.head_kind = _head_kind(head_kind)
+            self.head_kind = normalize_head_kind(head_kind)
             self.lane_conditioned = bool(lane_conditioned)
             self.lift = nn.Conv2d(in_channels, model_width, kernel_size=1)
             self.lane_embedding = (
@@ -204,10 +204,10 @@ def _build_factorized_band_operator(
             )
             self.blocks = nn.ModuleList(
                 FactorizedOperatorBlock(rate)
-                for rate in _drop_path_rates(n_blocks, float(drop_path))
+                for rate in drop_path_rates(n_blocks, float(drop_path))
             )
             self.norm = nn.GroupNorm(groups, model_width)
-            self.head = _make_band_head(
+            self.head = make_band_head(
                 torch=torch,
                 nn=nn,
                 latent_dim=model_width,

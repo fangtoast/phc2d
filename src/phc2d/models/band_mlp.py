@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from phc2d.models._common import _numel, _require_torch, _shape_tuple
+from phc2d.models.torch_support import numel, require_torch, shape_tuple
 
 
 def build_res_mlp(
@@ -23,11 +23,11 @@ def build_res_mlp(
 ) -> Any:
     """Build a residual MLP for vector-to-band-matrix smoke tests."""
 
-    _, nn = _require_torch("res_mlp")
-    in_shape = _shape_tuple(input_shape, name="input_shape")
-    out_shape = _shape_tuple(output_shape, name="output_shape")
-    in_dim = _numel(in_shape)
-    out_dim = _numel(out_shape)
+    _, nn = require_torch("res_mlp")
+    in_shape = shape_tuple(input_shape, name="input_shape")
+    out_shape = shape_tuple(output_shape, name="output_shape")
+    in_dim = numel(in_shape)
+    out_dim = numel(out_shape)
     hidden = int(hidden_dim)
     n_blocks = int(depth)
     if hidden <= 0 or n_blocks <= 0:
@@ -81,11 +81,11 @@ def build_mlp(
 ) -> Any:
     """Build a plain MLP matched to ``build_res_mlp`` without skip connections."""
 
-    _, nn = _require_torch("mlp")
-    in_shape = _shape_tuple(input_shape, name="input_shape")
-    out_shape = _shape_tuple(output_shape, name="output_shape")
-    in_dim = _numel(in_shape)
-    out_dim = _numel(out_shape)
+    _, nn = require_torch("mlp")
+    in_shape = shape_tuple(input_shape, name="input_shape")
+    out_shape = shape_tuple(output_shape, name="output_shape")
+    in_dim = numel(in_shape)
+    out_dim = numel(out_shape)
     hidden = int(hidden_dim)
     n_blocks = int(depth)
     if hidden <= 0 or n_blocks <= 0:

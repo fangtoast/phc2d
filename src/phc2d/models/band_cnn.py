@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from phc2d.models._common import _numel, _require_torch, _shape_tuple
+from phc2d.models.torch_support import numel, require_torch, shape_tuple
 
 
 def build_lifted_cnn(
@@ -21,9 +21,9 @@ def build_lifted_cnn(
 ) -> Any:
     """Build a tiny CNN baseline for grid/image representations."""
 
-    _, nn = _require_torch("lifted_cnn")
-    in_shape = _shape_tuple(input_shape, name="input_shape")
-    out_shape = _shape_tuple(output_shape, name="output_shape")
+    _, nn = require_torch("lifted_cnn")
+    in_shape = shape_tuple(input_shape, name="input_shape")
+    out_shape = shape_tuple(output_shape, name="output_shape")
     if len(in_shape) == 2:
         in_channels = 1
     elif len(in_shape) == 3:
@@ -50,7 +50,7 @@ def build_lifted_cnn(
                 nn.AdaptiveAvgPool2d(1),
                 nn.Flatten(start_dim=1),
             )
-            self.head = nn.Linear(width, _numel(out_shape))
+            self.head = nn.Linear(width, numel(out_shape))
 
         def forward(self, x: Any) -> Any:
             if x.ndim == 3:

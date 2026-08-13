@@ -10,14 +10,14 @@ from __future__ import annotations
 from math import prod
 from typing import Any
 
-from phc2d.models._full_cell_common import (
-    _drop_path_rates,
-    _head_kind,
-    _make_band_head,
-    _make_drop_path,
-    _require_torch,
-    _shape_tuple,
-    _target_contract,
+from phc2d.models.torch_support import (
+    drop_path_rates,
+    make_band_head,
+    make_drop_path,
+    normalize_head_kind,
+    require_torch,
+    shape_tuple,
+    target_contract,
 )
 
 
@@ -39,9 +39,9 @@ def build_res_mlp_gated_v2(
 ) -> Any:
     """Build the deeper pre-normalized gated residual MLP upgrade."""
 
-    torch, nn, _ = _require_torch("res_mlp_gated_v2")
-    in_shape = _shape_tuple(input_shape, name="input_shape")
-    out_shape, _, _ = _target_contract(output_shape)
+    torch, nn, _ = require_torch("res_mlp_gated_v2", need_functional=True)
+    in_shape = shape_tuple(input_shape, name="input_shape")
+    out_shape, _, _ = target_contract(output_shape)
     in_dim = int(prod(in_shape))
     width = int(hidden_dim)
     n_blocks = int(depth)
@@ -49,7 +49,7 @@ def build_res_mlp_gated_v2(
     intermediate = width * expansion_value
     if min(width, n_blocks, expansion_value) <= 0:
         raise ValueError("ResMLP dimensions must be positive")
-    DropPath = _make_drop_path(nn, torch)
+    DropPath = make_drop_path(nn, torch)
 
     class GatedResidualMLPBlock(nn.Module):
         def __init__(self, probability: float) -> None:
@@ -73,15 +73,16 @@ def build_res_mlp_gated_v2(
             super().__init__()
             self.input_shape = in_shape
             self.output_shape = out_shape
-            self.head_kind = _head_kind(head_kind)
+            self.head_kind = normalize_head_kind(head_kind)
             self.input_projection = nn.Sequential(
                 nn.Flatten(start_dim=1), nn.Linear(in_dim, width), nn.GELU()
             )
             self.blocks = nn.ModuleList(
-                GatedResidualMLPBlock(rate) for rate in _drop_path_rates(n_blocks, float(drop_path))
+                GatedResidualMLPBlock(rate)
+                for rate in drop_path_rates(n_blocks, float(drop_path))
             )
             self.norm = nn.LayerNorm(width)
-            self.head = _make_band_head(
+            self.head = make_band_head(
                 torch=torch,
                 nn=nn,
                 latent_dim=width,
