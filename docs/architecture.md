@@ -45,6 +45,19 @@
 
 `baselines.py`、`field.py` 和 `full_cell_upgrades.py` 仅作为历史导入路径的薄兼容门面。移动实现不会改变 registry name、`state_dict` key 或既有 architecture fingerprint；新的模块归属与兼容身份由测试同时约束。PyTorch 仍只在实际构建模型时 lazy import。
 
+### 逆向运行时边界
+
+[`inverse/runner.py`](../src/phc2d/inverse/runner.py) 只负责编排 train、objective-train、sample、rerank 与 eval 阶段，不再直接定义生成器或 surrogate 类：
+
+| 模块 | 责任 |
+|---|---|
+| [`generator_models.py`](../src/phc2d/inverse/generator_models.py) | 条件潜变量、mixture conditional 与 direct inverse 三种生成器网络及其工厂 |
+| [`generator_runtime.py`](../src/phc2d/inverse/generator_runtime.py) | mock/trained generator 的 checkpoint 加载与候选批适配 |
+| [`surrogate_runtime.py`](../src/phc2d/inverse/surrogate_runtime.py) | mock、query、forward surrogate 适配与 checkpoint 定位 |
+| [`runtime_support.py`](../src/phc2d/inverse/runtime_support.py) | 配置映射、YAML/CSV 读取和 JSON 序列化等共享 helper |
+
+历史上从 `phc2d.inverse.runner` 导入的内部类和 checkpoint resolver 仍由 `runner.py` 作为兼容别名暴露。生成器 `state_dict` key、配置名、命令入口、阶段结果文件与指标键均保持不变；架构合约测试固定这些兼容关系与模块规模边界。
+
 ---
 
 ## 二、统一流水线
@@ -140,12 +153,12 @@ Windows `.venv` 只作为编辑期临时调试便利，不再作为后续测试�
 
 ## 六、本轮架构调整记录
 
-解决了什么问题：拆除 `models` 和 CLI 中“一个文件同时维护多个模型族、目录清单或命令域”的单体结构。
+解决了什么问题：拆除 `models`、CLI 与 inverse runner 中“一个文件同时维护多个模型族、命令域或运行时适配器”的单体结构。
 
 为什么采用这个方案：先保持公共 API、命令名、checkpoint schema 和历史模型身份不变，再移动内部职责，可把 L4 可维护性改进与 L3 实验证据隔离。
 
-改变了项目哪一层/哪一模块：仅修改 L4 的 `phc2d.models`、`phc2d.cli`、对应测试与本架构说明；未修改数据、训练配置、模型数学结构、checkpoint 或研究结论。
+改变了项目哪一层/哪一模块：仅修改 L4 的 `phc2d.models`、`phc2d.cli`、`phc2d.inverse` 内部组织、对应测试与本架构说明；未修改数据、训练配置、模型数学结构、checkpoint schema 或研究结论。
 
-使用什么证据验证：模型/CLI 合约测试、历史 architecture fingerprint 固定值、Ruff、compileall、CLI help 与完整 pytest；正式结果以本次实际验证记录为准。
+使用什么证据验证：模型/CLI/inverse 合约测试、历史 architecture fingerprint 固定值、生成器 `state_dict` key、Ruff、compileall、CLI help 与完整 pytest；正式结果以本次实际验证记录为准。
 
-最大风险、未知或下一 gate：`inverse/benchmark.py`、`inverse/runner.py` 与 `forward/runner.py` 仍是高耦合大模块。后续应分别冻结 stage 输入输出与 golden artifact 合同后再拆分，不能与本次纯结构迁移混为一次修改。扁平 configs/tests 和重复 I/O helper 也保留为独立后续切片。
+最大风险、未知或下一 gate：`inverse/runner.py` 的阶段函数、`inverse/benchmark.py` 与 `forward/runner.py` 仍是高耦合大模块。后续应分别冻结 stage 输入输出与 golden artifact 合同后再拆分，不能与本次类定义迁移混为一次修改。扁平 configs/tests 和重复 I/O helper 也保留为独立后续切片。
