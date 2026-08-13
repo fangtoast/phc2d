@@ -11,8 +11,8 @@ This file defines fixed implementation rules for future Codex tasks in this repo
 
 ## Research Plan
 
-- Treat [`docs/planning/fno_generative_network_adjustment_plan_20260617.md`](docs/planning/fno_generative_network_adjustment_plan_20260617.md) as the research-plan authority.
-- When implementation details are unclear, follow the gates, task families, metrics, replay boundary, and TODO discipline described in that plan and in `docs/planning/research_todo_20260617.md`.
+- Use [`docs/planning/README.md`](docs/planning/README.md) to route each task to the current plan or protocol. The June 2026 FNO/generative plan remains the authority for its task families, gates, metrics, and replay boundary, but it is not the direct authority for every later full-cell or infrastructure task.
+- Treat TODO checkboxes and dated plans as planning records. Before acting on them, reconcile them with stronger current evidence: actual run artifacts, current code/config/tests/CLI behavior, and curated result reports.
 
 ## Documentation And Abstraction Governance
 
@@ -24,6 +24,7 @@ This file defines fixed implementation rules for future Codex tasks in this repo
 - New human-facing Markdown under `docs/` should use concise Chinese filenames by default. Keep required fixed names, code/API identifiers, experiment IDs, machine-consumed artifacts, and compatibility-sensitive paths in English; do not bulk-rename existing stable documents solely to enforce this preference.
 - AI-created documents are Draft by default. Only a human owner may accept them as Reviewed or Canonical.
 - Documentation completion is not experimental completion. End substantive tasks with the human-understanding record defined in `docs/collaboration.md`.
+- Project skills are execution aids, not project authorities. When a skill conflicts with this file or current repository evidence, follow this file and the stronger live evidence, then update the stale skill separately.
 
 ## Repository Boundaries
 
@@ -83,8 +84,11 @@ runs/{yyyymmdd}/{experiment_id}_{YYYYMMDDHHmm}/
 - Curated report figures belong under `docs/reports/assets/`; complete raw
   galleries remain under ignored `runs/` directories. Curated assets must retain
   source paths, SHA-256 hashes, and evidence boundaries.
-- Before changing a project-wide report, run model-coverage, numeric-source, and
-  local-link audits. Use `--require-source-artifacts` on the evidence-owning
+- Before changing a project-wide report, run the current model/source audit with
+  `phc2d report model-audit --inventory docs/reports/phc2d_model_inventory_v1.yaml --report <report>`
+  and the documentation link/reachability audit with
+  `phc2d report docs-audit --root README.md --strict`. Add
+  `--require-source-artifacts` to `model-audit` on the evidence-owning
   workstation.
 
 ## Testing
