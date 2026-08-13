@@ -97,6 +97,30 @@ def _plot(argv: Sequence[str]) -> None:
         choices=["png", "svg", "pdf"],
         default=["png", "svg", "pdf"],
     )
+    full_cell_gallery = sub.add_parser(
+        "full-cell-gallery",
+        help="Build traceable full-cell dielectric, band, and real-MPB field plates.",
+    )
+    full_cell_gallery.add_argument("--config", type=Path, required=True)
+    full_cell_gallery.add_argument(
+        "--run-dir",
+        type=Path,
+        default=None,
+        help="Optional explicit run directory; defaults to runs/{date}/{experiment}_{timestamp}.",
+    )
+    full_cell_gallery.add_argument(
+        "--max-samples-per-dataset",
+        type=int,
+        default=None,
+        help="Optional smoke-only limit applied after deterministic 16-sample selection.",
+    )
+    full_cell_scattering = sub.add_parser(
+        "full-cell-scattering-gallery",
+        help="Run finite-array Meep near/far-field responses for selected full-cell samples.",
+    )
+    full_cell_scattering.add_argument("--config", type=Path, required=True)
+    full_cell_scattering.add_argument("--run-dir", type=Path, default=None)
+    full_cell_scattering.add_argument("--max-samples-per-dataset", type=int, default=None)
 
     ns = parser.parse_args(list(argv))
     if ns.kind == "medium":
@@ -137,6 +161,24 @@ def _plot(argv: Sequence[str]) -> None:
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return
+    elif ns.kind == "full-cell-gallery":
+        from phc2d.plot.full_cell_gallery import build_full_cell_sample_gallery
+
+        result = build_full_cell_sample_gallery(
+            ns.config,
+            run_dir=ns.run_dir,
+            max_samples_per_dataset=ns.max_samples_per_dataset,
+        )
+    elif ns.kind == "full-cell-scattering-gallery":
+        from phc2d.plot.full_cell_scattering import build_full_cell_scattering_gallery
+
+        result = build_full_cell_scattering_gallery(
+            ns.config,
+            run_dir=ns.run_dir,
+            max_samples_per_dataset=ns.max_samples_per_dataset,
+        )
+        print(result)
+        return
     else:
         raise ValueError(f"Unknown plot kind: {ns.kind}")
     print(result.path)
@@ -153,13 +195,82 @@ def build_parser() -> argparse.ArgumentParser:
 
     data = sub.add_parser("data", help="Dataset generation and data-schema utilities.")
     data_sub = data.add_subparsers(dest="action", required=True)
-    data_sub.add_parser(
+    generate = data_sub.add_parser(
         "generate",
-        help="Generate a forward dataset.",
-        description="Generate a forward dataset.",
-    ).set_defaults(
-        command="data generate"
+        help="Generate an evidence-gated dataset from a research config.",
+        description="Generate a full-cell dataset with real MPB, or run its solver preflight.",
     )
+    generate.add_argument("--config", type=Path, required=True)
+    generate.add_argument("--run-dir", type=Path, default=None)
+    generate.add_argument("--max-samples", type=int, default=None)
+    generate.add_argument(
+        "--workers",
+        type=str,
+        default=None,
+        help="Worker count or 'auto'; the config is used when omitted.",
+    )
+    generate.add_argument(
+        "--plan-workers",
+        type=str,
+        default=None,
+        help="Structure-plan process count or 'auto'; generator.plan_workers is used when omitted.",
+    )
+    generate.add_argument(
+        "--skip-environment-check",
+        action="store_true",
+        help="Test-only escape hatch; never use this to claim accepted MPB validation.",
+    )
+    generate.set_defaults(command="data generate")
+    prepare_plan = data_sub.add_parser(
+        "prepare-full-cell-plan",
+        help="Freeze a deterministic full-cell structure plan without invoking MPB.",
+        description=(
+            "Write and validate sample_plan.jsonl plus provenance before cluster generation."
+        ),
+    )
+    prepare_plan.add_argument("--config", type=Path, required=True)
+    prepare_plan.add_argument("--run-dir", type=Path, default=None)
+    prepare_plan.add_argument(
+        "--workers",
+        type=str,
+        default=None,
+        help="Structure-plan process count or 'auto'; generator.plan_workers is used when omitted.",
+    )
+    prepare_plan.set_defaults(command="data prepare-full-cell-plan")
+    accept_cluster = data_sub.add_parser(
+        "accept-cluster",
+        help="Recompute fixed cluster structures in WSL and gate a full-cell dataset.",
+        description="Compare native-Linux MPB labels against WSL Ubuntu conda meep_env replay.",
+    )
+    accept_cluster.add_argument("--dataset", type=Path, required=True)
+    accept_cluster.add_argument("--config", type=Path, required=True)
+    accept_cluster.add_argument("--run-dir", type=Path, default=None)
+    accept_cluster.set_defaults(command="data accept-cluster")
+    converge = data_sub.add_parser(
+        "converge",
+        help="Run the full-cell 64/96/128 real-MPB resolution gate.",
+        description="Re-solve a stratified subset of both full-cell lanes at higher resolutions.",
+    )
+    converge.add_argument("--config", type=Path, required=True)
+    converge.add_argument("--run-dir", type=Path, default=None)
+    converge.add_argument(
+        "--skip-environment-check",
+        action="store_true",
+        help="Test-only escape hatch; results are never acceptance eligible.",
+    )
+    converge.set_defaults(command="data converge")
+    finalize = data_sub.add_parser(
+        "finalize",
+        help="Wait for two fixed full-cell pilot runs, then converge and promote.",
+        description="Fail closed unless both real-MPB pilots and the resolution gate pass.",
+    )
+    finalize.add_argument("--graded-run-dir", type=Path, required=True)
+    finalize.add_argument("--binary-run-dir", type=Path, required=True)
+    finalize.add_argument("--convergence-config", type=Path, required=True)
+    finalize.add_argument("--combined-manifest", type=Path, required=True)
+    finalize.add_argument("--poll-seconds", type=float, default=60.0)
+    finalize.add_argument("--timeout-hours", type=float, default=8.0)
+    finalize.set_defaults(command="data finalize")
     inspect = data_sub.add_parser(
         "inspect",
         help="Inspect a dataset schema without running solvers.",
@@ -174,6 +285,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert.add_argument("--config", type=Path, required=True)
     convert.set_defaults(command="data convert")
+    make_smoke = data_sub.add_parser(
+        "make-smoke",
+        help="Generate a deterministic non-physical dataset for clean-clone smoke tests.",
+        description=(
+            "Generate a configuration-shaped synthetic dataset. The output is explicitly "
+            "not MPB/Meep data and cannot support scientific claims."
+        ),
+    )
+    make_smoke.add_argument("--config", type=Path, required=True)
+    make_smoke.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace an existing synthetic dataset and manifest explicitly.",
+    )
+    make_smoke.set_defaults(command="data make-smoke")
 
     forward = sub.add_parser("forward", help="Forward surrogate training and evaluation.")
     forward_sub = forward.add_subparsers(dest="action", required=True)
@@ -248,6 +374,48 @@ def build_parser() -> argparse.ArgumentParser:
     )
     inverse_train.add_argument("--config", type=Path, default=None)
     inverse_train.set_defaults(command="inverse train")
+    inverse_full_cell_preflight = inverse_sub.add_parser(
+        "full-cell-preflight",
+        help="Run the 15-case full-cell analytic Stage-A single-batch gate.",
+        description=(
+            "Run the 15-case full-cell analytic Stage-A gate for data, gradients, and checkpoint restore. "
+            "This does not start formal training or MPB/Meep replay."
+        ),
+    )
+    inverse_full_cell_preflight.add_argument("--config", type=Path, required=True)
+    inverse_full_cell_preflight.add_argument("--run-dir", type=Path)
+    inverse_full_cell_preflight.add_argument(
+        "--variant",
+        action="append",
+        dest="variants",
+        help="Restrict the preflight to one variant; repeat to select multiple variants.",
+    )
+    inverse_full_cell_preflight.add_argument(
+        "--method",
+        action="append",
+        dest="methods",
+        help="Restrict the preflight to one method; repeat to select multiple methods.",
+    )
+    inverse_full_cell_preflight.add_argument(
+        "--seed",
+        type=int,
+        help="Override the configured seed for an isolated concurrency case.",
+    )
+    inverse_full_cell_preflight.set_defaults(command="inverse full-cell-preflight")
+    inverse_full_cell_train = inverse_sub.add_parser(
+        "full-cell-train",
+        help="Train one full-cell analytic Stage-A variant/method/seed job.",
+        description=(
+            "Train and validate one supervised full-cell analytic Stage-A job with atomic "
+            "checkpoints and exact resume. This does not use a forward surrogate or run MPB/Meep."
+        ),
+    )
+    inverse_full_cell_train.add_argument("--config", type=Path, required=True)
+    inverse_full_cell_train.add_argument("--variant", required=True)
+    inverse_full_cell_train.add_argument("--method", required=True)
+    inverse_full_cell_train.add_argument("--seed", type=int, required=True)
+    inverse_full_cell_train.add_argument("--run-dir", type=Path, required=True)
+    inverse_full_cell_train.set_defaults(command="inverse full-cell-train")
     inverse_objective_train = inverse_sub.add_parser(
         "objective-train",
         help="Fine-tune an inverse generator against a differentiable surrogate-side objective.",
@@ -341,6 +509,63 @@ def build_parser() -> argparse.ArgumentParser:
     replay_mpb.add_argument("--config", type=Path, default=None)
     replay_mpb.set_defaults(command="replay mpb")
 
+    hpc = sub.add_parser(
+        "hpc",
+        help="Portable plan, shard, finalize, status, and audit controls for physics campaigns.",
+    )
+    hpc_sub = hpc.add_subparsers(dest="action", required=True)
+    hpc_adapters = hpc_sub.add_parser("adapters", help="List registered physical task adapters.")
+    hpc_adapters.set_defaults(command="hpc adapters")
+    hpc_plan = hpc_sub.add_parser("plan", help="Freeze a deterministic physical case plan.")
+    hpc_plan.add_argument("--adapter", required=True)
+    hpc_plan.add_argument("--config", type=Path, required=True)
+    hpc_plan.add_argument("--run-dir", type=Path, required=True)
+    hpc_plan.add_argument("--workers", default="auto")
+    hpc_plan.add_argument("--shards", type=int, required=True)
+    hpc_plan.add_argument("--platform", required=True)
+    hpc_plan.set_defaults(command="hpc plan")
+    hpc_benchmark = hpc_sub.add_parser(
+        "benchmark", help="Select an admitted 1/2/4/8-node tier from timing evidence."
+    )
+    hpc_benchmark.add_argument("--platform-profile", type=Path, required=True)
+    benchmark_source = hpc_benchmark.add_mutually_exclusive_group(required=True)
+    benchmark_source.add_argument("--evidence", type=Path)
+    benchmark_source.add_argument("--partition", type=Path)
+    hpc_benchmark.add_argument("--adapter")
+    hpc_benchmark.add_argument("--solver-fingerprint")
+    hpc_benchmark.add_argument("--environment-fingerprint")
+    hpc_benchmark.add_argument("--admitted-tiers", nargs="+", type=int, default=[1])
+    hpc_benchmark.add_argument("--output-evidence", type=Path)
+    hpc_benchmark.add_argument("--case-count", type=int, required=True)
+    hpc_benchmark.add_argument("--target-hours", type=float, default=3.0)
+    hpc_benchmark.set_defaults(command="hpc benchmark")
+    hpc_solve = hpc_sub.add_parser("solve-shard", help="Solve one exclusive physical shard.")
+    hpc_solve.add_argument("--adapter", required=True)
+    hpc_solve.add_argument("--config", type=Path, required=True)
+    hpc_solve.add_argument("--run-dir", type=Path, required=True)
+    hpc_solve.add_argument("--shard-index", type=int, required=True)
+    hpc_solve.add_argument("--shard-count", type=int, required=True)
+    hpc_solve.add_argument("--workers", default="auto")
+    hpc_solve.add_argument("--allow-resume", action="store_true")
+    hpc_solve.add_argument("--skip-environment-check", action="store_true")
+    hpc_solve.set_defaults(command="hpc solve-shard")
+    hpc_finalize = hpc_sub.add_parser(
+        "finalize", help="Validate all shards and atomically publish a canonical dataset."
+    )
+    hpc_finalize.add_argument("--adapter", required=True)
+    hpc_finalize.add_argument("--config", type=Path, required=True)
+    hpc_finalize.add_argument("--run-dir", type=Path, required=True)
+    hpc_finalize.add_argument("--workers", default="auto")
+    hpc_finalize.set_defaults(command="hpc finalize")
+    hpc_status = hpc_sub.add_parser("status", help="Read fixed-size campaign progress files.")
+    hpc_status.add_argument("--run-dir", type=Path, required=True)
+    hpc_status.add_argument("--write", action="store_true")
+    hpc_status.set_defaults(command="hpc status")
+    hpc_audit = hpc_sub.add_parser("audit", help="Audit final artifacts without promoting acceptance.")
+    hpc_audit.add_argument("--run-dir", type=Path, required=True)
+    hpc_audit.add_argument("--skip-dataset-hash", action="store_true")
+    hpc_audit.set_defaults(command="hpc audit")
+
     plot = sub.add_parser("plot", help="Plot medium, band, metric, or field artifacts.")
     plot.add_argument("args", nargs=argparse.REMAINDER)
     plot.set_defaults(command="plot")
@@ -366,6 +591,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fail when ignored runs/source artifacts are unavailable.",
     )
     report_model_audit.set_defaults(command="report model-audit")
+    report_docs_audit = report_sub.add_parser(
+        "docs-audit",
+        help="Audit documentation links, reachability, anchors, and entry metadata.",
+        description="Audit Git-tracked project documentation without importing training backends.",
+    )
+    report_docs_audit.add_argument("--root", type=Path, default=Path("README.md"))
+    report_docs_audit.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit non-zero when documentation contract failures are found.",
+    )
+    report_docs_audit.set_defaults(command="report docs-audit")
     report.set_defaults(command="report")
     return parser
 
@@ -377,8 +614,201 @@ def main(argv: Sequence[str] | None = None) -> None:
     if ns.command == "plot":
         _plot(ns.args)
         return
+    if ns.command == "hpc adapters":
+        from phc2d.hpc import list_adapter_specs
+
+        print(
+            json.dumps(
+                [item.to_mapping() for item in list_adapter_specs()],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return
+    if ns.command == "hpc plan":
+        from phc2d.hpc import get_runtime_adapter
+
+        adapter = get_runtime_adapter(ns.adapter)
+        workers: int | str = ns.workers
+        if str(workers).lower() != "auto":
+            workers = int(workers)
+        print(
+            adapter.plan(
+                ns.config,
+                run_dir=ns.run_dir,
+                workers=workers,
+                shard_count=ns.shards,
+                platform_id=ns.platform,
+            )
+        )
+        return
+    if ns.command == "hpc benchmark":
+        from phc2d.hpc import (
+            BenchmarkEvidence,
+            atomic_write_json,
+            benchmark_evidence_from_partition,
+            load_platform_profile,
+            recommend_node_count,
+        )
+
+        if ns.evidence is not None:
+            evidence = BenchmarkEvidence.from_mapping(
+                json.loads(ns.evidence.read_text(encoding="utf-8"))
+            )
+        else:
+            if not ns.adapter or not ns.solver_fingerprint or not ns.environment_fingerprint:
+                raise SystemExit(
+                    "--partition requires --adapter, --solver-fingerprint, and "
+                    "--environment-fingerprint."
+                )
+            evidence = benchmark_evidence_from_partition(
+                ns.partition,
+                adapter_id=ns.adapter,
+                solver_fingerprint=ns.solver_fingerprint,
+                environment_fingerprint=ns.environment_fingerprint,
+                admitted_node_tiers=ns.admitted_tiers,
+            )
+            if ns.output_evidence is not None:
+                atomic_write_json(ns.output_evidence, evidence.to_mapping())
+        result = recommend_node_count(
+            case_count=ns.case_count,
+            median_case_time_s=evidence.median_case_time_s,
+            platform=load_platform_profile(ns.platform_profile),
+            target_wall_time_s=ns.target_hours * 60.0 * 60.0,
+            admitted_tiers=evidence.admitted_node_tiers,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+    if ns.command == "hpc solve-shard":
+        from phc2d.hpc import get_runtime_adapter
+
+        adapter = get_runtime_adapter(ns.adapter)
+        workers = ns.workers if str(ns.workers).lower() == "auto" else int(ns.workers)
+        print(
+            adapter.solve_shard(
+                ns.config,
+                run_dir=ns.run_dir,
+                shard_index=ns.shard_index,
+                shard_count=ns.shard_count,
+                workers=workers,
+                allow_resume=ns.allow_resume,
+                skip_environment_check=ns.skip_environment_check,
+            )
+        )
+        return
+    if ns.command == "hpc finalize":
+        from phc2d.hpc import get_runtime_adapter
+
+        adapter = get_runtime_adapter(ns.adapter)
+        workers = ns.workers if str(ns.workers).lower() == "auto" else int(ns.workers)
+        print(adapter.finalize(ns.config, run_dir=ns.run_dir, workers=workers))
+        return
+    if ns.command == "hpc status":
+        from phc2d.hpc import collect_campaign_status
+
+        print(json.dumps(collect_campaign_status(ns.run_dir, write=ns.write), ensure_ascii=False, indent=2))
+        return
+    if ns.command == "hpc audit":
+        from phc2d.hpc import audit_campaign
+
+        payload = audit_campaign(ns.run_dir, verify_dataset_hash=not ns.skip_dataset_hash)
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        if payload["status"] != "passed":
+            raise SystemExit(2)
+        return
     if ns.command == "data inspect":
         print(json.dumps(infer_dataset_schema(ns.path), ensure_ascii=False, indent=2))
+        return
+    if ns.command == "data make-smoke":
+        from phc2d.data.synthetic_smoke import make_synthetic_smoke_dataset
+
+        payload = make_synthetic_smoke_dataset(ns.config, overwrite=ns.overwrite)
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+    if ns.command == "data generate":
+        from phc2d.data.full_cell_generation import run_full_cell_generation
+
+        worker_override: int | str | None = ns.workers
+        if isinstance(worker_override, str) and worker_override.lower() != "auto":
+            try:
+                worker_override = int(worker_override)
+            except ValueError as exc:
+                raise SystemExit("--workers must be a positive integer or 'auto'.") from exc
+        if isinstance(worker_override, int) and worker_override <= 0:
+            raise SystemExit("--workers must be positive.")
+        plan_worker_override: int | str | None = ns.plan_workers
+        if isinstance(plan_worker_override, str) and plan_worker_override.lower() != "auto":
+            try:
+                plan_worker_override = int(plan_worker_override)
+            except ValueError as exc:
+                raise SystemExit("--plan-workers must be a positive integer or 'auto'.") from exc
+        if isinstance(plan_worker_override, int) and plan_worker_override <= 0:
+            raise SystemExit("--plan-workers must be positive.")
+        print(
+            run_full_cell_generation(
+                ns.config,
+                run_dir=ns.run_dir,
+                max_samples=ns.max_samples,
+                workers=worker_override,
+                plan_workers=plan_worker_override,
+                skip_environment_check=ns.skip_environment_check,
+            )
+        )
+        return
+    if ns.command == "data prepare-full-cell-plan":
+        from phc2d.data.full_cell_generation import prepare_full_cell_sample_plan
+
+        plan_worker_override: int | str | None = ns.workers
+        if isinstance(plan_worker_override, str) and plan_worker_override.lower() != "auto":
+            try:
+                plan_worker_override = int(plan_worker_override)
+            except ValueError as exc:
+                raise SystemExit("--workers must be a positive integer or 'auto'.") from exc
+        if isinstance(plan_worker_override, int) and plan_worker_override <= 0:
+            raise SystemExit("--workers must be positive.")
+        print(
+            prepare_full_cell_sample_plan(
+                ns.config,
+                run_dir=ns.run_dir,
+                workers=plan_worker_override,
+            )
+        )
+        return
+    if ns.command == "data accept-cluster":
+        from phc2d.data.full_cell_acceptance import run_cluster_wsl_acceptance
+
+        print(
+            run_cluster_wsl_acceptance(
+                ns.dataset,
+                ns.config,
+                run_dir=ns.run_dir,
+            )
+        )
+        return
+    if ns.command == "data converge":
+        from phc2d.data.full_cell_convergence import run_full_cell_resolution_convergence
+
+        print(
+            run_full_cell_resolution_convergence(
+                ns.config,
+                run_dir=ns.run_dir,
+                skip_environment_check=ns.skip_environment_check,
+            )
+        )
+        return
+    if ns.command == "data finalize":
+        from phc2d.data.full_cell_convergence import await_full_cell_pilots_and_finalize
+
+        print(
+            await_full_cell_pilots_and_finalize(
+                graded_run_dir=ns.graded_run_dir,
+                binary_run_dir=ns.binary_run_dir,
+                convergence_config=ns.convergence_config,
+                combined_manifest=ns.combined_manifest,
+                poll_interval_s=ns.poll_seconds,
+                timeout_s=ns.timeout_hours * 60.0 * 60.0,
+            )
+        )
         return
     if ns.command == "models list":
         from phc2d.models import list_model_specs, model_spec_to_dict
@@ -435,6 +865,32 @@ def main(argv: Sequence[str] | None = None) -> None:
             raise SystemExit("`phc2d inverse train` requires --config <yaml-path>.")
         print(run_inverse_train(ns.config))
         return
+    if ns.command == "inverse full-cell-preflight":
+        from phc2d.inverse import run_full_cell_stage_a_preflight
+
+        print(
+            run_full_cell_stage_a_preflight(
+                ns.config,
+                run_dir=ns.run_dir,
+                variants=ns.variants,
+                methods=ns.methods,
+                seed=ns.seed,
+            )
+        )
+        return
+    if ns.command == "inverse full-cell-train":
+        from phc2d.inverse import run_full_cell_stage_a_train
+
+        print(
+            run_full_cell_stage_a_train(
+                ns.config,
+                variant=ns.variant,
+                method=ns.method,
+                seed=ns.seed,
+                run_dir=ns.run_dir,
+            )
+        )
+        return
     if ns.command == "inverse objective-train":
         from phc2d.inverse import run_inverse_objective_train
 
@@ -483,6 +939,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         if payload["status"] != "pass":
+            raise SystemExit(1)
+        return
+    if ns.command == "report docs-audit":
+        from phc2d.reporting.docs_audit import audit_documentation
+
+        payload = audit_documentation(repo_root=Path.cwd(), root_path=ns.root)
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        if ns.strict and payload["status"] != "pass":
             raise SystemExit(1)
         return
     _not_migrated(ns.command)

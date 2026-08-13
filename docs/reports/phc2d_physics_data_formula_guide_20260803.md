@@ -6,6 +6,7 @@
 -->
 
 <a id="phc2d-physics-data-formula-guide"></a>
+<a id="formula-guide-home"></a>
 
 # phc2d 端到端物理与数据公式手册
 
@@ -16,6 +17,10 @@
 > 非目标：本文不展开 MaxwellNet、cINN、diffusion 等参考模型，也不重复模型架构报告。
 
 本文回答的是“一个结构如何变成可训练数据、模型优化的量是什么、最终又由什么物理证据复核”。公式按当前源码与 V2 配置逐项回链；通用定义与当前配置常数严格分开。模型清单和结果状态仍以 [`phc2d_model_inventory_v1.yaml`](phc2d_model_inventory_v1.yaml) 及 [`phc2d_project_full_introduction_20260724.md`](phc2d_project_full_introduction_20260724.md) 为准。
+
+[项目地图](../../PROJECT_MAP.md) · [文档目录](../README.md) · [完整项目报告](phc2d_project_full_introduction_20260724.md#project-report-home) · [当前实验进展](../results/README.md)
+
+> 本手册冻结公式、数据与评价定义，不把历史数值自动升级为修正后结果。当前可引用结果和阻塞状态仍以结果索引及源 artifacts 为准。
 
 ```mermaid
 flowchart LR
@@ -64,6 +69,8 @@ flowchart LR
 | $K$ | 每个逆向条件采样的候选数 | 配置或评估参数 |
 
 这里的 $31$、$10$、$16\times16$ 都只是当前 V2 数据配置。代码中的形状应由 schema、dataset metadata、`DataRepresentationSpec`、`TargetSpec` 或配置派生，不能解释为模型硬编码。
+
+<a id="formula-structure-data"></a>
 
 ## 2. 结构生成与 MPB 数据构造
 
@@ -177,6 +184,8 @@ $$
 
 比例约为 $68.75\%/25\%/6.25\%$。这是当前数据配置，不是任意数据集必须遵守的比例。
 
+<a id="formula-mpb-bloch"></a>
+
 ## 3. MPB 与 Bloch 本征问题
 
 ### 3.1 Maxwell curl–curl 本征方程
@@ -271,6 +280,8 @@ guard bands 用于提高截断边界附近的稳健性，不改变最终 target 
 - **来源**：[`solvers/mpb.py`](../../src/phc2d/solvers/mpb.py)、[`query_dataset_v2_pilot_10000.yaml`](../../configs/research/query_dataset_v2_pilot_10000.yaml)。
 - **状态**：当前数据生成与 replay 已实现。
 
+<a id="formula-representation"></a>
+
 ## 4. 数据表示与归一化
 
 ### 4.1 Full-Wh 与 Query 样本
@@ -334,6 +345,8 @@ $\mu_{\log f}$ 和 $\sigma_{\log f}$ 必须由训练集统计得到，并随 che
 - **来源**：[`forward/field_eigen_v2.py`](../../src/phc2d/forward/field_eigen_v2.py)、[`field_eigen_te_pino_b4_repair_validation_9216.yaml`](../../configs/research/field_eigen_te_pino_b4_repair_validation_9216.yaml)。
 - **状态**：当前 field 数据制度已实现。
 
+<a id="formula-field-pino"></a>
+
 ## 5. 本征场与 adapted PINO
 
 ### 5.1 复数场六实通道
@@ -350,14 +363,48 @@ $$
 
 ### 5.2 能量归一化与公共相位固定
 
-电场先满足离散化后的能量归一化
+对广义电场本征问题，电场空间使用介电常数分布作为度规：
 
 $$
-\int_{\Omega}\mathbf E^*(\mathbf r)\cdot
-\varepsilon(\mathbf r)\mathbf E(\mathbf r)\,dA=1.
+\langle\mathbf E_1,\mathbf E_2\rangle_{\varepsilon}
+=\int_{\Omega}\mathbf E_1^*(\mathbf r)\cdot
+\varepsilon(\mathbf r)\mathbf E_2(\mathbf r)\,dA,
+\qquad
+\|\mathbf E\|_{\varepsilon}
+=\sqrt{\langle\mathbf E,\mathbf E\rangle_{\varepsilon}}.
 $$
 
-随后选择确定性 anchor $a$，对 E/H 同乘公共相位：
+在场网格上，对分量 $c\in\{x,y\}$ 的离散形式为
+
+$$
+\langle\mathbf E_1,\mathbf E_2\rangle_{\varepsilon,h}
+=\sum_{i,j}\sum_c
+E_{1,c}(i,j)^*\varepsilon_{ij}E_{2,c}(i,j)\,\Delta x\Delta y.
+$$
+
+其中复数模平方满足
+
+$$
+|a+ib|^2=a^2+b^2.
+$$
+
+数据生成先用同一个正实缩放因子同时缩放 E/H，使电场满足
+
+$$
+\|\mathbf E\|_{\varepsilon,h}^2
+=\sum_{i,j}\varepsilon_{ij}
+\left(|E_x(i,j)|^2+|E_y(i,j)|^2\right)
+\Delta x\Delta y=1.
+$$
+
+Bloch 本征模存在全局复相位自由度：
+
+$$
+(\mathbf E,\mathbf H)\sim
+e^{i\theta}(\mathbf E,\mathbf H).
+$$
+
+因此随后选择 E 场中幅值最大的确定性 anchor $a$，对 E/H 同乘公共相位：
 
 $$
 (\mathbf E,\mathbf H)\leftarrow
@@ -370,8 +417,9 @@ $$
 > 大模型审查代码明确此处 anchor 通过寻找场的最大值位置确定，请明确这个判断是否准确。这种方法 @陈伟 使用过，在做可视化的时候效果不错。但考虑本项目后续还需要比较场之间的 L2 距离，相似性等数据处理，可能会因为最大值位置的跳变导致结果不稳定。
 > **场比较宜采用最大重叠相位规范，而不是依赖两个场各自的 anchor。** 定义介电加权内积 $\langle\mathbf E_1,\mathbf E_2\rangle_\varepsilon=\sum\mathbf E_1^*\varepsilon\mathbf E_2$，则使 $\|\mathbf E_1-e^{i\theta}\mathbf E_2\|_\varepsilon^2$ 最小的相对相位为 $e^{i\theta}=e^{-i\arg\langle\mathbf E_1,\mathbf E_2\rangle_\varepsilon}$，且最小距离为 $\|\mathbf E_1\|_\varepsilon^2+\|\mathbf E_2\|_\varepsilon^2-2|\langle\mathbf E_1,\mathbf E_2\rangle_\varepsilon|$。
 > 若希望场沿 $\mathbf k$ 路径连续，可令每个场与前一个场按此最大重叠规则对齐；逐样本 anchor 只保留为首个参考场的初始规范。
+这样使 anchor 为非负实数，消除标签的任意全局相位跳变，同时保留 E/H 的相对相位。H 没有被独立归一化；它沿用由 E 得到的缩放和相位，避免破坏两者的 Maxwell 关系。
 
-- **来源**：[`data/field_eigen.py`](../../src/phc2d/data/field_eigen.py)、[`physics/eigen_residual.py`](../../src/phc2d/physics/eigen_residual.py)。
+- **来源**：[`data/field_eigen.py`](../../src/phc2d/data/field_eigen.py)、[`physics/eigen_residual.py`](../../src/phc2d/physics/eigen_residual.py)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md)。
 - **状态**：当前本征场数据规范化实现。
 
 ### 5.3 带 Bloch 相位回绕的中心差分
@@ -435,28 +483,51 @@ $$
 
 ### 5.6 相位不变 E/H 场损失
 
-对预测复场 $\widehat{\mathbf E}$ 与目标 $\mathbf E$，先由介电加权电场内积求公共相位
+对第 $n$ 个样本的预测复场 $\widehat{\mathbf E}_n$ 与目标 $\mathbf E_n$，先由介电加权电场内积求公共相位
 
 $$
-\alpha=
-\frac{\langle\widehat{\mathbf E},\mathbf E\rangle_{\varepsilon}}
-{|\langle\widehat{\mathbf E},\mathbf E\rangle_{\varepsilon}|+\epsilon},
+\alpha_n=
+\frac{\langle\widehat{\mathbf E}_n,\mathbf E_n\rangle_{\varepsilon,h}}
+{|\langle\widehat{\mathbf E}_n,\mathbf E_n\rangle_{\varepsilon,h}|+\delta}.
+$$
+
+代码求相位时省略了每个网格点共有的 $\Delta x\Delta y$，因为该正实因子在分子和绝对值分母中约去。对齐场为
+
+$$
+(\widehat{\mathbf E}_n^{\rm align},
+\widehat{\mathbf H}_n^{\rm align})
+=\alpha_n(\widehat{\mathbf E}_n,\widehat{\mathbf H}_n).
+$$
+
+同一个 $\alpha_n$ 同时用于 E/H，以保留两者的相对相位。报告中的逐样本 relative $L_2$ 为
+
+$$
+e_{E,n}=
+\frac{\|\widehat{\mathbf E}_n^{\rm align}-\mathbf E_n\|_{\varepsilon,h}}
+{\|\mathbf E_n\|_{\varepsilon,h}+\delta},
 \qquad
-\langle\mathbf A,\mathbf B\rangle_{\varepsilon}
-=\sum\mathbf A^*\varepsilon\mathbf B,
+e_{H,n}=
+\frac{\|\widehat{\mathbf H}_n^{\rm align}-\mathbf H_n\|_{2,h}}
+{\|\mathbf H_n\|_{2,h}+\delta}.
 $$
 
-并把同一个 $\alpha$ 同时用于 E/H，以保留两者的相对相位：
+最终指标先逐样本计算，再取算术平均：
 
 $$
-\mathcal L_E=
-\frac{\|\alpha\widehat{\mathbf E}-\mathbf E\|_{\varepsilon}^2}
-{\|\mathbf E\|_{\varepsilon}^2+\epsilon},
+\overline e_E=\frac1B\sum_{n=1}^{B}e_{E,n},
 \qquad
-\mathcal L_H=
-\frac{\|\alpha\widehat{\mathbf H}-\mathbf H\|_2^2}
-{\|\mathbf H\|_2^2+\epsilon}.
+\overline e_H=\frac1B\sum_{n=1}^{B}e_{H,n}.
 $$
+
+训练时使用的是相对 $L_2$ 的平方并在 batch 上求均值：
+
+$$
+\mathcal L_E=\frac1B\sum_{n=1}^{B}e_{E,n}^2,
+\qquad
+\mathcal L_H=\frac1B\sum_{n=1}^{B}e_{H,n}^2.
+$$
+
+因此训练日志中的 $\mathcal L_E$、$\mathcal L_H$ 不能直接和报告中的 $\overline e_E$、$\overline e_H$ 比较。对满足第 5.2 节新契约的目标 E，$\|\mathbf E_n\|_{\varepsilon,h}=1$，所以带 $\Delta x\Delta y$ 的 E relative $L_2$ 理论分母为 1。实现仍显式计算分母，以兼容旧 HDF5、`complex64` 落盘误差和契约审计；指标代码在分子、分母中同时省略公共的 $\Delta x\Delta y$，所以其原始离散和分母不必数值等于 1，但最终比值与上式相同。H 未独立归一化，因此其分母一般不为 1。
 
 频率监督为
 
@@ -537,10 +608,59 @@ $$
 
 当前 $T_w=20$、$T_r=20$、$\lambda_*=0.01$。这些数值来自 repair-validation 配置，不是 PINO 的普适定义。
 
+### 5.9 residual–frequency 校准与跨分辨率诊断
+
+低 Maxwell residual 只有在它能可靠指示较小的真实频率误差时，才可能成为排序依据。当前 B4 诊断令每个评估记录的 residual 为 $r_i$、frequency MRE 为 $e_i$，使用带并列秩平均处理的 Spearman 相关：
+
+$$
+\rho_s=\operatorname{Corr}
+\left(\operatorname{Rank}(r_i),\operatorname{Rank}(e_i)\right).
+$$
+
+若 residual 越低通常对应 frequency MRE 越低，则期望 $\rho_s>0$。代码按 `source_sample_id` 整组有放回重采样，而不是把同一结构的 k/band 行当作相互独立样本。对 $N_{\rm boot}$ 次 bootstrap 得到的 $\rho_s^{(b)}$，95% 区间为
+
+$$
+\operatorname{CI}_{95\%}(\rho_s)=
+\left[Q_{0.025}\left(\{\rho_s^{(b)}\}\right),
+Q_{0.975}\left(\{\rho_s^{(b)}\}\right)\right].
+$$
+
+当前 dense-k 配置使用 $N_{\rm boot}=1000$。除相关系数外，还比较 residual 最低和最高四分位的频率误差。令 $Q_{0.25}(r)$、$Q_{0.75}(r)$ 为 residual 四分位点：
+
+$$
+\overline e_{\rm low}=
+\operatorname{mean}\{e_i:r_i\le Q_{0.25}(r)\},
+\qquad
+\overline e_{\rm high}=
+\operatorname{mean}\{e_i:r_i\ge Q_{0.75}(r)\},
+$$
+
+$$
+I_{\rm quartile}=100\%
+\frac{\overline e_{\rm high}-\overline e_{\rm low}}
+{\max(\overline e_{\rm high},10^{-12})}.
+$$
+
+$I_{\rm quartile}>0$ 才表示低 residual 组的频率误差更小。当前准入门要求每个 seed 的 Spearman bootstrap CI 下界严格大于 0，且 $I_{\rm quartile}\ge10\%$。
+
+跨分辨率迁移以 64 为基准。对任一越小越好的指标 $m$，分辨率 $q$ 的相对变化为
+
+$$
+\Delta_m(q)=100\%
+\left(\frac{m_q}{\max(m_{64},10^{-12})}-1\right).
+$$
+
+$\Delta_m>0$ 表示退化，$\Delta_m<0$ 表示改善。当前阈值是 frequency MRE 退化不超过 $2\%$、residual median 退化不超过 $20\%$。
+
+- **来源**：[`forward/field_eigen_b4.py`](../../src/phc2d/forward/field_eigen_b4.py)、[`field_eigen_te_b4_dense_k_gate.yaml`](../../configs/research/field_eigen_te_b4_dense_k_gate.yaml)、[`field_eigen_te_b4_dense_k_admission_20260722.md`](../results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md)。
+- **状态**：校准与跨分辨率公式已实现；当前准入结果仍为 blocked。旧场度规下的 B3/B4 数值只能保留为历史诊断，不能自动升级为修正后结论。
+
 > **证据边界**：仓库中的 adapted PINO 是 `fno_field_v2` 的训练制度，不是另一套 faithful PINO 架构。它当前不能进入 inverse reranking。physics residual 下降只表明预测场更符合该离散残差；它不等于 inverse-design 收益，也不等于 real-MPB replay 通过。
 
-- **来源**：[`forward/field_eigen_v2.py`](../../src/phc2d/forward/field_eigen_v2.py)、[`physics/torch_eigen_residual.py`](../../src/phc2d/physics/torch_eigen_residual.py)、[`field_eigen_te_pino_b4_repair_validation_9216.yaml`](../../configs/research/field_eigen_te_pino_b4_repair_validation_9216.yaml)。
+- **来源**：[`forward/field_eigen_v2.py`](../../src/phc2d/forward/field_eigen_v2.py)、[`physics/torch_eigen_residual.py`](../../src/phc2d/physics/torch_eigen_residual.py)、[`field_eigen_te_pino_b4_repair_validation_9216.yaml`](../../configs/research/field_eigen_te_pino_b4_repair_validation_9216.yaml)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md)。
 - **状态**：已实现的训练/验证制度；inverse 使用状态为 blocked。
+
+<a id="formula-forward-metrics"></a>
 
 ## 6. 前向任务、损失与评价指标
 
@@ -558,6 +678,15 @@ $$
 L_{2,\rm rel}=\frac{\|\widehat{\mathbf y}-\mathbf y\|_2}
 {\|\mathbf y\|_2+\epsilon}.
 $$
+
+对 MRE、relative $L_2$、residual 等“越小越好”的指标，候选 B 相对参考 A 的改善率统一写为
+
+$$
+I_{A\to B}=100\%
+\frac{m_A-m_B}{\max(|m_A|,10^{-12})}.
+$$
+
+$I_{A\to B}>0$ 表示改善；若使用相对变化 $\Delta_{A\to B}=100\%(m_B/m_A-1)$，则符号恰好相反。报告比较 data-only FNO 与 adapted PINO 时必须注明采用哪一种约定，并保持场误差、频率误差和 residual 分列，不能用 residual 改善率替代 frequency MRE 改善率。
 
 当前主要频带 MRE 排除常见的近零第一带，从 one-based band 2 到 $N_b$：
 
@@ -594,6 +723,7 @@ $$
 实现默认权重为 $1.0,0.5,0.05,0.02$，可由 config `loss_params` 覆盖；若 `loss_name=mse`，训练则使用普通 MSE。指标实现分别位于 [`forward/runner.py`](../../src/phc2d/forward/runner.py) 和 [`query/runner.py`](../../src/phc2d/query/runner.py)。
 
 > **审核意见：**此处和其他所有设计权重的部分，都应该检查一下权重是否合适。一方面可以参考一下模型的建议，另一方面我的直觉是训练接近收敛时，权重相关的各项应有相当的数量级。
+<a id="formula-inverse"></a>
 
 ## 7. 逆向生成、目标桥接与候选筛选
 
@@ -722,6 +852,8 @@ $$
 - **状态**：Objective-Bridge 当前启用项。`fno2d_band_v2` 是 primary frozen surrogate/ranker，`fno2d_query_v2` 是 consistency gate。
 - **排除项**：MPB replay 不属于 $\mathcal L_{\rm obj}$，也不通过训练图反向传播；adapted PINO 当前不是 inverse ranker。
 
+<a id="formula-replay"></a>
+
 ## 8. real-MPB replay 与最终评价
 
 对经过投影、去重与筛选的候选，real-MPB replay 明确重新调用求解器：
@@ -766,6 +898,8 @@ $$
 
 当前 Objective-Bridge 评估配置使用 `requested_k=128`，并对筛选后的 top 5 做 replay；这些是当前实验预算，不是公式中的固定 $K$。评估配置见 [`a2_inverse_objective_bridge_seed0_test625_v1.yaml`](../../configs/research/a2_inverse_objective_bridge_seed0_test625_v1.yaml)。
 
+<a id="formula-source-index"></a>
+
 ## 9. 源码与配置索引
 
 | 公式组 | 主要来源 | 归一化/当前配置 | 当前状态 |
@@ -773,10 +907,11 @@ $$
 | wedge 几何、$D_4$/p4m、$\varepsilon(\chi)$ | [`data/lift.py`](../../src/phc2d/data/lift.py) | V2 `16×16`、$\varepsilon\in[1.0,8.9]$ | 已实现 |
 | MPB 像素与频带求解 | [`solvers/mpb.py`](../../src/phc2d/solvers/mpb.py) | resolution 64、TE、10+4 bands | 已实现 |
 | V2 采样和 k-path | [`query_dataset_v2_pilot_10000.yaml`](../../configs/research/query_dataset_v2_pilot_10000.yaml) | $p=0.32$、$N_k=31$ | 已实现配置 |
-| 复场数据规范化 | [`data/field_eigen.py`](../../src/phc2d/data/field_eigen.py) | E-energy norm、公共相位 | 已实现 |
+| 复场数据规范化与度规 | [`data/field_eigen.py`](../../src/phc2d/data/field_eigen.py)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md) | $\langle E_1,E_2\rangle_\varepsilon$、公共 E/H 相位 | 已实现；旧数值属历史诊断 |
 | NumPy 场残差 | [`physics/eigen_residual.py`](../../src/phc2d/physics/eigen_residual.py) | Bloch finite difference | 已实现诊断 |
 | Torch/PINO 场残差 | [`physics/torch_eigen_residual.py`](../../src/phc2d/physics/torch_eigen_residual.py) | solver-floor scaled | 已实现训练项 |
 | field 编码和训练制度 | [`forward/field_eigen_v2.py`](../../src/phc2d/forward/field_eigen_v2.py) | 5+3 输入、6 输出、log-$f$ | 已实现；inverse blocked |
+| residual–frequency 与分辨率诊断 | [`forward/field_eigen_b4.py`](../../src/phc2d/forward/field_eigen_b4.py) | 1000 次 structure bootstrap、64/96/128 | 已实现；准入 blocked |
 | 前向/Query 指标 | [`forward/runner.py`](../../src/phc2d/forward/runner.py)、[`query/runner.py`](../../src/phc2d/query/runner.py) | band 2–$N_b$ MRE | 已实现 |
 | 逆向目标 | [`inverse/objective.py`](../../src/phc2d/inverse/objective.py) | Objective-Bridge 权重 | 已实现 |
 | 候选去重和健康度 | [`inverse/candidates.py`](../../src/phc2d/inverse/candidates.py) | threshold 0.5、Hamming | 已实现 |
@@ -793,5 +928,7 @@ $$
 5. 它能证明 surrogate 拟合、field physics consistency，还是 real-MPB replay？三者不能互换。
 6. 若涉及 adapted PINO，是否明确它属于 `fno_field_v2` 训练制度，且当前不能进入 inverse reranking？
 7. 若涉及 inverse，是否分别报告 `best_of_k_surrogate_mre`、`best_of_k_replay_mre` 与 `surrogate_replay_gap`？
+8. 若涉及场误差，E 是否使用介电加权度规？H 是否仍沿用 E 决定的公共相位？
+9. 是否区分了训练中的相对 $L_2$ 平方与报告中的相对 $L_2$，并说明正确归一化时只有 E 的分母理论上为 1？
 
 本文只整理当前已实现主线。尚未接入当前运行流程的参考架构，应在模型清单或专门研究计划中维护，不能以一条参考公式写成“项目已经实现”。

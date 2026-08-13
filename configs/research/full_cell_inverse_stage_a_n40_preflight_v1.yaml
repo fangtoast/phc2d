@@ -1,0 +1,54 @@
+# Formal N40 single-card preflight for full-cell inverse Stage-A training.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: full_cell_inverse_stage_a_n40_preflight_v1
+  stage: inverse_full_cell_stage_a_preflight
+  validation_boundary: n40_single_card_no_formal_training_no_mpb
+
+representation:
+  condition_target: Wh
+  output_repr: full_cell_analytic_params
+  condition_normalization: route_train_per_k_band
+
+datasets:
+  binary:
+    path: data/full_cell_binary_bz9_10000_xingyi_v1.h5
+    expected_dataset_sha256: 1f131f2bda7ccb1f1736809bdf6bafd534096cb275e22ce3e56fc5d910530c2f
+  graded:
+    path: data/full_cell_graded_bz9_10000_paracloud_m9_v1.h5
+    expected_dataset_sha256: d16d838e098215c05dc299bf7c4bbc8c6bc00f6ef35b9772546aa4e7c2b8b728
+
+models:
+  methods:
+    - direct_inverse_mlp
+    - single_mode_generator
+    - mixture_conditional_generator
+  overrides:
+    direct_inverse_mlp: {hidden_dim: 512, depth: 2, latent_dim: 0, mode_count: 1}
+    single_mode_generator: {hidden_dim: 512, depth: 4, latent_dim: 32, mode_count: 1}
+    mixture_conditional_generator: {hidden_dim: 512, depth: 4, latent_dim: 32, mode_count: 4}
+
+training:
+  seed: 0
+  batch_size: 64
+  raster_shape: [64, 64]
+  binary_temperature: 0.01
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-5
+  raster_weight: 0.1
+  unit_circle_weight: 0.05
+
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  device_index: 0
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  record_peak_memory: true
+
+output:
+  runs_dir: runs

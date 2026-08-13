@@ -1,0 +1,69 @@
+# Xingyi graded full-cell dataset: 50,000 structures, 9x9 full BZ.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: full_cell_graded_bz9_50000_xingyi_v1
+  family: research
+  stage: dataset_generation
+
+dataset:
+  protocol: full_cell_v1
+  lane: graded_medium
+  output_path: data/full_cell_graded_bz9_50000_xingyi_v1.h5
+  sample_count: 50000
+  split: {train: 40000, val: 5000, test: 5000}
+  seed: 20260806
+  raster_resolutions: [32, 64, 128]
+
+generator:
+  plan_workers: 64
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  audit_resolution: 256
+  fourier_cutoff: 3
+  graded_target_material_fraction_range: [0.60, 0.78]
+  graded_temperature_range: [0.08, 0.16]
+  graded_fourier_strength_range: [0.03, 0.10]
+  graded_air_well_magnitude_range: [0.90, 1.40]
+  max_attempts: 256
+
+solver:
+  backend: mpb
+  environment: native_linux_conda_meep_env
+  expected_meep_version: 1.33.0-beta
+  expected_mpb_version: 1.12.0
+  use_proxy: false
+  lattice: square
+  lattice_constant: 1.0
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 64
+  mesh_size: 3
+  polarization: TE
+  num_bands: 10
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+  eigensolver_tolerance: 1.0e-7
+
+k_grid:
+  family: square_full_bz
+  n_side: 9
+  coordinate_system: mpb_reduced_reciprocal_coordinates
+  endpoint_policy: centered_unique_no_boundary_duplicates
+
+workers:
+  workers: 64
+  min_workers: 1
+  max_workers: 64
+  worker_backend: processpool
+  fail_fast: false
+  suppress_solver_output: true
+  worker_thread_env:
+    OMP_NUM_THREADS: "1"
+    OPENBLAS_NUM_THREADS: "1"
+    MKL_NUM_THREADS: "1"
+
+output:
+  runs_dir: runs

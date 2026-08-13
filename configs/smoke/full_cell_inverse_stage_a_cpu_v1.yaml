@@ -1,0 +1,51 @@
+# CPU-only full-cell inverse Stage-A contract preflight.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: full_cell_inverse_stage_a_cpu_v1
+  stage: inverse_full_cell_stage_a_preflight
+  validation_boundary: cpu_contract_only_no_formal_training_no_mpb
+
+representation:
+  condition_target: Wh
+  output_repr: full_cell_analytic_params
+  condition_normalization: route_train_per_k_band
+
+datasets:
+  binary:
+    path: data/full_cell_binary_bz9_10000_xingyi_v1.h5
+  graded:
+    path: data/full_cell_graded_bz9_10000_paracloud_m9_v1.h5
+
+models:
+  methods:
+    - direct_inverse_mlp
+    - single_mode_generator
+    - mixture_conditional_generator
+  overrides:
+    direct_inverse_mlp: {hidden_dim: 64, depth: 2, latent_dim: 0, mode_count: 1}
+    single_mode_generator: {hidden_dim: 64, depth: 4, latent_dim: 32, mode_count: 1}
+    mixture_conditional_generator: {hidden_dim: 64, depth: 4, latent_dim: 32, mode_count: 4}
+
+training:
+  seed: 0
+  batch_size: 4
+  raster_shape: [32, 32]
+  binary_temperature: 0.01
+  learning_rate: 1.0e-4
+  weight_decay: 1.0e-5
+  raster_weight: 0.1
+  unit_circle_weight: 0.05
+
+runtime:
+  device: cpu
+  require_accelerator: false
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  cpu_threads: 4
+
+output:
+  runs_dir: runs

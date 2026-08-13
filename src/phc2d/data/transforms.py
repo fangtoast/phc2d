@@ -52,6 +52,31 @@ def _has_any_field(fields: Mapping[str, Any], names: set[str]) -> bool:
     return bool(_field_name_set(fields) & set(names))
 
 
+def _has_field_prefix(fields: Mapping[str, Any], prefixes: tuple[str, ...]) -> bool:
+    return any(str(name).split("/")[-1].startswith(prefixes) for name in fields)
+
+
+def _select_grid_field(row: Mapping[str, Any], base_name: str, grid_shape: tuple[int, int] | None) -> Any:
+    if base_name in row:
+        return row[base_name]
+    candidates = sorted(
+        (str(key), value)
+        for key, value in row.items()
+        if str(key).split("/")[-1].startswith(f"{base_name}_")
+    )
+    if grid_shape is not None:
+        suffix = f"_{int(grid_shape[0])}"
+        for key, value in candidates:
+            if key.split("/")[-1].endswith(suffix):
+                return value
+    if len(candidates) == 1:
+        return candidates[0][1]
+    if candidates:
+        available = ", ".join(key for key, _ in candidates)
+        raise KeyError(f"Multiple {base_name} fields are available ({available}); set spec.grid_shape")
+    return None
+
+
 def _parse_metadata_text(raw: Any) -> Any:
     if raw is None:
         return None
@@ -131,6 +156,31 @@ def infer_dataset_schema(path: str | Path) -> dict[str, Any]:
             parsed = _parse_metadata_text(metadata_raw)
             if parsed is not None:
                 schema["metadata"] = parsed
+        schema_version = str(schema.get("attrs", {}).get("schema_version", ""))
+        if schema_version == "phc2d.full_cell.v1":
+            wh_shape = _shape_of(schema, "Wh")
+            if wh_shape:
+                schema["n_samples"] = int(wh_shape[0])
+                schema["wh_shape"] = wh_shape
+                if len(wh_shape) >= 3:
+                    schema["k_points"] = int(wh_shape[-2])
+                    schema["n_bands"] = int(wh_shape[-1])
+            k_shape = _shape_of(schema, "k_points")
+            if k_shape:
+                schema["k_path_shape"] = k_shape
+            resolutions = sorted(
+                int(str(name).split("_")[-1])
+                for name in schema["fields"]
+                if str(name).split("/")[-1].startswith("epsilon_grid_")
+            )
+            schema["grid_resolutions"] = resolutions
+            schema["grid_shapes"] = {
+                str(resolution): _shape_of(schema, f"epsilon_grid_{resolution}")
+                for resolution in resolutions
+            }
+            schema["full_bz_available"] = _shape_of(schema, "k_grid_index") is not None
+            schema["kind"] = "hdf5_full_cell_band"
+            return schema
         for name in ("rho", "epsilon", "eps", "efield", "hfield", "freqs", "k_points"):
             shape = _shape_of(schema, name)
             if shape:
@@ -182,12 +232,18 @@ def make_input(sample: Any, spec: DataRepresentationSpec) -> Any:
             return np.asarray(row["rho_grid"], dtype=np.float32)
         if "binary_grid" in row:
             return np.asarray(row["binary_grid"], dtype=np.float32)
+        material_weight = _select_grid_field(row, "material_weight_grid", spec.grid_shape)
+        if material_weight is not None:
+            return np.asarray(material_weight, dtype=np.float32)
         return lift_rho_to_grid(np.asarray(row["rho"], dtype=np.float32), grid_shape=spec.grid_shape).astype(np.float32)
     if spec.input_repr == "epsilon_grid":
         if "epsilon" in row:
             return np.asarray(row["epsilon"], dtype=np.float32)
         if "eps" in row:
             return np.asarray(row["eps"], dtype=np.float32)
+        epsilon_grid = _select_grid_field(row, "epsilon_grid", spec.grid_shape)
+        if epsilon_grid is not None:
+            return np.asarray(epsilon_grid, dtype=np.float32)
         return epsilon_from_rho(np.asarray(row["rho"], dtype=np.float32), grid_shape=spec.grid_shape).astype(np.float32)
     if spec.input_repr == "image_binary":
         grid = make_input(row, DataRepresentationSpec("rho_grid", spec.output_target, grid_shape=spec.grid_shape))
@@ -270,10 +326,16 @@ def validate_representation_compatibility(
     field_names = _field_name_set(fields)
     if spec.input_repr == "rho_wedge" and "rho" not in field_names:
         problems.append("input_repr=rho_wedge requires field 'rho'")
-    if spec.input_repr in {"rho_grid", "image_binary"} and not _has_any_field(fields, {"rho", "rho_grid", "binary_grid"}):
-        problems.append("rho_grid/image_binary requires 'rho', 'rho_grid', or 'binary_grid'")
-    if spec.input_repr in {"epsilon_grid", "image_epsilon", "field_conditioned"} and not _has_any_field(fields, {"epsilon", "eps", "rho"}):
-        problems.append("epsilon input requires 'epsilon', 'eps', or 'rho'")
+    has_material_weight_grid = _has_field_prefix(fields, ("material_weight_grid_",))
+    has_epsilon_grid = _has_field_prefix(fields, ("epsilon_grid_",))
+    if spec.input_repr in {"rho_grid", "image_binary"} and not (
+        _has_any_field(fields, {"rho", "rho_grid", "binary_grid", "material_weight_grid"}) or has_material_weight_grid
+    ):
+        problems.append("rho_grid/image_binary requires a rho, binary-grid, or material-weight-grid field")
+    if spec.input_repr in {"epsilon_grid", "image_epsilon", "field_conditioned"} and not (
+        _has_any_field(fields, {"epsilon", "eps", "rho", "epsilon_grid"}) or has_epsilon_grid
+    ):
+        problems.append("epsilon input requires an epsilon-grid, 'epsilon', 'eps', or 'rho' field")
     if spec.output_target == "Wh" and "Wh" not in field_names:
         problems.append("output_target=Wh requires field 'Wh'")
     if spec.output_target == "band_query" and not _has_any_field(fields, {"Wh", "freqs", "frequency"}):

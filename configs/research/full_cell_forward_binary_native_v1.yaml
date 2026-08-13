@@ -1,0 +1,50 @@
+# Formal binary-native full-cell Full-Wh forward wave.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: full_cell_forward_binary_native_v1
+  family: full_cell_forward
+  lane: binary
+  evidence_status: authorized_formal_training
+dataset:
+  path: data/full_cell_binary_bz9_10000_xingyi_v1.h5
+  grid_field: material_weight_grid_64
+  expected_dataset_sha256: 1f131f2bda7ccb1f1736809bdf6bafd534096cb275e22ce3e56fc5d910530c2f
+  expected_idx_train_hash: b87806ed57802917be1ce827615667cf5a4eedc84ef8c5f596c17e804a96878e
+  expected_idx_val_hash: 8b40be085bb7815381a0623586f9f9af4f1abf3e7597a50ad0490f7dfc2fc6b6
+  expected_idx_test_hash: f9287656805062e01d2b4995278b04af73968f5026b38c30a52982b67c20eba1
+representation:
+  source: material_weight_grid
+  sampling: continuous
+  threshold: null
+  resolution: 64
+  physical_equivalence: true
+  label_semantics: binary_medium_Wh
+models:
+  mlp: {hidden_dim: 256, depth: 6, dropout: 0.05, activation: gelu}
+  res_mlp_wide: {hidden_dim: 256, depth: 6, dropout: 0.05, activation: gelu}
+  lifted_cnn: {channels: 12, activation: gelu}
+  fno2d_band_v2: {width: 32, depth: 4, modes: [8, 8], band_modes: [5, 5], fourier_rank: 8, activation: gelu}
+training:
+  max_epochs: 100
+  early_stopping_patience: 15
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  learning_rates: {mlp: 3.0e-4, res_mlp_wide: 3.0e-4, lifted_cnn: 1.0e-3, fno2d_band_v2: 1.0e-3}
+  micro_batch_size: 64
+  effective_batch_size: 64
+  loss: normalized_full_matrix_mse
+  checkpoint_selection: validation_bands_2_10_mre
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  num_workers: 4
+  pin_memory: true
+  non_blocking_transfer: true
+output:
+  runs_dir: runs

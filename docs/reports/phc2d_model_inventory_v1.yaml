@@ -4,7 +4,7 @@
 # Copyright (c) 2026 fangtoast. All rights reserved.
 
 version: 1
-updated_at: "2026-07-29"
+updated_at: "2026-08-08"
 authority:
   registry_command: phc2d models list
   master_report: docs/reports/phc2d_project_full_introduction_20260724.md
@@ -356,6 +356,111 @@ entries:
     source_artifacts:
       - {path: runs/20260720/field_eigen_te_v2_baseline_9216_202607201723/leaderboard.csv, sha256: 035bff2d799e775de33a0873e0281734e274ea1ea5007633bafab4bdf2c7fefc}
     claim_boundary: Current formal data-only field FNO and shared backbone for adapted PINO.
+
+  - id: mlp_mixer_band_v1
+    display_name: mlp_mixer_band_v1
+    category: neural_model
+    family: mixer
+    task: full_cell_full_band
+    input_output: material_weight_grid -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`mlp_mixer_band_v1`"]
+    implementation: src/phc2d/models/full_cell_upgrades.py
+    configs: [configs/research/full_cell_forward_upgrade_binary_50k_v1.yaml, configs/research/full_cell_forward_upgrade_graded_50k_v1.yaml]
+    result_report: docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
+    data: {records_per_lane: 50000, split_per_lane: "40000/5000/5000", seeds: [0, 1, 2], selected_head: dense}
+    headline_metrics: {binary_mre_pct_mean: 0.5927, binary_mre_pct_std: 0.0314, graded_mre_pct_mean: 0.0646, graded_mre_pct_std: 0.0046, parameter_count: 2918186}
+    source_artifacts:
+      - {path: runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944/native_test_summary.csv, sha256: 36e282e918b8ae1af49cd866e3ed7d015535ed6fb8502507523df5c1915a0207}
+      - {path: runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944/promotion_decisions.csv, sha256: 4b633b93b9bb278a2b78852c139590bd8433ff3f4d30360c14a0fc31387b2a8b}
+    claim_boundary: Promoted over the direct MLP baseline on both native 50k held-out lanes; zero-shot input-resolution stability is diagnostic and not physical convergence.
+
+  - id: res_mlp_gated_v2
+    display_name: res_mlp_gated_v2
+    category: neural_model
+    family: resmlp
+    task: full_cell_full_band
+    input_output: flattened material_weight_grid -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`res_mlp_gated_v2`"]
+    implementation: src/phc2d/models/full_cell_upgrades.py
+    configs: [configs/research/full_cell_forward_upgrade_binary_50k_v1.yaml, configs/research/full_cell_forward_upgrade_graded_50k_v1.yaml]
+    result_report: docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
+    data: {records_per_lane: 50000, split_per_lane: "40000/5000/5000", seeds: [0, 1, 2], selected_head: dense}
+    headline_metrics: {binary_mre_pct_mean: 0.8792, binary_mre_pct_std: 0.0165, graded_mre_pct_mean: 0.4001, graded_mre_pct_std: 0.0388, parameter_count: 6508010}
+    source_artifacts:
+      - {path: runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944/native_test_summary.csv, sha256: 36e282e918b8ae1af49cd866e3ed7d015535ed6fb8502507523df5c1915a0207}
+      - {path: runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944/promotion_decisions.csv, sha256: 4b633b93b9bb278a2b78852c139590bd8433ff3f4d30360c14a0fc31387b2a8b}
+    claim_boundary: Formal native 50k result is retained as a negative result; the graded lane regressed and the model is not promoted.
+
+  - id: convnext_band_v1
+    display_name: convnext_band_v1
+    category: neural_model
+    family: convnext
+    task: full_cell_full_band
+    input_output: material_weight_grid -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`convnext_band_v1`"]
+    implementation: src/phc2d/models/full_cell_upgrades.py
+    configs: [configs/research/full_cell_forward_upgrade_binary_50k_v1.yaml, configs/research/full_cell_forward_upgrade_graded_50k_v1.yaml]
+    result_report: docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
+    data: {records_per_lane: 50000, split_per_lane: "40000/5000/5000", seeds: [0, 1, 2], selected_head: dense}
+    headline_metrics: {binary_mre_pct_mean: 0.3212, binary_mre_pct_std: 0.0079, graded_mre_pct_mean: 0.0500, graded_mre_pct_std: 0.0041, parameter_count: 2298138}
+    source_artifacts:
+      - {path: runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944/native_test_summary.csv, sha256: 36e282e918b8ae1af49cd866e3ed7d015535ed6fb8502507523df5c1915a0207}
+      - {path: runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944/promotion_decisions.csv, sha256: 4b633b93b9bb278a2b78852c139590bd8433ff3f4d30360c14a0fc31387b2a8b}
+    claim_boundary: Best native 64x64 held-out surrogate model on both lanes; poor 32/128 direct-input diagnostics and no real-MPB inverse replay.
+
+  - id: tfno2d_band_v3
+    display_name: tfno2d_band_v3
+    category: neural_model
+    family: neural_operator
+    task: full_cell_full_band
+    input_output: material_weight_grid -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`tfno2d_band_v3`"]
+    implementation: src/phc2d/models/full_cell_upgrades.py
+    configs: [configs/research/full_cell_forward_upgrade_binary_50k_v1.yaml, configs/research/full_cell_forward_upgrade_graded_50k_v1.yaml]
+    result_report: docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
+    data: {records_per_lane: 50000, split_per_lane: "40000/5000/5000", seeds: [0, 1, 2], selected_head: dense}
+    headline_metrics: {binary_mre_pct_mean: 0.3950, binary_mre_pct_std: 0.0023, graded_mre_pct_mean: 0.1019, graded_mre_pct_std: 0.0016, parameter_count: 2690652}
+    source_artifacts:
+      - {path: runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944/native_test_summary.csv, sha256: 36e282e918b8ae1af49cd866e3ed7d015535ed6fb8502507523df5c1915a0207}
+      - {path: runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944/promotion_decisions.csv, sha256: 4b633b93b9bb278a2b78852c139590bd8433ff3f4d30360c14a0fc31387b2a8b}
+    claim_boundary: Promoted over fno2d_band_v2 on both native lanes; project-native Tucker-factorized identity and higher resource cost must remain explicit.
+
+  - id: dual_lane_band_operator_v1
+    display_name: dual_lane_band_operator_v1
+    category: neural_model
+    family: conditional_neural_operator
+    task: full_cell_full_band
+    input_output: material_weight_grid + lane -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: formal
+    report_scope: main
+    report_tokens: ["`dual_lane_band_operator_v1`"]
+    implementation: src/phc2d/models/full_cell_upgrades.py
+    configs: [configs/research/full_cell_forward_upgrade_dual_lane_50k_v1.yaml]
+    result_report: docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
+    data: {records_per_lane: 50000, split_per_lane: "40000/5000/5000", seeds: [0, 1, 2], selected_head: dense}
+    headline_metrics: {binary_mre_pct_mean: 0.4665, binary_mre_pct_std: 0.0076, graded_mre_pct_mean: 0.1196, graded_mre_pct_std: 0.0030, parameter_count: 2703740, checkpoint_storage_fraction: 1.0731}
+    source_artifacts:
+      - {path: runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944/native_test_summary.csv, sha256: 36e282e918b8ae1af49cd866e3ed7d015535ed6fb8502507523df5c1915a0207}
+      - {path: runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944/promotion_decisions.csv, sha256: 4b633b93b9bb278a2b78852c139590bd8433ff3f4d30360c14a0fc31387b2a8b}
+    claim_boundary: Formal joint-lane model result exists and beats the old FNO baseline, but precision and storage replacement gates were not met.
 
   - id: train_only_nearest_neighbor
     display_name: train-only nearest-neighbor retrieval

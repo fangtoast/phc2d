@@ -1,8 +1,16 @@
-"""Tests for shared run helpers."""
+"""Tests for shared run helpers.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
+
+import phc2d.runs.core as runs_core
 
 from phc2d.runs import (
     RUN_META_NAME,
@@ -38,3 +46,14 @@ def test_runtime_metric_helpers():
     add_throughput_metrics(metrics, count=4, elapsed_s=2.0, prefix="samples")
     assert metrics["samples_per_s"] == 2.0
     assert metrics["time_per_sample_ms"] == 500.0
+
+
+def test_run_meta_uses_deployed_commit_when_git_metadata_is_absent(tmp_path, monkeypatch):
+    def missing_git(*args, **kwargs):
+        raise FileNotFoundError("git metadata is not present in the deployment archive")
+
+    monkeypatch.setattr(runs_core.subprocess, "check_output", missing_git)
+    monkeypatch.setenv("PHC2D_DEPLOYED_GIT_COMMIT", "abc123")
+    run_dir = make_run_dir("deployment_unit", runs_dir=tmp_path)
+    path = write_run_meta(run_dir, {"script": "test"})
+    assert json.loads(path.read_text(encoding="utf-8"))["git_commit"] == "abc123"

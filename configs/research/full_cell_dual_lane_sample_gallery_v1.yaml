@@ -1,0 +1,66 @@
+# Dual-lane full-cell dielectric, band, and gap-edge eigenfield gallery.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: full_cell_dual_lane_sample_gallery_v1
+  family: research
+  stage: visualization
+
+datasets:
+  - path: data/full_cell_graded_bz9_10000_paracloud_m9_v1.h5
+    lane: graded_medium
+    status: cluster_generated_pending_wsl_acceptance
+    quotas:
+      graded_core_1: 8
+      graded_core_2: 8
+  - path: data/full_cell_binary_bz9_10000_xingyi_v1.h5
+    lane: binary_air_holes
+    status: wsl_cross_environment_acceptance_pass
+    quotas:
+      polar_hole_1: 4
+      polar_hole_2: 4
+      spectral_threshold: 8
+
+sampling:
+  split: test
+  sample_count_per_dataset: 16
+  policy: stratified_random_without_replacement
+  seed: 20260806
+
+bands:
+  source: stored_full_bz_frequencies
+  retained_bands_one_based: [1, 10]
+  gap_lower_bands_one_based: [2, 9]
+  path: sampled_Gamma_X9_M9_Gamma
+  X9: [0.4444444444444444, 0.0]
+  M9: [0.4444444444444444, 0.4444444444444444]
+  interpolation: false
+
+field:
+  backend: real_mpb
+  environment: wsl_meep_env
+  selection: largest_full_bz_gap_upper_edge
+  quantity: epsilon_abs_e_squared
+  normalization: per_sample_max
+  frequency_mre_max: 0.01
+
+solver:
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 64
+  mesh_size: 3
+  polarization: TE
+  num_bands: 10
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+  eigensolver_tolerance: 1.0e-7
+
+output:
+  runs_dir: runs
+  formats: [png, svg, pdf]
+  dpi: 600
+  width_mm: 183
+  integrated_width_mm: 366
+  integrated_height_mm: 521

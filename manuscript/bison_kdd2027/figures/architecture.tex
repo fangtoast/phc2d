@@ -1,4 +1,4 @@
-% BISON architecture and solver-verified inverse-design workflow.
+% BISON architecture and MPB-replayed inverse-design workflow.
 % Author: fangtoast
 % Email: fangtoast@foxmail.com
 % Copyright (c) 2026 fangtoast. All rights reserved.
@@ -31,11 +31,11 @@
     \node[note, above=2mm of blocks] {forward operator: structure field $\rightarrow$ complete sampled dispersion};
 
     \node[data, below=17mm of eps] (target) {target bands\\\(\bandtarget\)};
-    \node[inverse, right=of target] (gen) {single-mode latent decoder\\\(\generator(\bandtarget,z)\)\\no expert routing};
+    \node[inverse, right=of target] (gen) {single-mode latent decoder\\\(\generator(\bandtarget,z)\)\\routing-free sampling};
     \node[inverse, right=of gen] (cand) {\(K=128\) candidates\\legality and duplicate checks};
     \node[operator, right=of cand] (rank) {frozen BISON\\primary objective and ranker};
     \node[operator, right=of rank] (query) {query-operator audit\\physical \(\mathbf{k}\) consistency};
-    \node[solver, right=of query] (replay) {Top-5 real-MPB replay\\solver-verified bands};
+    \node[solver, right=of query] (replay) {Top-5 real-MPB replay\\recomputed band matrix};
 
     \draw[arrow] (target) -- (gen);
     \draw[arrow] (gen) -- (cand);
@@ -43,13 +43,14 @@
     \draw[arrow] (rank) -- (query);
     \draw[arrow] (query) -- (replay);
     \draw[audit] (bands.south) |- (rank.north);
-    \node[note, below=2mm of cand] {surrogate quantities guide search; only replay quantities support physical claims};
+    \node[note, below=2mm of cand] {surrogate quantities guide search; MPB replay determines the physical evaluation};
   \end{tikzpicture}}
-  \caption{BISON and the evidence-separated inverse-design loop. The upper row
-  is the implemented full-band FNO-derived surrogate (registered in the code as
-  \texttt{fno2d\_band\_v2}). The lower row uses the frozen operator to guide a
-  no-expert latent candidate generator. The independent query model is an audit
-  rather than a second equal-weight ranker, and MPB remains outside training.}
+  \caption{BISON and the inverse-design evidence chain. The upper row shows the
+  full-band spectral surrogate, implemented as \texttt{fno2d\_band\_v2}. In
+  the lower row, a single-mode routing-free generator proposes \(K=128\)
+  candidates and frozen BISON ranks them. The query operator records an
+  independent diagnostic without changing the ranking; MPB evaluates the
+  Top-5 candidates.}
   \Description{Two-row workflow diagram. The upper row maps a periodic
   permittivity field through a lift, four BISON spectral blocks, pooling, and a
   linear head to a full band matrix. The lower row maps target bands through a

@@ -1,0 +1,13 @@
+# Xingyi Slurm resource profile for portable physical-data campaigns.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+platform_id: xingyi
+scheduler: slurm
+partition: xyfree
+cores_per_node: 64
+memory_gb_per_node: 128
+max_nodes: 8
+max_array_tasks: 16
+allowed_node_tiers: [1, 2, 4, 8]

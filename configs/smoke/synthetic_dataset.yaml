@@ -1,0 +1,21 @@
+# Deterministic non-physical dataset for clean-clone smoke tests.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: phc2d.synthetic_smoke.v1
+dataset:
+  output_path: data/generated/phc2d_synthetic_smoke.npz
+  sample_count: 24
+  rho_wedge_length: 36
+target:
+  name: Wh
+  k_point_count: 9
+  band_count: 4
+split:
+  train: 16
+  val: 4
+  test: 4
+generation:
+  seed: 20260806
+  fill_probability: 0.35

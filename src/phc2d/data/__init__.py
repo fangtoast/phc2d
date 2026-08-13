@@ -6,6 +6,15 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 """
 
 from phc2d.data.forward_dataset import ForwardDatasetBundle, load_forward_dataset, save_forward_dataset
+from phc2d.data.full_cell import (
+    FULL_CELL_SCHEMA_VERSION,
+    FullCellDatasetBundle,
+    FullCellStructureSpec,
+    build_full_bz_grid,
+    load_full_cell_hdf5,
+    write_full_cell_hdf5,
+    write_full_cell_hdf5_streaming,
+)
 from phc2d.data.query_dataset import (
     BandQueryDataset,
     BandQuerySpec,
@@ -52,6 +61,7 @@ from phc2d.data.field_eigen import FieldEigenRecord, canonicalize_eigenfields, h
 from phc2d.data.field_selection import build_field_eigen_operator_selection_manifest, build_field_eigen_selection_manifest, validate_field_eigen_selection_manifest
 from phc2d.data.lift import epsilon_from_rho, lift_rho_to_grid, wedge_index_for_pixel, wedge_indices
 from phc2d.data.representations import DataRepresentationSpec, SampleMetadata
+from phc2d.data.synthetic_smoke import SYNTHETIC_SMOKE_STATUS, make_synthetic_smoke_dataset
 from phc2d.data.target_specs import InputRepresentation, OutputTarget, TargetSpec
 from phc2d.data.transforms import (
     infer_dataset_schema,
@@ -69,6 +79,9 @@ __all__ = [
     "FieldEigenRecord",
     "FieldFeasibility",
     "ForwardDatasetBundle",
+    "FULL_CELL_SCHEMA_VERSION",
+    "FullCellDatasetBundle",
+    "FullCellStructureSpec",
     "InputRepresentation",
     "KPathInfo",
     "KPathMetadata",
@@ -79,8 +92,10 @@ __all__ = [
     "OutputTarget",
     "QueryProtocolSpec",
     "SampleMetadata",
+    "SYNTHETIC_SMOKE_STATUS",
     "TargetSpec",
     "build_query_dataset",
+    "build_full_bz_grid",
     "build_field_eigen_selection_manifest",
     "build_field_eigen_operator_selection_manifest",
     "build_query_masks",
@@ -105,8 +120,10 @@ __all__ = [
     "load_k_path_spec",
     "lift_rho_to_grid",
     "load_forward_dataset",
+    "load_full_cell_hdf5",
     "make_input",
     "make_target",
+    "make_synthetic_smoke_dataset",
     "recover_k_path",
     "physical_k_ids",
     "save_forward_dataset",
@@ -118,6 +135,8 @@ __all__ = [
     "validate_verified_k_path_reference",
     "validate_representation_compatibility",
     "write_field_eigen_hdf5",
+    "write_full_cell_hdf5",
+    "write_full_cell_hdf5_streaming",
     "wedge_index_for_pixel",
     "wedge_indices",
 ]

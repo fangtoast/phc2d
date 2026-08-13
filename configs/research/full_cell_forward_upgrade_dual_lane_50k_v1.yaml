@@ -1,0 +1,42 @@
+# Balanced binary/graded dual-lane Full-Wh 50k confirmation contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment: {experiment_id: full_cell_forward_upgrade_dual_lane_50k_v1, family: full_cell_forward_upgrade, lane: joint, evidence_status: authorized_formal_50k_confirmation}
+datasets:
+  binary:
+    path: data/full_cell_binary_bz9_50000_xingyi_v1.h5
+    grid_field: material_weight_grid_64
+    expected_dataset_sha256: e2d99e0c59c3bf5dfebc507e756dbcd18c8623f331ad6193832d774df5213f00
+    expected_idx_train_hash: baaae4a2e58547602535bbafd1e802ad2293d6dfefb3b0005ea702bff5c33316
+    expected_idx_val_hash: 367b18797b5896aa57b32bfa4920656941c2e0f18f612310848fa3d3885e36ec
+    expected_idx_test_hash: 4386920e7158a20f7dc33c43e7c1952c987b394f206431b9afad9d70df4eeb00
+  graded:
+    path: data/full_cell_graded_bz9_50000_xingyi_v1.h5
+    grid_field: material_weight_grid_64
+    expected_dataset_sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46
+    expected_idx_train_hash: c499158af6e9aff7fff74ffd2da8e4f7826887f19ba5c19bbcb03c5d3cd36180
+    expected_idx_val_hash: 2da23f8892443378a04e150c3042bbdd6cfc821f87e39b77e48e954f2be28349
+    expected_idx_test_hash: 09a9a4d19e8e1a9ebc5b2928adcb71416832b6da628fd03fd8154b7ffc3a3fdd
+representation: {source: material_weight_grid, sampling: continuous, threshold: null, resolution: 64, physical_equivalence: true, label_semantics: lane_specific_Wh}
+model:
+  name: dual_lane_band_operator_v1
+  params: {width: 64, depth: 6, modes: [12, 12], factorization_rank: 0.75, norm_groups: 8, channel_expansion: 2, local_kernel: 3, drop_path: 0.1, num_lanes: 2, lane_embedding_dim: 16, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8], dropout: 0.05}
+training:
+  train_size: 40000
+  train_subset_salt: phc2d-full-cell-50k-v1
+  max_epochs: 200
+  epoch_100_continue_gate: true
+  continue_gate_min_relative_improvement: 0.005
+  early_stopping_patience: 15
+  optimizer: adamw
+  learning_rate: 5.0e-4
+  weight_decay: 1.0e-5
+  micro_batch_size: 64
+  effective_batch_size: 64
+  lane_batch_size: {binary: 32, graded: 32}
+  loss: equal_lane_normalized_full_matrix_mse
+  checkpoint_selection: equal_lane_validation_bands_2_10_mre
+runtime: {device: 'cuda:0', require_accelerator: true, precision: fp32, amp_enabled: false, tf32_enabled: false, num_workers: 4, pin_memory: true, non_blocking_transfer: true}
+output: {runs_dir: runs}

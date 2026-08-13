@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -119,7 +120,7 @@ def write_run_meta(run_dir: str | Path, meta: Mapping[str, Any]) -> Path:
             text=True,
         ).strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
-        payload["git_commit"] = None
+        payload["git_commit"] = os.environ.get("PHC2D_DEPLOYED_GIT_COMMIT") or None
     return write_json(Path(run_dir) / RUN_META_NAME, payload)
 
 

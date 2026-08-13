@@ -54,5 +54,11 @@ wandb/
 /reference/
 /tmp/
 
+# Keep the local data catalog versioned while datasets remain ignored.
+!data/
+data/*
+!data/README.md
+!data/catalog.yaml
+
 .cursor
 .agent/

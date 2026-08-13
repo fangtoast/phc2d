@@ -1,0 +1,45 @@
+# Full-cell analytic-material MPB oracle preflight.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: full_cell_solver_preflight_v1
+  family: research
+  stage: solver_preflight
+
+solver:
+  backend: mpb
+  environment: wsl_meep_env
+  use_proxy: false
+  lattice: square
+  lattice_constant: 1.0
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 64
+  mesh_size: 3
+  polarization: TE
+  num_bands: 10
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+  eigensolver_tolerance: 1.0e-7
+
+k_grid:
+  family: square_full_bz
+  n_side: 9
+  coordinate_system: mpb_reduced_reciprocal_coordinates
+  endpoint_policy: centered_unique_no_boundary_duplicates
+
+preflight:
+  circle_radius: 0.20
+  # Homogeneous cells have exact degeneracies; MPB may return a different
+  # eigenvector ordering/subset for a few bands. Gate the robust agreement and
+  # retain the maximum as a diagnostic rather than treating it as a failure.
+  uniform_median_abs_tolerance: 1.0e-6
+  uniform_match_abs_tolerance: 1.0e-5
+  uniform_match_fraction_min: 0.75
+  repeat_max_abs_tolerance: 1.0e-6
+  circle_mre_max: 0.005
+
+output:
+  runs_dir: runs

@@ -5,47 +5,40 @@
 
 \section{Discussion, Limitations, and Ethics}
 
-The experiments suggest two complementary conclusions. First, Fourier-space
-global coupling and joint full-band prediction provide a useful inductive bias:
-BISON is more accurate than substantially larger dense models. Second, forward
-accuracy is necessary but not sufficient for inverse design. The 0.118-point
-surrogate--replay gap is small relative to the final error, yet individual
-targets still fail more severely and the independent query model can disagree.
-Retaining the MPB boundary is therefore part of the method, not an optional
-post-processing detail.
+The three-seed forward comparison suggests that Fourier-space coupling and
+joint band prediction are effective inductive biases for this fixed periodic
+task. BISON achieved lower MRE than the three baselines and used fewer
+parameters than the two MLPs, although its training and inference costs were
+higher. Because no component ablation was performed, this evidence applies to
+the complete BandBlock and not to any individual branch.
 
-The results also clarify why the method should be described as a system rather
-than as a single forward benchmark. Full-band accuracy makes BISON useful for
-ranking objectives that depend on several bands and wave vectors at once. The
-query operator probes whether this score is consistent under a second output
-factorization, while MPB decides whether the selected geometry actually
-realizes the target. Removing either diagnostic would make the inverse claim
-less interpretable: surrogate-only optimization hides exploitation, whereas
-solver-only reporting hides how the replay budget was allocated.
+Forward accuracy alone did not determine inverse performance. BISON provided
+the frozen objective and primary ranking, while the query operator measured
+consistency in a coordinate-conditioned output space. The query
+score did not modify the ranking. MPB replay then measured the selected
+structures with the governing eigensolver. Reporting these quantities
+separately exposes surrogate disagreement and the allocation of the physical
+evaluation budget.
 
-Several limitations constrain the claim. The inverse experiment uses one
-training seed, so its paired significance measures per-target consistency for
-that frozen run rather than reproducibility across retraining. All structures
-belong to one \(\pgroup\)-symmetric, binary, fixed-material design family on a
-single path and resolution. We do not demonstrate transfer to arbitrary
-lattices, multiple materials, three dimensions, alternative polarizations, or
-fabrication-aware minimum features. The query result also shows poor held-path
-extrapolation. Finally, no controlled ablation isolates every component of the
-BandBlock; the present evidence supports the implemented BISON system as a
-whole, not a causal claim for one gate or spectral branch.
+The inverse evidence is limited to one training seed. Its paired statistics
+measure consistency across targets for that frozen run, not reproducibility
+across retraining. The design space is also restricted to one binary,
+fixed-material, \(\pgroup\)-symmetric family at a single resolution and along
+one wave-vector path. Transfer to other lattices, materials, dimensions,
+polarizations, and fabrication constraints was not evaluated. In addition,
+the query experiment showed weak held-path extrapolation.
 
-These limitations define concrete next experiments. A component ablation
-should remove the second spectral kernel, gate, and low-rank branch one at a
-time under the same three-seed forward protocol. A multi-seed inverse study
-should retrain both generator variants and repeat the complete 625-target
-replay with identical candidate hashes and solver budgets. Resolution and
-geometry transfer should compare schema-compatible grids without changing the
-reported test identities, while fabrication-aware work should add minimum
-feature and robustness constraints before any experimental realization claim.
+These limitations motivate three direct extensions. Component-wise ablations
+should remove the second spectral kernel, gate, and low-rank branch under the
+same three-seed forward protocol. A multi-seed inverse study should retrain both
+generator variants and repeat the complete 625-target replay with identical
+candidate hashes and solver budgets. Transfer studies should preserve
+schema-compatible comparisons, while fabrication-aware evaluation should add
+minimum-feature and robustness constraints before experimental claims.
 
 The dataset is simulated and contains no personal or human-subject data. The
-main broader risk is over-trusting a learned surrogate, which could waste
-solver, fabrication, or laboratory resources. We mitigate this by publishing
-surrogate and replay errors separately, reporting negative extrapolation and
-worst-case examples, and requiring physical replay before describing a design
-as realized.
+principal broader risk is misplaced confidence in the learned ranking, which
+could waste solver, fabrication, or laboratory resources. Separate reporting
+of surrogate and replay errors, held-path extrapolation, and difficult examples
+reduces this risk. A candidate is treated as physically evaluated only after
+MPB replay.

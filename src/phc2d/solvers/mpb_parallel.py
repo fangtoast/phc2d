@@ -47,6 +47,16 @@ def _write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(_jsonable(payload), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _write_json_atomic(path: Path, payload: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary.write_text(
+        json.dumps(_jsonable(payload), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(temporary, path)
+
+
 def _sha256_bytes(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
@@ -130,6 +140,7 @@ class MPBWorkerJob:
     rho_hash: str = ""
     geometry_hash: str = ""
     stored: np.ndarray | None = None
+    solver_input: Any | None = None
 
 
 @dataclass
@@ -236,7 +247,8 @@ def _solve_worker(job: MPBWorkerJob, solver_fn: SolverFn, worker_env: Mapping[st
     started = time.perf_counter()
     try:
         with _silence_process_output(bool(suppress_output)):
-            bands, metadata = solver_fn(job.rho, k_points=job.k_points, config=job.solver_config)
+            solver_input = job.rho if job.solver_input is None else job.solver_input
+            bands, metadata = solver_fn(solver_input, k_points=job.k_points, config=job.solver_config)
         raw = np.asarray(bands)
         # Band-frequency workers use float32, while the field-eigen adapter
         # legitimately returns native-complex E/H tensors.  Never erase the
@@ -287,7 +299,19 @@ def _load_completed_shard(job: MPBWorkerJob, shard_dir: Path) -> MPBWorkerResult
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
     if str(payload.get("status")) != "computed":
         return None
+    expected_rho_hash = job.rho_hash or hash_array(job.rho)
+    identity_matches = (
+        str(payload.get("sample_id", "")) == job.sample_id
+        and int(payload.get("sample_index", -1)) == int(job.sample_index)
+        and str(payload.get("split", "")) == job.split
+        and str(payload.get("rho_hash", "")) == expected_rho_hash
+        and str(payload.get("geometry_hash", "")) == job.geometry_hash
+    )
+    if not identity_matches:
+        return None
     bands = np.load(bands_path)
+    if str(payload.get("Wh_hash", "")) != hash_array(bands):
+        return None
     return _result_from_payload(payload, bands, resumed=True)
 
 
@@ -514,10 +538,253 @@ def run_mpb_worker_jobs(
     return results, summary
 
 
+def run_mpb_worker_partition(
+    jobs: Sequence[MPBWorkerJob],
+    *,
+    config: MPBParallelConfig,
+    partition_path: str | Path,
+    identity: Mapping[str, Any],
+    progress_path: str | Path | None = None,
+    allow_resume: bool = False,
+    flush_every: int = 32,
+    solver_fn: SolverFn = solve_bands_for_rho_mpb,
+) -> dict[str, Any]:
+    """Solve one exclusive case partition with one durable HDF5 writer.
+
+    Worker processes never write to the shared file. The coordinator commits
+    results in a stable row layout and stores a case-level success mask for
+    audited resume without producing per-sample JSON/NPY files.
+    """
+
+    try:
+        import h5py
+    except ImportError as exc:  # pragma: no cover - optional dependency
+        raise ImportError("h5py is required for partitioned MPB execution") from exc
+
+    ordered = sorted(list(jobs), key=lambda item: int(item.sample_index))
+    if not ordered:
+        raise ValueError("A physical partition must contain at least one job")
+    indices = [int(item.sample_index) for item in ordered]
+    if len(set(indices)) != len(indices):
+        raise ValueError("Partition jobs contain duplicate sample indices")
+    output = Path(partition_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    progress = Path(progress_path) if progress_path is not None else output.parent / "progress.json"
+    identity_payload = dict(identity)
+    identity_json = json.dumps(_jsonable(identity_payload), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    identity_sha256 = hashlib.sha256(identity_json.encode("utf-8")).hexdigest()
+    existed = output.exists()
+    if existed and not allow_resume:
+        raise RuntimeError(f"Partition exists; audited resume requires allow_resume=True: {output}")
+
+    string_dtype = h5py.string_dtype(encoding="utf-8")
+    band_shape = (len(ordered[0].k_points), int(ordered[0].solver_config.num_bands))
+    for job in ordered:
+        if (len(job.k_points), int(job.solver_config.num_bands)) != band_shape:
+            raise ValueError("All jobs in one partition must share a band output shape")
+
+    started = time.perf_counter()
+    mode = "r+" if existed else "w"
+    with h5py.File(output, mode, libver="latest") as handle:
+        if not existed:
+            handle.attrs["schema_version"] = "phc2d.mpb_partition.v1"
+            handle.attrs["identity_json"] = identity_json
+            handle.attrs["identity_sha256"] = identity_sha256
+            handle.attrs["partition_complete"] = False
+            handle.create_dataset("sample_index", data=np.asarray(indices, dtype=np.int64))
+            handle.create_dataset(
+                "sample_id",
+                data=np.asarray([item.sample_id for item in ordered], dtype=object),
+                dtype=string_dtype,
+            )
+            handle.create_dataset(
+                "split",
+                data=np.asarray([item.split for item in ordered], dtype=object),
+                dtype=string_dtype,
+            )
+            handle.create_dataset(
+                "rho_hash",
+                data=np.asarray([item.rho_hash or hash_array(item.rho) for item in ordered], dtype=object),
+                dtype=string_dtype,
+            )
+            handle.create_dataset(
+                "geometry_hash",
+                data=np.asarray([item.geometry_hash for item in ordered], dtype=object),
+                dtype=string_dtype,
+            )
+            handle.create_dataset("bands", shape=(len(ordered), *band_shape), dtype=np.float32)
+            handle.create_dataset("attempted", data=np.zeros(len(ordered), dtype=np.uint8))
+            handle.create_dataset("success", data=np.zeros(len(ordered), dtype=np.uint8))
+            handle.create_dataset("solve_time_s", data=np.zeros(len(ordered), dtype=np.float64))
+            handle.create_dataset("pid", data=np.zeros(len(ordered), dtype=np.int64))
+            for name in ("status", "worker_id", "Wh_hash", "error", "solver_metadata_json"):
+                handle.create_dataset(name, shape=(len(ordered),), dtype=string_dtype)
+            handle.flush()
+        else:
+            if str(handle.attrs.get("schema_version", "")) != "phc2d.mpb_partition.v1":
+                raise ValueError("Existing partition has the wrong schema")
+            if str(handle.attrs.get("identity_sha256", "")) != identity_sha256:
+                raise ValueError("Existing partition identity does not match this shard invocation")
+            if np.asarray(handle["sample_index"], dtype=np.int64).tolist() != indices:
+                raise ValueError("Existing partition sample indices changed")
+            stored_ids = [item.decode("utf-8") if isinstance(item, bytes) else str(item) for item in handle["sample_id"][:]]
+            if stored_ids != [item.sample_id for item in ordered]:
+                raise ValueError("Existing partition sample identities changed")
+
+        success = np.asarray(handle["success"], dtype=np.uint8)
+        pending: list[MPBWorkerJob] = []
+        resumed_count = 0
+        for row, job in enumerate(ordered):
+            if success[row]:
+                stored_hash = handle["Wh_hash"][row]
+                expected_hash = stored_hash.decode("utf-8") if isinstance(stored_hash, bytes) else str(stored_hash)
+                if expected_hash != hash_array(np.asarray(handle["bands"][row], dtype=np.float32)):
+                    handle["success"][row] = 0
+                    pending.append(job)
+                else:
+                    resumed_count += 1
+            else:
+                pending.append(job)
+
+        row_by_index = {int(job.sample_index): row for row, job in enumerate(ordered)}
+        workers = config.resolved_workers(len(pending)) if pending else 0
+        worker_pids: set[int] = set()
+        attempted_this_run = 0
+        completed_this_run = 0
+        failed_this_run = 0
+        last_flush = time.perf_counter()
+
+        def emit_progress(status: str) -> None:
+            successful = int(np.count_nonzero(np.asarray(handle["success"], dtype=np.uint8)))
+            attempted = int(np.count_nonzero(np.asarray(handle["attempted"], dtype=np.uint8)))
+            elapsed = max(time.perf_counter() - started, 1.0e-12)
+            _write_json_atomic(
+                progress,
+                {
+                    "schema_version": "phc2d.shard_progress.v1",
+                    **identity_payload,
+                    "status": status,
+                    "total": len(ordered),
+                    "completed": successful,
+                    "failed": max(0, attempted - successful),
+                    "resumed": resumed_count,
+                    "workers": workers,
+                    "recent_throughput_cases_per_s": completed_this_run / elapsed,
+                    "elapsed_s": elapsed,
+                    "updated_unix_s": time.time(),
+                    "partition_bytes": output.stat().st_size if output.exists() else 0,
+                },
+            )
+
+        def store_result(result: MPBWorkerResult) -> None:
+            nonlocal attempted_this_run, completed_this_run, failed_this_run, last_flush
+            row = row_by_index[int(result.sample_index)]
+            attempted_this_run += 1
+            handle["attempted"][row] = 1
+            handle["status"][row] = result.status
+            handle["solve_time_s"][row] = float(result.solve_time_s)
+            handle["worker_id"][row] = result.worker_id
+            handle["pid"][row] = int(result.pid)
+            handle["error"][row] = result.error
+            handle["solver_metadata_json"][row] = json.dumps(
+                _jsonable(result.solve_metadata), ensure_ascii=False, sort_keys=True
+            )
+            if int(result.pid) > 0:
+                worker_pids.add(int(result.pid))
+            if result.status == "computed" and result.bands is not None:
+                bands = np.asarray(result.bands, dtype=np.float32)
+                if bands.shape != band_shape or not np.all(np.isfinite(bands)):
+                    handle["status"][row] = "solver_output_invalid"
+                    handle["error"][row] = f"invalid bands shape/finite values: {bands.shape}"
+                    handle["success"][row] = 0
+                    failed_this_run += 1
+                else:
+                    handle["bands"][row] = bands
+                    handle["Wh_hash"][row] = hash_array(bands)
+                    handle["success"][row] = 1
+                    completed_this_run += 1
+            else:
+                handle["success"][row] = 0
+                failed_this_run += 1
+            now = time.perf_counter()
+            if attempted_this_run % max(1, int(flush_every)) == 0 or now - last_flush >= 60.0:
+                handle.flush()
+                emit_progress("running")
+                last_flush = now
+
+        emit_progress("running" if pending else "completed")
+        if pending and workers == 1:
+            suppress = bool(config.suppress_solver_output) and str(config.worker_backend).lower() not in {"thread", "threads"}
+            for job in pending:
+                result = _solve_worker(job, solver_fn, config.worker_thread_env, suppress_output=suppress)
+                store_result(result)
+                if result.status != "computed" and config.fail_fast:
+                    break
+        elif pending:
+            max_in_flight = max(1, workers * 2)
+            with _executor(config, workers) as pool:
+                remaining = iter(pending)
+                futures: dict[Any, MPBWorkerJob] = {}
+
+                def fill() -> None:
+                    suppress = bool(config.suppress_solver_output) and str(config.worker_backend).lower() not in {"thread", "threads"}
+                    while len(futures) < max_in_flight:
+                        try:
+                            job = next(remaining)
+                        except StopIteration:
+                            break
+                        futures[pool.submit(_solve_worker, job, solver_fn, config.worker_thread_env, suppress_output=suppress)] = job
+
+                fill()
+                stop = False
+                while futures:
+                    done, _ = wait(tuple(futures), return_when=FIRST_COMPLETED)
+                    for future in done:
+                        futures.pop(future)
+                        result = future.result()
+                        store_result(result)
+                        if result.status != "computed" and config.fail_fast:
+                            stop = True
+                    if stop:
+                        for future in futures:
+                            future.cancel()
+                        break
+                    fill()
+
+        handle.flush()
+        final_success = int(np.count_nonzero(np.asarray(handle["success"], dtype=np.uint8)))
+        final_attempted = int(np.count_nonzero(np.asarray(handle["attempted"], dtype=np.uint8)))
+        final_failed = max(0, final_attempted - final_success)
+        partition_complete = final_success == len(ordered) and final_failed == 0
+        handle.attrs["partition_complete"] = partition_complete
+        handle.attrs["completed_count"] = final_success
+        handle.attrs["failed_count"] = final_failed
+        handle.flush()
+        emit_progress("completed" if partition_complete else "failed")
+
+    wall = float(time.perf_counter() - started)
+    return {
+        **config.as_metadata(len(ordered)),
+        **identity_payload,
+        "partition_path": str(output),
+        "sample_count": len(ordered),
+        "completed_count": final_success,
+        "failed_count": final_failed,
+        "resumed_count": resumed_count,
+        "computed_this_run": completed_this_run,
+        "failed_this_run": failed_this_run,
+        "worker_pids": sorted(worker_pids),
+        "worker_wall_time_s": wall,
+        "worker_throughput_samples_per_s": completed_this_run / max(wall, 1.0e-12),
+        "partition_complete": partition_complete,
+    }
+
+
 __all__ = [
     "MPBParallelConfig",
     "MPBWorkerJob",
     "MPBWorkerResult",
+    "run_mpb_worker_partition",
     "hash_array",
     "run_mpb_worker_jobs",
 ]

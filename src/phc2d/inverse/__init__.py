@@ -6,6 +6,26 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 """
 
 from phc2d.inverse.config import DispersionInverseConfig, GenerativeInverseConfig
+from phc2d.inverse.full_cell_codec import (
+    FULL_CELL_ANALYTIC_CODEC_VERSION,
+    FULL_CELL_ANALYTIC_OUTPUT_REPR,
+    FULL_CELL_VARIANTS,
+    FullCellAnalyticCodec,
+    fit_full_cell_analytic_codecs,
+    fit_full_cell_analytic_codecs_from_hdf5,
+    full_cell_variant_id,
+    load_full_cell_analytic_codecs,
+    save_full_cell_analytic_codecs,
+)
+from phc2d.inverse.full_cell_training import (
+    FULL_CELL_STAGE_A_METHODS,
+    FullCellInverseVariantDataset,
+    load_full_cell_stage_a_preflight_config,
+    load_full_cell_stage_a_train_config,
+    load_full_cell_inverse_variant_datasets,
+    run_full_cell_stage_a_preflight,
+    run_full_cell_stage_a_train,
+)
 from phc2d.inverse.candidates import (
     CandidateBatch,
     GenerativeInverseAdapter,
@@ -45,6 +65,12 @@ __all__ = [
     "DispersionInverseConfig",
     "GenerativeInverseAdapter",
     "GenerativeInverseConfig",
+    "FULL_CELL_ANALYTIC_CODEC_VERSION",
+    "FULL_CELL_ANALYTIC_OUTPUT_REPR",
+    "FULL_CELL_VARIANTS",
+    "FULL_CELL_STAGE_A_METHODS",
+    "FullCellAnalyticCodec",
+    "FullCellInverseVariantDataset",
     "SurrogatePredictor",
     "SurrogateRankingResult",
     "binary_morphology_metrics",
@@ -52,6 +78,9 @@ __all__ = [
     "candidate_morphology_metrics",
     "diversity_hamming",
     "fill_fraction",
+    "fit_full_cell_analytic_codecs",
+    "fit_full_cell_analytic_codecs_from_hdf5",
+    "full_cell_variant_id",
     "mean_relative_error",
     "morphology_score",
     "nearest_neighbor_hamming",
@@ -59,6 +88,11 @@ __all__ = [
     "nearest_neighbor_hamming_stats",
     "separated_candidate_indices",
     "rank_candidates",
+    "load_full_cell_analytic_codecs",
+    "load_full_cell_inverse_variant_datasets",
+    "load_full_cell_stage_a_preflight_config",
+    "load_full_cell_stage_a_train_config",
+    "save_full_cell_analytic_codecs",
     "unique_rate",
     "validity_rate",
     "run_inverse_eval",
@@ -68,5 +102,7 @@ __all__ = [
     "run_inverse_rerank",
     "run_inverse_sample",
     "run_inverse_train",
+    "run_full_cell_stage_a_preflight",
+    "run_full_cell_stage_a_train",
     "run_a2_benchmark",
 ]

@@ -1,0 +1,39 @@
+# Formal parametric graded-threshold full-cell Full-Wh forward wave.
+# Supply exactly one threshold from 0.3, 0.4, 0.5, 0.6, or 0.7 at submission.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment: {experiment_id: full_cell_forward_graded_threshold_v1, family: full_cell_forward, lane: graded, evidence_status: authorized_formal_training}
+dataset:
+  path: data/full_cell_graded_bz9_10000_paracloud_m9_v1.h5
+  grid_field: material_weight_grid_64
+  expected_dataset_sha256: d16d838e098215c05dc299bf7c4bbc8c6bc00f6ef35b9772546aa4e7c2b8b728
+  expected_idx_train_hash: 34f595c40cc900df0962057dc8aa740ca03412144f87ad4708c627b3d6cd61fd
+  expected_idx_val_hash: 2b750661c3a728d915b44442876a83ccc3f1501c3fac63f5a023b4dead640305
+  expected_idx_test_hash: c54196a2f04ce8586ab5c0d1812c677e1829485e72f57f38a730b88e3eb75b61
+representation:
+  source: material_weight_grid
+  sampling: deterministic_threshold
+  threshold: null
+  resolution: 64
+  physical_equivalence: false
+  representation_status: thresholded_proxy_input
+  label_semantics: original_continuous_medium_Wh
+models:
+  mlp: {hidden_dim: 256, depth: 6, dropout: 0.05, activation: gelu}
+  res_mlp_wide: {hidden_dim: 256, depth: 6, dropout: 0.05, activation: gelu}
+  lifted_cnn: {channels: 12, activation: gelu}
+  fno2d_band_v2: {width: 32, depth: 4, modes: [8, 8], band_modes: [5, 5], fourier_rank: 8, activation: gelu}
+training:
+  max_epochs: 100
+  early_stopping_patience: 15
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  learning_rates: {mlp: 3.0e-4, res_mlp_wide: 3.0e-4, lifted_cnn: 1.0e-3, fno2d_band_v2: 1.0e-3}
+  micro_batch_size: 64
+  effective_batch_size: 64
+  loss: normalized_full_matrix_mse
+  checkpoint_selection: validation_bands_2_10_mre
+runtime: {device: 'cuda:0', require_accelerator: true, precision: fp32, amp_enabled: false, tf32_enabled: false, num_workers: 4, pin_memory: true, non_blocking_transfer: true}
+output: {runs_dir: runs}
