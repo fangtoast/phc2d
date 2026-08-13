@@ -1,0 +1,7 @@
+# Reproducible dependencies for building the phc2d documentation site.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+mkdocs==1.6.1
+pymdown-extensions==11.0.1

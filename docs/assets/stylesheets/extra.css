@@ -1,0 +1,83 @@
+/* Readability refinements for the phc2d research documentation site.
+ * Author: fangtoast
+ * Email: fangtoast@foxmail.com
+ * Copyright (c) 2026 fangtoast. All rights reserved.
+ */
+
+:root {
+  --phc-ink: #20343f;
+  --phc-muted: #5c6f78;
+  --phc-accent: #137c8b;
+  --phc-soft: #edf7f7;
+  --phc-border: #d6e2e5;
+}
+
+.wy-nav-content {
+  max-width: 1040px;
+}
+
+.rst-content p,
+.rst-content li {
+  color: var(--phc-ink);
+  line-height: 1.75;
+}
+
+.rst-content h1,
+.rst-content h2,
+.rst-content h3 {
+  color: #17313c;
+  letter-spacing: 0.01em;
+}
+
+.rst-content h2 {
+  border-bottom: 1px solid var(--phc-border);
+  padding-bottom: 0.35rem;
+}
+
+.rst-content table.docutils,
+.rst-content table:not(.field-list) {
+  display: table;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.rst-content blockquote {
+  background: var(--phc-soft);
+  border-left: 4px solid var(--phc-accent);
+  margin-left: 0;
+  padding: 0.85rem 1rem;
+}
+
+.doc-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin: 1.5rem 0;
+}
+
+.doc-card {
+  border: 1px solid var(--phc-border);
+  border-radius: 6px;
+  padding: 1rem 1.1rem;
+}
+
+.doc-card h3 {
+  margin-top: 0;
+}
+
+.evidence-boundary {
+  color: var(--phc-muted);
+  font-size: 0.95rem;
+}
+
+@media (max-width: 700px) {
+  .wy-nav-content {
+    padding: 1.25rem;
+  }
+
+  .rst-content table.docutils,
+  .rst-content table:not(.field-list) {
+    display: block;
+    white-space: nowrap;
+  }
+}

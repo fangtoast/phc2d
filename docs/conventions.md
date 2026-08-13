@@ -1,3 +1,15 @@
+---
+title: "工程与文档约定"
+summary: "定义仓库边界、运行产物、正式验证、文档页面契约和 Git 纪律。"
+page_type: reference
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 7 minutes
+primary_layer: L4
+---
+
 <!--
   Repository conventions for the unified phc2d workspace.
   Author: fangtoast
@@ -5,15 +17,15 @@
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
-# Conventions
+# 工程与文档约定
 
-本文记录本仓库的目录、代码、文档、运行产物和验证约定，面向维护者和 AI 协作者。详细架构见 [`architecture.md`](architecture.md)，知识分层、文档角色与人工审阅规则见 [`collaboration.md`](collaboration.md)。
+本文记录本仓库的目录、代码、文档、运行产物和验证约定，面向维护者和 AI 协作者。详细架构见[系统架构](参考/系统架构.md)，知识分层、文档角色与人工审阅规则见[文档与人机协作治理](collaboration.md)。
 
 ## Code Boundaries
 
-- 公共接口放在 [`../src/phc2d`](../src/phc2d)：data、generators、models、training、inverse、replay、plotting、runs、cli。
-- 论文复现作为 [`../experiments/reproduction/wang2026`](../experiments/reproduction/wang2026) profile 维护。
-- 后续研究作为 [`../experiments/research`](../experiments/research) profile 维护。
+- 公共接口放在 [`../src/phc2d`](https://github.com/fangtoast/phc2d/tree/master/src/phc2d)：data、generators、models、training、inverse、replay、plotting、runs、cli。
+- 论文复现作为 [`../experiments/reproduction/wang2026`](https://github.com/fangtoast/phc2d/tree/master/experiments/reproduction/wang2026) profile 维护。
+- 后续研究作为 [`../experiments/research`](https://github.com/fangtoast/phc2d/tree/master/experiments/research) profile 维护。
 - 旧 `legacy/reproduction` 与 `research/ai4phc` 已退出活跃目录；需要旧逻辑时从 Git history 恢复并迁入 `src/phc2d`。
 - 新模型通过 `phc2d.models` registry 接入，新数据源通过 `phc2d.data` / `phc2d.generators` / `phc2d.solvers` 接入，新图表通过 `phc2d.plot` 接入。
 
@@ -51,7 +63,7 @@ runs/{yyyymmdd}/{experiment_id}_{YYYYMMDDHHmm}/
 | `history.csv` | 训练历史 |
 | `figures/` | 图表 |
 
-[`results/`](results) 只放人工整理后的报告，不放原始运行产物。
+[`results/`](results/README.md) 只放人工整理后的报告，不放原始运行产物。
 
 ## MPB / Meep Validation
 
@@ -63,18 +75,19 @@ WSL Ubuntu + conda environment: meep_env
 
 Windows `.venv` 只作为编辑期临时调试便利，不再作为测试验收环境。Python 合约、CLI、plot、schema、非 MPB smoke、MPB 数据生成、MPB/FEM 对比、near-field、inverse replay 和正式 physics benchmark 都应通过 WSL `meep_env` 执行。报告中必须明确写出 WSL `meep_env` tests 与 WSL `meep_env` MPB validation 状态。
 
-## Markdown
+## Markdown 与站点
 
-- 项目说明类 Markdown 使用 `md-write` skill。
-- 根 README 使用 README profile；架构、约定、模块说明使用 Project Docs profile；结果分析使用 Experimental Technical Report profile；完整项目报告使用 Full Project Report profile。
+- 本站的信息架构、页面职责、研究证据语气和迁移验收使用独立 `research-docs-site` skill；通用 Markdown 排版任务仍可使用 `md-write`。
+- 稳定页分为 tutorial、how-to、explanation、reference；日期记录分为 evidence、plan、archive。索引页使用 landing，图件索引使用 asset-index。
 - 中文为主，命令、路径、API、配置键保持英文原文。
 - `docs/` 下新建的面向人工阅读文档，文件名默认优先使用简洁、可辨识的中文；固定入口名、代码/API 标识、实验 ID、机器消费产物及兼容性敏感路径继续使用英文。不要仅为统一语言批量重命名已有稳定文档。
-- 新建或大改 Markdown 应包含 HTML 注释文件头。
-- 文档中的仓库路径优先写相对链接。
-- 根 README 是面向外部读者的项目首页，只保留稳定定义、主要能力、最小 quick start 和文档入口；易变化状态进入 [`../PROJECT_MAP.md`](../PROJECT_MAP.md)。
-- 除根 README 外，当前入口文档显示 `Status`、`Audience`、`Owner`、`Last reviewed` 和 `Reading time`；根 README 不展示内部维护元数据。
+- `docs/` 页面以 YAML front matter 开头，并包含 `title`、`summary`、`page_type`、`status`、`audience`、`owner`、`last_reviewed`、`reading_time` 和 `primary_layer`；evidence 与 archive 另加日期和范围。
+- 新建或大改 Markdown 应在 front matter 后包含 HTML 注释文件头。
+- 站内页面与资产使用相对链接；站外仓库文件使用可在发布站访问的仓库 URL。
+- 根 README 是面向外部读者的项目首页，只保留稳定定义、主要能力、最小 quick start 和文档入口；易变化状态进入 [`../PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md)。
 - 一个文档只承担一种主要角色；长细节通过链接下沉，不在多个权威文件中复制。
-- 新建或重命名正式文档后，更新相邻索引并运行 `phc2d report docs-audit --root README.md --strict`。
+- 日期化报告、计划与历史记录的原正文只增补元数据、状态、导航和回链，不因重构而改写成当前结论。
+- 新建或重命名正式文档后，更新 `mkdocs.yml` 或 `not_in_nav`，并运行文档审计和 MkDocs strict build。
 
 ## Files and Headers
 
