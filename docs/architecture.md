@@ -38,12 +38,15 @@
 
 | 层 | 路径 | 责任 |
 |---|---|---|
-| 公共接口 | [`models/__init__.py`](../src/phc2d/models/__init__.py) | 对训练、评估和报告暴露稳定的 registry 与 identity API |
-| 注册机制 | [`models/registry.py`](../src/phc2d/models/registry.py) | 只维护注册、构建、查询和 lazy factory，不内嵌模型清单 |
-| 内置目录 | [`models/catalog/`](../src/phc2d/models/catalog) | 按 forward、query、field、full-cell 分组维护 `ModelSpec` |
+| 公共接口与装配 | [`models/__init__.py`](../src/phc2d/models/__init__.py) | 暴露稳定 API，并在 registry 完整加载后注册内置目录 |
+| 注册机制 | [`models/registry.py`](../src/phc2d/models/registry.py) | 只维护注册、构建和查询 API，不导入内置目录或实现模块 |
+| 内置目录 | [`models/catalog/`](../src/phc2d/models/catalog) | 按 forward、query、field、full-cell 分组维护 `ModelSpec` 与族内 lazy factory |
 | 族内实现 | [`band_mlp.py`](../src/phc2d/models/band_mlp.py)、[`band_cnn.py`](../src/phc2d/models/band_cnn.py)、[`band_operators.py`](../src/phc2d/models/band_operators.py)、[`query.py`](../src/phc2d/models/query.py)、`field_*` 与 `full_cell_*` | 一个文件只维护一个模型族或一组紧密共享的算子 |
+| 构建支持 | [`models/torch_support.py`](../src/phc2d/models/torch_support.py) | 集中维护 lazy Torch、shape、drop-path 与 Full-Wh 输出头 helper |
 
-`baselines.py`、`field.py` 和 `full_cell_upgrades.py` 仅作为历史导入路径的薄兼容门面。移动实现不会改变 registry name、`state_dict` key 或既有 architecture fingerprint；新的模块归属与兼容身份由测试同时约束。PyTorch 仍只在实际构建模型时 lazy import。
+依赖方向为 `models/__init__.py → _builtin_models.py → catalog → registry`；`registry.py` 不再反向加载 catalog，`_builtin_models.py` 也只通过公开的 `is_registered()` 检查注册状态。`baselines.py`、`field.py` 和 `full_cell_upgrades.py` 仅保留历史导入与文档链接兼容，不再被 registry 或 catalog 依赖；迁移期规则要求 `phc2d.plot` 与 `phc2d.plotting` 同时可用，因此 plotting 门面也继续保留。PyTorch 仍只在实际构建模型时 lazy import。
+
+结构迁移不改变 model name、factory identity、`state_dict` key 或既有 architecture fingerprint；这些合同由模型架构测试固定。
 
 ### 逆向运行时边界
 
@@ -153,12 +156,12 @@ Windows `.venv` 只作为编辑期临时调试便利，不再作为后续测试�
 
 ## 六、本轮架构调整记录
 
-解决了什么问题：拆除 `models`、CLI 与 inverse runner 中“一个文件同时维护多个模型族、命令域或运行时适配器”的单体结构。
+解决了什么问题：拆除 `models`、CLI 与 inverse runner 中“一个文件同时维护多个模型族、命令域或运行时适配器”的单体结构，并消除 model registry 与内置 catalog 的循环依赖及重复 Torch helper。
 
-为什么采用这个方案：先保持公共 API、命令名、checkpoint schema 和历史模型身份不变，再移动内部职责，可把 L4 可维护性改进与 L3 实验证据隔离。
+为什么采用这个方案：先保持公共 API、命令名、checkpoint schema 和历史模型身份不变，再移动内部职责；兼容门面仅承担已证实的历史入口责任，不再参与内部装配。
 
 改变了项目哪一层/哪一模块：仅修改 L4 的 `phc2d.models`、`phc2d.cli`、`phc2d.inverse` 内部组织、对应测试与本架构说明；未修改数据、训练配置、模型数学结构、checkpoint schema 或研究结论。
 
-使用什么证据验证：模型/CLI/inverse 合约测试、历史 architecture fingerprint 固定值、生成器 `state_dict` key、Ruff、compileall、CLI help 与完整 pytest；正式结果以本次实际验证记录为准。
+使用什么证据验证：registry 单向依赖合约、lazy Torch 导入、模型/CLI/inverse 合约测试、历史 factory identity 与 architecture fingerprint 固定值、生成器 `state_dict` key、Ruff、compileall、CLI help 与完整 pytest；正式结果以本次实际验证记录为准。
 
 最大风险、未知或下一 gate：`inverse/runner.py` 的阶段函数、`inverse/benchmark.py` 与 `forward/runner.py` 仍是高耦合大模块。后续应分别冻结 stage 输入输出与 golden artifact 合同后再拆分，不能与本次类定义迁移混为一次修改。扁平 configs/tests 和重复 I/O helper 也保留为独立后续切片。
