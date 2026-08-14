@@ -472,6 +472,91 @@ def run_manifest_case(manifest_path: str | Path, index: int) -> Path:
     )
 
 
+def summarize_stage_b(
+    manifest_path: str | Path,
+    output_dir: str | Path,
+    *,
+    minimum_relative_improvement: float = 0.01,
+) -> Path:
+    """Summarize single-seed validation screens without authorizing test access."""
+
+    if minimum_relative_improvement < 0.0:
+        raise ValueError("minimum_relative_improvement must be non-negative")
+    manifest_file = Path(manifest_path)
+    rows = list(csv.DictReader(manifest_file.open(encoding="utf-8", newline="")))
+    if not rows:
+        raise ValueError("manifest is empty")
+    observed: list[dict[str, Any]] = []
+    for row in rows:
+        metrics_path = Path(row["run_dir"]) / "metrics.json"
+        results_path = Path(row["run_dir"]) / "results.json"
+        if not metrics_path.is_file() or not results_path.is_file():
+            raise ValueError(f"missing completed artifacts for {row['case_id']}")
+        results = json.loads(results_path.read_text(encoding="utf-8"))
+        if bool(results.get("test_executed", False)):
+            raise ValueError(f"held-out test was accessed by {row['case_id']}")
+        metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+        key = (
+            "validation_equal_lane_bands_2_10_mre_pct"
+            if row["lane"] == "joint"
+            else "best_validation_bands_2_10_mre_pct"
+        )
+        score = metrics.get(key)
+        if score is None:
+            raise ValueError(f"missing validation selection metric {key} for {row['case_id']}")
+        observed.append({**row, "validation_score": float(score)})
+    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for row in observed:
+        grouped.setdefault((row["lane"], row["model"], row["parameter"]), []).append(row)
+    summary_rows: list[dict[str, Any]] = []
+    for (lane, model, parameter), group in sorted(grouped.items()):
+        current = [row for row in group if row["is_current"].lower() == "true"]
+        if len(current) != 1 or len(group) != 3:
+            raise ValueError(f"screen group {lane}/{model}/{parameter} must have three rows and one current")
+        current_row = current[0]
+        best_row = min(group, key=lambda row: row["validation_score"])
+        current_score = float(current_row["validation_score"])
+        relative_improvement = (current_score - float(best_row["validation_score"])) / current_score
+        passes = best_row is not current_row and relative_improvement >= minimum_relative_improvement
+        choice = best_row if passes else current_row
+        summary_rows.append(
+            {
+                "lane": lane,
+                "model": model,
+                "parameter": parameter,
+                "current_value_json": current_row["value_json"],
+                "current_validation_score": current_score,
+                "best_observed_value_json": best_row["value_json"],
+                "best_observed_validation_score": best_row["validation_score"],
+                "relative_improvement_vs_current": relative_improvement,
+                "screening_choice_value_json": choice["value_json"],
+                "passes_preregistered_improvement_gate": str(passes).lower(),
+                "evidence_status": "preliminary_single_seed_validation_screen",
+            }
+        )
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    fields = tuple(summary_rows[0].keys())
+    _write_csv(out / "stage_b_screening_summary.csv", fields, summary_rows)
+    (out / "stage_b_screening_summary.json").write_text(
+        json.dumps(
+            {
+                "status": "stage_b_single_seed_screen_complete",
+                "groups": len(summary_rows),
+                "minimum_relative_improvement": minimum_relative_improvement,
+                "selection_split": "validation",
+                "test_executed": False,
+                "stage_c_authorized": False,
+                "claim_boundary": "preliminary single-seed screening; not a global optimum or causal estimate",
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    return out
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -487,17 +572,29 @@ def main(argv: Sequence[str] | None = None) -> None:
     run_case = subparsers.add_parser("run-case")
     run_case.add_argument("--manifest", type=Path, required=True)
     run_case.add_argument("--index", type=int, required=True)
+    summarize = subparsers.add_parser("summarize-stage-b")
+    summarize.add_argument("--manifest", type=Path, required=True)
+    summarize.add_argument("--output-dir", type=Path, required=True)
+    summarize.add_argument("--minimum-relative-improvement", type=float, default=0.01)
     args = parser.parse_args(argv)
     if args.command == "freeze":
         print(freeze_parameter_ablation(args.config, args.output_dir, root=args.root))
     elif args.command == "audit-stage":
         print(audit_stage(args.manifest, args.output, offset=args.offset, limit=args.limit))
-    else:
+    elif args.command == "run-case":
         print(run_manifest_case(args.manifest, args.index))
+    else:
+        print(
+            summarize_stage_b(
+                args.manifest,
+                args.output_dir,
+                minimum_relative_improvement=args.minimum_relative_improvement,
+            )
+        )
 
 
 if __name__ == "__main__":
     main()
 
 
-__all__ = ["audit_stage", "freeze_parameter_ablation", "run_manifest_case"]
+__all__ = ["audit_stage", "freeze_parameter_ablation", "run_manifest_case", "summarize_stage_b"]

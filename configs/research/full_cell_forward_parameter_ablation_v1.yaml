@@ -56,9 +56,10 @@ evidence_sources:
   dual_runner: src/phc2d/forward/full_cell_dual_lane.py
   catalog: src/phc2d/models/catalog/full_cell.py
   implementation_root: src/phc2d/models
-  baseline_results: docs/results/full_cell_forward_50k_seed_summary_v1.csv
-  upgrade_results: docs/results/full_cell_forward_upgrade_50k_seed_summary_v1.csv
-  resource_summary: docs/results/full_cell_forward_upgrade_50k_resource_summary_v1.csv
+  baseline_report: docs/results/forward/full_cell_dual_lane_50000_forward_training_20260808.md
+  upgrade_report: docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
+  baseline_artifacts: runs/20260808/full_cell_forward_50k_evaluation_campaign_20260808162200
+  upgrade_artifacts: runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944
 models:
   mlp:
     lanes: [binary, graded]

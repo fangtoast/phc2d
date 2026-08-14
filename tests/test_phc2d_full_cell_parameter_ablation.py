@@ -19,6 +19,7 @@ from phc2d.forward.full_cell_parameter_ablation import (
     SELECTABLE_HEAD_MODELS,
     audit_stage,
     freeze_parameter_ablation,
+    summarize_stage_b,
 )
 
 
@@ -118,3 +119,50 @@ def test_selectable_head_override_excludes_baselines() -> None:
         "tfno2d_band_v3",
     }
     assert not ({"mlp", "res_mlp_wide", "lifted_cnn", "fno2d_band_v2"} & SELECTABLE_HEAD_MODELS)
+
+
+def test_stage_b_summary_is_validation_only_and_preliminary(tmp_path: Path) -> None:
+    manifest = tmp_path / "manifest.csv"
+    fields = [
+        "case_id",
+        "lane",
+        "model",
+        "parameter",
+        "value_json",
+        "is_current",
+        "run_dir",
+    ]
+    rows = []
+    for index, (value, current, score) in enumerate((("4", False, 1.2), ("6", True, 1.0), ("8", False, 0.97))):
+        run = tmp_path / f"run-{index}"
+        run.mkdir()
+        (run / "results.json").write_text(
+            json.dumps({"status": "formal_training_success", "test_executed": False}), encoding="utf-8"
+        )
+        (run / "metrics.json").write_text(
+            json.dumps({"best_validation_bands_2_10_mre_pct": score}), encoding="utf-8"
+        )
+        rows.append(
+            {
+                "case_id": f"case-{index}",
+                "lane": "binary",
+                "model": "mlp",
+                "parameter": "depth",
+                "value_json": value,
+                "is_current": str(current).lower(),
+                "run_dir": run,
+            }
+        )
+    _write_manifest = csv.DictWriter
+    with manifest.open("w", encoding="utf-8", newline="") as handle:
+        writer = _write_manifest(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    out = summarize_stage_b(manifest, tmp_path / "summary", minimum_relative_improvement=0.01)
+    payload = json.loads((out / "stage_b_screening_summary.json").read_text(encoding="utf-8"))
+    row = _rows(out / "stage_b_screening_summary.csv")[0]
+    assert payload["stage_c_authorized"] is False
+    assert payload["test_executed"] is False
+    assert row["screening_choice_value_json"] == "8"
+    assert row["evidence_status"] == "preliminary_single_seed_validation_screen"
