@@ -15,7 +15,11 @@ import pytest
 import yaml
 
 from phc2d.forward.full_cell_dual_lane import _validate_and_resolve
-from phc2d.forward.full_cell_parameter_ablation import audit_stage, freeze_parameter_ablation
+from phc2d.forward.full_cell_parameter_ablation import (
+    SELECTABLE_HEAD_MODELS,
+    audit_stage,
+    freeze_parameter_ablation,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -101,3 +105,13 @@ def test_audit_stage_fails_closed_on_missing_case(tmp_path: Path) -> None:
     assert payload["status"] == "fail"
     assert payload["audited_cases"] == 1
     assert payload["failures"] == [{"case_id": "missing", "reason": "missing_results_or_metrics"}]
+
+
+def test_selectable_head_override_excludes_baselines() -> None:
+    assert SELECTABLE_HEAD_MODELS == {
+        "mlp_mixer_band_v1",
+        "res_mlp_gated_v2",
+        "convnext_band_v1",
+        "tfno2d_band_v3",
+    }
+    assert not ({"mlp", "res_mlp_wide", "lifted_cnn", "fno2d_band_v2"} & SELECTABLE_HEAD_MODELS)

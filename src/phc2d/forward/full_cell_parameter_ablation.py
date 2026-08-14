@@ -38,6 +38,12 @@ EXPECTED_MODELS = {
     "tfno2d_band_v3",
     "dual_lane_band_operator_v1",
 }
+SELECTABLE_HEAD_MODELS = {
+    "mlp_mixer_band_v1",
+    "res_mlp_gated_v2",
+    "convnext_band_v1",
+    "tfno2d_band_v3",
+}
 LEDGER_FIELDS = (
     "model",
     "lane",
@@ -446,7 +452,7 @@ def run_manifest_case(manifest_path: str | Path, index: int) -> Path:
         admission_probe=admission_probe,
         max_epochs=None if admission_probe else int(row["max_epochs"]),
         train_size=None if admission_probe else 40000,
-        head_kind="dense",
+        head_kind="dense" if row["model"] in SELECTABLE_HEAD_MODELS else None,
     )
 
 
