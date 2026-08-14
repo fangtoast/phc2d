@@ -82,7 +82,18 @@ def _validate_and_resolve(
     if bool(runtime.get("amp_enabled")) or bool(runtime.get("tf32_enabled")):
         raise ValueError("dual-lane training forbids AMP and TF32")
     max_epochs = int(training.get("max_epochs", 100))
-    if not admission_probe and max_epochs not in {100, 200}:
+    evidence_status = str(experiment.get("evidence_status", ""))
+    short_screen = evidence_status == "single_seed_short_budget_screen"
+    if short_screen:
+        if admission_probe:
+            raise ValueError("short-budget screening and admission_probe are mutually exclusive")
+        if int(seed) != 0 or max_epochs != 20:
+            raise ValueError("dual-lane short-budget screening requires seed=0 and max_epochs=20")
+        if bool(training.get("epoch_100_continue_gate", False)):
+            raise ValueError("dual-lane short-budget screening forbids the epoch-100 continuation gate")
+        if int(training.get("early_stopping_patience", 0)) != 0:
+            raise ValueError("dual-lane short-budget screening requires early_stopping_patience=0")
+    elif not admission_probe and max_epochs not in {100, 200}:
         raise ValueError("formal dual-lane max_epochs must be 100 or 200")
     gate_enabled = bool(training.get("epoch_100_continue_gate", False))
     if not admission_probe and gate_enabled:

@@ -661,6 +661,11 @@ def run_full_cell_forward(
             if not bool(torch.isfinite(loss).item()):
                 raise RuntimeError(f"non-finite training loss at epoch {epoch}, batch {batch_index}")
             (loss / accumulation).backward()
+            if bool(training.get("require_finite_gradients", admission_probe)) and any(
+                parameter.grad is not None and not bool(torch.isfinite(parameter.grad).all().item())
+                for parameter in model.parameters()
+            ):
+                raise RuntimeError(f"non-finite training gradient at epoch {epoch}, batch {batch_index}")
             if batch_index % accumulation == 0 or batch_index == len(train_loader):
                 optimizer.step()
                 optimizer.zero_grad(set_to_none=True)

@@ -11,6 +11,7 @@ import hashlib
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -200,3 +201,50 @@ def test_forward_wrapper_defers_redundant_cuda_import_to_runner() -> None:
     assert export_position < source_position
     assert 'if [[ "${PHC2D_DEFER_CUDA_CHECK_TO_RUNNER:-0}" != "1" ]]' in common
     assert "assert torch.cuda.is_available()" in common
+
+
+def test_parameter_ablation_submitter_uses_bounded_gpu_array(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_sbatch = fake_bin / "sbatch"
+    args_file = tmp_path / "sbatch-args"
+    fake_sbatch.write_text(
+        "#!/usr/bin/env bash\nprintf '%s\\n' \"$@\" > \"$FAKE_SBATCH_ARGS\"\nprintf '54321\\n'\n",
+        encoding="utf-8",
+    )
+    fake_sbatch.chmod(0o755)
+    manifest = tmp_path / "stage_a_manifest.csv"
+    manifest.write_text(
+        "stage,case_id,lane,model,parameter,value_json,is_current,seed,max_epochs,admission_probe,derived_config,run_dir\n"
+        + "".join(
+            f"a,c{i},binary,mlp,current_contract,null,true,0,1,true,cfg.yaml,run-{i}\n"
+            for i in range(17)
+        ),
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{fake_bin}{os.pathsep}{env['PATH']}",
+            "PHC2D_ROOT": str(ROOT),
+            "PHC2D_ENV": str(Path(sys.executable).resolve().parents[1]),
+            "PHC2D_AUTHORIZE_PARAMETER_ABLATION": "YES",
+            "FAKE_SBATCH_ARGS": str(args_file),
+        }
+    )
+
+    completed = subprocess.run(
+        [
+            "bash",
+            str(ROOT / "jobs" / "paracloud_submit_full_cell_parameter_ablation.sh"),
+            str(manifest),
+            "3",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert "status=submitted job_id=54321 cases=17 concurrency=3" in completed.stdout
+    assert "--array=0-16%3" in args_file.read_text(encoding="utf-8")
