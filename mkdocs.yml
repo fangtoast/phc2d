@@ -17,7 +17,7 @@ strict: true
 theme:
   name: readthedocs
   locale: zh_CN
-  highlightjs: true
+  highlightjs: false
   hljs_languages:
     - bash
     - json
