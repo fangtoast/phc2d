@@ -5,7 +5,7 @@ page_type: archive
 status: superseded
 audience: 使用旧书签或旧仓库链接的读者
 owner: 研究生维护
-last_reviewed: 2026-08-13
+last_reviewed: 2026-08-14
 reading_time: 1 minute
 primary_layer: L4
 evidence_date: 2026-08-13
@@ -19,8 +19,8 @@ evidence_scope: 兼容入口；不承载新的研究或验证结论。
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
-<meta http-equiv="refresh" content="0; url=../参考/系统架构/">
-<link rel="canonical" href="../参考/系统架构/">
+<meta http-equiv="refresh" content="0; url=参考/系统架构.html">
+<link rel="canonical" href="参考/系统架构.html">
 
 <a id="architecture-home"></a>
 

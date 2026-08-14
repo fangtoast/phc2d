@@ -5,7 +5,7 @@ page_type: landing
 status: draft
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
-last_reviewed: 2026-08-13
+last_reviewed: 2026-08-14
 reading_time: 3 minutes
 primary_layer: L1
 ---
@@ -33,5 +33,4 @@ primary_layer: L1
 
 旁支研究计划与调研见 [`side_project/README.md`](side_project/README.md)。
 
-单项实验的当前结论见 [`../results/README.md`](../results/README.md)。报告中的 surrogate、physics residual 与 real-MPB replay 证据不可互相替代。
-单项实验的当前结论见 [`../results/README.md`](../results/README.md)。修改完整报告前必须运行模型覆盖、来源哈希和本地链接审计；surrogate、field residual 与 real-MPB replay 不可互相替代。
+单项实验的当前结论见[研究结果与报告](../results/README.md)。修改完整报告前必须运行模型覆盖、来源哈希和本地链接审计；surrogate、field residual 与 real-MPB replay 不可互相替代。

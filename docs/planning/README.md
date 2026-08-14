@@ -5,7 +5,7 @@ page_type: landing
 status: draft
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
-last_reviewed: 2026-08-13
+last_reviewed: 2026-08-14
 reading_time: 3 minutes
 primary_layer: L0
 ---
@@ -44,6 +44,7 @@ primary_layer: L0
 
 这些文件提供早期审计、文献和验证矩阵，不高于当前计划或实际制品：
 
+- [规划参考总览](reference/README.md)
 - [`非 p4m 全布里渊区双路线数据生成方案.md`](非%20p4m%20全布里渊区双路线数据生成方案.md)：2026-08-03 的 `full_cell_v1` 双路线历史设计 Draft；当前完成状态以 `PROJECT_MAP.md` 和结果报告为准。
 - [`reference/experimental_validation_plan_20260617.md`](reference/experimental_validation_plan_20260617.md)
 - [`reference/network_literature_survey_20260617.md`](reference/network_literature_survey_20260617.md)

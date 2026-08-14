@@ -11,7 +11,7 @@ repo_name: fangtoast/phc2d
 edit_uri: blob/master/docs/
 docs_dir: docs
 site_dir: site
-use_directory_urls: true
+use_directory_urls: false
 strict: true
 
 theme:
@@ -56,6 +56,7 @@ extra_javascript:
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
   - https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js
   - assets/javascripts/mermaid.js
+  - assets/javascripts/navigation.js
 
 validation:
   nav:
@@ -115,22 +116,26 @@ nav:
           - 结构与 MPB: 参考/公式与指标/结构与MPB.md
           - 本征场与 PINO: 参考/公式与指标/本征场与PINO.md
           - 正向与逆向指标: 参考/公式与指标/正向与逆向指标.md
-  - 实验与证据:
-      - 证据索引: results/README.md
+  - 研究结果与报告:
+      - 结果总览: results/README.md
       - 数据与环境:
+          - 分类总览: results/data-provenance/README.md
           - GPU 环境审计: results/data-provenance/gpu_environment_audit_20260618.md
           - K 路径物理验证: results/data-provenance/k_path_physical_validation_v2_1000_20260621.md
           - 全胞双路线试点: results/data-provenance/full_cell_dual_lane_pilot_20260803.md
           - Paracloud GPU 预检: results/data-provenance/paracloud_gpu_preflight_20260806.md
           - M9 数据导入与同步: results/data-provenance/paracloud_m9_binary_import_and_code_sync_20260806.md
       - 正向代理:
+          - 分类总览: results/forward/README.md
           - A1 Forward/Query 公平对照: results/forward/a1_forward_query_fair_v1_20260726.md
           - 全胞双路线 10k: results/forward/full_cell_dual_lane_forward_training_20260806.md
           - 全胞双路线 50k: results/forward/full_cell_dual_lane_50000_forward_training_20260808.md
           - Full-Wh 升级模型 50k: results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
       - Query:
+          - 分类总览: results/query/README.md
           - Query 数据缩放: results/query/query_data_scaling_v2_1000_full_20260621.md
       - 本征场与物理:
+          - 分类总览: results/field-physics/README.md
           - B1 64 条数据: results/field-physics/field_eigen_te_b1_64_20260720.md
           - B2 与 1k 数据: results/field-physics/field_eigen_te_b2_b1_1000_20260720.md
           - 监督基线: results/field-physics/field_eigen_te_supervised_baseline_20260720.md
@@ -140,6 +145,7 @@ nav:
           - 电场度规勘误: results/field-physics/field_electric_metric_correction_20260803.md
           - Meep 近远场: results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md
       - 逆向设计:
+          - 分类总览: results/inverse/README.md
           - 多代理 rerank: results/inverse/inverse_surrogate_rerank_v2_10000_20260630.md
           - 10k inverse 重训: results/inverse/inverse_retrain_v2_10000_20260706.md
           - Test625 real-MPB replay: results/inverse/inverse_mpb_replay_mixture_v2_10000_test625_20260706.md
@@ -151,14 +157,13 @@ nav:
           - Stage-A runner smoke: results/inverse/full_cell_inverse_stage_a_runner_smoke_20260806.md
           - Stage-A 波次 dry-run: results/inverse/full_cell_inverse_stage_a_wave_dryrun_20260806.md
       - 表征诊断: results/representation_benchmark_20260803.md
-  - 研究报告:
-      - 报告索引: reports/README.md
-      - 项目完整报告: reports/phc2d_project_full_introduction_20260724.md
-      - 物理与数据公式手册: reports/phc2d_physics_data_formula_guide_20260803.md
-      - 科学动机与证据链: reports/phc2d_bandgap_field_inverse_design_rationale_20260806.md
-      - 全胞双路线模型报告: reports/全胞双路线正向与逆向模型报告_20260810.md
-      - 旁支研究:
-          - 旁支研究索引: reports/side_project/README.md
+      - 综合研究报告:
+          - 报告总览: reports/README.md
+          - 项目完整报告: reports/phc2d_project_full_introduction_20260724.md
+          - 物理与数据公式手册: reports/phc2d_physics_data_formula_guide_20260803.md
+          - 科学动机与证据链: reports/phc2d_bandgap_field_inverse_design_rationale_20260806.md
+          - 全胞双路线模型报告: reports/全胞双路线正向与逆向模型报告_20260810.md
+          - 旁支研究总览: reports/side_project/README.md
           - Fourier 敏感度: reports/side_project/fourier_sensitivity_of_photonic_bands.md
   - 计划与治理:
       - 规划索引: planning/README.md
@@ -176,11 +181,13 @@ nav:
           - 升级模型训练验证: planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md
           - Full-cell inverse 扩展: planning/full_cell_forward_inverse_training/full_cell_inverse_design_extension_plan.md
       - 规划参考:
+          - 参考索引: planning/reference/README.md
           - 数据审计: planning/reference/repo_data_audit_20260617.md
           - 文献与开源调研: planning/reference/network_literature_survey_20260617.md
           - 实验验证计划: planning/reference/experimental_validation_plan_20260617.md
       - 文档与协作治理: collaboration.md
       - 工程约定: conventions.md
   - 历史档案:
+      - 档案说明: 历史档案.md
       - 非 p4m 数据生成方案: planning/非 p4m 全布里渊区双路线数据生成方案.md
       - 单 seed 全胞历史草案: planning/full_cell_forward_inverse_training/archive/full_cell_forward_single_seed_legacy.md
