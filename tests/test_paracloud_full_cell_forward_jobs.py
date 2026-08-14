@@ -252,3 +252,12 @@ def test_parameter_ablation_submitter_uses_bounded_gpu_array(tmp_path: Path) -> 
     args = args_file.read_text(encoding="utf-8")
     assert "--array=0-14%3" in args
     assert "PHC2D_PARAMETER_INDEX_OFFSET=2" in args
+
+
+def test_parameter_ablation_worker_reuses_common_cuda_setup() -> None:
+    worker = (ROOT / "jobs" / "paracloud_full_cell_parameter_ablation.sh").read_text(encoding="utf-8")
+    defer_position = worker.index("export PHC2D_DEFER_CUDA_CHECK_TO_RUNNER=1")
+    source_position = worker.index('source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"')
+    run_position = worker.index("python -m phc2d.forward.full_cell_parameter_ablation run-case")
+
+    assert defer_position < source_position < run_position
