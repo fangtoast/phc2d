@@ -1,8 +1,8 @@
 ---
 title: "GPU Environment Audit"
 summary: "日期化实验与验证证据；正文保持原始记录。"
-page_type: evidence
-status: draft
+page_type: archive
+status: historical
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
 last_reviewed: 2026-08-13
@@ -13,6 +13,9 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 ---
 
 # GPU Environment Audit
+
+!!! warning "历史证据"
+    本页只记录特定日期的环境审计，不证明训练完成、模型精度或求解器物理验收。
 
 ## 摘要
 - **目的**：基于原始记录保留实验链路与指标定义，对文档进行中文化结构化重构。

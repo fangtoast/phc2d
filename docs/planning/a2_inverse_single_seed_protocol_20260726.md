@@ -8,6 +8,12 @@ owner: "研究生维护"
 last_reviewed: 2026-08-13
 reading_time: 3 minutes
 primary_layer: L0
+plan_state: completed
+effective_date: 2026-07-26
+superseded_by: null
+related_results:
+  - docs/results/inverse/a2_inverse_single_seed_formal_20260727.md
+  - docs/results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md
 ---
 
 <!--

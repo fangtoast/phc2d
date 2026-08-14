@@ -10,6 +10,12 @@ reading_time: 17 minutes
 primary_layer: L3
 evidence_date: 2026-08-06
 evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+dataset_scope: full_cell_bz9_wh81x10
+evidence_level: surrogate_held_out
+evidence_status: completed
+validation_backend: surrogate_only
+source_artifacts:
+  - runs/20260806/full_cell_forward_main_campaign_20260806
 ---
 
 <a id="full-cell-forward-report"></a>

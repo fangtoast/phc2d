@@ -234,4 +234,67 @@ def test_docs_audit_requires_evidence_scope_and_date(tmp_path: Path) -> None:
     assert result["front_matter_failures"]["docs/evidence.md"] == [
         "evidence_date",
         "evidence_scope",
+        "dataset_scope",
+        "evidence_level",
+        "evidence_status",
+        "validation_backend",
+        "source_artifacts",
     ]
+
+
+def test_docs_audit_validates_formal_result_metadata(tmp_path: Path) -> None:
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "README.md").write_text(
+        "# Root\n\n[Evidence](docs/evidence.md)\n", encoding="utf-8"
+    )
+    metadata = _FRONT_MATTER.replace(
+        "page_type: reference",
+        """page_type: evidence
+evidence_date: 2026-08-14
+evidence_scope: Fixed result contract
+dataset_scope: v2_10k_wh31x10
+evidence_level: solver_replay
+evidence_status: completed
+validation_backend: wsl_mpb
+source_artifacts:
+  - runs/example/results.json""",
+    )
+    (tmp_path / "docs" / "evidence.md").write_text(
+        f"{metadata}# Evidence\n", encoding="utf-8"
+    )
+
+    result = audit_documentation(
+        repo_root=tmp_path,
+        tracked_markdown=["README.md", "docs/evidence.md"],
+        entry_documents=["README.md"],
+    )
+
+    assert result["status"] == "pass"
+    assert result["front_matter_failures"] == {}
+
+
+def test_docs_audit_validates_plan_lifecycle_metadata(tmp_path: Path) -> None:
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "README.md").write_text(
+        "# Root\n\n[Plan](docs/plan.md)\n", encoding="utf-8"
+    )
+    metadata = _FRONT_MATTER.replace(
+        "page_type: reference",
+        """page_type: plan
+plan_state: active
+effective_date: 2026-08-14
+superseded_by: null
+related_results: []""",
+    )
+    (tmp_path / "docs" / "plan.md").write_text(
+        f"{metadata}# Plan\n", encoding="utf-8"
+    )
+
+    result = audit_documentation(
+        repo_root=tmp_path,
+        tracked_markdown=["README.md", "docs/plan.md"],
+        entry_documents=["README.md"],
+    )
+
+    assert result["status"] == "pass"
+    assert result["front_matter_failures"] == {}

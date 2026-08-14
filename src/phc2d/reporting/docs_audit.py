@@ -63,6 +63,27 @@ _PAGE_TYPES = frozenset(
     }
 )
 _DOCUMENT_STATUSES = frozenset({"draft", "reviewed", "canonical", "historical", "superseded"})
+_RESULT_METADATA = (
+    "dataset_scope",
+    "evidence_level",
+    "evidence_status",
+    "validation_backend",
+    "source_artifacts",
+)
+_EVIDENCE_LEVELS = frozenset(
+    {"data_acceptance", "surrogate_held_out", "solver_replay", "physical_validation"}
+)
+_EVIDENCE_STATUSES = frozenset({"completed", "pilot", "blocked", "historical"})
+_VALIDATION_BACKENDS = frozenset(
+    {"surrogate_only", "wsl_mpb", "wsl_meep", "mixed", "not_applicable"}
+)
+_PLAN_METADATA = (
+    "plan_state",
+    "effective_date",
+    "superseded_by",
+    "related_results",
+)
+_PLAN_STATES = frozenset({"active", "completed", "superseded", "reference"})
 
 
 def _github_slug(value: str) -> str:
@@ -277,6 +298,28 @@ def audit_documentation(
             for field in ("evidence_date", "evidence_scope"):
                 if not metadata.get(field):
                     missing.append(field)
+        if page_type == "evidence":
+            for field in _RESULT_METADATA:
+                if not metadata.get(field):
+                    missing.append(field)
+            evidence_level = str(metadata.get("evidence_level", ""))
+            evidence_status = str(metadata.get("evidence_status", ""))
+            validation_backend = str(metadata.get("validation_backend", ""))
+            if evidence_level and evidence_level not in _EVIDENCE_LEVELS:
+                missing.append(f"evidence_level in {sorted(_EVIDENCE_LEVELS)}")
+            if evidence_status and evidence_status not in _EVIDENCE_STATUSES:
+                missing.append(f"evidence_status in {sorted(_EVIDENCE_STATUSES)}")
+            if validation_backend and validation_backend not in _VALIDATION_BACKENDS:
+                missing.append(f"validation_backend in {sorted(_VALIDATION_BACKENDS)}")
+        if page_type == "plan":
+            for field in _PLAN_METADATA:
+                if field not in metadata:
+                    missing.append(field)
+            plan_state = str(metadata.get("plan_state", ""))
+            if not metadata.get("effective_date"):
+                missing.append("effective_date")
+            if plan_state not in _PLAN_STATES:
+                missing.append(f"plan_state in {sorted(_PLAN_STATES)}")
         if missing:
             front_matter_failures[relative] = missing
             failures.append(f"documentation front matter invalid in {relative}: {missing}")

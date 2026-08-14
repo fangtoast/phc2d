@@ -1,7 +1,7 @@
 ---
 title: "为什么计算光子晶体带隙、近远场并开展逆向设计？"
 summary: "日期化综合研究报告；正文保持原始证据语境。"
-page_type: evidence
+page_type: explanation
 status: draft
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"

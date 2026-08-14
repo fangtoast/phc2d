@@ -8,6 +8,11 @@ owner: "研究生维护"
 last_reviewed: 2026-08-13
 reading_time: 31 minutes
 primary_layer: L0
+plan_state: completed
+effective_date: 2026-08-07
+superseded_by: null
+related_results:
+  - docs/results/forward/full_cell_dual_lane_50000_forward_training_20260808.md
 ---
 
 <!--

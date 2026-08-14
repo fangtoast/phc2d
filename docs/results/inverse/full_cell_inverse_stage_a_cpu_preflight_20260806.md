@@ -1,8 +1,8 @@
 ---
 title: "Full-cell inverse Stage-A CPU 合同预检"
 summary: "日期化实验与验证证据；正文保持原始记录。"
-page_type: evidence
-status: draft
+page_type: archive
+status: historical
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
 last_reviewed: 2026-08-13
@@ -22,6 +22,9 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 <a id="full-cell-inverse-stage-a-cpu-preflight"></a>
 
 # Full-cell inverse Stage-A CPU 合同预检
+
+!!! warning "历史证据"
+    本页是 CPU 合同预检，不代表 Stage-A 正式训练完成，也不能替代 WSL real-MPB 验收。
 
 | Metadata | Value |
 |---|---|

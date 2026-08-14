@@ -1,8 +1,8 @@
 ---
 title: "B4：dense-k 与跨分辨率准入结果"
 summary: "日期化实验与验证证据；正文保持原始记录。"
-page_type: evidence
-status: draft
+page_type: archive
+status: historical
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
 last_reviewed: 2026-08-13
@@ -22,6 +22,9 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 <a id="field-eigen-te-b4-dense-k-admission"></a>
 
 # B4：dense-k 与跨分辨率准入结果
+
+!!! warning "历史证据"
+    本页记录 dense-k 与跨分辨率准入过程，不属于正式结果白名单；准入结论只在页面声明的合同内有效。
 
 **结论：** B4 的 frequency-guard、冻结三 seed 和 dense-k 正式评估均已完成，但三项准入状态均为 `blocked`。PINO 不能进入 inverse cross-check、residual rerank、跨分辨率 claim、inverse sampling 或 replay。
 

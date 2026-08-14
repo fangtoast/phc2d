@@ -1,8 +1,8 @@
 ---
 title: "B1 TE Bloch 本征场：64 条 real-MPB field-data pilot（2026-07-20）"
 summary: "日期化实验与验证证据；正文保持原始记录。"
-page_type: evidence
-status: draft
+page_type: archive
+status: historical
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
 last_reviewed: 2026-08-13
@@ -22,6 +22,9 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 <a id="field-eigen-te-b1-64-20260720"></a>
 
 # B1 TE Bloch 本征场：64 条 real-MPB field-data pilot（2026-07-20）
+
+!!! warning "历史证据"
+    本页是 64 样本 field-data pilot，不属于正式结果白名单；只用于追溯本征场数据链路的早期准入。
 
 本报告仅确认 B1 的 64 条可追溯 field-data pilot 已通过。它不是 field 模型训练、PINO/MaxwellNet、physics-aware inverse 或跨方法性能结论。
 

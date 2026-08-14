@@ -1,16 +1,21 @@
 ---
 title: "光子能带对介电函数傅里叶分量的敏感度"
 summary: "旁支研究计划；正文保持原始研究设想。"
-page_type: plan
-status: draft
+page_type: archive
+status: historical
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
 last_reviewed: 2026-08-13
 reading_time: 10 minutes
 primary_layer: L1
+evidence_date: 2026-08-13
+evidence_scope: "未进入正式结果白名单的旁支研究设想，仅供方法追溯。"
 ---
 
 # 光子能带对介电函数傅里叶分量的敏感度
+
+!!! warning "历史旁支材料"
+    本页是旁支研究设想，不属于 phc2d 正式结果或当前主线计划。
 
 本文档研究光子晶体第 $n$ 条能带的频率 $\omega_n(\vec k)$ 对介电函数傅里叶分量 $\varepsilon_{\vec G}$ 的敏感度，以及这种敏感度随 $|\vec G|$ 增大而衰减的规律。
 

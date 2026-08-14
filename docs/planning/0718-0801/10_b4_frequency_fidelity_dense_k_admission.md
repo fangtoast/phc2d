@@ -8,6 +8,11 @@ owner: "研究生维护"
 last_reviewed: 2026-08-13
 reading_time: 4 minutes
 primary_layer: L0
+plan_state: completed
+effective_date: 2026-07-18
+superseded_by: null
+related_results:
+  - docs/results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md
 ---
 
 <!--

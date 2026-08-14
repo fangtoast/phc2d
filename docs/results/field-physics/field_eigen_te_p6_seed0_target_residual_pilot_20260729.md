@@ -1,8 +1,8 @@
 ---
 title: "P6 seed0 target-residual 条件准入诊断（2026-07-29）"
 summary: "日期化实验与验证证据；正文保持原始记录。"
-page_type: evidence
-status: draft
+page_type: archive
+status: historical
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
 last_reviewed: 2026-08-13
@@ -20,6 +20,9 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 -->
 
 # P6 seed0 target-residual 条件准入诊断（2026-07-29）
+
+!!! warning "历史证据"
+    本页是单 seed residual 诊断 pilot，未通过的准入不得解释为正式模型结果。
 
 ## 结论
 

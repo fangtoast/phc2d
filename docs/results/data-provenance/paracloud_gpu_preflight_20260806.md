@@ -1,8 +1,8 @@
 ---
 title: "Paracloud GPU 全链路准备与单卡预检"
 summary: "日期化实验与验证证据；正文保持原始记录。"
-page_type: evidence
-status: draft
+page_type: archive
+status: historical
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
 last_reviewed: 2026-08-13
@@ -20,6 +20,9 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 -->
 
 # Paracloud GPU 全链路准备与单卡预检
+
+!!! warning "历史证据"
+    本页是部署与单卡预检记录；环境可用不等于模型训练、评估或物理复核已经完成。
 
 | Metadata | Value |
 |---|---|

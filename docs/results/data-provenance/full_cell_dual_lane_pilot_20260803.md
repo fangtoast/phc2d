@@ -10,6 +10,14 @@ reading_time: 9 minutes
 primary_layer: L3
 evidence_date: 2026-08-03
 evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+dataset_scope: full_cell_bz9_wh81x10
+evidence_level: data_acceptance
+evidence_status: completed
+validation_backend: wsl_mpb
+source_artifacts:
+  - runs/20260803/full_cell_graded_bz9_pilot64_202608031427
+  - runs/20260803/full_cell_binary_holes_bz9_pilot64_202608031427
+  - data/full_cell_dual_lane_pilot64_manifest.yaml
 ---
 
 <!--

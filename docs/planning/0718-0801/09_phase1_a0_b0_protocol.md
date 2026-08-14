@@ -8,6 +8,11 @@ owner: "研究生维护"
 last_reviewed: 2026-08-13
 reading_time: 11 minutes
 primary_layer: L0
+plan_state: completed
+effective_date: 2026-07-18
+superseded_by: null
+related_results:
+  - docs/results/forward/a1_forward_query_fair_v1_20260726.md
 ---
 
 <!--

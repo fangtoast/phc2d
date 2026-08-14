@@ -1,8 +1,8 @@
 ---
 title: "phc2d：二维光子晶体神经算子快速仿真与回放校准生成式逆向设计"
 summary: "日期化综合研究报告；正文保持原始证据语境。"
-page_type: evidence
-status: draft
+page_type: archive
+status: historical
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
 last_reviewed: 2026-08-13
@@ -22,6 +22,9 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 <a id="project-report-home"></a>
 
 # phc2d：二维光子晶体神经算子快速仿真与回放校准生成式逆向设计
+
+!!! warning "历史综合材料"
+    本页是 2026-07 的项目快照。稳定知识已迁入“项目与物理基础”“数据与方法”和“参考手册”；当前结果请以正式结果页及真实制品为准。
 
 | 元数据 | 内容 |
 |---|---|

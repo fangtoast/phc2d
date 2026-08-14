@@ -1,13 +1,13 @@
 ---
-title: "研究规划与协议索引"
-summary: "研究计划索引；按任务族路由到现行协议与历史记录。"
+title: "计划与治理"
+summary: "按专题、状态与时间路由 19 份原始规划文档，区分现行计划、已完成协议、被取代草案与参考材料。"
 page_type: landing
 status: draft
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
 last_reviewed: 2026-08-14
-reading_time: 3 minutes
-primary_layer: L0
+reading_time: 5 minutes
+primary_layer: L4
 ---
 
 <!--
@@ -17,37 +17,36 @@ primary_layer: L0
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
-# 研究规划与协议索引
+# 计划与治理
 
-本目录记录“计划做什么、为什么这样安排、通过什么 gate”，不证明实验已经完成。当前完成状态从 [`../results/README.md`](../results/README.md)、运行制品和 [`../../PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md) 判断。
+本目录回答“曾经如何计划、当前由哪份协议约束、后来产生了什么结果”。规划记录不证明实验已经完成；完成状态必须回到[正式研究结果](../results/README.md)、运行制品和项目地图核对。
 
-## 权威路由
+!!! note "规划状态合同"
+    `active` 表示仍约束后续工作，`completed` 表示计划规定的工作已有结果入口，`superseded` 表示已被更具体的计划取代，`reference` 只提供背景。页面仍统一保持 `status: draft`，等待人工审阅。
 
-本索引是规划入口，不用单一旧计划覆盖所有后续专题。先按任务主题选择当前协议；若专题协议与早期总计划冲突，以实际制品和当前实现为证据事实，以更具体、更新且尚未被取代的协议约束后续执行。
+## 从哪里开始
 
-| 角色 | 文档 | 使用边界 |
+| 需求 | 入口 | 你会看到什么 |
 |---|---|---|
-| 早期总研究计划 | [`fno_generative_network_adjustment_plan_20260617.md`](fno_generative_network_adjustment_plan_20260617.md) | FNO、生成式网络及其既定任务家族、方法路线、gate 与失败判据；不覆盖后来新增专题的全部执行细节 |
-| TODO / promotion gate | [`research_todo_20260617.md`](research_todo_20260617.md) | 勾选可能滞后，必须用更强证据复核 |
-| A2 单 seed 协议 | [`a2_inverse_single_seed_protocol_20260726.md`](a2_inverse_single_seed_protocol_20260726.md) | A2 固定公平比较与 replay 契约 |
+| 按日期查演进 | [专题索引与时间线](时间线.md) | 日期、任务、状态、取代关系、对应结果 |
+| 查早期 V2 / Field / PINO / A2 | [早期研究索引](早期研究索引.md) | 早期总计划、TODO、物理模型协议与 A2 协议 |
+| 查全胞数据与正向训练 | [全胞数据与正向计划](full_cell_forward_inverse_training/README.md) | 10k、50k、模型升级实施与验证 |
+| 查全胞逆向 | [全胞逆向索引](全胞逆向索引.md) | codec、Stage-A、筛选和 replay 的现行计划 |
+| 查审计、调研和验证构想 | [规划参考](reference/README.md) | 数据审计、文献调研与实验验证矩阵 |
+| 查已被替代的草案 | [历史计划索引](历史计划索引.md) | 非 p4m 旧草案与单 seed 全胞草案 |
 
-## 当前阶段协议
+## 专题状态矩阵
 
-| 主题 | 文档 |
-|---|---|
-| 物理模型路线与当前修正 | [`0718-0801/02_physics_model_reproduction_plan.md`](0718-0801/02_physics_model_reproduction_plan.md) |
-| A0/B0 基础协议 | [`0718-0801/09_phase1_a0_b0_protocol.md`](0718-0801/09_phase1_a0_b0_protocol.md) |
-| B4 frequency / dense-k 准入 | [`0718-0801/10_b4_frequency_fidelity_dense_k_admission.md`](0718-0801/10_b4_frequency_fidelity_dense_k_admission.md) |
-| 全胞双路线 Forward、升级模型与 inverse | [`full_cell_forward_inverse_training/README.md`](full_cell_forward_inverse_training/README.md) |
+| 专题 | 主要计划状态 | 结果入口 | 当前解释 |
+|---|---|---|---|
+| 早期 FNO / 生成式网络 | active / reference | [V2 10k](../results/V2-10k正式结果.md) | 总体研究方向仍可参考，具体完成情况以结果制品为准 |
+| Field / adapted PINO | completed | [历史 Field/PINO 索引](../results/field-physics/README.md) | 现有记录属于历史试验，不进入正式结果白名单 |
+| V2 inverse A2 | completed | [A2 单 seed](../results/inverse/a2_inverse_single_seed_formal_20260727.md) | 只支持既定单 seed 与 replay 边界 |
+| 全胞数据与正向 | completed | [新全胞数据正式结果](../results/全胞数据正式结果.md) | 10k、50k、升级模型与 Meep 结果分页面核对 |
+| 全胞 inverse | active | [全胞逆向索引](全胞逆向索引.md) | 当前计划有效；预检和 dry-run 不等于正式训练结果 |
 
-## 参考层
+## 收录完整性
 
-这些文件提供早期审计、文献和验证矩阵，不高于当前计划或实际制品：
+本站保留并索引改造前已有的 **19 份 planning 文档**：17 份位于“计划与治理”，2 份被取代草案位于“历史档案”。新增的时间线与专题索引只负责组织，不替换原始记录。
 
-- [规划参考总览](reference/README.md)
-- [`非 p4m 全布里渊区双路线数据生成方案.md`](非%20p4m%20全布里渊区双路线数据生成方案.md)：2026-08-03 的 `full_cell_v1` 双路线历史设计 Draft；当前完成状态以 `PROJECT_MAP.md` 和结果报告为准。
-- [`reference/experimental_validation_plan_20260617.md`](reference/experimental_validation_plan_20260617.md)
-- [`reference/network_literature_survey_20260617.md`](reference/network_literature_survey_20260617.md)
-- [`reference/repo_data_audit_20260617.md`](reference/repo_data_audit_20260617.md)
-
-规划任务也必须遵守 [文档与协作治理](../collaboration.md)：计划、配置就绪和实际完成保持不同状态。
+每个 `page_type: plan` 页面都声明 `plan_state`、`effective_date`、`superseded_by` 和 `related_results`。字段含义见[文档元数据](../参考/文档元数据.md)，协作边界见[文档与协作治理](../collaboration.md)。

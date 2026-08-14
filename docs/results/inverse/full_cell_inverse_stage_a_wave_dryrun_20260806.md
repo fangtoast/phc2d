@@ -1,8 +1,8 @@
 ---
 title: "Full-cell inverse Stage-A N40 波次 dry-run（2026-08-06）"
 summary: "日期化实验与验证证据；正文保持原始记录。"
-page_type: evidence
-status: draft
+page_type: archive
+status: historical
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
 last_reviewed: 2026-08-13
@@ -20,6 +20,9 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 -->
 
 # Full-cell inverse Stage-A N40 波次 dry-run（2026-08-06）
+
+!!! warning "历史证据"
+    本页是波次 dry-run，只验证调度与参数展开；没有产生可用于科学结论的正式训练结果。
 
 | Metadata | Value |
 |---|---|

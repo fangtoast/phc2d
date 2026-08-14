@@ -10,6 +10,12 @@ reading_time: 11 minutes
 primary_layer: L3
 evidence_date: 2026-08-02
 evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+dataset_scope: v2_10k_wh31x10
+evidence_level: solver_replay
+evidence_status: pilot
+validation_backend: wsl_mpb
+source_artifacts:
+  - runs/20260802/a2_inverse_surrogate_postrepair_validation_v2_202608021718
 ---
 
 <!--

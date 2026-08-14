@@ -1,8 +1,8 @@
 ---
 title: "Representation Benchmark"
 summary: "日期化实验与验证证据；正文保持原始记录。"
-page_type: evidence
-status: draft
+page_type: archive
+status: historical
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
 last_reviewed: 2026-08-13
@@ -13,6 +13,9 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 ---
 
 # Representation Benchmark
+
+!!! warning "历史证据"
+    本页是表征链路 smoke，只说明局部接口在记录时可运行；它不属于正式结果白名单，也不构成模型精度或物理验证。
 
 - experiment_id: representation_ablation_benchmark
 - completed_at: 2026-08-03T11:32:06.480610

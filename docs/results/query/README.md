@@ -1,6 +1,6 @@
 ---
-title: Query 结果
-summary: Query 代理的数据规模结果及其与当前公平比较入口的关系。
+title: Query 历史结果
+summary: 早期 1k Query 数据缩放记录及其与正式 10k 公平比较的边界。
 page_type: landing
 status: draft
 audience: 模型研究者、复现执行者与结果审阅者
@@ -17,7 +17,10 @@ primary_layer: L3
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
-# Query 结果
+# Query 历史结果
+
+!!! warning "历史证据"
+    1k Query 记录不属于正式结果白名单，不能与 10k、不同 split 或不同 seed 契约直接比较。
 
 | 入口 | 用途 |
 |---|---|
@@ -26,4 +29,4 @@ primary_layer: L3
 
 不要把不同数据规模、划分、seed 或指标合同下的数值直接并列为模型优劣证据。
 
-[返回研究结果与报告](../README.md)
+[返回历史档案](../../历史档案.md)

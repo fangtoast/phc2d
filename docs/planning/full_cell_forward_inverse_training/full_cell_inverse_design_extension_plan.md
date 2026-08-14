@@ -8,6 +8,11 @@ owner: "研究生维护"
 last_reviewed: 2026-08-13
 reading_time: 31 minutes
 primary_layer: L0
+plan_state: active
+effective_date: 2026-08-06
+superseded_by: null
+related_results:
+  - docs/results/inverse/full_cell_inverse_stage_a_cpu_preflight_20260806.md
 ---
 
 <!--

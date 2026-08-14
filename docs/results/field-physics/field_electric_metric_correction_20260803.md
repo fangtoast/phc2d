@@ -1,8 +1,8 @@
 ---
 title: "电场度规勘误（2026-08-03）"
 summary: "日期化实验与验证证据；正文保持原始记录。"
-page_type: evidence
-status: draft
+page_type: archive
+status: historical
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
 last_reviewed: 2026-08-13
@@ -22,6 +22,9 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 <a id="field-electric-metric-correction-20260803"></a>
 
 # 电场度规勘误（2026-08-03）
+
+!!! warning "历史证据"
+    本页保留旧度规的修正记录；其中受影响的历史数值不能直接作为当前正式比较。
 
 本文修正 TE Bloch eigenfield、`fno_field_v2` 与 adapted PINO 工作流中的电场内积、归一化、相位对齐及 relative $L_2$ 定义。修正前的 B3/B4 数值来自未加介电常数权重的电场度规，只能保留为历史诊断；在完成数据迁移、重训和三 seed 重评前，不得称为修正后结果。
 

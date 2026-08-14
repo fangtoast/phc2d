@@ -10,6 +10,13 @@ reading_time: 12 minutes
 primary_layer: L3
 evidence_date: 2026-07-06
 evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+dataset_scope: v2_10k_wh31x10
+evidence_level: solver_replay
+evidence_status: completed
+validation_backend: wsl_mpb
+source_artifacts:
+  - runs/20260706/inverse_mpb_replay_mixture_v2_10000_40_202607060853
+  - runs/20260706/inverse_mixture_generator_v2_10000_objective_sample_separation_202607060848
 ---
 
 <!--

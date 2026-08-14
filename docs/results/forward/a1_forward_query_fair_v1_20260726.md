@@ -10,6 +10,14 @@ reading_time: 12 minutes
 primary_layer: L3
 evidence_date: 2026-07-26
 evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+dataset_scope: v2_10k_wh31x10
+evidence_level: surrogate_held_out
+evidence_status: completed
+validation_backend: surrogate_only
+source_artifacts:
+  - runs/20260724/a1_forward_fair_v1_202607240020
+  - runs/20260724/a1_query_fair_v1_202607240803
+  - runs/20260726/a1_forward_mlp_ablation_v1_202607261605
 ---
 
 <!--

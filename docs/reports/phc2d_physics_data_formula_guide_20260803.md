@@ -1,8 +1,8 @@
 ---
 title: "phc2d 端到端物理与数据公式手册"
 summary: "日期化综合研究报告；正文保持原始证据语境。"
-page_type: evidence
-status: draft
+page_type: archive
+status: historical
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
 last_reviewed: 2026-08-13
@@ -23,6 +23,9 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 <a id="formula-guide-home"></a>
 
 # phc2d 端到端物理与数据公式手册
+
+!!! warning "历史综合材料"
+    本页保留为长篇兼容入口。主题公式和代码解释已拆入新章节；页面中的阶段状态不能覆盖当前正式结果与运行制品。
 
 | Metadata | Value |
 |---|---|
