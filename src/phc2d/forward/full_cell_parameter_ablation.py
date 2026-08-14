@@ -376,13 +376,26 @@ def freeze_parameter_ablation(config_path: str | Path, output_dir: str | Path, *
     return out
 
 
-def audit_stage(manifest_path: str | Path, output_path: str | Path) -> Path:
+def audit_stage(
+    manifest_path: str | Path,
+    output_path: str | Path,
+    *,
+    offset: int = 0,
+    limit: int | None = None,
+) -> Path:
     """Fail closed unless every manifest run is complete and test-free."""
 
     manifest_file = Path(manifest_path)
-    rows = list(csv.DictReader(manifest_file.open(encoding="utf-8", newline="")))
-    if not rows:
+    all_rows = list(csv.DictReader(manifest_file.open(encoding="utf-8", newline="")))
+    if not all_rows:
         raise ValueError("manifest is empty")
+    if offset < 0 or offset >= len(all_rows):
+        raise ValueError(f"audit offset {offset} outside 0..{len(all_rows) - 1}")
+    if limit is not None and limit <= 0:
+        raise ValueError("audit limit must be positive")
+    rows = all_rows[offset:] if limit is None else all_rows[offset : offset + limit]
+    if not rows:
+        raise ValueError("audit selection is empty")
     failures: list[dict[str, str]] = []
     audited: list[dict[str, Any]] = []
     for row in rows:
@@ -408,6 +421,9 @@ def audit_stage(manifest_path: str | Path, output_path: str | Path) -> Path:
         json.dumps(
             {
                 "status": "pass" if not failures and len(audited) == len(rows) else "fail",
+                "manifest_cases": len(all_rows),
+                "offset": offset,
+                "limit": len(rows),
                 "expected_cases": len(rows),
                 "audited_cases": len(audited),
                 "failures": failures,
@@ -466,6 +482,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     audit = subparsers.add_parser("audit-stage")
     audit.add_argument("--manifest", type=Path, required=True)
     audit.add_argument("--output", type=Path, required=True)
+    audit.add_argument("--offset", type=int, default=0)
+    audit.add_argument("--limit", type=int)
     run_case = subparsers.add_parser("run-case")
     run_case.add_argument("--manifest", type=Path, required=True)
     run_case.add_argument("--index", type=int, required=True)
@@ -473,7 +491,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.command == "freeze":
         print(freeze_parameter_ablation(args.config, args.output_dir, root=args.root))
     elif args.command == "audit-stage":
-        print(audit_stage(args.manifest, args.output))
+        print(audit_stage(args.manifest, args.output, offset=args.offset, limit=args.limit))
     else:
         print(run_manifest_case(args.manifest, args.index))
 

@@ -100,9 +100,12 @@ def test_audit_stage_fails_closed_on_missing_case(tmp_path: Path) -> None:
         writer.writerow({"case_id": "ok", "run_dir": first})
         writer.writerow({"case_id": "missing", "run_dir": tmp_path / "missing"})
 
-    output = audit_stage(manifest, tmp_path / "audit.json")
+    output = audit_stage(manifest, tmp_path / "audit.json", offset=0, limit=2)
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["status"] == "fail"
+    assert payload["manifest_cases"] == 2
+    assert payload["offset"] == 0
+    assert payload["limit"] == 2
     assert payload["audited_cases"] == 1
     assert payload["failures"] == [{"case_id": "missing", "reason": "missing_results_or_metrics"}]
 
