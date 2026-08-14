@@ -52,11 +52,11 @@ markdown_extensions:
 extra_css:
   - assets/stylesheets/extra.css
 extra_javascript:
+  - assets/javascripts/navigation.js
   - assets/javascripts/mathjax.js
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
   - https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js
   - assets/javascripts/mermaid.js
-  - assets/javascripts/navigation.js
 
 validation:
   nav:
