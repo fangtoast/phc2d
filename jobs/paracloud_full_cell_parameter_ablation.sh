@@ -12,7 +12,8 @@ set -euo pipefail
 PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu118}"
 export PYTHONPATH="$PHC2D_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 export PHC2D_DEPLOYED_GIT_COMMIT="${PHC2D_DEPLOYED_GIT_COMMIT:-unknown}"
+case_index="$((SLURM_ARRAY_TASK_ID + ${PHC2D_PARAMETER_INDEX_OFFSET:-0}))"
 
 "$PHC2D_ENV/bin/python" -m phc2d.forward.full_cell_parameter_ablation run-case \
   --manifest "$PHC2D_PARAMETER_MANIFEST" \
-  --index "$SLURM_ARRAY_TASK_ID"
+  --index "$case_index"

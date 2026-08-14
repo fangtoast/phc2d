@@ -239,6 +239,8 @@ def test_parameter_ablation_submitter_uses_bounded_gpu_array(tmp_path: Path) -> 
             str(ROOT / "jobs" / "paracloud_submit_full_cell_parameter_ablation.sh"),
             str(manifest),
             "3",
+            "2",
+            "15",
         ],
         check=True,
         capture_output=True,
@@ -246,5 +248,7 @@ def test_parameter_ablation_submitter_uses_bounded_gpu_array(tmp_path: Path) -> 
         env=env,
     )
 
-    assert "status=submitted job_id=54321 cases=17 concurrency=3" in completed.stdout
-    assert "--array=0-16%3" in args_file.read_text(encoding="utf-8")
+    assert "status=submitted job_id=54321 total_cases=17 offset=2 submitted_cases=15 concurrency=3" in completed.stdout
+    args = args_file.read_text(encoding="utf-8")
+    assert "--array=0-14%3" in args
+    assert "PHC2D_PARAMETER_INDEX_OFFSET=2" in args
