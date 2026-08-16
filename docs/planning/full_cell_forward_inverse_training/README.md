@@ -41,6 +41,7 @@ primary_layer: L0
 | 2. 实验验证方案 | [全胞正向升级模型 10k/50k 训练与验证方案](full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md) | Draft experiment plan / not authorized | 54 个 10k jobs、27 个 50k jobs、validation-only head 选择、N40 8×4090 独立单卡调度与 promotion |
 | 10k 历史证据合同 | [全胞双路线训练与混合算力计划](full_cell_dual_lane_hybrid_compute_plan.md) | Historical Draft / experiment completed | 连续/五阈值表征、三 seed、102 个训练 run、12-job GPU 波次及其原始验收合同 |
 | 50k 历史证据合同 | [全胞双路线 50k 训练、迁移评估与混合算力计划](full_cell_dual_lane_50000_training_hybrid_compute_plan.md) | Historical Draft / experiment completed | 17 波、204 个独立训练 run、旧 10k checkpoint→50k test、40k 的 20/100/200、50k final-fit、72-cell binary↔continuous 与零样本输入分辨率测试；结果见 [50k Forward 报告](../../results/forward/full_cell_dual_lane_50000_forward_training_20260808.md) |
+| 数据生成分布底稿 | [全胞数据生成方法与分布审查底稿](full_cell_dataset_distribution_coverage_analysis.md) | Draft factual reference / evaluation pending | 客观整理随机提议、拒绝条件、固定 family、split、保存字段及四类待统计问题，不预判训练有效性 |
 | 数据身份设计 | [随机碰撞与介电常数内容哈希说明](full_cell_dielectric_hash_collision_design.md) | Draft method note / not implemented | 32 位 seed 碰撞概率、二值精确哈希、graded 容差哈希与定点灰度数据合同 |
 | 后续扩展 | [全胞解析参数逆向设计扩展计划](full_cell_inverse_design_extension_plan.md) | Deferred Draft | 解析参数 codec、45 个 inverse GPU run、候选健康门与 8-target smoke→full validation→test-100 replay |
 | 历史草案 | [旧版单 seed 正向计划](archive/full_cell_forward_single_seed_legacy.md) | Superseded | 仅用于决策追溯，不得作为执行入口 |
