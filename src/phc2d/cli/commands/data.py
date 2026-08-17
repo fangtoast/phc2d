@@ -72,8 +72,8 @@ def configure(sub: Any) -> None:
     accept_cluster.set_defaults(command="data accept-cluster")
     converge = data_sub.add_parser(
         "converge",
-        help="Run the full-cell 64/96/128 real-MPB resolution gate.",
-        description="Re-solve a stratified subset of both full-cell lanes at higher resolutions.",
+        help="Run a configured full-cell real-MPB resolution study.",
+        description="Re-solve a stratified subset of both full-cell lanes at configured resolutions.",
     )
     converge.add_argument("--config", type=Path, required=True)
     converge.add_argument("--run-dir", type=Path, default=None)

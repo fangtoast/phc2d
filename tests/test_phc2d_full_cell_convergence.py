@@ -18,6 +18,7 @@ from phc2d.data.full_cell import FullCellStructureSpec, build_full_bz_grid
 from phc2d.data.full_cell_convergence import (
     await_full_cell_pilots_and_finalize,
     compute_convergence_summary,
+    compute_reference_convergence_summary,
     representative_k_indices,
     select_convergence_indices,
 )
@@ -101,6 +102,44 @@ def test_convergence_summary_excludes_first_band_and_applies_gates() -> None:
     assert summary["bands_in_gate"] == [2, 3, 4]
     assert summary["median_mre_64_96"] < 0.005
     assert summary["median_mre_96_128"] < 0.0025
+
+
+def test_reference_summary_supports_five_resolutions_and_excludes_band_one() -> None:
+    reference = np.ones((2, 81, 10), dtype=np.float64)
+    arrays = {resolution: reference.copy() for resolution in (32, 48, 64, 96, 128)}
+    arrays[32][..., 0] = 1000.0
+    arrays[64][..., 1:] *= 1.001
+
+    summary = compute_reference_convergence_summary(
+        arrays,
+        reference_resolution=128,
+        median_max=0.0011,
+        combined_p95_max=0.005,
+        lane_p95_max=0.0075,
+        scope="combined",
+    )
+
+    assert list(summary["comparisons"]) == ["32", "48", "64", "96"]
+    assert summary["comparisons"]["32"]["max_mre"] == pytest.approx(0.0)
+    assert summary["comparisons"]["64"]["median_mre"] == pytest.approx(0.001)
+    assert summary["bands_in_scope"] == list(range(2, 11))
+
+
+def test_lane_candidate_gate_uses_lane_p95_without_combined_median_rule() -> None:
+    reference = np.ones((1, 2, 3), dtype=np.float64)
+    arrays = {64: reference * 1.002, 96: reference * 1.002, 128: reference}
+
+    summary = compute_reference_convergence_summary(
+        arrays,
+        reference_resolution=128,
+        median_max=0.001,
+        combined_p95_max=0.005,
+        lane_p95_max=0.0075,
+        scope="binary_air_holes",
+    )
+
+    assert summary["comparisons"]["64"]["median_mre"] > 0.001
+    assert summary["comparisons"]["64"]["passed_candidate_gate"] is True
 
 
 def _write_completed_lane(run_dir: Path) -> None:
