@@ -47,3 +47,37 @@ def test_stage_a_submission_is_dry_run_and_authorization_gated() -> None:
         'job_id="$(sbatch --parsable'
     )
     assert "--time=08:00:00" in submitter
+
+
+def test_stage_b_config_freezes_exact_100_structure_strata() -> None:
+    config = yaml.safe_load(
+        (ROOT / "configs/research/full_cell_resolution_convergence_xingyi_stage_b_v1.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert config["experiment"]["phase"] == "stage_b_formal_confirmation"
+    assert config["selection"]["samples_per_lane"] == 50
+    assert config["selection"]["stratum_counts"]["binary_air_holes"] == {
+        "binary_polar_holes_1": 13,
+        "binary_polar_holes_2": 12,
+        "binary_spectral_threshold": 25,
+    }
+    assert config["selection"]["stratum_counts"]["graded_medium"] == {
+        "graded_core_1": 25,
+        "graded_core_2": 25,
+    }
+    assert config["gates"]["recommendation_resolutions"] == [64, 96]
+
+
+def test_stage_b_submission_is_dry_run_and_authorization_gated() -> None:
+    runner = (ROOT / "jobs/xingyi_full_cell_resolution_stage_b.sh").read_text(encoding="utf-8")
+    submitter = (ROOT / "jobs/xingyi_submit_full_cell_resolution_stage_b.sh").read_text(encoding="utf-8")
+
+    assert "PHC2D_AUTHORIZE_RESOLUTION_STAGE_B" in runner
+    assert "full_cell_resolution_convergence_xingyi_stage_b_v1.yaml" in runner
+    assert 'PHC2D_SUBMIT_MODE="${PHC2D_SUBMIT_MODE:-dry-run}"' in submitter
+    assert submitter.index('if [[ "$PHC2D_SUBMIT_MODE" == "dry-run" ]]') < submitter.index(
+        'job_id="$(sbatch --parsable'
+    )
+    assert "--time=02:00:00" in submitter

@@ -56,8 +56,8 @@ def _stratum(structure: FullCellStructureSpec) -> str:
     if structure.generator_family == "graded_rbf_fourier":
         return f"graded_core_{int(structure.metadata.get('core_count', 0))}"
     if structure.generator_family == "binary_polar_holes":
-        return f"polar_holes_{int(structure.metadata.get('hole_count', 0))}"
-    return "spectral_threshold"
+        return f"binary_polar_holes_{int(structure.metadata.get('hole_count', 0))}"
+    return "binary_spectral_threshold"
 
 
 def select_convergence_indices(structures: Sequence[FullCellStructureSpec], count: int) -> np.ndarray:
@@ -87,6 +87,39 @@ def select_convergence_indices(structures: Sequence[FullCellStructureSpec], coun
         depth += 1
     if len(selected) != requested:
         raise RuntimeError("unable to select the requested convergence samples")
+    return np.asarray(selected, dtype=np.int64)
+
+
+def select_convergence_indices_by_stratum(
+    structures: Sequence[FullCellStructureSpec],
+    stratum_counts: Mapping[str, int],
+) -> np.ndarray:
+    """Select exact deterministic counts from named generator strata."""
+
+    requested = {str(key): int(value) for key, value in stratum_counts.items()}
+    if not requested or any(value <= 0 for value in requested.values()):
+        raise ValueError("stratum_counts must contain positive counts")
+    groups: dict[str, list[int]] = defaultdict(list)
+    for index, structure in enumerate(structures):
+        groups[_stratum(structure)].append(index)
+    selected: list[int] = []
+    for stratum, count in requested.items():
+        candidates = sorted(
+            groups.get(stratum, []),
+            key=lambda index: (structures[index].geometry_hash, structures[index].sample_id),
+        )
+        if len(candidates) < count:
+            raise ValueError(
+                f"stratum {stratum!r} provides {len(candidates)} structures, fewer than requested {count}"
+            )
+        positions = (
+            np.asarray([0], dtype=np.int64)
+            if count == 1
+            else np.linspace(0, len(candidates) - 1, num=count, dtype=np.int64)
+        )
+        selected.extend(candidates[int(position)] for position in positions)
+    if len(set(selected)) != len(selected):
+        raise RuntimeError("stratified convergence selection contains duplicate indices")
     return np.asarray(selected, dtype=np.int64)
 
 
@@ -229,8 +262,19 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
     resolutions = [int(value) for value in cfg.get("resolutions", [])]
     if len(resolutions) < 3 or resolutions != sorted(set(resolutions)) or min(resolutions, default=0) <= 0:
         problems.append("resolutions must contain at least three unique positive ascending values")
-    if int(dict(cfg.get("selection") or {}).get("samples_per_lane", 0)) <= 0:
+    samples_per_lane = int(dict(cfg.get("selection") or {}).get("samples_per_lane", 0))
+    if samples_per_lane <= 0:
         problems.append("selection.samples_per_lane must be positive")
+    stratum_counts = dict(dict(cfg.get("selection") or {}).get("stratum_counts") or {})
+    for lane, counts in stratum_counts.items():
+        if lane not in {"graded_medium", "binary_air_holes"}:
+            problems.append(f"selection.stratum_counts has unsupported lane: {lane}")
+            continue
+        parsed_counts = {str(key): int(value) for key, value in dict(counts or {}).items()}
+        if not parsed_counts or any(value <= 0 for value in parsed_counts.values()):
+            problems.append(f"selection.stratum_counts.{lane} must contain positive counts")
+        elif sum(parsed_counts.values()) != samples_per_lane:
+            problems.append(f"selection.stratum_counts.{lane} must sum to selection.samples_per_lane")
     solver = dict(cfg.get("solver") or {})
     required_solver = {
         "backend", "environment", "use_proxy", "epsilon_air", "epsilon_material", "resolution",
@@ -353,7 +397,15 @@ def run_full_cell_resolution_convergence(
         if not np.all(np.isfinite(bundle.Wh)) or np.any(np.diff(bundle.Wh, axis=-1) < -1.0e-7):
             raise ValueError(f"dataset {lane} Wh failed finite/ascending checks")
     samples_per_lane = int(dict(cfg["selection"])["samples_per_lane"])
-    selections = {lane: select_convergence_indices(bundle.structures, samples_per_lane) for lane, bundle in datasets.items()}
+    configured_strata = dict(dict(cfg["selection"]).get("stratum_counts") or {})
+    selections = {
+        lane: (
+            select_convergence_indices_by_stratum(bundle.structures, dict(configured_strata[lane]))
+            if lane in configured_strata
+            else select_convergence_indices(bundle.structures, samples_per_lane)
+        )
+        for lane, bundle in datasets.items()
+    }
     k_policy = str(dict(cfg["selection"])["k_policy"])
     k_indices_by_lane = {
         lane: (
@@ -513,10 +565,18 @@ def run_full_cell_resolution_convergence(
             for summary in summaries.values()
         )
     ]
-    recommended_resolution = min(candidate_resolutions) if candidate_resolutions else None
+    recommendation_resolutions = [
+        int(value) for value in gates.get("recommendation_resolutions", [64, 96])
+    ]
+    recommendation_candidates = [
+        resolution for resolution in recommendation_resolutions if resolution in candidate_resolutions
+    ]
+    recommended_resolution = recommendation_candidates[0] if recommendation_candidates else None
     gate_passed = recommended_resolution is not None
     if stage == "stage_a_resource_pilot" and real_solver_execution:
         status = "stage_a_resource_pilot_complete_pending_review"
+    elif stage == "stage_b_formal_confirmation" and real_solver_execution:
+        status = "cluster_stage_b_complete_pending_wsl_acceptance" if gate_passed else "blocked"
     elif acceptance_eligible:
         status = "resolution_convergence_pass" if gate_passed else "blocked"
     else:
@@ -554,7 +614,9 @@ def run_full_cell_resolution_convergence(
             "gates": gate_args,
             "lanes": summaries,
             "candidate_resolutions": candidate_resolutions,
+            "recommendation_resolutions": recommendation_resolutions,
             "provisional_recommended_resolution": recommended_resolution if stage == "stage_a_resource_pilot" else None,
+            "recommended_resolution": recommended_resolution if stage == "stage_b_formal_confirmation" else None,
             "resource_estimate": resource_estimate,
         },
     )
@@ -580,10 +642,14 @@ def run_full_cell_resolution_convergence(
             "status": status,
             "gate_passed": gate_passed,
             "candidate_resolutions": candidate_resolutions,
+            "recommendation_resolutions": recommendation_resolutions,
             "provisional_recommended_resolution": recommended_resolution if stage == "stage_a_resource_pilot" else None,
+            "recommended_resolution": recommended_resolution if stage == "stage_b_formal_confirmation" else None,
             "next_gate": (
                 "human_accept_stage_a_resource_report_and_authorize_stage_b"
                 if stage == "stage_a_resource_pilot"
+                else "wsl_cross_environment_acceptance"
+                if stage == "stage_b_formal_confirmation" and status != "blocked"
                 else "publish_combined_manifest"
                 if status == "resolution_convergence_pass"
                 else "inspect_resolution_failures"
@@ -679,4 +745,5 @@ __all__ = [
     "representative_k_indices",
     "run_full_cell_resolution_convergence",
     "select_convergence_indices",
+    "select_convergence_indices_by_stratum",
 ]

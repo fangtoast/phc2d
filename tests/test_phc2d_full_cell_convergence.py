@@ -21,6 +21,7 @@ from phc2d.data.full_cell_convergence import (
     compute_reference_convergence_summary,
     representative_k_indices,
     select_convergence_indices,
+    select_convergence_indices_by_stratum,
 )
 
 
@@ -67,6 +68,29 @@ def test_selection_round_robins_generator_strata_deterministically() -> None:
 
     assert first.tolist() == second.tolist()
     assert {structures[int(index)].metadata["core_count"] for index in first[:2]} == {1, 2}
+
+
+def test_selection_honors_exact_stratum_counts() -> None:
+    structures = [
+        *[_structure(index, "polar1") for index in range(20)],
+        *[_structure(index + 20, "polar2") for index in range(20)],
+        *[_structure(index + 40, "spectral") for index in range(40)],
+    ]
+
+    selected = select_convergence_indices_by_stratum(
+        structures,
+        {
+            "binary_polar_holes_1": 13,
+            "binary_polar_holes_2": 12,
+            "binary_spectral_threshold": 25,
+        },
+    )
+    selected_structures = [structures[int(index)] for index in selected]
+
+    assert selected.shape == (50,)
+    assert sum(item.metadata.get("hole_count") == 1 for item in selected_structures) == 13
+    assert sum(item.metadata.get("hole_count") == 2 for item in selected_structures) == 12
+    assert sum(item.generator_family == "binary_spectral_threshold" for item in selected_structures) == 25
 
 
 def test_representative_k_indices_select_nine_full_bz_locations() -> None:

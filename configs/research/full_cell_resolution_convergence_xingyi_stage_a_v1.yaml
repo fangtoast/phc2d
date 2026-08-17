@@ -57,6 +57,7 @@ gates:
   combined_median_mre_max: 0.001
   combined_p95_mre_max: 0.005
   lane_p95_mre_max: 0.0075
+  recommendation_resolutions: [64, 96]
   decision_role: provisional_stage_a_only
 
 output:
