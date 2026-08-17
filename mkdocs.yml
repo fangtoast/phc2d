@@ -143,6 +143,7 @@ nav:
           - 全胞数据总览: results/全胞数据正式结果.md
           - 数据构建与验收: results/data-provenance/full_cell_dual_lane_pilot_20260803.md
           - MPB 分辨率收敛验证: results/data-provenance/全胞MPB分辨率收敛验证_20260817.md
+          - Fourier 64+64 星仪试点: results/data-provenance/全胞Fourier_64加64星仪试点_20260817.md
           - 全胞双路线 10k: results/forward/full_cell_dual_lane_forward_training_20260806.md
           - 全胞双路线 50k: results/forward/full_cell_dual_lane_50000_forward_training_20260808.md
           - 升级模型 50k: results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
