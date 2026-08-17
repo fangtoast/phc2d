@@ -27,3 +27,5 @@ def test_plot_full_cell_fourier_dataset(tmp_path: Path) -> None:
     assert summary["finite"] and summary["ascending"]
     assert (tmp_path / "figures/sample_atlas.png").is_file()
     assert (tmp_path / "figures/distribution_and_bands.svg").is_file()
+    svg = (tmp_path / "figures/distribution_and_bands.svg").read_text(encoding="utf-8")
+    assert "#10b981" not in svg and "#ef4444" not in svg
