@@ -1,6 +1,6 @@
 ---
 title: "B 与 G 各 1 万条 K=20 全胞 Fourier 数据生成计划"
-summary: "在星仪分别用一个 64 CPU 节点生成 Binary 10000 条和 Graded 10000 条 K=20 real-MPB 数据，并把最终 HDF5 与必要 provenance 下载到本机。"
+summary: "在星仪分别用一个 64 CPU 节点生成 Binary 10000 条和 Graded 10000 条 K=20 real-MPB 数据，每 30 分钟只读检查一次进度，完成后下载最终 HDF5 与必要 provenance。"
 page_type: plan
 status: draft
 plan_state: active
@@ -49,6 +49,7 @@ primary_layer: L3
 准备 B/G 两份 10k 配置
   → 部署固定 Git commit 到星仪
   → 同时提交 B、G 两个单节点作业
+  → 用 job ID 和 run 目录设置每 30 分钟一次的只读监控
   → 每个作业自行完成 sample plan、64-worker MPB 和最终 HDF5
   → 远端检查数量、失败数、最终文件和 SHA-256
   → 下载两份 HDF5 与必要 provenance 到本机
@@ -128,9 +129,44 @@ runs/{yyyymmdd}/full_cell_fourier_k20_10000_xingyi_{YYYYMMDDHHmm}/
 
 本次不要求先跑新的本机测试或本机 real-MPB smoke。
 
-### 4.3 运行与恢复
+### 4.3 提交后每 30 分钟检查
 
-- 作业运行时每 30–60 分钟只读查看一次 `squeue`、完成 shard 数和失败账本；
+两个 `sbatch` 成功返回 job ID 和固定 run 目录后，立即在当前 Codex 任务中创建一个 **每 30 分钟运行一次**的低频监控。创建时必须把以下四项写成固定输入：
+
+```text
+binary_job_id
+graded_job_id
+binary_run_dir
+graded_run_dir
+```
+
+现在尚无正式 job ID，因此本计划阶段不提前创建空监控。实际提交后再创建，避免监控错误目录或历史作业。
+
+每次检查只读取：
+
+| 检查项 | 排队中 | 运行中 | 终态 |
+|---|---|---|---|
+| Slurm | job state、queue reason | job state、elapsed、node | `sacct` state、exit code、elapsed、MaxRSS |
+| 进度 | 不扫描 run 目录 | B/G completed shard 数、失败数、最近更新时间 | 最终 completed/failed 数 |
+| 最终产物 | 不检查 | 只判断 HDF5 是否已出现，不读取大数组 | 检查 HDF5、manifest、metrics、results、provenance 是否齐全 |
+
+每次只返回一条简短状态：
+
+```text
+检查时间 | B 状态/完成数/失败数 | G 状态/完成数/失败数 | 是否需要人工处理
+```
+
+监控规则：
+
+- 固定 30 分钟周期，不使用 `watch`、持续 `tail`、分钟级轮询或常驻 SSH；
+- 只读检查，不自动取消、重提、恢复、改参数或改代码；
+- 某一路连续两次检查完成数不变但 Slurm 仍为 `RUNNING` 时，只报告“进度可能停滞”，不自行处理；
+- 某一路为 `FAILED`、`CANCELLED`、`TIMEOUT` 或出现失败样本时，立即报告具体状态并等待人工决定；
+- 一路完成而另一路仍运行时，继续按 30 分钟周期检查未完成路线；
+- 两路都进入终态后停止周期监控；若两路均成功，则进入远端完成检查和下载；否则停在故障报告，不下载不完整数据。
+
+### 4.4 运行与恢复
+
 - 不在运行中修改 K、resolution、worker 数、seed、split 或材料范围；
 - 不自动取消、重提或切换资源；
 - 若作业异常退出，保留原 run 目录和 `sample_plan.jsonl`；
@@ -203,6 +239,7 @@ SHA-256 比对属于文件传输完整性检查，不是本机物理验证。本
 - 两个作业均 0 失败，样本数和 `Wh` shape 正确；
 - 两份 HDF5 与必要 provenance 已下载到本机；
 - 本机文件 SHA-256 与星仪一致；
+- 提交后已按 30 分钟周期完成只读进度检查，并在两路进入终态后停止监控；
 - 记录星仪 commit、Slurm job ID、run 路径、远端/本机路径、耗时和 hash。
 
 本次完成不等于数据已通过 WSL 跨环境物理验收。若后续要把数据标记为 accepted 或用于正式论文证据，再单独安排 WSL 复算；该工作不阻塞本次“超算生成并下载”的任务。
@@ -210,7 +247,7 @@ SHA-256 比对属于文件传输完整性检查，不是本机物理验证。本
 ## 八、人工理解记录
 
 ```text
-解决了什么问题：用最短流程在星仪生成 B/G 各 1 万条 K=20 数据并下载到本机。
+解决了什么问题：用最短流程在星仪生成 B/G 各 1 万条 K=20 数据，每 30 分钟只读检查一次，并下载到本机。
 为什么采用这个方案：两个单节点 runner 已有 64+64 real-MPB 运行证据，预计都能在 24 小时内完成，无需增加多节点分片和 finalizer 改造。
 改变了项目哪一层/哪一模块：主层级 L3；后续只需新增两份配置和一个简单的星仪双作业入口。
 使用什么证据：统一 Fourier v2 部署、resolution=64 冻结结果、64+64 试点吞吐与 K=5–20 配对试验。
