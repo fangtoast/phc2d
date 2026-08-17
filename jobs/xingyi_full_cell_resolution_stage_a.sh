@@ -33,7 +33,15 @@ do
 done
 
 mkdir -p "$PHC2D_RUN_DIR"
-/usr/bin/time -v -o "$PHC2D_RUN_DIR/resource_usage.txt" \
-  python -m phc2d.cli data converge \
-    --config configs/research/full_cell_resolution_convergence_xingyi_stage_a_v1.yaml \
-    --run-dir "$PHC2D_RUN_DIR"
+command=(
+  python -m phc2d.cli data converge
+  --config configs/research/full_cell_resolution_convergence_xingyi_stage_a_v1.yaml
+  --run-dir "$PHC2D_RUN_DIR"
+)
+if [[ -x /usr/bin/time ]]; then
+  /usr/bin/time -v -o "$PHC2D_RUN_DIR/resource_usage.txt" "${command[@]}"
+else
+  printf 'resource_usage_source=slurm_sacct\nreason=/usr/bin/time unavailable\n' \
+    > "$PHC2D_RUN_DIR/resource_usage.txt"
+  "${command[@]}"
+fi

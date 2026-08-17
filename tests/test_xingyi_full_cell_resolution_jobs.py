@@ -40,6 +40,8 @@ def test_stage_a_submission_is_dry_run_and_authorization_gated() -> None:
     assert "PHC2D_AUTHORIZE_RESOLUTION_STAGE_A" in runner
     assert "SLURM_CPUS_PER_TASK" in runner
     assert "/usr/bin/time -v" in runner
+    assert "resource_usage_source=slurm_sacct" in runner
+    assert "if [[ -x /usr/bin/time ]]" in runner
     assert 'PHC2D_SUBMIT_MODE="${PHC2D_SUBMIT_MODE:-dry-run}"' in submitter
     assert submitter.index('if [[ "$PHC2D_SUBMIT_MODE" == "dry-run" ]]') < submitter.index(
         'job_id="$(sbatch --parsable'
