@@ -22,6 +22,10 @@ from phc2d.data.full_cell_fourier import (
     periodic_cell_centers,
 )
 from phc2d.data.full_cell_spec import FullCellStructureSpec
+from phc2d.generators.full_cell import (
+    generate_binary_polar_holes as facade_binary_polar,
+)
+from phc2d.generators.full_cell_binary import generate_binary_polar_holes
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +37,7 @@ def test_full_cell_facade_preserves_public_object_identity() -> None:
         importlib.import_module("phc2d.data").FullCellStructureSpec
         is FullCellStructureSpec
     )
+    assert facade_binary_polar is generate_binary_polar_holes
 
 
 def test_full_cell_data_facade_is_declarative_only() -> None:
@@ -44,6 +49,15 @@ def test_full_cell_data_facade_is_declarative_only() -> None:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
     ]
     assert "__module__" not in source
+    generator_source = (ROOT / "src/phc2d/generators/full_cell.py").read_text(
+        encoding="utf-8"
+    )
+    generator_tree = ast.parse(generator_source)
+    assert not [
+        node
+        for node in generator_tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    ]
 
 
 def test_fourier_and_spec_modules_have_no_heavy_imports() -> None:

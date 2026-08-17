@@ -424,6 +424,24 @@ def finalize_full_cell_hpc(
             metadata=metadata,
             raster_workers=workers,
             progress_fn=finalize_progress,
+            raster_method=str(
+                dict(dict(cfg["dataset"]).get("raster_contract") or {}).get(
+                    "method",
+                    "direct_cell_center_v1",
+                )
+            ),
+            raster_source_resolution=int(
+                dict(dict(cfg["dataset"]).get("raster_contract") or {}).get(
+                    "source_resolution",
+                    max(int(item) for item in dict(cfg["dataset"])["raster_resolutions"]),
+                )
+            ),
+            content_hash_quantization_levels=int(
+                dict(dict(cfg["dataset"]).get("raster_contract") or {}).get(
+                    "content_hash_quantization_levels",
+                    65536,
+                )
+            ),
         )
         finalize_write_time = float(time.perf_counter() - raster_started)
 

@@ -21,6 +21,7 @@ from phc2d.data.full_cell_hashing import (
     hash_structure_parameters,
 )
 from phc2d.data.full_cell_io import (
+    FULL_CELL_DATASET_SCHEMA_V2,
     FullCellDatasetBundle,
     load_full_cell_hdf5,
     write_full_cell_hdf5,
@@ -47,6 +48,7 @@ __all__ = [
     "CONTENT_HASH_VERSION",
     "DIRECT_CELL_CENTER_V1",
     "FULL_CELL_FOURIER_SCHEMA_VERSION",
+    "FULL_CELL_DATASET_SCHEMA_V2",
     "FULL_CELL_SCHEMA_VERSION",
     "MASTER_BLOCK_MEAN_V1",
     "MATERIAL_EVALUATORS",

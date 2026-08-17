@@ -15,6 +15,8 @@ from phc2d.generators.full_cell import (
     generate_binary_polar_holes,
     generate_binary_spectral_threshold,
     generate_graded_rbf_fourier,
+    generate_unified_fourier_binary,
+    generate_unified_fourier_graded,
 )
 
 __all__ = [
@@ -25,4 +27,6 @@ __all__ = [
     "generate_binary_polar_holes",
     "generate_binary_spectral_threshold",
     "generate_graded_rbf_fourier",
+    "generate_unified_fourier_binary",
+    "generate_unified_fourier_graded",
 ]
