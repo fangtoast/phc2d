@@ -96,16 +96,25 @@ def _sample_latent_payload(
     *,
     cutoff: int,
     audit_resolution: int,
+    paired_coefficient_seed: int | None = None,
 ) -> tuple[dict[str, Any], np.ndarray]:
-    modes = [
-        {
-            "mx": int(mx),
-            "my": int(my),
-            "cos": float(rng.normal(0.0, 1.0)),
-            "sin": float(rng.normal(0.0, 1.0)),
-        }
-        for mx, my in independent_half_plane_modes(cutoff)
-    ]
+    modes = []
+    for mx, my in independent_half_plane_modes(cutoff):
+        coefficient_rng = rng
+        if paired_coefficient_seed is not None:
+            coefficient_rng = np.random.default_rng(
+                derive_full_cell_seed64(
+                    paired_coefficient_seed, "fourier_mode", mx, my
+                )
+            )
+        modes.append(
+            {
+                "mx": int(mx),
+                "my": int(my),
+                "cos": float(coefficient_rng.normal(0.0, 1.0)),
+                "sin": float(coefficient_rng.normal(0.0, 1.0)),
+            }
+        )
     x, y = periodic_cell_centers((audit_resolution, audit_resolution))
     field = evaluate_real_fourier_field(x, y, modes)
     mean = float(np.mean(field, dtype=np.float64))
@@ -118,6 +127,12 @@ def _sample_latent_payload(
         "mode_order": "mx_then_my_ascending",
         "zero_mode": "excluded",
         "coefficient_distribution": "iid_standard_normal",
+        "coefficient_derivation": (
+            "sha256_per_mode_v1"
+            if paired_coefficient_seed is not None
+            else "sequential_rng_v1"
+        ),
+        "paired_coefficient_seed": paired_coefficient_seed,
         "fourier_cutoff": int(cutoff),
         "modes": modes,
         "normalization_grid_resolution": int(audit_resolution),
@@ -204,15 +219,24 @@ def generate_unified_fourier_binary(
         "binary_target_material_fraction_range",
         (0.50, 0.90),
     )
-    target = _stratified_uniform(
-        rng,
-        target_range,
-        bin_index=int(material_fraction_bin),
+    target = (
+        float(cfg["fixed_target_material_fraction"])
+        if "fixed_target_material_fraction" in cfg
+        else _stratified_uniform(
+            rng,
+            target_range,
+            bin_index=int(material_fraction_bin),
+        )
     )
     latent_payload, latent = _sample_latent_payload(
         rng,
         cutoff=cutoff,
         audit_resolution=audit_resolution,
+        paired_coefficient_seed=(
+            int(cfg["paired_coefficient_seed"])
+            if "paired_coefficient_seed" in cfg
+            else None
+        ),
     )
     threshold = float(np.quantile(latent, 1.0 - target))
     payload = {
@@ -265,20 +289,33 @@ def generate_unified_fourier_graded(
     rng = np.random.default_rng(seed)
     cutoff = int(cfg.get("fourier_cutoff", 20))
     audit_resolution = int(cfg.get("audit_resolution", 256))
-    target = _stratified_uniform(
-        rng,
-        _range(cfg, "graded_target_material_fraction_range", (0.60, 0.78)),
-        bin_index=int(material_fraction_bin),
+    target = (
+        float(cfg["fixed_target_material_fraction"])
+        if "fixed_target_material_fraction" in cfg
+        else _stratified_uniform(
+            rng,
+            _range(cfg, "graded_target_material_fraction_range", (0.60, 0.78)),
+            bin_index=int(material_fraction_bin),
+        )
     )
-    temperature = _stratified_uniform(
-        rng,
-        _range(cfg, "graded_temperature_range", (0.08, 0.16)),
-        bin_index=int(temperature_bin),
+    temperature = (
+        float(cfg["fixed_temperature"])
+        if "fixed_temperature" in cfg
+        else _stratified_uniform(
+            rng,
+            _range(cfg, "graded_temperature_range", (0.08, 0.16)),
+            bin_index=int(temperature_bin),
+        )
     )
     latent_payload, latent = _sample_latent_payload(
         rng,
         cutoff=cutoff,
         audit_resolution=audit_resolution,
+        paired_coefficient_seed=(
+            int(cfg["paired_coefficient_seed"])
+            if "paired_coefficient_seed" in cfg
+            else None
+        ),
     )
     low = float(np.min(latent) - 20.0 * temperature)
     high = float(np.max(latent) + 20.0 * temperature)

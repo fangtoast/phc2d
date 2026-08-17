@@ -244,3 +244,36 @@ def test_xingyi_fourier_jobs_are_dry_run_first_and_fail_closed() -> None:
     assert "PHC2D_SUBMIT_MODE=submit" not in submit
     assert "full_cell_binary_fourier_bz9_64_xingyi_pilot_v1.yaml" in compute
     assert "full_cell_graded_fourier_bz9_64_xingyi_pilot_v1.yaml" in compute
+
+
+def test_paired_fourier_cutoffs_share_exact_mode_coefficients() -> None:
+    base = {
+        **SMALL_CONFIG,
+        "paired_coefficient_seed": 2026081851,
+        "fixed_target_material_fraction": 0.70,
+    }
+    k5 = generate_unified_fourier_binary(
+        "paired", master_seed=1, material_fraction_bin=0,
+        config={**base, "fourier_cutoff": 5},
+    )
+    k20 = generate_unified_fourier_binary(
+        "paired", master_seed=1, material_fraction_bin=0,
+        config={**base, "fourier_cutoff": 20},
+    )
+    modes5 = {(row["mx"], row["my"]): (row["cos"], row["sin"]) for row in k5.parameters["modes"]}
+    modes20 = {(row["mx"], row["my"]): (row["cos"], row["sin"]) for row in k20.parameters["modes"]}
+    assert modes5 and set(modes5) < set(modes20)
+    assert all(modes20[key] == value for key, value in modes5.items())
+    assert k5.parameters["target_material_fraction"] == pytest.approx(0.70)
+    assert k20.parameters["target_material_fraction"] == pytest.approx(0.70)
+
+
+def test_cutoff_study_configs_are_single_sample_frozen_r64() -> None:
+    for lane in ("binary", "graded"):
+        path = ROOT / f"configs/research/full_cell_{lane}_fourier_cutoff_pair1_xingyi_v1.yaml"
+        cfg = load_full_cell_generation_config(path)
+        assert _validate_config(cfg) == []
+        assert cfg["dataset"]["sample_count"] == 1
+        assert cfg["dataset"]["split"] == {"train": 1, "val": 0, "test": 0}
+        assert cfg["solver"]["resolution"] == 64
+        assert cfg["generator"]["paired_coefficient_seed"]

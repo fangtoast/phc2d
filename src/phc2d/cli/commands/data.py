@@ -27,6 +27,8 @@ def configure(sub: Any) -> None:
     generate.add_argument("--config", type=Path, required=True)
     generate.add_argument("--run-dir", type=Path, default=None)
     generate.add_argument("--max-samples", type=int, default=None)
+    generate.add_argument("--fourier-cutoff", type=int, default=None)
+    generate.add_argument("--dataset-output", type=Path, default=None)
     generate.add_argument(
         "--workers",
         type=str,
@@ -164,6 +166,8 @@ def run(ns: Any) -> bool:
                 max_samples=ns.max_samples,
                 workers=worker_override,
                 plan_workers=plan_worker_override,
+                fourier_cutoff=ns.fourier_cutoff,
+                dataset_output=ns.dataset_output,
                 skip_environment_check=ns.skip_environment_check,
             )
         )

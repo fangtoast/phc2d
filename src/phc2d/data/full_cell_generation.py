@@ -974,6 +974,8 @@ def run_full_cell_generation(
     max_samples: int | None = None,
     workers: int | str | None = None,
     plan_workers: int | str | None = None,
+    fourier_cutoff: int | None = None,
+    dataset_output: str | Path | None = None,
     skip_environment_check: bool = False,
     solver_fn: FullCellSolverFn = solve_bands_for_full_cell_mpb,
 ) -> Path:
@@ -981,6 +983,18 @@ def run_full_cell_generation(
 
     config_path = _repo_path(config_path)
     cfg = load_full_cell_generation_config(config_path)
+    if fourier_cutoff is not None:
+        if int(fourier_cutoff) <= 0:
+            raise ValueError("fourier_cutoff override must be positive")
+        cfg["generator"] = {
+            **dict(cfg.get("generator") or {}),
+            "fourier_cutoff": int(fourier_cutoff),
+        }
+    if dataset_output is not None:
+        cfg["dataset"] = {
+            **dict(cfg.get("dataset") or {}),
+            "output_path": str(Path(dataset_output)),
+        }
     experiment = dict(cfg.get("experiment") or {})
     experiment_id = str(experiment.get("experiment_id", "full_cell_generation"))
     output_cfg = dict(cfg.get("output") or {})
@@ -995,6 +1009,8 @@ def run_full_cell_generation(
             "max_samples": max_samples,
             "workers_override": workers,
             "plan_workers_override": plan_workers,
+            "fourier_cutoff_override": fourier_cutoff,
+            "dataset_output_override": str(dataset_output) if dataset_output is not None else None,
         },
     }
     resolved_yaml = yaml.safe_dump(resolved, sort_keys=False, allow_unicode=True)
