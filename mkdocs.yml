@@ -80,6 +80,7 @@ not_in_nav: |
   architecture.md
   hpc_physics_campaigns.md
   results/forward/README.md
+  results/forward/灵敏度分析.md
   results/inverse/README.md
   reports/assets/*/figure_index.md
 
@@ -159,10 +160,16 @@ nav:
           - A2 单 seed 协议: planning/a2_inverse_single_seed_protocol_20260726.md
       - 全胞数据与正向:
           - 专题索引: planning/full_cell_forward_inverse_training/README.md
+          - 数据分布与统一 Fourier 建议: planning/full_cell_forward_inverse_training/full_cell_dataset_distribution_coverage_analysis.md
+          - 内容哈希与碰撞设计: planning/full_cell_forward_inverse_training/full_cell_dielectric_hash_collision_design.md
           - 双路线混合算力: planning/full_cell_forward_inverse_training/full_cell_dual_lane_hybrid_compute_plan.md
           - 50k 混合算力: planning/full_cell_forward_inverse_training/full_cell_dual_lane_50000_training_hybrid_compute_plan.md
           - 升级模型实现规格: planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_implementation_plan.md
           - 升级模型训练验证: planning/full_cell_forward_inverse_training/full_cell_forward_model_upgrade_10k_50k_training_validation_plan.md
+      - 数据验证:
+          - 专题索引: planning/数据验证/README.md
+          - MPB 分辨率收敛与耗时: planning/数据验证/MPB分辨率收敛与耗时验证计划.md
+          - 全胞新数据 64+64 试点: planning/数据验证/全胞新数据生成实现与64加64试点计划.md
       - 全胞逆向设计:
           - 专题索引: planning/全胞逆向索引.md
           - Full-cell inverse 扩展: planning/full_cell_forward_inverse_training/full_cell_inverse_design_extension_plan.md
