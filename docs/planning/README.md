@@ -1,11 +1,11 @@
 ---
 title: "计划与治理"
-summary: "按专题、状态与时间路由 19 份原始规划文档，区分现行计划、已完成协议、被取代草案与参考材料。"
+summary: "按专题、状态与时间路由研究规划文档，区分现行计划、已完成协议、被取代草案与参考材料。"
 page_type: landing
 status: draft
 audience: "研究用户、复现执行者与项目维护者"
 owner: "研究生维护"
-last_reviewed: 2026-08-14
+last_reviewed: 2026-08-17
 reading_time: 5 minutes
 primary_layer: L4
 ---
@@ -32,6 +32,7 @@ primary_layer: L4
 | 查早期 V2 / Field / PINO / A2 | [早期研究索引](早期研究索引.md) | 早期总计划、TODO、物理模型协议与 A2 协议 |
 | 查全胞数据与正向训练 | [全胞数据与正向计划](full_cell_forward_inverse_training/README.md) | 10k、50k、模型升级实施与验证 |
 | 查新数据生成与数值验证 | [数据验证计划](数据验证/README.md) | MPB 分辨率收敛、统一 Fourier 数据实现与 64+64 试点 |
+| 生成 K=20 的 1 万条新数据 | [1 万条 K=20 全胞 Fourier 数据生成计划](数据生成/20260817%201w条数据高频截断k=20的情况下生成/1万条K20全胞Fourier数据生成计划.md) | B/G 样本合同、星仪 2+3 节点编排、恢复与 WSL 验收门 |
 | 查代码复用与模块治理 | [项目代码结构重构](项目代码结构重构/README.md) | 公共接口、依赖方向、薄兼容层和分阶段迁移 |
 | 查全胞逆向 | [全胞逆向索引](全胞逆向索引.md) | codec、Stage-A、筛选和 replay 的现行计划 |
 | 查审计、调研和验证构想 | [规划参考](reference/README.md) | 数据审计、文献调研与实验验证矩阵 |
