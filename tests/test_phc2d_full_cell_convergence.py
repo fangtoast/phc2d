@@ -8,6 +8,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -91,6 +92,30 @@ def test_selection_honors_exact_stratum_counts() -> None:
     assert sum(item.metadata.get("hole_count") == 1 for item in selected_structures) == 13
     assert sum(item.metadata.get("hole_count") == 2 for item in selected_structures) == 12
     assert sum(item.generator_family == "binary_spectral_threshold" for item in selected_structures) == 25
+
+
+def test_selection_uses_serialized_parameters_when_metadata_omits_counts() -> None:
+    polar = [replace(_structure(index, f"polar{1 + index % 2}"), metadata={}) for index in range(8)]
+    graded = [
+        replace(
+            _structure(index + 20, f"graded{1 + index % 2}"),
+            metadata={},
+            parameters={
+                **_structure(index + 20, f"graded{1 + index % 2}").parameters,
+                "blobs": [{}] * (1 + index % 2),
+            },
+        )
+        for index in range(8)
+    ]
+
+    assert select_convergence_indices_by_stratum(
+        polar,
+        {"binary_polar_holes_1": 2, "binary_polar_holes_2": 2},
+    ).shape == (4,)
+    assert select_convergence_indices_by_stratum(
+        graded,
+        {"graded_core_1": 2, "graded_core_2": 2},
+    ).shape == (4,)
 
 
 def test_representative_k_indices_select_nine_full_bz_locations() -> None:

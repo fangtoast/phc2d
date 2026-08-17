@@ -54,9 +54,17 @@ def _write_history(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
 
 def _stratum(structure: FullCellStructureSpec) -> str:
     if structure.generator_family == "graded_rbf_fourier":
-        return f"graded_core_{int(structure.metadata.get('core_count', 0))}"
+        core_count = structure.metadata.get("core_count")
+        if core_count is None:
+            core_count = len(list(structure.parameters.get("blobs") or []))
+        return f"graded_core_{int(core_count)}"
     if structure.generator_family == "binary_polar_holes":
-        return f"binary_polar_holes_{int(structure.metadata.get('hole_count', 0))}"
+        hole_count = structure.metadata.get("hole_count")
+        if hole_count is None:
+            hole_count = structure.parameters.get("hole_count")
+        if hole_count is None:
+            hole_count = len(list(structure.parameters.get("holes") or []))
+        return f"binary_polar_holes_{int(hole_count)}"
     return "binary_spectral_threshold"
 
 
