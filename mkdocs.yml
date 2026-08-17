@@ -187,6 +187,7 @@ nav:
       - 档案说明: 历史档案.md
       - 旧结果与工程记录:
           - 数据与环境旧索引: results/data-provenance/README.md
+          - 全胞 Fourier 重构与星仪部署: results/data-provenance/全胞Fourier数据重构与星仪部署_20260817.md
           - GPU 环境审计: results/data-provenance/gpu_environment_audit_20260618.md
           - K 路径 1k 验证: results/data-provenance/k_path_physical_validation_v2_1000_20260621.md
           - Paracloud GPU 预检: results/data-provenance/paracloud_gpu_preflight_20260806.md
