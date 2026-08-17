@@ -52,5 +52,7 @@ def test_plot_fourier_cutoff_study_writes_blue_white_outputs(tmp_path: Path) -> 
     result = plot_fourier_cutoff_study(tmp_path, tmp_path / "figures")
     assert result["member_count"] == 32
     assert (tmp_path / "figures/paired_structures_k05_k20.png").is_file()
+    assert (tmp_path / "figures/binary_structures_k05_k20.png").is_file()
+    assert (tmp_path / "figures/graded_structures_k05_k20.png").is_file()
     svg = (tmp_path / "figures/structure_and_band_effects.svg").read_text(encoding="utf-8")
     assert "#ef4444" not in svg and "#10b981" not in svg

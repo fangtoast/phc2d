@@ -69,6 +69,17 @@ def plot_fourier_cutoff_study(root: str | Path, output_dir: str | Path) -> dict[
     _save(fig, out / "paired_structures_k05_k20")
     plt.close(fig)
 
+    for lane in ("binary", "graded"):
+        fig, axes = plt.subplots(2, 8, figsize=(15.5, 4.0), constrained_layout=True)
+        for offset, (cutoff, row) in enumerate(zip(cutoffs, data[lane])):
+            axis = axes[offset // 8, offset % 8]
+            axis.imshow(row["grid"], cmap="Blues", vmin=0.0, vmax=1.0, origin="lower")
+            axis.set_title(f"K={cutoff}", fontsize=9)
+            axis.set_xticks([]); axis.set_yticks([])
+        fig.suptitle(f"{lane.title()} structures · Fourier cutoff K=5–20", fontsize=13)
+        _save(fig, out / f"{lane}_structures_k05_k20")
+        plt.close(fig)
+
     rows: list[dict[str, Any]] = []
     for lane in ("binary", "graded"):
         reference = data[lane][-1]["bands"]
