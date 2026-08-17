@@ -207,7 +207,7 @@ def test_v2_streaming_writer_matches_semantic_raster_contract(tmp_path: Path) ->
     )
 
 
-def test_pilot_configs_freeze_64_rows_and_provisional_resolution() -> None:
+def test_pilot_configs_freeze_64_rows_and_resolution() -> None:
     config_paths = [
         ROOT / "configs/research/full_cell_binary_fourier_bz9_64_xingyi_pilot_v1.yaml",
         ROOT / "configs/research/full_cell_graded_fourier_bz9_64_xingyi_pilot_v1.yaml",
@@ -217,7 +217,8 @@ def test_pilot_configs_freeze_64_rows_and_provisional_resolution() -> None:
         assert _validate_config(cfg) == []
         assert cfg["dataset"]["sample_count"] == 64
         assert cfg["dataset"]["split"] == {"train": 48, "val": 8, "test": 8}
-        assert cfg["solver"]["resolution_status"] == "provisional_resolution_64"
+        assert cfg["solver"]["resolution_status"] == "frozen_resolution_64"
+        assert cfg["solver"]["resolution_evidence"].endswith("全胞MPB分辨率收敛验证_20260817.md")
         assert cfg["dataset"]["raster_resolutions"] == [32, 64, 128, 256]
 
     binary = _structure_schedule("binary_fourier", 64)

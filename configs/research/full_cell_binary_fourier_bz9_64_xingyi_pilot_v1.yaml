@@ -1,4 +1,4 @@
-# Provisional Xingyi 64-sample binary unified-Fourier full-cell pilot.
+# Frozen Xingyi 64-sample binary unified-Fourier full-cell pilot.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com
 # Copyright (c) 2026 fangtoast. All rights reserved.
@@ -47,7 +47,8 @@ solver:
   epsilon_air: 1.0
   epsilon_material: 8.9
   resolution: 64
-  resolution_status: provisional_resolution_64
+  resolution_status: frozen_resolution_64
+  resolution_evidence: docs/results/data-provenance/全胞MPB分辨率收敛验证_20260817.md
   mesh_size: 3
   polarization: TE
   num_bands: 10

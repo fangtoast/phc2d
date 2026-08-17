@@ -264,10 +264,12 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
                 problems.append("full_cell_fourier_v2 requires master_block_mean_v1")
             if int(raster_contract.get("source_resolution", 0)) != 256:
                 problems.append("full_cell_fourier_v2 raster source_resolution must be 256")
-            if str(solver.get("resolution_status", "")) != "provisional_resolution_64":
+            if str(solver.get("resolution_status", "")) != "frozen_resolution_64":
                 problems.append(
-                    "full_cell_fourier_v2 requires solver.resolution_status=provisional_resolution_64 until convergence acceptance"
+                    "full_cell_fourier_v2 requires solver.resolution_status=frozen_resolution_64"
                 )
+            if not str(solver.get("resolution_evidence", "")).strip():
+                problems.append("full_cell_fourier_v2 requires solver.resolution_evidence")
         plan_workers = generator.get("plan_workers", 1)
         if not (isinstance(plan_workers, str) and plan_workers.lower() == "auto"):
             try:
