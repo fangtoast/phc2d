@@ -270,6 +270,60 @@ def test_full_cell_hpc_two_shard_pipeline_is_atomic_and_run_local(tmp_path: Path
     assert audit["scientific_acceptance_promoted"] is False
 
 
+def test_full_cell_hpc_preserves_fourier_v2_protocol_in_plan_and_dataset(tmp_path: Path) -> None:
+    pytest.importorskip("h5py")
+    config = _write_config(tmp_path)
+    payload = yaml.safe_load(config.read_text(encoding="utf-8"))
+    payload["dataset"]["protocol"] = "full_cell_fourier_v2"
+    payload["dataset"]["lane"] = "graded_fourier"
+    payload["dataset"]["raster_resolutions"] = [32, 64, 128, 256]
+    payload["dataset"]["raster_contract"] = {
+        "method": "master_block_mean_v1",
+        "source_resolution": 256,
+        "content_hash_quantization_levels": 65536,
+        "graded_field_prefix": "material_weight_grid_",
+    }
+    payload["generator"]["algorithm_version"] = "phc2d.unified_fourier.v1"
+    payload["generator"]["seed_derivation"] = "sha256_u64_be_v1"
+    payload["generator"]["graded_target_material_fraction_range"] = [0.60, 0.78]
+    payload["generator"]["graded_temperature_range"] = [0.08, 0.16]
+    payload["generator"]["target_material_fraction_tolerance"] = 1.0e-5
+    payload["generator"]["minimum_gray_fraction"] = 0.01
+    payload["generator"]["bias_bisection_iterations"] = 80
+    payload["generator"]["material_fraction_strata"] = 2
+    payload["generator"]["temperature_strata"] = 2
+    payload["generator"]["plan_workers"] = 1
+    payload["solver"]["resolution_status"] = "frozen_resolution_64"
+    payload["solver"]["resolution_evidence"] = "unit"
+    config.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    run_dir = tmp_path / "fourier_v2"
+    prepare_full_cell_hpc_plan(
+        config,
+        run_dir=run_dir,
+        workers=2,
+        shard_count=2,
+        platform_id="unit",
+    )
+    physical = json.loads((run_dir / "physical_plan_manifest.json").read_text(encoding="utf-8"))
+    assert physical["output_schema"] == "phc2d.full_cell.fourier_v2"
+    for shard_index in range(2):
+        solve_full_cell_hpc_shard(
+            config,
+            run_dir=run_dir,
+            shard_index=shard_index,
+            shard_count=2,
+            workers=2,
+            skip_environment_check=True,
+            solver_fn=deterministic_fake_solver,
+        )
+    finalize_full_cell_hpc(config, run_dir=run_dir, raster_workers=1)
+    import h5py
+
+    with h5py.File(run_dir / "data" / "dataset.h5", "r") as handle:
+        metadata = json.loads(str(handle.attrs["metadata_json"]))
+    assert metadata["protocol"] == "full_cell_fourier_v2"
+
+
 def test_solver_failure_is_preserved_and_dataset_is_not_written(tmp_path: Path) -> None:
     config = _write_config(tmp_path)
     run_dir = tmp_path / "failed_run"

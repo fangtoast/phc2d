@@ -187,6 +187,12 @@ def prepare_full_cell_hpc_plan(
     cfg = load_full_cell_generation_config(config_path)
     plan_manifest = _read_json(out / "sample_plan_manifest.json")
     plan_sha256 = str(plan_manifest["sample_plan_sha256"])
+    dataset_protocol = str(dict(cfg["dataset"]).get("protocol", "full_cell_v1"))
+    output_schema = (
+        "phc2d.full_cell.fourier_v2"
+        if dataset_protocol == "full_cell_fourier_v2"
+        else "phc2d.full_cell.v1"
+    )
     physical = PhysicalPlanManifest(
         adapter_id="full_cell_band",
         case_count=int(dict(cfg["dataset"])["sample_count"]),
@@ -194,7 +200,7 @@ def prepare_full_cell_hpc_plan(
         solver_fingerprint=sha256_payload(
             {"solver": dict(cfg["solver"]), "k_grid": dict(cfg["k_grid"])}
         ),
-        output_schema="phc2d.full_cell.v1",
+        output_schema=output_schema,
         case_plan="sample_plan.jsonl",
     ).to_mapping()
     physical["shard_count"] = int(shard_count)
@@ -370,7 +376,7 @@ def finalize_full_cell_hpc(
         if split_labels != expected_labels:
             raise ValueError("Frozen split labels changed during finalization")
         metadata = {
-            "protocol": "full_cell_v1",
+            "protocol": str(dict(cfg["dataset"]).get("protocol", "full_cell_v1")),
             "lane": dict(cfg["dataset"])["lane"],
             "sample_count": len(jobs),
             "split": split_counts,

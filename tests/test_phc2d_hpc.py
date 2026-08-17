@@ -217,3 +217,5 @@ def test_repository_platform_profiles_and_slurm_pipeline_are_consistent() -> Non
     assert "--dependency=afterok:" in submit
     assert "--array=" in submit
     assert "PHC2D_SUBMIT_MODE:-dry-run" in submit
+    assert "PHC2D_NODE_TIER" in submit
+    assert "when PHC2D_NODE_TIER is unset" in submit
