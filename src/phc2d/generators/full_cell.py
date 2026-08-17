@@ -14,7 +14,11 @@ from typing import Any
 import numpy as np
 from scipy.ndimage import label
 
-from phc2d.data.full_cell import FullCellStructureSpec
+from phc2d.data.full_cell_fourier import (
+    evaluate_real_fourier_field,
+    periodic_cell_centers,
+)
+from phc2d.data.full_cell_spec import FullCellStructureSpec
 
 
 def _stable_seed(master_seed: int, *parts: Any) -> int:
@@ -58,21 +62,6 @@ def _real_fourier_modes(rng: np.random.Generator, *, cutoff: int, envelope_power
                 }
             )
     return modes
-
-
-def _field_from_modes(x: np.ndarray, y: np.ndarray, modes: Sequence[Mapping[str, Any]]) -> np.ndarray:
-    field = np.zeros(np.broadcast_shapes(x.shape, y.shape), dtype=np.float64)
-    x_arr, y_arr = np.broadcast_arrays(x, y)
-    for row in modes:
-        phase = 2.0 * np.pi * (int(row["mx"]) * x_arr + int(row["my"]) * y_arr)
-        field += float(row["cos"]) * np.cos(phase) + float(row["sin"]) * np.sin(phase)
-    return field
-
-
-def _grid(resolution: int) -> tuple[np.ndarray, np.ndarray]:
-    n = int(resolution)
-    axis = -0.5 + (np.arange(n, dtype=np.float64) + 0.5) / float(n)
-    return np.meshgrid(axis, axis, indexing="xy")
 
 
 def _float_range(
@@ -239,7 +228,7 @@ def generate_graded_rbf_fourier(
         strength = float(rng.uniform(*strength_range))
         temperature = float(rng.uniform(*temperature_range))
         target = float(rng.uniform(*target_range))
-        x, y = _grid(audit_resolution)
+        x, y = periodic_cell_centers((audit_resolution, audit_resolution))
         raw_payload = {
             "blobs": blobs,
             "modes": modes,
@@ -387,7 +376,7 @@ def generate_binary_spectral_threshold(
     cutoff = int(cfg.get("fourier_cutoff", 6))
     max_attempts = int(cfg.get("max_attempts", 512))
     cutoff_scale_range = _float_range(cfg, "spectral_cutoff_scale_range", (2.5, 4.5))
-    x, y = _grid(audit_resolution)
+    x, y = periodic_cell_centers((audit_resolution, audit_resolution))
     for attempt in range(max_attempts):
         k_c = float(rng.uniform(*cutoff_scale_range))
         modes: list[dict[str, float | int]] = []
@@ -405,7 +394,7 @@ def generate_binary_spectral_threshold(
                         "sin": float(rng.normal(0.0, scale)),
                     }
                 )
-        field = _field_from_modes(x, y, modes)
+        field = evaluate_real_fourier_field(x, y, modes)
         std = float(np.std(field))
         if std <= 1.0e-12:
             continue
