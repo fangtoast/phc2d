@@ -90,6 +90,8 @@ def test_formal_results_navigation_is_an_explicit_whitelist() -> None:
         "results/inverse/a2_inverse_surrogate_postrepair_validation_v2_20260802.md",
         "results/全胞数据正式结果.md",
         "results/data-provenance/full_cell_dual_lane_pilot_20260803.md",
+        "results/data-provenance/全胞MPB分辨率收敛验证_20260817.md",
+        "results/data-provenance/全胞Fourier_64加64星仪试点_20260817.md",
         "results/forward/full_cell_dual_lane_forward_training_20260806.md",
         "results/forward/full_cell_dual_lane_50000_forward_training_20260808.md",
         "results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md",
