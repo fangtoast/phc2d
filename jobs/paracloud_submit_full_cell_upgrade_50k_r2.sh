@@ -70,7 +70,7 @@ for row in rows:
 PY
 
 mkdir -p "$campaign_dir/slurm"
-job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 --mem=60G -t 00:30:00 \
+job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t 00:30:00 \
   -J fcup50_r2_s0 \
   -o "$campaign_dir/slurm/r2_%j.out" -e "$campaign_dir/slurm/r2_%j.err" \
   --export="ALL,PHC2D_UPGRADE_50K_R2_CAMPAIGN=$campaign_dir" \
@@ -82,4 +82,3 @@ job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 --mem=60G -t 00:30:00 
   echo "submitted_at=$(date -Is)"
 } > "$campaign_dir/submission.env"
 printf 'job_id=%s\n' "$job_id"
-
