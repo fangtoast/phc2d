@@ -33,6 +33,9 @@ EXPECTED_UPGRADE_SOURCES = 27
 EXPECTED_BASELINE_SOURCES = 24
 EXPECTED_EXECUTABLE_CELLS = 126
 EXPECTED_NOT_APPLICABLE_CELLS = 18
+R2_SUPPLEMENT_SEED = 0
+EXPECTED_R2_NATIVE_CELLS = 18
+EXPECTED_R2_CHECKPOINTS = 17
 RESOLUTION_MODELS = {
     "mlp_mixer_band_v1",
     "convnext_band_v1",
@@ -41,6 +44,78 @@ RESOLUTION_MODELS = {
 }
 LANE_TO_REPRESENTATION = {"B": "binary", "G": "continuous"}
 REPRESENTATION_TO_LANE = {value: key for key, value in LANE_TO_REPRESENTATION.items()}
+
+
+def coordinate_r2_statistics(target: Any, prediction: Any) -> dict[str, Any]:
+    """Compute POST-style R2 independently for every non-sample output coordinate."""
+
+    target_array = np.asarray(target, dtype=np.float64)
+    prediction_array = np.asarray(prediction, dtype=np.float64)
+    if target_array.shape != prediction_array.shape:
+        raise ValueError(
+            f"target/prediction shape mismatch: {target_array.shape} != {prediction_array.shape}"
+        )
+    if target_array.ndim < 2 or target_array.shape[0] < 2:
+        raise ValueError("R2 requires at least two samples and one output dimension")
+    if not np.all(np.isfinite(target_array)) or not np.all(np.isfinite(prediction_array)):
+        raise ValueError("R2 inputs must be finite")
+    error = target_array - prediction_array
+    target_mean = np.mean(target_array, axis=0, dtype=np.float64)
+    centered = target_array - target_mean
+    sse = np.sum(error * error, axis=0, dtype=np.float64)
+    sst = np.sum(centered * centered, axis=0, dtype=np.float64)
+    valid = sst > 0.0
+    r2 = np.full(sst.shape, np.nan, dtype=np.float64)
+    r2[valid] = 1.0 - sse[valid] / sst[valid]
+    return {
+        "n_samples": int(target_array.shape[0]),
+        "sse": sse,
+        "sst": sst,
+        "r2": r2,
+        "valid": valid,
+    }
+
+
+def summarize_coordinate_r2(
+    statistics_payload: Mapping[str, Any],
+    *,
+    band_start_zero_based: int = 0,
+) -> dict[str, Any]:
+    """Summarize coordinate-wise R2 without pooling different output means."""
+
+    sse = np.asarray(statistics_payload["sse"], dtype=np.float64)
+    sst = np.asarray(statistics_payload["sst"], dtype=np.float64)
+    r2 = np.asarray(statistics_payload["r2"], dtype=np.float64)
+    valid = np.asarray(statistics_payload["valid"], dtype=bool)
+    if sse.shape != sst.shape or sse.shape != r2.shape or sse.shape != valid.shape:
+        raise ValueError("R2 statistic arrays must have identical shapes")
+    if sse.ndim != 2:
+        raise ValueError(f"Full-Wh R2 expects [k, band] statistics, got {sse.shape}")
+    start = int(band_start_zero_based)
+    if not 0 <= start < sse.shape[1]:
+        raise ValueError(f"band_start_zero_based out of range: {start}")
+    sse_selected = sse[:, start:]
+    sst_selected = sst[:, start:]
+    r2_selected = r2[:, start:]
+    valid_selected = valid[:, start:]
+    total_sst = float(np.sum(sst_selected, dtype=np.float64))
+    if total_sst <= 0.0:
+        raise ValueError("variance-weighted R2 is undefined because total SST is zero")
+    values = r2_selected[valid_selected]
+    if not values.size:
+        raise ValueError("coordinate R2 has no defined output coordinates")
+    return {
+        "variance_weighted_r2": float(
+            1.0 - np.sum(sse_selected, dtype=np.float64) / total_sst
+        ),
+        "coordinate_r2_mean": float(np.mean(values)),
+        "coordinate_r2_median": float(np.median(values)),
+        "coordinate_r2_p05": float(np.quantile(values, 0.05)),
+        "coordinate_r2_min": float(np.min(values)),
+        "negative_coordinate_fraction": float(np.mean(values < 0.0)),
+        "defined_coordinate_count": int(values.size),
+        "undefined_coordinate_count": int(valid_selected.size - values.size),
+    }
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:
@@ -572,6 +647,558 @@ def _evaluate_cell(
         for index, value in enumerate(per_band_sum)
     ]
     return metrics, per_band, indices, sample_values
+
+
+def plan_r2_supplement(
+    parent_campaign: str | Path,
+    *,
+    output_dir: str | Path,
+    repository_root: str | Path = ".",
+    seed: int = R2_SUPPLEMENT_SEED,
+) -> Path:
+    """Freeze the seed-0 native-only R2 supplement from a completed parent campaign."""
+
+    if int(seed) != R2_SUPPLEMENT_SEED:
+        raise ValueError(f"the frozen R2 supplement requires seed={R2_SUPPLEMENT_SEED}")
+    root = Path(repository_root).resolve()
+    parent = _resolve(root, parent_campaign)
+    output = _resolve(root, output_dir)
+    if output.exists() and any(output.iterdir()):
+        raise FileExistsError(f"R2 supplement campaign is not empty: {output}")
+    parent_result = _read_json(parent / "results.json")
+    if parent_result.get("status") != "formal_upgrade_50k_evaluation_success":
+        raise RuntimeError("R2 supplement requires a finalized frozen 50k evaluation")
+    parent_config = yaml.safe_load((parent / "config.resolved.yaml").read_text(encoding="utf-8"))
+    if _sha256(parent / "evaluation_plan.csv") != str(parent_config["plan_hash"]):
+        raise RuntimeError("parent evaluation plan hash changed")
+    parent_plan = _read_csv(parent / "evaluation_plan.csv")
+    selected = [
+        dict(row)
+        for row in parent_plan
+        if row["planned_status"] == "planned"
+        and str(row["contract"]).startswith("native_")
+        and int(row["seed"]) == int(seed)
+        and int(row["evaluation_resolution"]) == 64
+    ]
+    selected.sort(
+        key=lambda row: (
+            row["target_lane"],
+            row["source_group"],
+            row["model"],
+            row["source_lane"],
+        )
+    )
+    if len(selected) != EXPECTED_R2_NATIVE_CELLS:
+        raise RuntimeError(f"R2 plan requires 18 native seed-0 cells, got {len(selected)}")
+    if {int(row["seed"]) for row in selected} != {R2_SUPPLEMENT_SEED}:
+        raise RuntimeError("R2 plan contains a non-zero seed")
+    if any(not str(row["contract"]).startswith("native_") for row in selected):
+        raise RuntimeError("R2 plan contains a non-native evaluation")
+    source_ids = {row["source_id"] for row in selected}
+    if len(source_ids) != EXPECTED_R2_CHECKPOINTS:
+        raise RuntimeError(f"R2 plan requires 17 checkpoints, got {len(source_ids)}")
+    inventory = [
+        row for row in _read_csv(parent / "checkpoint_inventory.csv") if row["source_id"] in source_ids
+    ]
+    if len(inventory) != EXPECTED_R2_CHECKPOINTS:
+        raise RuntimeError("R2 checkpoint inventory is incomplete")
+    output.mkdir(parents=True, exist_ok=True)
+    _write_csv(output / "evaluation_plan.csv", selected)
+    _write_csv(output / "checkpoint_inventory.csv", inventory)
+    plan_hash = _sha256(output / "evaluation_plan.csv")
+    config = {
+        "schema_version": "phc2d.full_cell_upgrade_50k_r2.v1",
+        "parent_campaign": _relative(root, parent),
+        "parent_results_sha256": _sha256(parent / "results.json"),
+        "parent_plan_sha256": _sha256(parent / "evaluation_plan.csv"),
+        "parent_evaluation_cells_sha256": _sha256(parent / "evaluation_cells.csv"),
+        "plan_hash": plan_hash,
+        "seed": int(seed),
+        "expected_cells": EXPECTED_R2_NATIVE_CELLS,
+        "expected_checkpoints": EXPECTED_R2_CHECKPOINTS,
+        "datasets": parent_config["datasets"],
+        "batch_size": 64,
+        "precision": "fp32",
+        "amp_enabled": False,
+        "tf32_enabled": False,
+        "primary_metric": "bands_2_10_coordinate_centered_variance_weighted_r2",
+        "metric_boundary": "surrogate_held_out_supplement_not_promotion_or_physical_validation",
+    }
+    (output / "config.resolved.yaml").write_text(
+        yaml.safe_dump(config, sort_keys=False, allow_unicode=True), encoding="utf-8"
+    )
+    _write_json(
+        output / "campaign_status.json",
+        {
+            "status": "r2_supplement_plan_ready",
+            "plan_hash": plan_hash,
+            "seed": int(seed),
+            "evaluation_cells": len(selected),
+            "checkpoint_count": len(source_ids),
+            "test_metrics_read": False,
+            "next_gate": "authorized_single_gpu_seed0_r2_evaluation",
+        },
+    )
+    return output
+
+
+def _evaluate_cell_r2(
+    *,
+    model: Any,
+    model_spec: Any,
+    payload: Mapping[str, Any],
+    row: Mapping[str, str],
+    dataset_contract: Mapping[str, Any],
+    root: Path,
+    device_info: Any,
+    torch: Any,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    import h5py
+    from torch.utils.data import DataLoader
+
+    target_lane = str(row["target_lane"])
+    source_lane = str(row["source_lane"])
+    path = _resolve(root, dataset_contract["path"])
+    if path.stat().st_size != int(dataset_contract["size_bytes"]):
+        raise RuntimeError(f"dataset size changed after R2 freeze: {path}")
+    with h5py.File(path, "r") as handle:
+        indices = np.asarray(handle["idx_test"], dtype=np.int64)
+        k_points_np = np.asarray(handle["k_points"], dtype=np.float32)
+    if _sha256_array(indices) != dataset_contract["idx_test_sha256"]:
+        raise RuntimeError(f"test split hash changed for lane {target_lane}")
+    if _sha256_array(k_points_np) != dataset_contract["k_points_sha256"]:
+        raise RuntimeError(f"k-point hash changed for lane {target_lane}")
+    mean_np, std_np = _source_normalizer(payload, source_lane=source_lane, target_lane=target_lane)
+    dataset = _FullCellH5Dataset(
+        path=path,
+        indices=indices,
+        grid_field=str(dict(dataset_contract["grid_fields"])[64]),
+        layout=str(model_spec.input_layout),
+        sampling=str(dataset_contract["sampling"]),
+        threshold=dataset_contract["threshold"],
+        target_mean=mean_np,
+        target_std=std_np,
+    )
+    loader = DataLoader(
+        dataset,
+        batch_size=64,
+        shuffle=False,
+        num_workers=int(device_info.num_workers),
+        pin_memory=bool(device_info.pin_memory),
+    )
+    k_points = (
+        torch.as_tensor(k_points_np, dtype=torch.float32, device=device_info.torch_device)
+        if model_spec.accepts_k_points
+        else None
+    )
+    lane_index = None if source_lane != "J" else (0 if target_lane == "B" else 1)
+    mean = torch.as_tensor(mean_np, dtype=torch.float32, device=device_info.torch_device)
+    std = torch.as_tensor(std_np, dtype=torch.float32, device=device_info.torch_device)
+    prediction_batches: list[np.ndarray] = []
+    target_batches: list[np.ndarray] = []
+    model.eval()
+    if device_info.is_cuda:
+        torch.cuda.synchronize(device_info.torch_device)
+    started = time.perf_counter()
+    with torch.no_grad():
+        for xb, yb in loader:
+            xb = xb.to(device_info.torch_device, non_blocking=True)
+            yb = yb.to(device_info.torch_device, non_blocking=True)
+            prediction_norm = _forward_model(
+                model,
+                xb,
+                model_spec=model_spec,
+                k_points=k_points,
+                lane_index=lane_index,
+                torch=torch,
+            )
+            prediction_batches.append(
+                (prediction_norm * std + mean).detach().cpu().numpy().astype(np.float64, copy=False)
+            )
+            target_batches.append((yb * std + mean).detach().cpu().numpy().astype(np.float64, copy=False))
+    if device_info.is_cuda:
+        torch.cuda.synchronize(device_info.torch_device)
+    elapsed = time.perf_counter() - started
+    prediction = np.concatenate(prediction_batches, axis=0)
+    target = np.concatenate(target_batches, axis=0)
+    if prediction.shape != target.shape or prediction.shape[0] != int(dataset_contract["test_count"]):
+        raise RuntimeError(f"R2 prediction shape mismatch for {row['evaluation_id']}: {prediction.shape}")
+    statistics_payload = coordinate_r2_statistics(target, prediction)
+    full = summarize_coordinate_r2(statistics_payload, band_start_zero_based=0)
+    bands_2_10 = summarize_coordinate_r2(statistics_payload, band_start_zero_based=1)
+    relative = np.abs(prediction - target) / np.maximum(np.abs(target), 1.0e-8)
+    metrics = {
+        **{f"full_{key}": value for key, value in full.items()},
+        **{f"bands_2_10_{key}": value for key, value in bands_2_10.items()},
+        "test_full_matrix_mre_pct": float(100.0 * np.mean(relative)),
+        "test_bands_2_10_mre_pct": float(100.0 * np.mean(relative[..., 1:])),
+        "n_test": int(target.shape[0]),
+        "eval_time_s": elapsed,
+        "inference_time_per_sample_ms": 1000.0 * elapsed / max(target.shape[0], 1),
+        "throughput_samples_per_s": target.shape[0] / max(elapsed, 1.0e-12),
+    }
+    coordinate_rows: list[dict[str, Any]] = []
+    r2_values = np.asarray(statistics_payload["r2"], dtype=np.float64)
+    valid = np.asarray(statistics_payload["valid"], dtype=bool)
+    sse = np.asarray(statistics_payload["sse"], dtype=np.float64)
+    sst = np.asarray(statistics_payload["sst"], dtype=np.float64)
+    for k_index in range(r2_values.shape[0]):
+        for band_index in range(r2_values.shape[1]):
+            is_valid = bool(valid[k_index, band_index])
+            coordinate_rows.append(
+                {
+                    "evaluation_id": row["evaluation_id"],
+                    "k_index_zero_based": k_index,
+                    "k_index_one_based": k_index + 1,
+                    "band_one_based": band_index + 1,
+                    "sse": float(sse[k_index, band_index]),
+                    "sst": float(sst[k_index, band_index]),
+                    "r2": float(r2_values[k_index, band_index]) if is_valid else "",
+                    "r2_status": "defined" if is_valid else "undefined_zero_target_variance",
+                }
+            )
+    band_rows: list[dict[str, Any]] = []
+    for band_index in range(r2_values.shape[1]):
+        band_stats = {
+            "sse": sse[:, band_index : band_index + 1],
+            "sst": sst[:, band_index : band_index + 1],
+            "r2": r2_values[:, band_index : band_index + 1],
+            "valid": valid[:, band_index : band_index + 1],
+        }
+        summary = summarize_coordinate_r2(band_stats, band_start_zero_based=0)
+        band_rows.append(
+            {
+                "evaluation_id": row["evaluation_id"],
+                "band_one_based": band_index + 1,
+                **summary,
+            }
+        )
+    return metrics, coordinate_rows, band_rows
+
+
+def run_r2_supplement(
+    campaign_dir: str | Path,
+    *,
+    repository_root: str | Path = ".",
+) -> Path:
+    """Evaluate all frozen seed-0 native R2 cells on one GPU."""
+
+    root = Path(repository_root).resolve()
+    campaign = _resolve(root, campaign_dir)
+    config = yaml.safe_load((campaign / "config.resolved.yaml").read_text(encoding="utf-8"))
+    if config.get("schema_version") != "phc2d.full_cell_upgrade_50k_r2.v1":
+        raise RuntimeError("unsupported R2 supplement schema")
+    if _sha256(campaign / "evaluation_plan.csv") != str(config["plan_hash"]):
+        raise RuntimeError("R2 evaluation plan hash changed")
+    parent = _resolve(root, config["parent_campaign"])
+    for filename, key in (
+        ("results.json", "parent_results_sha256"),
+        ("evaluation_plan.csv", "parent_plan_sha256"),
+        ("evaluation_cells.csv", "parent_evaluation_cells_sha256"),
+    ):
+        if _sha256(parent / filename) != str(config[key]):
+            raise RuntimeError(f"parent artifact changed: {filename}")
+    plan = _read_csv(campaign / "evaluation_plan.csv")
+    if len(plan) != EXPECTED_R2_NATIVE_CELLS or {int(row["seed"]) for row in plan} != {0}:
+        raise RuntimeError("R2 plan does not contain exactly 18 seed-0 cells")
+    output = campaign / "shards" / "shard_00"
+    if output.exists():
+        raise FileExistsError(f"R2 shard already exists: {output}")
+    output.mkdir(parents=True)
+    import torch
+
+    device_info = resolve_device(
+        DeviceConfig(
+            device="cuda:0",
+            require_accelerator=True,
+            precision="fp32",
+            amp_enabled=False,
+            tf32_enabled=False,
+            num_workers=4,
+            pin_memory=True,
+        ),
+        torch_module=torch,
+    )
+    torch.cuda.reset_peak_memory_stats(device_info.torch_device)
+    grouped: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in plan:
+        grouped[row["source_id"]].append(row)
+    result_rows: list[dict[str, Any]] = []
+    coordinate_rows: list[dict[str, Any]] = []
+    band_rows: list[dict[str, Any]] = []
+    started = time.perf_counter()
+    for source_id in sorted(grouped):
+        rows = sorted(grouped[source_id], key=lambda row: row["target_lane"])
+        first = rows[0]
+        checkpoint = _resolve(root, first["checkpoint_path"])
+        if _sha256(checkpoint) != first["checkpoint_sha256"]:
+            raise RuntimeError(f"checkpoint changed after R2 freeze: {checkpoint}")
+        payload = _checkpoint_payload(checkpoint, device=device_info.torch_device, torch=torch)
+        if str(payload.get("model_name")) != first["model"]:
+            raise RuntimeError(f"checkpoint model identity mismatch: {source_id}")
+        spec = get_model_spec(first["model"])
+        model_kwargs = dict(payload["model_params"])
+        if spec.accepts_k_points:
+            model_kwargs["k_points"] = payload.get("k_points")
+        model = build_model(
+            spec.name,
+            input_shape=tuple(payload["input_shape"]),
+            output_shape=tuple(payload["output_shape"]),
+            **model_kwargs,
+        ).to(device_info.torch_device)
+        model.load_state_dict(payload["state_dict"])
+        parameter_count = int(sum(parameter.numel() for parameter in model.parameters()))
+        for row in rows:
+            metrics, coordinates, bands = _evaluate_cell_r2(
+                model=model,
+                model_spec=spec,
+                payload=payload,
+                row=row,
+                dataset_contract=dict(config["datasets"])[row["target_lane"]],
+                root=root,
+                device_info=device_info,
+                torch=torch,
+            )
+            result_rows.append(
+                {
+                    **row,
+                    **metrics,
+                    "parameter_count": parameter_count,
+                    "status": "completed",
+                    "fine_tuned": False,
+                }
+            )
+            coordinate_rows.extend(coordinates)
+            band_rows.extend(bands)
+            _write_csv(output / "history.csv", result_rows)
+    wall = time.perf_counter() - started
+    _write_csv(output / "r2_native_seed0_metrics.csv", result_rows)
+    _write_csv(output / "r2_coordinate_metrics.csv", coordinate_rows)
+    _write_csv(output / "r2_per_band_summary.csv", band_rows)
+    peak = float(torch.cuda.max_memory_allocated(device_info.torch_device) / (1024**2))
+    _write_json(
+        output / "metrics.json",
+        {
+            "evaluation_cells": len(result_rows),
+            "coordinate_rows": len(coordinate_rows),
+            "per_band_rows": len(band_rows),
+            "wall_time_total_s": wall,
+            "eval_time_total_s": sum(float(row["eval_time_s"]) for row in result_rows),
+            "peak_gpu_memory_mb": peak,
+        },
+    )
+    _write_json(
+        output / "results.json",
+        {
+            "status": "formal_upgrade_50k_r2_seed0_shard_success",
+            "seed": 0,
+            "completed_cells": len(result_rows),
+            "plan_hash": config["plan_hash"],
+        },
+    )
+    _write_json(
+        output / "run.meta.json",
+        {
+            "script": "python -m phc2d.forward.full_cell_upgrade_50k_evaluation run-r2",
+            "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
+            "git_commit": os.environ.get("PHC2D_DEPLOYED_GIT_COMMIT"),
+            **device_info.metadata(),
+        },
+    )
+    (output / "config.resolved.yaml").write_text(
+        yaml.safe_dump({"campaign": _relative(root, campaign), "seed": 0}, sort_keys=False),
+        encoding="utf-8",
+    )
+    (output / "run.log").write_text("formal seed-0 native R2 evaluation completed.\n", encoding="utf-8")
+    return output
+
+
+def _plot_r2_supplement(
+    campaign: Path,
+    result_rows: Sequence[Mapping[str, Any]],
+    coordinate_rows: Sequence[Mapping[str, Any]],
+) -> None:
+    import matplotlib.pyplot as plt
+
+    figures = campaign / "figures"
+    figures.mkdir(parents=True, exist_ok=True)
+    figure, axes = plt.subplots(1, 2, figsize=(13, 5), sharey=False)
+    for axis, lane in zip(axes, ("B", "G"), strict=True):
+        rows = sorted(
+            (row for row in result_rows if row["target_lane"] == lane),
+            key=lambda row: float(row["bands_2_10_variance_weighted_r2"]),
+            reverse=True,
+        )
+        labels = [str(row["model"]) for row in rows]
+        values = [float(row["bands_2_10_variance_weighted_r2"]) for row in rows]
+        positions = np.arange(len(rows))
+        axis.barh(positions, values, color="#3f78a8")
+        axis.set_yticks(positions, labels)
+        axis.invert_yaxis()
+        axis.axvline(0.0, color="black", linewidth=0.8)
+        axis.set_title(f"{lane} lane, seed 0")
+        axis.set_xlabel("Bands 2-10 variance-weighted R²")
+        axis.grid(axis="x", alpha=0.25)
+    figure.tight_layout()
+    for suffix in ("png", "pdf"):
+        figure.savefig(figures / f"r2_native_seed0_model_comparison.{suffix}", dpi=200)
+    plt.close(figure)
+
+    figure, axes = plt.subplots(1, 2, figsize=(13, 5), constrained_layout=True)
+    for axis, lane in zip(axes, ("B", "G"), strict=True):
+        rows = [
+            row
+            for row in coordinate_rows
+            if row["model"] == "convnext_band_v1" and row["target_lane"] == lane
+        ]
+        grid = np.full((81, 10), np.nan, dtype=np.float64)
+        for row in rows:
+            if row["r2_status"] == "defined":
+                grid[int(row["k_index_zero_based"]), int(row["band_one_based"]) - 1] = float(row["r2"])
+        image = axis.imshow(grid.T, aspect="auto", origin="lower", cmap="viridis")
+        axis.set_title(f"ConvNeXt {lane}, seed 0")
+        axis.set_xlabel("k index")
+        axis.set_ylabel("Band")
+        axis.set_yticks(np.arange(10), np.arange(1, 11))
+        figure.colorbar(image, ax=axis, label="Coordinate R²")
+    for suffix in ("png", "pdf"):
+        figure.savefig(figures / f"convnext_seed0_coordinate_r2_heatmap.{suffix}", dpi=200)
+    plt.close(figure)
+
+
+def finalize_r2_supplement(
+    campaign_dir: str | Path,
+    *,
+    repository_root: str | Path = ".",
+) -> Path:
+    """Validate, summarize, and plot the single-shard seed-0 R2 supplement."""
+
+    root = Path(repository_root).resolve()
+    campaign = _resolve(root, campaign_dir)
+    config = yaml.safe_load((campaign / "config.resolved.yaml").read_text(encoding="utf-8"))
+    shard = campaign / "shards" / "shard_00"
+    required = (
+        "run.log",
+        "run.meta.json",
+        "config.resolved.yaml",
+        "results.json",
+        "metrics.json",
+        "history.csv",
+        "r2_native_seed0_metrics.csv",
+        "r2_coordinate_metrics.csv",
+        "r2_per_band_summary.csv",
+        "n40_profile.csv",
+        "n40_profile.json",
+    )
+    missing = [name for name in required if not (shard / name).is_file() or not (shard / name).stat().st_size]
+    if missing:
+        raise RuntimeError(f"R2 shard is incomplete: {missing}")
+    result = _read_json(shard / "results.json")
+    profile = _read_json(shard / "n40_profile.json")
+    if result.get("status") != "formal_upgrade_50k_r2_seed0_shard_success":
+        raise RuntimeError("R2 shard did not succeed")
+    if result.get("plan_hash") != config["plan_hash"] or profile.get("status") != "profile_collected":
+        raise RuntimeError("R2 shard provenance/profile mismatch")
+    result_rows = _read_csv(shard / "r2_native_seed0_metrics.csv")
+    coordinate_rows = _read_csv(shard / "r2_coordinate_metrics.csv")
+    band_rows = _read_csv(shard / "r2_per_band_summary.csv")
+    if len(result_rows) != EXPECTED_R2_NATIVE_CELLS:
+        raise RuntimeError(f"R2 result count mismatch: {len(result_rows)}")
+    if len(coordinate_rows) != EXPECTED_R2_NATIVE_CELLS * 81 * 10:
+        raise RuntimeError(f"R2 coordinate count mismatch: {len(coordinate_rows)}")
+    if len(band_rows) != EXPECTED_R2_NATIVE_CELLS * 10:
+        raise RuntimeError(f"R2 per-band count mismatch: {len(band_rows)}")
+    parent = _resolve(root, config["parent_campaign"])
+    if _sha256(parent / "evaluation_cells.csv") != config["parent_evaluation_cells_sha256"]:
+        raise RuntimeError("parent evaluation metrics changed before R2 finalization")
+    reference = {row["evaluation_id"]: row for row in _read_csv(parent / "evaluation_cells.csv")}
+    for row in result_rows:
+        original = reference.get(row["evaluation_id"])
+        if original is None:
+            raise RuntimeError(f"R2 cell is absent from parent evaluation: {row['evaluation_id']}")
+        for key in ("test_bands_2_10_mre_pct", "test_full_matrix_mre_pct"):
+            if not math.isclose(float(row[key]), float(original[key]), rel_tol=0.0, abs_tol=1.0e-6):
+                raise RuntimeError(f"R2 replay does not reproduce parent {key}: {row['evaluation_id']}")
+    identity = {
+        row["evaluation_id"]: {
+            "model": row["model"],
+            "target_lane": row["target_lane"],
+            "source_group": row["source_group"],
+            "source_lane": row["source_lane"],
+            "seed": row["seed"],
+        }
+        for row in result_rows
+    }
+    enriched_coordinates = [{**identity[row["evaluation_id"]], **row} for row in coordinate_rows]
+    enriched_bands = [{**identity[row["evaluation_id"]], **row} for row in band_rows]
+    _write_csv(campaign / "r2_native_seed0_metrics.csv", result_rows)
+    _write_csv(campaign / "r2_coordinate_metrics.csv", enriched_coordinates)
+    _write_csv(campaign / "r2_per_band_summary.csv", enriched_bands)
+    _write_csv(campaign / "history.csv", result_rows)
+    _plot_r2_supplement(campaign, result_rows, enriched_coordinates)
+    best_by_lane = {
+        lane: max(
+            (row for row in result_rows if row["target_lane"] == lane),
+            key=lambda row: float(row["bands_2_10_variance_weighted_r2"]),
+        )["model"]
+        for lane in ("B", "G")
+    }
+    shard_metrics = _read_json(shard / "metrics.json")
+    _write_json(
+        campaign / "metrics.json",
+        {
+            **shard_metrics,
+            "seed": 0,
+            "native_cells": len(result_rows),
+            "checkpoint_count": EXPECTED_R2_CHECKPOINTS,
+            "undefined_coordinate_rows": sum(
+                row["r2_status"] != "defined" for row in enriched_coordinates
+            ),
+        },
+    )
+    _write_json(
+        campaign / "results.json",
+        {
+            "status": "formal_upgrade_50k_r2_seed0_success",
+            "formal_completed": True,
+            "seed": 0,
+            "native_cells": len(result_rows),
+            "best_bands_2_10_r2_model_by_lane": best_by_lane,
+            "primary_metric": config["primary_metric"],
+            "evidence_level": "surrogate_held_out",
+            "evidence_role": "retrospective_r2_supplement_not_promotion",
+            "physically_verified": False,
+            "post_directly_comparable": False,
+            "parent_campaign": config["parent_campaign"],
+            "next_gate": "human_review_of_r2_supplement",
+        },
+    )
+    _write_json(
+        campaign / "run.meta.json",
+        {
+            "script": "python -m phc2d.forward.full_cell_upgrade_50k_evaluation finalize-r2",
+            "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            "git_commit": os.environ.get("PHC2D_DEPLOYED_GIT_COMMIT"),
+            "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
+            "parent_campaign": config["parent_campaign"],
+        },
+    )
+    (campaign / "run.log").write_text(
+        "formal seed-0 native R2 supplement finalized; parent promotion unchanged.\n",
+        encoding="utf-8",
+    )
+    _write_json(
+        campaign / "campaign_status.json",
+        {
+            "status": "formal_upgrade_50k_r2_seed0_success",
+            "seed": 0,
+            "evaluation_cells": len(result_rows),
+            "checkpoint_count": EXPECTED_R2_CHECKPOINTS,
+            "next_gate": "human_review_of_r2_supplement",
+        },
+    )
+    return campaign
 
 
 def run_evaluation_shard(
@@ -1809,6 +2436,17 @@ def main(argv: Sequence[str] | None = None) -> None:
     render.add_argument("--campaign-dir", required=True)
     render.add_argument("--threshold-dir")
     render.add_argument("--repository-root", default=".")
+    r2_plan = subparsers.add_parser("plan-r2")
+    r2_plan.add_argument("--parent-campaign", required=True)
+    r2_plan.add_argument("--output-dir", required=True)
+    r2_plan.add_argument("--repository-root", default=".")
+    r2_plan.add_argument("--seed", type=int, default=R2_SUPPLEMENT_SEED)
+    r2_run = subparsers.add_parser("run-r2")
+    r2_run.add_argument("--campaign-dir", required=True)
+    r2_run.add_argument("--repository-root", default=".")
+    r2_finalize = subparsers.add_parser("finalize-r2")
+    r2_finalize.add_argument("--campaign-dir", required=True)
+    r2_finalize.add_argument("--repository-root", default=".")
     args = parser.parse_args(argv)
     if args.command == "plan":
         print(
@@ -1843,7 +2481,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
     elif args.command == "finalize-threshold":
         print(finalize_threshold_diagnostic(args.threshold_dir, repository_root=args.repository_root))
-    else:
+    elif args.command == "render-report":
         print(
             render_final_markdown_report(
                 args.campaign_dir,
@@ -1851,6 +2489,19 @@ def main(argv: Sequence[str] | None = None) -> None:
                 repository_root=args.repository_root,
             )
         )
+    elif args.command == "plan-r2":
+        print(
+            plan_r2_supplement(
+                args.parent_campaign,
+                output_dir=args.output_dir,
+                repository_root=args.repository_root,
+                seed=args.seed,
+            )
+        )
+    elif args.command == "run-r2":
+        print(run_r2_supplement(args.campaign_dir, repository_root=args.repository_root))
+    else:
+        print(finalize_r2_supplement(args.campaign_dir, repository_root=args.repository_root))
 
 
 if __name__ == "__main__":
@@ -1860,9 +2511,14 @@ if __name__ == "__main__":
 __all__ = [
     "build_evaluation_cells",
     "finalize_evaluation_campaign",
+    "finalize_r2_supplement",
     "finalize_threshold_diagnostic",
+    "coordinate_r2_statistics",
     "plan_threshold_diagnostic",
     "plan_evaluation_campaign",
+    "plan_r2_supplement",
     "run_evaluation_shard",
+    "run_r2_supplement",
     "run_threshold_shard",
+    "summarize_coordinate_r2",
 ]
