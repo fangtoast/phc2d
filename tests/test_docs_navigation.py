@@ -92,9 +92,11 @@ def test_formal_results_navigation_is_an_explicit_whitelist() -> None:
         "results/data-provenance/full_cell_dual_lane_pilot_20260803.md",
         "results/data-provenance/全胞MPB分辨率收敛验证_20260817.md",
         "results/data-provenance/全胞Fourier_64加64星仪试点_20260817.md",
+        "results/data-provenance/全胞Fourier高频截断配对试验_20260817.md",
         "results/forward/full_cell_dual_lane_forward_training_20260806.md",
         "results/forward/full_cell_dual_lane_50000_forward_training_20260808.md",
         "results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md",
+        "results/forward/全胞前向50K模型R方补充评估_20260819.md",
         "results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md",
         "reports/全胞双路线正向与逆向模型报告_20260810.md",
     }

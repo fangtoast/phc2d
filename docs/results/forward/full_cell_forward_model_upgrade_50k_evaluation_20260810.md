@@ -16,6 +16,7 @@ evidence_status: completed
 validation_backend: surrogate_only
 source_artifacts:
   - runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944
+  - runs/20260819/full_cell_upgrade_50k_r2_seed0_202608191658
 ---
 
 <!--
@@ -36,6 +37,8 @@ source_artifacts:
 > **Evidence campaign:** `runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944`  
 > **Evaluation jobs:** Slurm array `5401548`；finalizer `5401549`  
 > **Threshold campaign:** planned but not submitted; N40 returned `AssocMaxSubmitJobLimit`
+
+> **2026-08-19 补充：** 已使用冻结 checkpoint 对全部 native 模型补算 seed 0 的逐坐标中心化 R²；ConvNeXt 在 B/G lane 分别为 0.997287/0.999627。公式与 POST 互通，但任务数值不可直接比较。详见[单 seed R²补充评估](全胞前向50K模型R方补充评估_20260819.md)。
 
 ## 1. 本轮最重要的实验结论
 

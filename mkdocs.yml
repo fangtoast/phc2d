@@ -148,6 +148,7 @@ nav:
           - 全胞双路线 10k: results/forward/full_cell_dual_lane_forward_training_20260806.md
           - 全胞双路线 50k: results/forward/full_cell_dual_lane_50000_forward_training_20260808.md
           - 升级模型 50k: results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
+          - 升级模型 50k R²补充: results/forward/全胞前向50K模型R方补充评估_20260819.md
           - Meep 近远场: results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md
           - 全胞综合报告: reports/全胞双路线正向与逆向模型报告_20260810.md
   - 计划与治理:
