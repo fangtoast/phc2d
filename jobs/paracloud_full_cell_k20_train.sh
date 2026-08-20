@@ -12,6 +12,7 @@ source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"
 row="$(sed -n "$((SLURM_ARRAY_TASK_ID + 2))p" "$PHC2D_K20_MANIFEST")"
 [[ -n "$row" ]] || { echo "missing manifest row" >&2; exit 2; }
 IFS=, read -r task_index task_id model train_lane seed head grid_field config config_sha256 dataset_sha256 idx_train_hash idx_val_hash idx_test_hash k_points_sha256 run_dir gpu_uuid deployed_commit stage <<< "$row"
+stage="${stage//$'\r'/}"
 [[ "$task_index" == "$SLURM_ARRAY_TASK_ID" ]] || { echo "task index mismatch" >&2; exit 2; }
 [[ "$stage" == "admission" || "$stage" == "formal" ]] || { echo "invalid manifest stage: $stage" >&2; exit 2; }
 echo "task=$task_id stage=$stage manifest=$PHC2D_K20_MANIFEST"
