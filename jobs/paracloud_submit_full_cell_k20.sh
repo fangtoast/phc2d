@@ -36,7 +36,7 @@ fi
 if [[ "$mode" == "submit" ]]; then
   acceptance_lock="${PHC2D_K20_ACCEPTANCE_LOCK:-$PHC2D_CAMPAIGN_DIR/wsl_acceptance.lock.json}"
   [[ -f "$acceptance_lock" ]] || { echo "WSL acceptance lock is required: $acceptance_lock" >&2; exit 5; }
-  python - "$acceptance_lock" <<'PY'
+  "$PHC2D_PYTHON" - "$acceptance_lock" <<'PY'
 import json, sys
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
 required = {"binary": "wsl_cross_environment_acceptance_pass", "graded": "wsl_cross_environment_acceptance_pass"}
