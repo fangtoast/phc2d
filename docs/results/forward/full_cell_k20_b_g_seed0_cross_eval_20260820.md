@@ -13,7 +13,7 @@ primary_layer: L3
 backend: "surrogate training on N40; WSL Ubuntu + meep_env real-MPB data gate"
 dataset_scope: full_cell_fourier_k20_wh81x10
 evidence_level: surrogate_held_out
-evidence_status: pilot
+evidence_status: completed
 validation_backend: mixed
 source_artifacts:
   - runs/20260820/full_cell_k20_forward_seed0_202608201430
@@ -30,7 +30,7 @@ source_artifacts:
 
 # K=20 B/G 单 Seed 正向训练与跨路线评估
 
-本页汇总 K=20 full-cell Fourier B/G 数据上的 N40 单 seed 正向训练。**17 个训练任务均已完成并冻结在 validation checkpoint；34-cell held-out evaluation 已提交但尚无结果。** 因此本页当前只报告数据 gate 和 validation-only 训练证据，不能据此声明最终模型排名、跨路线泛化结论、seed-robust 结论或物理模型成功。
+本页汇总 K=20 full-cell Fourier B/G 数据上的 N40 单 seed 正向训练和 34-cell held-out evaluation。训练与评估均已完成；结论仍仅限于 **single-seed held-out surrogate evidence**，不能升级为 seed-robust、物理模型成功或 inverse 成功。
 
 **目录：** [数据 gate](#一数据-gate) · [训练协议](#二训练协议) · [训练结果](#三训练结果) · [评估状态](#四评估状态) · [证据边界](#五证据边界)
 
@@ -97,19 +97,28 @@ source_artifacts:
 | 构成 | 16 个 single-lane checkpoint × native/cross（32）+ joint checkpoint 的 B/G native（2） |
 | 提交作业 | N40 Slurm array `5423464[0-7%8]` |
 | 分片资源 | 1 GPU、6 CPU、12 小时，最多 8 并发 |
-| 当前状态 | 已提交，等待调度与执行 |
+| 当前状态 | 8/8 shard 完成并已 finalizer 汇总 |
 
-评估只在所有 validation checkpoint 冻结后读取 hold-out test。全部 34 cell 正常结束后，finalizer 才会汇总 native/cross metrics 与 10,000-replicate paired-bootstrap；届时将补充本页的测试指标、覆盖审计、失败计数与资源信息。
+评估只在所有 validation checkpoint 冻结后读取 hold-out test。8 个 shard 均以 `COMPLETED/0:0` 结束，finalizer 输出 `evaluation_complete_pending_report`：17 个训练 checkpoint、34/34 evaluation cells（18 native、16 cross），无失败记录，并完成 10,000-replicate paired bootstrap。
+
+### 4.1 Held-out 汇总
+
+| 路线 | 最低 native MRE | 最低 cross MRE | 结论边界 |
+|---|---:|---:|---|
+| B | dual-lane native `0.2450%`；single-lane TFNO `0.2881%` | G→B FNO `1.5712%` | joint 模型不构成跨路线诊断；single-lane cross 仍显著变差 |
+| G | dual-lane native `0.1860%`；single-lane TFNO `0.2724%` | B→G lifted CNN `3.4137%` | 同上；B→G/G→B 均保留 domain-shift 边界 |
+
+在预注册的四组 upgrade–baseline 对比中，TFNO 相对 FNO 的 native MRE 改善为 B `-0.1970` pp（95% CI `[-0.2070,-0.1873]`）和 G `-0.1351` pp（`[-0.1428,-0.1276]`）；但 G→B cross 为 `+1.6072` pp（`[+1.4173,+1.7991]`），不能描述为跨路线替代。ConvNeXt 相对 lifted CNN 的 native 差异在 B/G 的置信区间均跨 0。
 
 ---
 
 ## 五、证据边界
 
 1. 当前训练结果是 **single-seed、validation-only surrogate evidence**，不构成三 seed 稳健性或全局模型优劣结论。
-2. evaluation 尚未完成，不能把 validation MRE 当作最终 native 或 cross-lane 测试排名。
+2. 表中的 held-out 结果只来自一个 seed；不构成 seed-robust 或全局模型优劣结论。
 3. WSL real-MPB gate 验证的是数据样本，不是模型的 real-MPB replay。
 4. 本页不能作为 inverse design 成功证据；real-MPB replay 仍是下游任务最终裁判。
 
-**下一 gate：** `5423464` 的 8 个 evaluation shard 与 finalizer 均成功、34/34 覆盖审计通过后，更新本页。
+**当前完成状态：** 训练和 34-cell held-out evaluation 已完成；后续如需 promotion、论文证据或 inverse 使用，仍需单独决定多 seed 与 real-MPB replay gate。
 
 [↑ 回顶部](#k20-forward-seed0)
