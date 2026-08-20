@@ -166,12 +166,19 @@ def run_task(*, manifest: str | Path, task_index: int, repository_root: str | Pa
     command = ["python", "-m", "phc2d.forward.full_cell_k20_campaign", "_run-one", "--manifest", str(Path(manifest).resolve()), "--task-index", str(task_index), "--repository-root", str(root), "--stage", stage]
     if stage == "admission":
         command.append("--admission-probe")
+    head_args = ["--head-kind", "dense"] if _model_accepts_head_override(row["model"]) else []
     if row["train_lane"] == "J":
-        command = ["python", "-m", "phc2d.forward.full_cell_dual_lane", "--config", row["config"], "--seed", "0", "--head-kind", "dense", "--run-dir", row["run_dir"]] + (["--admission-probe"] if stage == "admission" else [])
+        command = ["python", "-m", "phc2d.forward.full_cell_dual_lane", "--config", row["config"], "--seed", "0"] + head_args + ["--run-dir", row["run_dir"]] + (["--admission-probe"] if stage == "admission" else [])
     else:
-        command = ["python", "-m", "phc2d.forward.full_cell", "--config", row["config"], "--model", row["model"], "--seed", "0", "--head-kind", "dense", "--run-dir", row["run_dir"]] + (["--admission-probe"] if stage == "admission" else [])
+        command = ["python", "-m", "phc2d.forward.full_cell", "--config", row["config"], "--model", row["model"], "--seed", "0"] + head_args + ["--run-dir", row["run_dir"]] + (["--admission-probe"] if stage == "admission" else [])
     subprocess.run(command, cwd=root, check=True)
     return Path(row["run_dir"])
+
+
+def _model_accepts_head_override(model_name: str) -> bool:
+    from phc2d.models import get_model_spec
+
+    return bool(get_model_spec(model_name).accepts_k_points)
 
 
 def _checkpoint_inventory(campaign: Path) -> list[dict[str, Any]]:
@@ -346,7 +353,10 @@ def _main(argv: Sequence[str] | None = None) -> None:
         rows = _read_csv(Path(args.manifest)); row = rows[args.task_index]; root = Path(args.repository_root).resolve()
         command = ["python", "-m", "phc2d.forward.full_cell_dual_lane" if row["train_lane"] == "J" else "phc2d.forward.full_cell"]
         if row["train_lane"] != "J": command += ["--model", row["model"]]
-        command += ["--config", row["config"], "--seed", "0", "--head-kind", "dense", "--run-dir", row["run_dir"]]
+        command += ["--config", row["config"], "--seed", "0"]
+        if _model_accepts_head_override(row["model"]):
+            command += ["--head-kind", "dense"]
+        command += ["--run-dir", row["run_dir"]]
         if args.admission_probe: command.append("--admission-probe")
         subprocess.run(command, cwd=root, check=True)
     elif args.command == "plan-eval": print(plan_evaluation(args.campaign_dir))

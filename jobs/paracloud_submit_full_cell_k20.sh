@@ -21,11 +21,11 @@ if [[ "$mode" == "freeze" ]]; then
   exit 0
 fi
 if [[ "$mode" != "dry-run" && "$mode" != "submit" ]]; then
-  echo "usage: $0 freeze|dry-run|submit ADMISSION|ADMISSION_A|ADMISSION_B|W1|W2|W3 AUTHORIZATION_ID" >&2
+  echo "usage: $0 freeze|dry-run|submit ADMISSION|ADMISSION_A|ADMISSION_B|ADMISSION_RETRY_BASELINE|W1|W2|W3 AUTHORIZATION_ID" >&2
   exit 2
 fi
-if [[ "$wave" != "ADMISSION" && "$wave" != "ADMISSION_A" && "$wave" != "ADMISSION_B" && "$wave" != "W1" && "$wave" != "W2" && "$wave" != "W3" ]]; then
-  echo "wave must be ADMISSION, ADMISSION_A, ADMISSION_B, W1, W2, or W3" >&2
+if [[ "$wave" != "ADMISSION" && "$wave" != "ADMISSION_A" && "$wave" != "ADMISSION_B" && "$wave" != "ADMISSION_RETRY_BASELINE" && "$wave" != "W1" && "$wave" != "W2" && "$wave" != "W3" ]]; then
+  echo "wave must be ADMISSION, ADMISSION_A, ADMISSION_B, ADMISSION_RETRY_BASELINE, W1, W2, or W3" >&2
   exit 2
 fi
 [[ -f "$PHC2D_CAMPAIGN_DIR/admission_manifest.csv" && -f "$PHC2D_CAMPAIGN_DIR/task_manifest.csv" ]] || { echo "frozen campaign manifests are required" >&2; exit 3; }
@@ -51,13 +51,14 @@ manifest="$PHC2D_CAMPAIGN_DIR/${wave,,}_manifest.csv"
 "$PHC2D_PYTHON" - "$PHC2D_CAMPAIGN_DIR/task_manifest.csv" "$PHC2D_CAMPAIGN_DIR/admission_manifest.csv" "$manifest" "$wave" <<'PY'
 import csv, sys
 source, admission, target, wave = sys.argv[1:]
-path = admission if wave in {"ADMISSION", "ADMISSION_A", "ADMISSION_B"} else source
+path = admission if wave in {"ADMISSION", "ADMISSION_A", "ADMISSION_B", "ADMISSION_RETRY_BASELINE"} else source
 rows = list(csv.DictReader(open(path, encoding="utf-8")))
 if wave == "W1": rows = rows[:8]
 elif wave == "W2": rows = rows[8:16]
 elif wave == "W3": rows = rows[16:]
 elif wave == "ADMISSION_A": rows = rows[:15]
 elif wave == "ADMISSION_B": rows = rows[15:]
+elif wave == "ADMISSION_RETRY_BASELINE": rows = rows[:8]
 if not rows: raise SystemExit("empty wave manifest")
 for index, row in enumerate(rows): row["task_index"] = str(index)
 with open(target, "w", encoding="utf-8", newline="") as handle:
@@ -68,7 +69,7 @@ PY
 task_count="$(($(wc -l < "$manifest") - 1))"
 array_limit=8
 time_limit="12:00:00"
-[[ "$wave" == "ADMISSION" || "$wave" == "ADMISSION_A" || "$wave" == "ADMISSION_B" ]] && time_limit="00:30:00"
+[[ "$wave" == "ADMISSION" || "$wave" == "ADMISSION_A" || "$wave" == "ADMISSION_B" || "$wave" == "ADMISSION_RETRY_BASELINE" ]] && time_limit="00:30:00"
 job_name="fck20_${wave,,}"
 if [[ "$mode" == "dry-run" ]]; then
   echo "campaign_dir=$PHC2D_CAMPAIGN_DIR"
@@ -78,6 +79,6 @@ if [[ "$mode" == "dry-run" ]]; then
   echo "sbatch -p gpu_4090 --gres=gpu:1 -c 6 -t $time_limit --array=0-$((task_count - 1))%$array_limit -J $job_name"
   exit 0
 fi
-job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t "$time_limit" --array="0-$((task_count - 1))%$array_limit" -J "$job_name" -o "$PHC2D_CAMPAIGN_DIR/slurm_${wave,,}_%A_%a.out" -e "$PHC2D_CAMPAIGN_DIR/slurm_${wave,,}_%A_%a.err" --export="ALL,PHC2D_K20_MANIFEST=$manifest,PHC2D_K20_ROOT=$PHC2D_ROOT,PHC2D_K20_STAGE=$([[ "$wave" == "ADMISSION" || "$wave" == "ADMISSION_A" || "$wave" == "ADMISSION_B" ]] && echo admission || echo formal)" jobs/paracloud_full_cell_k20_train.sh)"
+job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t "$time_limit" --array="0-$((task_count - 1))%$array_limit" -J "$job_name" -o "$PHC2D_CAMPAIGN_DIR/slurm_${wave,,}_%A_%a.out" -e "$PHC2D_CAMPAIGN_DIR/slurm_${wave,,}_%A_%a.err" --export="ALL,PHC2D_K20_MANIFEST=$manifest,PHC2D_K20_ROOT=$PHC2D_ROOT,PHC2D_K20_STAGE=$([[ "$wave" == "ADMISSION" || "$wave" == "ADMISSION_A" || "$wave" == "ADMISSION_B" || "$wave" == "ADMISSION_RETRY_BASELINE" ]] && echo admission || echo formal)" jobs/paracloud_full_cell_k20_train.sh)"
 printf 'wave=%s\njob_id=%s\nmanifest=%s\nsubmitted_at=%s\n' "$wave" "$job_id" "$manifest" "$(date -Is)" >> "$PHC2D_CAMPAIGN_DIR/submission.env"
 echo "wave=$wave job_id=$job_id campaign_dir=$PHC2D_CAMPAIGN_DIR"
