@@ -40,6 +40,7 @@ related_results: "docs/results/forward/full_cell_k20_b_g_seed0_cross_eval_202608
 
 - 冻结与评估控制面：`src/phc2d/forward/full_cell_k20_campaign.py`
 - N40 训练与状态脚本：`jobs/paracloud_submit_full_cell_k20.sh`、`jobs/paracloud_full_cell_k20_train.sh`、`jobs/paracloud_full_cell_k20_status.sh`
+- N40 evaluation 脚本：`jobs/paracloud_submit_full_cell_k20_eval.sh`、`jobs/paracloud_full_cell_k20_eval.sh`
 - 配置：`configs/research/full_cell_k20_forward_*_seed0_v1.yaml`
 - 结果入口：[`../../docs/results/forward/full_cell_k20_b_g_seed0_cross_eval_20260820.md`](../../docs/results/forward/full_cell_k20_b_g_seed0_cross_eval_20260820.md)
 
