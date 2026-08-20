@@ -49,3 +49,22 @@ def test_freeze_records_shared_k_points_and_test_delay(tmp_path: Path, monkeypat
     assert (out / "admission_manifest.csv").is_file()
     audit = json.loads((out / "dataset_audit.json").read_text(encoding="utf-8"))
     assert audit["k_points_shared"] is True
+
+
+def test_plan_evaluation_accepts_frozen_dual_lane_checkpoint(tmp_path: Path) -> None:
+    rows = campaign._task_rows(tmp_path, stage="formal", audits={"B": _audit("B"), "G": _audit("G")})
+    campaign._write_csv(tmp_path / "task_manifest.csv", rows)
+    for row in rows:
+        run = Path(row["run_dir"])
+        run.mkdir(parents=True)
+        run.joinpath("model.pt").write_bytes(b"checkpoint")
+        status = "dual_lane_training_success" if row["train_lane"] == "J" else "formal_training_success"
+        run.joinpath("results.json").write_text(
+            json.dumps({"status": status, "test_executed": False}), encoding="utf-8"
+        )
+
+    out = campaign.plan_evaluation(tmp_path)
+
+    assert out == tmp_path
+    assert len(campaign._read_csv(tmp_path / "checkpoint_inventory.csv")) == 17
+    assert len(campaign._read_csv(tmp_path / "evaluation_cells_plan.csv")) == 34

@@ -29,6 +29,7 @@ MODELS = (
 LANES = {"B": "binary", "G": "graded"}
 CONFIGS = {"B": "configs/research/full_cell_k20_forward_binary_seed0_v1.yaml", "G": "configs/research/full_cell_k20_forward_graded_seed0_v1.yaml", "J": "configs/research/full_cell_k20_forward_dual_lane_seed0_v1.yaml"}
 DATASETS = {"B": ("data/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5", "material_area_fraction_grid_64"), "G": ("data/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5", "material_weight_grid_64")}
+VALIDATION_FROZEN_TRAINING_STATUSES = frozenset({"formal_training_success", "dual_lane_training_success"})
 
 
 def _sha256(path: Path) -> str:
@@ -190,7 +191,7 @@ def _checkpoint_inventory(campaign: Path) -> list[dict[str, Any]]:
         if not result_path.is_file():
             raise RuntimeError(f"missing training result: {run}")
         result = _read_json(result_path)
-        if result.get("status") != "formal_training_success" or result.get("test_executed"):
+        if result.get("status") not in VALIDATION_FROZEN_TRAINING_STATUSES or result.get("test_executed"):
             raise RuntimeError(f"checkpoint is not frozen validation-only success: {run}")
         checkpoint = run / "model.pt"
         if not checkpoint.is_file():
