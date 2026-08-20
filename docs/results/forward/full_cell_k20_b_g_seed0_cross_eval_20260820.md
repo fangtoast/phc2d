@@ -108,6 +108,23 @@ source_artifacts:
 | B | dual-lane native `0.2450%`；single-lane TFNO `0.2881%` | G→B FNO `1.5712%` | joint 模型不构成跨路线诊断；single-lane cross 仍显著变差 |
 | G | dual-lane native `0.1860%`；single-lane TFNO `0.2724%` | B→G lifted CNN `3.4137%` | 同上；B→G/G→B 均保留 domain-shift 边界 |
 
+### 4.2 完整 single-lane B/G 交叉验证
+
+所有 cell 使用源 checkpoint 的 normalizer，并在目标路线的 1,000 个 held-out samples 上评估。`MRE` 是 bands 2–10 MRE；`R²` 是 `r2_centered_mean`。joint model 训练时已同时见过 B/G，因此不纳入本表的 cross-lane 诊断。
+
+| 源模型 | B→G MRE (%) | B→G R² | G→B MRE (%) | G→B R² |
+|---|---:|---:|---:|---:|
+| `mlp` | 5.3029 | -0.0766 | 10.6465 | -0.0853 |
+| `res_mlp_wide` | 3.9891 | 0.3890 | 4.1200 | 0.8072 |
+| `lifted_cnn` | **3.4137** | 0.5505 | 2.3775 | 0.9441 |
+| `fno2d_band_v2` | 3.8473 | 0.4398 | **1.5712** | **0.9773** |
+| `mlp_mixer_band_v1` | 3.8803 | 0.4267 | 4.3587 | 0.7870 |
+| `res_mlp_gated_v2` | 3.8218 | 0.4346 | 4.3556 | 0.7983 |
+| `convnext_band_v1` | 3.6117 | 0.4907 | 2.7355 | 0.8958 |
+| `tfno2d_band_v3` | 3.7373 | 0.4619 | 3.1784 | 0.8295 |
+
+交叉误差与 native 误差相比仍有明显 domain shift，且最优模型随方向改变：B→G 是 lifted CNN，G→B 是 FNO。该方向差异是单 seed 实验观察，不能据此推广为模型族的普遍优劣。
+
 在预注册的四组 upgrade–baseline 对比中，TFNO 相对 FNO 的 native MRE 改善为 B `-0.1970` pp（95% CI `[-0.2070,-0.1873]`）和 G `-0.1351` pp（`[-0.1428,-0.1276]`）；但 G→B cross 为 `+1.6072` pp（`[+1.4173,+1.7991]`），不能描述为跨路线替代。ConvNeXt 相对 lifted CNN 的 native 差异在 B/G 的置信区间均跨 0。
 
 ---
