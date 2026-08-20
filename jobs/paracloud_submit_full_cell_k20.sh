@@ -56,8 +56,8 @@ rows = list(csv.DictReader(open(path, encoding="utf-8")))
 if wave == "W1": rows = rows[:8]
 elif wave == "W2": rows = rows[8:16]
 elif wave == "W3": rows = rows[16:]
-elif wave == "ADMISSION_A": rows = rows[:16]
-elif wave == "ADMISSION_B": rows = rows[16:]
+elif wave == "ADMISSION_A": rows = rows[:15]
+elif wave == "ADMISSION_B": rows = rows[15:]
 if not rows: raise SystemExit("empty wave manifest")
 for index, row in enumerate(rows): row["task_index"] = str(index)
 with open(target, "w", encoding="utf-8", newline="") as handle:
