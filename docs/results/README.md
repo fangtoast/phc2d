@@ -54,3 +54,5 @@ primary_layer: L3
 4. 新结果必须更新本索引、相关数据集合页和仓库根目录的 `PROJECT_MAP.md`。
 
 旧站内链接仍可通过 [Forward 兼容索引](forward/README.md)和 [inverse 兼容索引](inverse/README.md)进入；它们不在侧栏单独占位，也不改变本页白名单。
+
+本次 K=20 B/G 执行记录见[单 seed 正向与跨路线评估 Draft](forward/full_cell_k20_b_g_seed0_cross_eval_20260820.md)；训练和 34-cell evaluation 未完成前，本页不提供最终模型排名。
