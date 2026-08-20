@@ -38,6 +38,8 @@ AcceptanceSolverFn = Callable[..., tuple[np.ndarray, dict[str, Any]]]
 
 
 def _binary_stratum(structure: FullCellStructureSpec) -> str:
+    if structure.generator_family == "unified_fourier_binary":
+        return str(structure.metadata.get("stratum", "binary_fourier_unlabelled"))
     if structure.generator_family == "binary_spectral_threshold":
         return "spectral_threshold"
     if structure.generator_family == "binary_polar_holes":
@@ -46,6 +48,8 @@ def _binary_stratum(structure: FullCellStructureSpec) -> str:
 
 
 def _graded_stratum(structure: FullCellStructureSpec) -> str:
+    if structure.generator_family == "unified_fourier_graded":
+        return str(structure.metadata.get("stratum", "graded_fourier_unlabelled"))
     if structure.generator_family != "graded_rbf_fourier":
         raise ValueError(f"graded acceptance requires graded_rbf_fourier, got {structure.generator_family}")
     core_count = int(structure.metadata.get("core_count", len(structure.parameters.get("blobs", []))))
@@ -55,9 +59,9 @@ def _graded_stratum(structure: FullCellStructureSpec) -> str:
 
 
 def _stratum(structure: FullCellStructureSpec, lane: str) -> str:
-    if lane == "binary_air_holes":
+    if lane in {"binary_air_holes", "binary_fourier"}:
         return _binary_stratum(structure)
-    if lane == "graded_medium":
+    if lane in {"graded_medium", "graded_fourier"}:
         return _graded_stratum(structure)
     raise ValueError(f"unsupported full-cell acceptance lane: {lane}")
 
@@ -73,11 +77,26 @@ def select_fixed_structures(
     grouped: dict[str, list[int]] = defaultdict(list)
     for index, structure in enumerate(bundle.structures):
         grouped[_stratum(structure, lane)].append(index)
+    fourier_lane = lane in {"binary_fourier", "graded_fourier"}
     required = (
         {"polar_hole_1", "polar_hole_2", "spectral_threshold"}
         if lane == "binary_air_holes"
         else {"graded_core_1", "graded_core_2"}
     )
+    if fourier_lane:
+        if not grouped:
+            raise ValueError(f"{lane} has no strata")
+        ordered_groups = {key: sorted(values, key=lambda index: hashlib.sha256(bundle.structures[index].sample_id.encode()).hexdigest()) for key, values in grouped.items()}
+        selected: list[int] = []
+        while len(selected) < int(count):
+            progress = False
+            for key in sorted(ordered_groups):
+                if ordered_groups[key] and len(selected) < int(count):
+                    selected.append(ordered_groups[key].pop(0))
+                    progress = True
+            if not progress:
+                break
+        return sorted(selected)
     if set(grouped) != required:
         raise ValueError(f"{lane} strata mismatch: expected {sorted(required)}, got {sorted(grouped)}")
     if int(count) < len(required):
