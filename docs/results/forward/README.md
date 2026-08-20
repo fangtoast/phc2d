@@ -28,5 +28,6 @@ primary_layer: L3
 | [全胞双路线 50k](full_cell_dual_lane_50000_forward_training_20260808.md) | 50k 波次、held-out test、跨路线和分辨率辨别；final-fit 仅作 monitor |
 | [Full-Wh 升级模型 50k](full_cell_forward_model_upgrade_50k_evaluation_20260810.md) | 五个升级模型的三 seed held-out test 与基线比较；保留 proxy 边界 |
 | [Full-Wh 50k 单 seed R²补充](全胞前向50K模型R方补充评估_20260819.md) | seed 0 的 18 个 native 单元；逐坐标中心化 R²，不与 POST 数值直接排名 |
+| [K20 与 50K 跨数据域正向验证](全胞K20与50K跨数据域正向验证_20260820.md) | N40 四个 Full-cell 域、68 个冻结 checkpoint、272 个 held-out surrogate cells；Draft |
 
 [返回研究结果与报告](../README.md)
