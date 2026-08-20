@@ -79,6 +79,11 @@ def _commit(root: Path) -> str:
     try:
         return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
     except (OSError, subprocess.CalledProcessError):
+        marker = root / "DEPLOYED_GIT_COMMIT"
+        if marker.is_file():
+            value = marker.read_text(encoding="utf-8").strip()
+            if value:
+                return value
         return os.environ.get("PHC2D_DEPLOYED_GIT_COMMIT", "unknown")
 
 
