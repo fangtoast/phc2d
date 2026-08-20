@@ -9,12 +9,15 @@ mode="${1:-}"
 wave="${2:-}"
 authorization_id="${3:-}"
 PHC2D_ROOT="${PHC2D_ROOT:-$HOME/run/phc2d}"
+PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu118}"
+PHC2D_PYTHON="${PHC2D_PYTHON:-$PHC2D_ENV/bin/python}"
 PHC2D_CAMPAIGN_DIR="${PHC2D_CAMPAIGN_DIR:-$PHC2D_ROOT/runs/$(date +%Y%m%d)/full_cell_k20_forward_seed0_$(date +%Y%m%d%H%M%S)}"
 cd "$PHC2D_ROOT"
 
 if [[ "$mode" == "freeze" ]]; then
   mkdir -p "$(dirname "$PHC2D_CAMPAIGN_DIR")"
-  PYTHONPATH=src python -m phc2d.forward.full_cell_k20_campaign freeze --campaign-dir "$PHC2D_CAMPAIGN_DIR" --repository-root "$PHC2D_ROOT"
+  [[ -x "$PHC2D_PYTHON" ]] || { echo "missing Python 3 runtime: $PHC2D_PYTHON" >&2; exit 3; }
+  PYTHONPATH=src "$PHC2D_PYTHON" -m phc2d.forward.full_cell_k20_campaign freeze --campaign-dir "$PHC2D_CAMPAIGN_DIR" --repository-root "$PHC2D_ROOT"
   exit 0
 fi
 if [[ "$mode" != "dry-run" && "$mode" != "submit" ]]; then
@@ -45,7 +48,7 @@ PY
 fi
 
 manifest="$PHC2D_CAMPAIGN_DIR/${wave,,}_manifest.csv"
-python - "$PHC2D_CAMPAIGN_DIR/task_manifest.csv" "$PHC2D_CAMPAIGN_DIR/admission_manifest.csv" "$manifest" "$wave" <<'PY'
+"$PHC2D_PYTHON" - "$PHC2D_CAMPAIGN_DIR/task_manifest.csv" "$PHC2D_CAMPAIGN_DIR/admission_manifest.csv" "$manifest" "$wave" <<'PY'
 import csv, sys
 source, admission, target, wave = sys.argv[1:]
 path = admission if wave == "ADMISSION" else source
