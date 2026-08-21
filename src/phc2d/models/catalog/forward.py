@@ -235,8 +235,8 @@ def model_specs() -> tuple[tuple[str, ModelFactory, ModelSpec], ...]:
                 supports_field=False,
                 requires=("torch",),
                 defaults={
-                    "input_shape": (1, 16, 16),
-                    "output_shape": (31, 10),
+                    "input_shape": (1, 64, 64),
+                    "output_shape": (81, 10),
                     "width": 32,
                     "depth": 4,
                     "modes": (8, 8),
