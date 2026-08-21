@@ -185,6 +185,31 @@ experiments:
       summary: 两路线各 10k 数据已通过记录中的跨环境 real-MPB 接受检查，可进入冻结正向训练。
     tags: [full-cell, fourier, k20, dataset-10k, wsl-acceptance]
 
+  - id: EXP-DAT-005
+    title: 全胞 Fourier K5 B/G 各 10k 数据生产与双端交付
+    task: data
+    status: planned
+    mapping_status: complete
+    research_question: 独立随机的 K5 Fourier binary/graded 全胞数据能否在 Xingyi 完成 8 shard 求解、完整性审计，并以一致 SHA-256 交付本地与 N40？
+    spec:
+      - experiments/research/full_cell_k5_dual_lane_xingyi.md
+    config:
+      - configs/research/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.yaml
+      - configs/research/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.yaml
+    runs:
+      local: []
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments:
+      - EXP-DAT-002
+      - EXP-DAT-003
+      - EXP-DAT-004
+    decision:
+      state: pending
+      summary: 配置与实验合同已建立；等待本轮 Xingyi 生成、审计和三端哈希一致证据，不提前升级为完成或物理验证。
+    tags: [full-cell, fourier, k5, dataset-10k, xingyi, dual-delivery]
+
   - id: EXP-FWD-001
     title: A1 V2 10k Full-Wh 公平对照
     task: forward
