@@ -64,7 +64,7 @@ schema:
     spec: Repository-relative experiment-protocol paths; empty when no exact protocol is confirmed.
     config: Repository-relative formal configuration paths.
     runs: Run paths grouped by local availability; seeds and reruns belong here.
-    result: Curated evidence pages; an empty list means no admissible result yet.
+    result: Human-readable result first when available, followed by detailed evidence pages; an empty list means no admissible result yet.
     report: Synthesis pages that cite the experiment; not a substitute for raw evidence.
     related_experiments: Other registered Experiment IDs with a confirmed scientific dependency.
     decision: Current research disposition, separated into a controlled state and concise summary.
@@ -298,6 +298,7 @@ experiments:
         - runs/20260819/full_cell_upgrade_50k_r2_seed0_202608191658
       referenced_not_local: []
     result:
+      - docs/结果/EXP-FWD-004-全胞升级模型.md
       - docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
       - docs/results/forward/全胞前向50K模型R方补充评估_20260819.md
     report:
@@ -497,6 +498,7 @@ experiments:
         - runs/20260728/a2_inverse_objective_bridge_seed0_test625_v1_202607280842
       referenced_not_local: []
     result:
+      - docs/结果/EXP-INV-004-Objective-Bridge.md
       - docs/results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md
     report:
       - docs/reports/phc2d_project_full_introduction_20260724.md
@@ -587,6 +589,7 @@ experiments:
       referenced_not_local:
         - runs/20260817/full_cell_resolution_convergence_xingyi_stage_a_retry1_202608171352
     result:
+      - docs/结果/EXP-PHY-001-MPB分辨率.md
       - docs/results/data-provenance/全胞MPB分辨率收敛验证_20260817.md
     report: []
     related_experiments:

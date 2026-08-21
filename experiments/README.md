@@ -21,7 +21,7 @@
 
 - `experiments/` 不是运行产物层；日志、checkpoint、resolved config 和机器指标属于 [`../runs/`](../runs/)。
 - `experiments/` 不是 Python 实验执行代码；可复用实现属于 [`../src/phc2d/`](../src/phc2d/)，薄入口按项目规则放置。
-- 配置实例属于 [`../configs/research/`](../configs/research/)，人类可读结论属于 [`../docs/results/`](../docs/results/README.md)。
+- 配置实例属于 [`../configs/research/`](../configs/research/)；当前人类可读结论属于 [`../docs/结果/`](../docs/结果/README.md)，详细证据与历史兼容页属于 [`../docs/results/`](../docs/results/README.md)。
 - 一个正式研究问题使用一个稳定 Experiment ID；seed、shard 与同协议重跑都属于该 ID 下的 run，不创建新 ID。
 
 ## Experiment ID
@@ -41,7 +41,7 @@
 1. 从 [`registry.yaml`](registry.yaml) 找到 Experiment ID、当前状态与 decision。
 2. 阅读 `spec`，确认研究问题、数据合同、比较边界和 gate。
 3. 使用登记的 `config` 启动 run；不要从结果文档反推配置。
-4. 把原始证据留在 `runs/`，把经整理的结论写入 `docs/results/`，并回填 Registry 链接。
+4. 把原始证据留在 `runs/`，把详细证据写入 `docs/results/`，把 1–3 屏当前结论写入 `docs/结果/`，并回填 Registry 链接。
 
 Registry 中的 `mapping_status: partial` 表示存在已确认缺口，不授权 Agent 猜测关系。`referenced_not_local` 表示结果页引用了该 run，但当前工作区没有对应目录；它不等同于本地已核验。
 
