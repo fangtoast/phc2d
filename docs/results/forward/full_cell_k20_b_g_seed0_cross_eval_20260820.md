@@ -36,6 +36,8 @@ source_artifacts:
 
 ---
 
+<a id="一数据-gate"></a>
+
 ## 一、数据 gate
 
 | 项目 | B binary | G graded |
@@ -51,6 +53,8 @@ source_artifacts:
 
 ---
 
+<a id="二训练协议"></a>
+
 ## 二、训练协议
 
 - Campaign：`/HOME/scw6g7a/run/phc2d/runs/20260820/full_cell_k20_forward_seed0_202608201430`。
@@ -61,6 +65,8 @@ source_artifacts:
 下表是 best-validation epoch 的 `val_bands_2_10_mre_pct`，用于 checkpoint 冻结；测试集尚未用于模型选择。
 
 ---
+
+<a id="三训练结果"></a>
 
 ## 三、训练结果
 
@@ -87,6 +93,8 @@ source_artifacts:
 远端 `checkpoint_inventory.csv` 已冻结 17 个 checkpoint，其 SHA-256 是 `0f3c46391b10616fa8a7083c3597823f4e2a7272562f6daa7cd6c5cb443cbf55`。这些 validation 数值不等价于最终 native/cross held-out 排名。
 
 ---
+
+<a id="四评估状态"></a>
 
 ## 四、评估状态
 
@@ -128,6 +136,8 @@ source_artifacts:
 在预注册的四组 upgrade–baseline 对比中，TFNO 相对 FNO 的 native MRE 改善为 B `-0.1970` pp（95% CI `[-0.2070,-0.1873]`）和 G `-0.1351` pp（`[-0.1428,-0.1276]`）；但 G→B cross 为 `+1.6072` pp（`[+1.4173,+1.7991]`），不能描述为跨路线替代。ConvNeXt 相对 lifted CNN 的 native 差异在 B/G 的置信区间均跨 0。
 
 ---
+
+<a id="五证据边界"></a>
 
 ## 五、证据边界
 

@@ -128,8 +128,9 @@ nav:
           - 结构与 MPB: 参考/公式与指标/结构与MPB.md
           - 本征场与 PINO: 参考/公式与指标/本征场与PINO.md
           - 正向与逆向指标: 参考/公式与指标/正向与逆向指标.md
-  - 正式研究结果:
-      - 正式结果总览: results/README.md
+  - 当前结果: 结果/README.md
+  - 实验与证据库:
+      - 证据库总览: results/README.md
       - V2 10k [10000,31,10]:
           - V2 10k 总览: results/V2-10k正式结果.md
           - A1 Forward/Query 公平对照: results/forward/a1_forward_query_fair_v1_20260726.md

@@ -1,17 +1,17 @@
 ---
 title: phc2d 文档
-summary: 面向研究使用者的二维光子晶体数据、代理建模、逆向设计与物理复核手册。
+summary: 用五分钟建立项目全景、当前状态、主要结果与证据边界。
 page_type: landing
 status: draft
 audience: 研究使用者、研究生、开发者与评审者
 owner: 研究生维护，导师审阅研究主张
-last_reviewed: 2026-08-14
-reading_time: 3 minutes
+last_reviewed: 2026-08-21
+reading_time: 5 minutes
 primary_layer: L4
 ---
 
 <!--
-  Reader-oriented homepage for the phc2d documentation site.
+  Five-minute reader entrypoint for phc2d.
   Author: fangtoast
   Email: fangtoast@foxmail.com
   Copyright (c) 2026 fangtoast. All rights reserved.
@@ -19,51 +19,38 @@ primary_layer: L4
 
 # phc2d 文档
 
-`phc2d` 是二维光子晶体数据、神经代理、逆向设计和真实求解器复核的统一研究工具链。文档按照“先获得最小成功，再理解物理与方法，最后追溯结果和计划”的顺序组织；读者不需要先浏览仓库文件夹。
+`phc2d` 是二维光子晶体的统一研究工具链：从周期结构与 MPB 数据生成，经过正向代理、查询与逆向候选生成，最终回到真实求解器复核。这里先回答“项目是什么、做到哪里、结论是什么、证据在哪里”，再进入方法或执行细节。
 
-> **证据边界：** 文档重排不改变实验状态。计划、实现、smoke、surrogate、proxy、MPB replay 和 Meep physical validation 始终分开记录。
+> **证据边界：** 计划、代码实现、smoke、surrogate 指标、solver replay 与物理验证是不同层级。文档存在不等于实验完成，当前任务优先级以[项目地图](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md)为准。
 
-<div class="doc-grid">
-  <div class="doc-card">
-    <h3>第一次使用</h3>
-    <p>安装基础环境，检查 CLI，并完成一次非物理最小训练。</p>
-    <p><a href="开始/index.html">打开开始使用</a></p>
-  </div>
-  <div class="doc-card">
-    <h3>理解整个项目</h3>
-    <p>从 Maxwell、MPB 和两代数据进入完整研究闭环。</p>
-    <p><a href="概念/项目全景.html">阅读项目全景</a></p>
-  </div>
-  <div class="doc-card">
-    <h3>学习公式与代码</h3>
-    <p>在同一条阅读路径中查看公式、shape、关键代码和配置。</p>
-    <p><a href="方法/index.html">打开数据与方法</a></p>
-  </div>
-  <div class="doc-card">
-    <h3>核查正式结果</h3>
-    <p>只查看 V2 10k 与新全胞数据的正式结果集合。</p>
-    <p><a href="results/index.html">查看正式结果</a></p>
-  </div>
-</div>
+## 五分钟阅读路径
 
-## 推荐阅读顺序
-
-1. [安装与环境](开始/安装与环境.md)：明确基础 Python、训练依赖和 WSL 求解器环境的边界。
-2. [第一次正向预测](开始/第一次正向预测.md)：完成 R1 合成 smoke，认识配置和运行产物。
-3. [项目全景与研究闭环](概念/项目全景.md)：理解结构、物理数据、代理、候选和 replay。
-4. [数据与方法](方法/README.md)：按公式、shape、代码和配置学习核心模块。
-5. [分级复现](指南/分级复现.md)：选择 R0、R1、R2 或 R3。
-6. [正式研究结果](results/README.md)：只核查 V2 10k 与新全胞数据；当前状态仍以仓库根目录的 `PROJECT_MAP.md` 为准。
-
-## 文档怎么分工
-
-| 内容 | 回答的问题 | 更新节奏 |
+| 顺序 | 入口 | 读完后应知道什么 |
 |---|---|---|
-| 项目与物理基础 | 研究对象、公式和研究闭环是什么？ | 物理或研究合同变化时 |
-| 数据与方法 | 输入输出、shape、模型和核心代码如何连接？ | 接口或方法发生实质变化时 |
-| 操作指南与参考 | 怎样执行，输入输出是什么？ | CLI、schema 或工作流变化时 |
-| 正式研究结果 | 两个准入数据家族实际得到什么？ | 新 run、复核或白名单变化时 |
-| 计划与治理 | 下一步准备做什么，如何判定？ | 研究 gate 或协作合同变化时 |
-| 历史档案 | 哪些旧结果、工程预检和计划只供追溯？ | 记录被替代或移出正式结果时 |
+| 1. Overview | 本页 | 项目对象、研究闭环与证据层级 |
+| 2. Current State | [项目地图](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md) | 当前主线、阻塞项和下一道研究 gate |
+| 3. Results | [当前结果](结果/README.md) | 主要实验、当前结论、状态与 Experiment ID |
+| 4. Evidence | [实验与证据库](results/README.md) | 数据身份、指标、run、solver 与原始制品入口 |
 
-AI 新建或实质改写的页面默认是 Draft。只有人类负责人明确审阅和接管后，才可标为 Reviewed 或 Canonical。
+## 当前研究主线
+
+| 主线 | 当前认知 | 边界 |
+|---|---|---|
+| 全胞数据与物理标签 | B/G 双路线数据链已建立，MPB 分辨率收敛支持正式数据使用 `resolution=64` | 物理验收不能由 surrogate 指标替代 |
+| 全胞正向代理 | 50k 模型升级、K=20 单 seed 与跨数据域验证已有结果 | 本域最优不代表跨域通用；跨域验证仍是 surrogate 层 |
+| 逆向设计 | V2 数据已有 seed-0 real-MPB replay 证据 | full-cell inverse 的正式训练与 replay 尚未完成 |
+| Field / adapted PINO | 历史 admission gate 未通过 | 不进入当前正式结果主线 |
+
+## 去哪里继续阅读
+
+| 需要 | 入口 | 唯一职责 |
+|---|---|---|
+| 第一次运行 | [开始](开始/README.md) | 最短可执行路径与环境边界 |
+| 理解研究概念 | [概念](概念/README.md) | 物理对象、数据语义与研究闭环 |
+| 理解方法 | [方法](方法/README.md) | 输入输出、公式、shape、模型与局限 |
+| 查看实验协议 | [实验协议与决策记录](planning/README.md) | 长期计划、正式协议和历史决策 |
+| 执行具体任务 | [指南](指南/README.md) | 可重复操作步骤与停止条件 |
+| 查询精确定义 | [参考](参考/README.md) | CLI、schema、模型身份、公式与运行合同 |
+| 追溯旧材料 | [历史档案](历史档案.md) | 被取代计划、旧报告、preflight 与 smoke |
+
+AI 新建或实质改写的页面默认是 Draft。只有人类负责人明确审阅后，才可标为 Reviewed 或 Canonical。
