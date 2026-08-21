@@ -1283,8 +1283,8 @@ def _evaluate_checkpoint(
     warm_start_path: Path | None = None,
     diagnostic_surrogate_cfg: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    from phc2d.inverse.generator_runtime import TrainedConditionalGenerator
     from phc2d.inverse.runner import (
-        _TrainedConditionalGenerator,
         _build_surrogate,
         _load_targets,
         _require_torch,
@@ -1299,7 +1299,7 @@ def _evaluate_checkpoint(
     indices, all_targets, candidate_dim, _ = _load_targets(inverse_cfg)
     if target_limit is not None:
         indices = indices[: int(target_limit)]
-    generator = _TrainedConditionalGenerator(inverse_cfg, checkpoint_path, torch=torch, device=device)
+    generator = TrainedConditionalGenerator(inverse_cfg, checkpoint_path, torch=torch, device=device)
     parameter_count = int(sum(int(parameter.numel()) for parameter in generator.net.parameters()))
     target_shape = tuple(int(item) for item in np.asarray(all_targets).shape[1:])
     surrogate = _build_surrogate(
@@ -1739,7 +1739,8 @@ def _load_selected_generators(
     *,
     methods: Sequence[str] = TRAINABLE_METHODS,
 ) -> tuple[Any, dict[str, Any], dict[str, GenerativeInverseConfig]]:
-    from phc2d.inverse.runner import _TrainedConditionalGenerator, _require_torch
+    from phc2d.inverse.generator_runtime import TrainedConditionalGenerator
+    from phc2d.inverse.runner import _require_torch
     from phc2d.training import resolve_device
 
     torch = _require_torch()
@@ -1757,7 +1758,7 @@ def _load_selected_generators(
         checkpoint = Path(str(selected["checkpoint_path"]))
         _require_hash(checkpoint, str(selected["checkpoint_sha256"]), label=f"{method} selected checkpoint")
         configs[method] = inverse_cfg
-        generators[method] = _TrainedConditionalGenerator(
+        generators[method] = TrainedConditionalGenerator(
             inverse_cfg,
             checkpoint,
             torch=torch,
@@ -1823,7 +1824,8 @@ def run_a2_sample(
 ) -> Path:
     """Create and atomically freeze 4-method candidate records for paired targets."""
 
-    from phc2d.inverse.runner import _ForwardFrozenSurrogate, _QueryFrozenSurrogate, _require_torch
+    from phc2d.inverse.runner import _require_torch
+    from phc2d.inverse.surrogate_runtime import ForwardFrozenSurrogate, QueryFrozenSurrogate
     from phc2d.training import resolve_device, synchronize_device
 
     cfg = _read_yaml(config_path)
@@ -1876,7 +1878,7 @@ def run_a2_sample(
         allow_mock_surrogate=False,
     )
     device_info = resolve_device(base_inverse_cfg.runtime, torch_module=torch)
-    surrogate = None if fake_models else _ForwardFrozenSurrogate(
+    surrogate = None if fake_models else ForwardFrozenSurrogate(
         base_inverse_cfg,
         torch=torch,
         device=device_info.torch_device,
@@ -1894,7 +1896,7 @@ def run_a2_sample(
                 "protocol": str(diagnostic_entry.get("protocol", "unseen_structure_all_k")),
             },
         )
-        diagnostic_surrogate = _QueryFrozenSurrogate(
+        diagnostic_surrogate = QueryFrozenSurrogate(
             diagnostic_cfg,
             torch=torch,
             device=device_info.torch_device,

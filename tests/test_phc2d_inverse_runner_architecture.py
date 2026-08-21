@@ -15,6 +15,7 @@ import pytest
 
 from phc2d.inverse import generator_models
 from phc2d.inverse import generator_runtime
+from phc2d.inverse import benchmark
 from phc2d.inverse import runner
 from phc2d.inverse import surrogate_runtime
 
@@ -32,6 +33,52 @@ def test_runner_preserves_historical_generator_imports() -> None:
 
     for name in {"_MockConditionalGenerator", "_TrainedConditionalGenerator"}:
         assert getattr(runner, name) is getattr(generator_runtime, name)
+
+
+def test_runtime_modules_expose_public_adapters_with_legacy_aliases() -> None:
+    generator_names = {
+        "MockConditionalGenerator": "_MockConditionalGenerator",
+        "TrainedConditionalGenerator": "_TrainedConditionalGenerator",
+    }
+    surrogate_names = {
+        "ForwardFrozenSurrogate": "_ForwardFrozenSurrogate",
+        "MockSurrogate": "_MockSurrogate",
+        "QueryFrozenSurrogate": "_QueryFrozenSurrogate",
+        "resolve_forward_surrogate_checkpoint": "_resolve_forward_surrogate_checkpoint",
+        "resolve_query_surrogate_checkpoint": "_resolve_query_surrogate_checkpoint",
+    }
+
+    for public_name, legacy_name in generator_names.items():
+        assert public_name in generator_runtime.__all__
+        assert getattr(generator_runtime, public_name) is getattr(generator_runtime, legacy_name)
+        assert getattr(runner, public_name) is getattr(generator_runtime, public_name)
+        assert getattr(runner, legacy_name) is getattr(generator_runtime, legacy_name)
+
+    for public_name, legacy_name in surrogate_names.items():
+        assert public_name in surrogate_runtime.__all__
+        assert getattr(surrogate_runtime, public_name) is getattr(surrogate_runtime, legacy_name)
+        assert getattr(runner, public_name) is getattr(surrogate_runtime, public_name)
+        assert getattr(runner, legacy_name) is getattr(surrogate_runtime, legacy_name)
+
+
+def test_benchmark_imports_runtime_adapters_from_owner_modules() -> None:
+    benchmark_path = Path(inspect.getsourcefile(benchmark) or "")
+    tree = ast.parse(benchmark_path.read_text(encoding="utf-8-sig"))
+    imported = {
+        (node.module, alias.name)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module is not None
+        for alias in node.names
+    }
+
+    assert ("phc2d.inverse.generator_runtime", "TrainedConditionalGenerator") in imported
+    assert ("phc2d.inverse.surrogate_runtime", "ForwardFrozenSurrogate") in imported
+    assert ("phc2d.inverse.surrogate_runtime", "QueryFrozenSurrogate") in imported
+    assert not {
+        ("phc2d.inverse.runner", "_TrainedConditionalGenerator"),
+        ("phc2d.inverse.runner", "_ForwardFrozenSurrogate"),
+        ("phc2d.inverse.runner", "_QueryFrozenSurrogate"),
+    } & imported
 
 
 def test_runner_preserves_historical_surrogate_imports() -> None:

@@ -27,7 +27,7 @@ from phc2d.inverse.generator_models import (
     _generator_kind,
     _make_generator_network,
 )
-from phc2d.inverse.generator_runtime import _MockConditionalGenerator, _TrainedConditionalGenerator
+from phc2d.inverse.generator_runtime import MockConditionalGenerator, TrainedConditionalGenerator
 from phc2d.inverse.morphology import candidate_morphology_metrics
 from phc2d.inverse.objective import (
     cross_surrogate_consistency_loss,
@@ -41,11 +41,11 @@ from phc2d.inverse.runtime_support import (
     _to_jsonable,
 )
 from phc2d.inverse.surrogate_runtime import (
-    _ForwardFrozenSurrogate,
-    _MockSurrogate,
-    _QueryFrozenSurrogate,
-    _resolve_forward_surrogate_checkpoint as _resolve_forward_surrogate_checkpoint,
-    _resolve_query_surrogate_checkpoint as _resolve_query_surrogate_checkpoint,
+    ForwardFrozenSurrogate,
+    MockSurrogate,
+    QueryFrozenSurrogate,
+    resolve_forward_surrogate_checkpoint,
+    resolve_query_surrogate_checkpoint,
 )
 from phc2d.plot import plot_metric_report
 from phc2d.runs import (
@@ -65,6 +65,15 @@ from phc2d.training import (
     resolve_device,
     synchronize_device,
 )
+
+# Historical import compatibility. New code should use the public runtime names.
+_MockConditionalGenerator = MockConditionalGenerator
+_TrainedConditionalGenerator = TrainedConditionalGenerator
+_ForwardFrozenSurrogate = ForwardFrozenSurrogate
+_MockSurrogate = MockSurrogate
+_QueryFrozenSurrogate = QueryFrozenSurrogate
+_resolve_forward_surrogate_checkpoint = resolve_forward_surrogate_checkpoint
+_resolve_query_surrogate_checkpoint = resolve_query_surrogate_checkpoint
 
 
 def _stable_seed(base_seed: int, *parts: Any) -> int:
@@ -457,13 +466,13 @@ def _prepare_sample_config(cfg: GenerativeInverseConfig) -> GenerativeInverseCon
 def _build_generator(cfg: GenerativeInverseConfig, *, candidate_dim: int, torch: Any, device: Any) -> Any:
     checkpoint = _find_latest_generator_checkpoint(cfg)
     if checkpoint is not None and checkpoint.is_file():
-        return _TrainedConditionalGenerator(cfg, checkpoint, torch=torch, device=device)
+        return TrainedConditionalGenerator(cfg, checkpoint, torch=torch, device=device)
     if not cfg.allow_mock_generator:
         raise ValueError(
             "Formal inverse sampling requires a trained generator checkpoint. "
             "Run `phc2d inverse train --config ...` first or set inverse.generator_checkpoint_path."
         )
-    return _MockConditionalGenerator(
+    return MockConditionalGenerator(
         cfg=cfg,
         dim=candidate_dim,
         target_seed_anchor=0.0,
@@ -483,15 +492,15 @@ def _build_surrogate(
 ) -> Any:
     surrogate_kind = _as_mapping(cfg.surrogate).get("kind")
     if surrogate_kind == "query":
-        return _QueryFrozenSurrogate(cfg, torch=torch, device=device)
+        return QueryFrozenSurrogate(cfg, torch=torch, device=device)
     if surrogate_kind == "forward":
-        return _ForwardFrozenSurrogate(cfg, torch=torch, device=device)
+        return ForwardFrozenSurrogate(cfg, torch=torch, device=device)
     if not cfg.allow_mock_surrogate:
         raise ValueError(
             "Formal inverse ranking requires surrogate.kind=query or surrogate.kind=forward with a frozen checkpoint. "
             "Mock surrogate ranking is disabled by inverse.allow_mock_surrogate=false."
         )
-    return _MockSurrogate(
+    return MockSurrogate(
         input_dim=input_dim,
         target_shape=target_shape,
         seed=int(cfg.seed),
@@ -923,8 +932,8 @@ def _run_one_target(
     device = device_info.torch_device
     target_tensor = torch.as_tensor(np.asarray(target, dtype=np.float32).reshape(-1), dtype=torch.float32, device=device)
     generator = generator_obj or _build_generator(cfg, candidate_dim=candidate_dim, torch=torch, device=device)
-    if isinstance(generator, _MockConditionalGenerator):
-        generator = _MockConditionalGenerator(
+    if isinstance(generator, MockConditionalGenerator):
+        generator = MockConditionalGenerator(
             cfg=cfg,
             dim=candidate_dim,
             target_seed_anchor=float(np.mean(target)),
@@ -2363,7 +2372,7 @@ def _replay_one_target(
     if selected.ndim != 2:
         selected = selected.reshape(selected.shape[0], -1)
 
-    surrogate = _MockSurrogate(
+    surrogate = MockSurrogate(
         input_dim=int(selected.shape[1]),
         target_shape=tuple(target.shape),
         seed=_surrogate_seed(cfg, target_id, target_index),
