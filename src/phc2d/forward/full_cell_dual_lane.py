@@ -28,7 +28,7 @@ from phc2d.forward.full_cell import (
     _sha256_checkpoint,
     _write_history,
 )
-from phc2d.models import build_model, get_model_spec
+from phc2d.models import build_model, describe_model_identity, get_model_spec
 from phc2d.runs import (
     RUN_LOG_NAME,
     ensure_figures_dir,
@@ -347,6 +347,9 @@ def run_full_cell_dual_lane(
                     "state_dict": model.state_dict(),
                     "model_name": spec.name,
                     "model_params": dict(resolved["model"]["params"]),
+                    "model_identity": describe_model_identity(
+                        model, spec.name, spec, model_kwargs=resolved["model"]["params"]
+                    ),
                     "input_shape": reference["grid_shape"],
                     "output_shape": reference["target_shape"],
                     "k_points": torch.as_tensor(reference["k_points"], dtype=torch.float32),
@@ -463,6 +466,9 @@ def run_full_cell_dual_lane(
         "graded_n_train": len(train_loaders["graded"].dataset),
         "binary_n_val": len(val_datasets["binary"]),
         "graded_n_val": len(val_datasets["graded"]),
+        "model_identity": describe_model_identity(
+            model, spec.name, spec, model_kwargs=resolved["model"]["params"]
+        ),
     }
     _plot_history(out, history, monitor_label="equal-lane validation")
     write_metrics(out, metrics)
@@ -475,6 +481,7 @@ def run_full_cell_dual_lane(
                 "output_shape": list(reference["target_shape"]),
                 "best_validation_checkpoint": str(checkpoint),
                 "best_validation_checkpoint_sha256": _sha256_checkpoint(checkpoint),
+                "model_identity": metrics["model_identity"],
             },
             indent=2,
         )
@@ -490,12 +497,14 @@ def run_full_cell_dual_lane(
             "mpb_meep_used": False,
             "test_executed": False,
             "model": spec.name,
+            "model_identity": metrics["model_identity"],
             "head_kind": head_kind,
             "seed": int(seed),
             "lane": "joint",
             "checkpoint_path": str(checkpoint),
             "checkpoint_sha256": _sha256_checkpoint(checkpoint),
             "best_epoch": int(checkpoint_payload["epoch"]),
+            "stop_epoch": stop_epoch,
             "epoch_100_continue_gate": gate_record,
             "epoch_100_checkpoint_path": str(epoch100_snapshot) if epoch100_snapshot else None,
             "epoch_100_checkpoint_sha256": _sha256_checkpoint(epoch100_snapshot) if epoch100_snapshot else None,

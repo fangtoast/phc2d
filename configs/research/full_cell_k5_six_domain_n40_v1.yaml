@@ -1,0 +1,25 @@
+# EXP-FWD-007 N40 six-domain held-out surrogate evaluation contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: phc2d.full_cell_six_domain_n40.v1
+experiment_id: EXP-FWD-007
+primary_layer: L3
+scientific_boundary: surrogate_held_out_cross_domain
+user_waiver_status: user_authorized_surrogate_training_pending_wsl_acceptance
+checkpoints:
+  K5_inventory: PLACEHOLDER_K5_CHECKPOINT_INVENTORY
+  K20_inventory: runs/20260820/full_cell_k20_forward_seed0_202608201430/checkpoint_inventory.csv
+  F50_inventory: runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944/checkpoint_inventory.csv
+legacy_272_campaign: runs/20260820/full_cell_cross_domain_n40_v2_20260820212500
+datasets:
+  K5-B: {path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, test_size: 1000, sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6}
+  K5-G: {path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, test_size: 1000, sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20}
+  K20-B: {path: data/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, test_size: 1000, sha256: 2661eb1e9e3b398a7b69c4083daefa761ea9c26a1081c478b968fd6a951d6b56}
+  K20-G: {path: data/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, test_size: 1000, sha256: 96b127b43f2c31fb7591e9634317a7ed35332ceae1077b2277de15058902fd72}
+  F50-B: {path: data/full_cell_binary_bz9_50000_xingyi_v1.h5, grid_field: material_weight_grid_64, test_size: 5000, sha256: e2d99e0c59c3bf5dfebc507e756dbcd18c8623f331ad6193832d774df5213f00}
+  F50-G: {path: data/full_cell_graded_bz9_50000_xingyi_v1.h5, grid_field: material_weight_grid_64, test_size: 5000, sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46}
+shards: {fixed_array: '0-9%8', count: 10, partition: gpu_4090, gres: gpu:1, cpus_per_task: 6, time_limit: '04:00:00'}
+runtime: {precision: fp32, amp_enabled: false, tf32_enabled: false, max_batch: 512, max_gpu_memory_gib: 20, batch_consistency_abs_tol: 1.0e-6}
+statistics: {primary_metric: bands_2_10_mre, bootstrap_replicates: 10000, r2: variance_weighted_per_k_band_zero_variance_undefined, legacy_272_abs_tol: 1.0e-6}

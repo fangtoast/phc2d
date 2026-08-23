@@ -188,7 +188,7 @@ experiments:
   - id: EXP-DAT-005
     title: 全胞 Fourier K5 B/G 各 10k 数据生产与双端交付
     task: data
-    status: planned
+    status: completed
     mapping_status: complete
     research_question: 独立随机的 K5 Fourier binary/graded 全胞数据能否在 Xingyi 完成 8 shard 求解、完整性审计，并以一致 SHA-256 交付本地与 N40？
     spec:
@@ -206,8 +206,8 @@ experiments:
       - EXP-DAT-003
       - EXP-DAT-004
     decision:
-      state: pending
-      summary: 配置与实验合同已建立；等待本轮 Xingyi 生成、审计和三端哈希一致证据，不提前升级为完成或物理验证。
+      state: continue
+      summary: 生产与 Xingyi/本地/N40 三端交付已完成；两份数据保持 cluster_generated_pending_wsl_acceptance，用户仅豁免其对 surrogate 训练的阻断，未完成 WSL acceptance 或物理验证。
     tags: [full-cell, fourier, k5, dataset-10k, xingyi, dual-delivery]
 
   - id: EXP-FWD-001
@@ -387,6 +387,34 @@ experiments:
       state: pending
       summary: 四域无重训迁移评估已完成；论文采用尚待决定，报告必须保持逐模型、逐方向边界。
     tags: [forward, cross-domain, k20, dataset-50k, no-retraining]
+
+  - id: EXP-FWD-007
+    title: K5 全模型训练与 K5/K20/F50 六域交叉验证
+    task: forward
+    status: planned
+    mapping_status: complete
+    research_question: K5 双路线 17 个 seed0 模型能否在冻结 held-out 选择后，与 K20 和 F50 的 85 个 checkpoint 一起完成六域 510-cell surrogate 迁移诊断？
+    spec:
+      - experiments/research/EXP-FWD-007-K5训练与六域验证.md
+    config:
+      - configs/research/full_cell_k5_forward_binary_seed0_v1.yaml
+      - configs/research/full_cell_k5_forward_graded_seed0_v1.yaml
+      - configs/research/full_cell_k5_forward_dual_lane_seed0_v1.yaml
+      - configs/research/full_cell_k5_six_domain_n40_v1.yaml
+    runs:
+      local: []
+      referenced_not_local: []
+    result:
+      - docs/results/forward/EXP-FWD-007-K5训练与六域验证.md
+    report: []
+    related_experiments:
+      - EXP-DAT-005
+      - EXP-FWD-005
+      - EXP-FWD-006
+    decision:
+      state: pending
+      summary: 用户已允许 surrogate 训练绕过 WSL replay 阻断；N40 提交仍需单独授权，结果不得提升为 real-MPB 或物理验证。
+    tags: [forward, full-cell, k5, k20, dataset-50k, six-domain, surrogate-only]
 
   - id: EXP-QRY-001
     title: A1 V2 10k Continuous Query 公平对照

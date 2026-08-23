@@ -7,6 +7,8 @@
 
 # EXP-DAT-005：K=5 双路线数据生产与双端交付
 
+**生产与 Xingyi/本地/N40 三端交付已完成，decision=`continue`；但两条数据仍是 `cluster_generated_pending_wsl_acceptance`。** 用户已授权这项未完成的 WSL acceptance 不再阻断 EXP-FWD-007 的 surrogate 训练；它仍不能升级为 WSL/real-MPB 物理验收。
+
 本文是 `L3 实验与证据` 合同，冻结在 Xingyi 独立生成 binary/graded unified-Fourier `K=5` 数据各 `10,000` 条，并完成 Xingyi 审计、本地/N40 双端交付。配置、运行产物和哈希是机器证据；本文不承载 raw metrics、日志或求解器输出。
 
 ## 研究问题与边界
@@ -21,7 +23,7 @@
 | 输入与标签 | full-cell raster contract；`Wh[10000,81,10]`；81 个 full-BZ k 点、10 个 TE 频带、4 个 guard bands |
 | 求解 | real MPB，resolution `64`，mesh `3`，tolerance `1e-7`；Xingyi native Linux conda `meep_env` |
 | 输出 | `data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5` 与 `data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5` |
-| 状态边界 | finalizer 后为 `cluster_generated_pending_wsl_acceptance`；本轮不执行 WSL replay、K=5 训练或 K=5/K=20 优劣结论 |
+| 状态边界 | 生产与三端交付完成；原始状态保留为 `cluster_generated_pending_wsl_acceptance`。WSL replay 未完成；仅按用户豁免进入 K=5 surrogate training，不发布 K=5/K=20 优劣或物理结论 |
 
 两路均不设置 `paired_coefficient_seed`，不把本轮误记为 paired cutoff study。结构计划必须由各自 seed 独立产生，且 plan hash、geometry/content hash 和 collision ledger 分路保存。
 

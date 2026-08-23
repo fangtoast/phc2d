@@ -21,7 +21,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 import yaml
 
-from phc2d.models import ModelSpec, build_model, get_model_spec
+from phc2d.models import ModelSpec, build_model, describe_model_identity, get_model_spec
 from phc2d.runs import (
     RUN_LOG_NAME,
     ensure_figures_dir,
@@ -722,6 +722,9 @@ def run_full_cell_forward(
                     "state_dict": model.state_dict(),
                     "model_name": model_name,
                     "model_params": dict(resolved["model"]["params"]),
+                    "model_identity": describe_model_identity(
+                        model, model_name, model_spec, model_kwargs=resolved["model"]["params"]
+                    ),
                     "input_shape": input_shape,
                     "output_shape": contract["target_shape"],
                     "k_points": (
@@ -834,6 +837,9 @@ def run_full_cell_forward(
         "optimizer_steps": optimizer_steps,
         "samples_seen": samples_seen,
         "train_subset_hash": contract["train_subset_hash"],
+        "model_identity": describe_model_identity(
+            model, model_name, model_spec, model_kwargs=resolved["model"]["params"]
+        ),
     }
     _plot_history(
         out,
@@ -850,6 +856,7 @@ def run_full_cell_forward(
                 "output_shape": list(contract["target_shape"]),
                 "best_validation_checkpoint": str(checkpoint),
                 "best_validation_checkpoint_sha256": _sha256_checkpoint(checkpoint),
+                "model_identity": metrics["model_identity"],
             },
             indent=2,
         )
@@ -869,6 +876,7 @@ def run_full_cell_forward(
             "validation_metrics_admissible": not final_fit,
             "test_executed": False,
             "model": model_name,
+            "model_identity": metrics["model_identity"],
             "seed": int(seed),
             "lane": experiment.get("lane"),
             "representation": representation,
@@ -876,6 +884,7 @@ def run_full_cell_forward(
             "max_epochs": int(training["max_epochs"]),
             "train_subset_hash": contract["train_subset_hash"],
             "best_epoch": checkpoint_epoch if final_fit else best_epoch,
+            "stop_epoch": stop_epoch,
             "best_monitor_epoch": best_epoch,
             "checkpoint_path": str(checkpoint),
             "checkpoint_sha256": _sha256_checkpoint(checkpoint),
