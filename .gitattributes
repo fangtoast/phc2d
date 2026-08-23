@@ -12,6 +12,7 @@ jobs/paracloud_full_cell_*.sh text eol=lf
 jobs/paracloud_submit_full_cell_*.sh text eol=lf
 jobs/hpc_*.sh text eol=lf
 jobs/xingyi_*.sh text eol=lf
+jobs/*.sh text eol=lf
 
 # Preserve curated report artifacts byte-for-byte so recorded SHA-256 values remain portable.
 docs/reports/assets/phc2d_project_full_introduction_20260724/** -text
