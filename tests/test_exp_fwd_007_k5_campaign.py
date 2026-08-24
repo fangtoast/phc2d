@@ -117,3 +117,4 @@ def test_exp_fwd_007_jobs_are_authorized_and_read_only_status() -> None:
     assert "--array=0-9%8" in evaluation and "--dependency=\"afterok:$job_id\"" in evaluation
     assert "sbatch" not in status and "squeue" in status and "sacct" in status
     assert "--campaign-dir" in status and "admission_a_manifest.csv" in status and "admission_b_manifest.csv" in status
+    assert 'sacct -j "$job_ids" --format' in status

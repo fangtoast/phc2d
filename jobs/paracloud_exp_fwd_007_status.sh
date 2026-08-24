@@ -27,4 +27,7 @@ for manifest in "${manifests[@]}"; do
   done
 done
 command -v squeue >/dev/null && squeue -u "$USER" -o '%.18i %.24j %.10T %.12M %.12l %R' || true
-command -v sacct >/dev/null && [[ -f "$campaign/submission.env" ]] && sed -n 's/^job_id=//p' "$campaign/submission.env" | paste -sd, - | xargs -r sacct -j --format=JobID,JobName,State,ExitCode,Elapsed,MaxRSS -P || true
+if command -v sacct >/dev/null && [[ -f "$campaign/submission.env" ]]; then
+  job_ids="$(sed -n 's/^job_id=//p' "$campaign/submission.env" | paste -sd, -)"
+  [[ -z "$job_ids" ]] || sacct -j "$job_ids" --format=JobID,JobName,State,ExitCode,Elapsed,MaxRSS -P || true
+fi
