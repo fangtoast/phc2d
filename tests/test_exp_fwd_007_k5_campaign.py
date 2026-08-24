@@ -135,6 +135,11 @@ def test_exp_fwd_007_jobs_are_authorized_and_read_only_status() -> None:
     assert "admission B requires a passing admission A audit" in submit
     assert "--array=0-9%8" in evaluation and "--dependency=\"afterok:$job_id\"" in evaluation
     assert "-J fwd007_preflight" in evaluation and "GPU preflight must pass before evaluation submission" in evaluation
+    assert "--wrap" not in evaluation and "realpath -m \"$campaign\"" in evaluation
+    preflight = (ROOT / "jobs/paracloud_full_cell_six_domain_preflight.sh").read_text(encoding="utf-8")
+    finalizer = (ROOT / "jobs/paracloud_full_cell_six_domain_finalize.sh").read_text(encoding="utf-8")
+    assert "full_cell_six_domain_n40 preflight" in preflight and "paracloud_gpu_common.sh" in preflight
+    assert "full_cell_six_domain_n40 finalize" in finalizer and "paracloud_gpu_common.sh" in finalizer
     assert "sbatch" not in status and "squeue" in status and "sacct" in status
     assert "--campaign-dir" in status and "admission_a_manifest.csv" in status and "admission_b_manifest.csv" in status
     assert 'sacct -j "$job_ids" --format' in status

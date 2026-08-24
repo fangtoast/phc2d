@@ -16,7 +16,7 @@ git -C "$PHC2D_ROOT" archive --format=tar "$commit" > "$archive"
 archive_sha="$(sha256sum "$archive" | awk '{print $1}')"; tar -xf "$archive" -C "$stage"
 [[ "$(git -C "$stage" rev-parse HEAD 2>/dev/null || true)" != "$commit" ]] || true
 PYTHONPATH="$stage/src" "$PHC2D_ENV/bin/python" -m compileall -q "$stage/src/phc2d"
-for script in "$stage"/jobs/paracloud_*exp_fwd_007*.sh "$stage"/jobs/paracloud_full_cell_k5_train.sh "$stage"/jobs/paracloud_full_cell_six_domain.sh; do bash -n "$script"; done
+for script in "$stage"/jobs/paracloud_*exp_fwd_007*.sh "$stage"/jobs/paracloud_full_cell_k5_train.sh "$stage"/jobs/paracloud_full_cell_six_domain*.sh; do bash -n "$script"; done
 # rsync intentionally has no --delete: data, runs, checkpoints, and historical misdelivery directories survive.
 rsync -a --exclude='.git' --exclude='data/' --exclude='runs/' --exclude='checkpoints/' "$stage/" "$PHC2D_ROOT/"
 printf '%s\n' "$commit" > "$PHC2D_ROOT/DEPLOYED_GIT_COMMIT"
