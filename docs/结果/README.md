@@ -31,7 +31,7 @@ primary_layer: L3
 | `EXP-FWD-004` | surrogate held-out | completed | ConvNeXt 是 B/G native 三 seed 最优候选，但跨路线和分辨率迁移仍退化 | [短结果](EXP-FWD-004-全胞升级模型.md) · [详细证据](../results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md) |
 | `EXP-FWD-005` | surrogate held-out | completed, seed 0 | K20 B/G 单路线与跨路线评估完成；本域明显优于跨路线 | [详细证据](../results/forward/full_cell_k20_b_g_seed0_cross_eval_20260820.md) |
 | `EXP-FWD-006` | surrogate cross-domain | completed | 272 个四域评估单元完成；不支持单一模型族跨域普遍最优 | [详细证据](../results/forward/全胞K20与50K跨数据域正向验证_20260820.md) |
-| `EXP-FWD-007` | surrogate cross-domain | planned | K5 17-task 训练与 K5/K20/F50 六域 510-cell 重推已冻结，等待单独 N40 提交授权 | [Draft 结果页](../results/forward/EXP-FWD-007-K5训练与六域验证.md) |
+| `EXP-FWD-007` | surrogate cross-domain | completed, Draft review | K5 17-task 与 K5/K20/F50 六域 510-cell held-out 重推完成，旧 272-cell 回归通过；缺 paired-bootstrap/resource 汇总，尚不作 promotion | [Draft 结果页](../results/forward/EXP-FWD-007-K5训练与六域验证.md) |
 | `EXP-INV-004` | solver replay | completed, seed 0 | Objective-Bridge 完成 Test625 real-MPB replay，但尚无跨 seed 结论 | [短结果](EXP-INV-004-Objective-Bridge.md) · [详细证据](../results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md) |
 | `EXP-PHY-003` | admission gate | blocked | Field/adapted PINO 三项准入未通过，不进入当前正式 inverse 主线 | [详细证据](../results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md) |
 

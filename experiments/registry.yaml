@@ -391,7 +391,7 @@ experiments:
   - id: EXP-FWD-007
     title: K5 全模型训练与 K5/K20/F50 六域交叉验证
     task: forward
-    status: planned
+    status: completed
     mapping_status: complete
     research_question: K5 双路线 17 个 seed0 模型能否在冻结 held-out 选择后，与 K20 和 F50 的 85 个 checkpoint 一起完成六域 510-cell surrogate 迁移诊断？
     spec:
@@ -403,7 +403,9 @@ experiments:
       - configs/research/full_cell_k5_six_domain_n40_v1.yaml
     runs:
       local: []
-      referenced_not_local: []
+      referenced_not_local:
+        - runs/20260824/EXP-FWD-007_K5_20260824080309
+        - runs/20260824/EXP-FWD-007_six_domain_20260824162756
     result:
       - docs/results/forward/EXP-FWD-007-K5训练与六域验证.md
     report: []
@@ -412,8 +414,8 @@ experiments:
       - EXP-FWD-005
       - EXP-FWD-006
     decision:
-      state: pending
-      summary: 用户已允许 surrogate 训练绕过 WSL replay 阻断；N40 提交仍需单独授权，结果不得提升为 real-MPB 或物理验证。
+      state: pending_human_review
+      summary: 17 个 K5 checkpoint 与 510-cell held-out surrogate 评估已完成，旧 272-cell 回归通过；paired-bootstrap/resource 汇总缺失，禁止 promotion，且结果不得提升为 real-MPB 或物理验证。
     tags: [forward, full-cell, k5, k20, dataset-50k, six-domain, surrogate-only]
 
   - id: EXP-QRY-001

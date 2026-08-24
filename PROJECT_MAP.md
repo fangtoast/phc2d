@@ -61,7 +61,7 @@
 
 ## 当前最重要的未解决问题
 
-- EXP-FWD-007 的 17 个 K5 训练任务已按 `15+2` admission、`W1/W2/W3` 完成并冻结 validation checkpoints；六域评估须以 F50 `Wh[50000,81,10]` 形状合同重新 freeze，并先通过 54 身份 GPU preflight。用户豁免 WSL replay 对训练的阻断，任何结果仍不能称为 real-MPB 或物理验证。
+- EXP-FWD-007 的 17 个 K5 训练任务和 85 checkpoint × 6 域的 510-cell held-out surrogate 评估均已完成；54 身份 GPU preflight、10 shards 与旧 272-cell 数值回归均通过。K5 native 的 ConvNeXt 最低，但跨路线最佳模型随方向改变，不能宣称普遍跨域最优。计划中的 paired-bootstrap/resource 汇总尚缺，本次 Draft 不作 ranking/promotion；用户豁免 WSL replay 对训练的阻断仍不构成 real-MPB 或物理验证。详见[EXP-FWD-007 结果](docs/results/forward/EXP-FWD-007-K5训练与六域验证.md)。
 - N50R5 登录仍被平台 `loginCluster` 权限拒绝；N40 已部署当前 inverse Stage-A runner/orchestrator（`b93cc2d`），但当前正式训练只能以既有三卡分配证据为下限，9/18 卡仍需真实 admission 作业证明。
 - Full-cell 50k forward 计算和自动审计已完成，但 AI 整理的 Draft 报告仍需人工接受；inverse 仍未在全胞、多形态、全 BZ 数据上完成正式 45-run Stage-A 或 soft-surrogate Stage B。
 - Full-Wh 升级 native/cross-lane/resolution 主评估已完成，但 `k_conditioned` 头未被选择，threshold proxy 尚无作业或结果；这些 surrogate 结果尚未进入 full-cell inverse Stage B 或 real-MPB replay。
