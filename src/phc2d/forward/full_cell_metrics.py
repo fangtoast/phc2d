@@ -1,0 +1,169 @@
+"""Band-sliced metrics for Full-Wh surrogate evidence.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Mapping
+
+import numpy as np
+
+
+BAND_GROUPS: Mapping[str, slice] = {
+    "band1": slice(0, 1),
+    "bands2_10": slice(1, 10),
+    "bands1_10": slice(0, 10),
+}
+
+
+def _validate_arrays(prediction: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    prediction = np.asarray(prediction, dtype=np.float64)
+    target = np.asarray(target, dtype=np.float64)
+    if prediction.shape != target.shape or prediction.ndim != 3 or prediction.shape[2] != 10:
+        raise ValueError(f"expected matching [N,K,10] arrays, got {prediction.shape} and {target.shape}")
+    if not np.isfinite(prediction).all() or not np.isfinite(target).all():
+        raise ValueError("prediction and target must be finite")
+    return prediction, target
+
+
+def _r2(values: np.ndarray, target: np.ndarray) -> tuple[float | None, str, int]:
+    denominator = np.sum((target - target.mean(axis=0, keepdims=True)) ** 2, axis=0)
+    defined = denominator > 1.0e-12
+    if not np.any(defined):
+        return None, "undefined_zero_target_variance", int(defined.size)
+    squared_error = np.sum((values - target) ** 2, axis=0)
+    weights = np.where(defined, denominator, 0.0)
+    score = 1.0 - float(np.sum(squared_error[defined])) / float(np.sum(weights))
+    return score, "defined_with_zero_variance_coordinates_excluded" if not np.all(defined) else "defined", int((~defined).sum())
+
+
+def _sample_metrics(prediction: np.ndarray, target: np.ndarray, bands: slice) -> dict[str, np.ndarray]:
+    pred = prediction[:, :, bands]
+    truth = target[:, :, bands]
+    diff = pred - truth
+    relative = np.abs(diff) / np.maximum(np.abs(truth), 1.0e-8)
+    violation = np.zeros(pred.shape[0], dtype=np.float64)
+    if pred.shape[2] > 1:
+        violation = np.any(np.diff(pred, axis=2) < 0.0, axis=2).mean(axis=1)
+    return {
+        "mre": relative.mean(axis=(1, 2)) * 100.0,
+        "mae": np.abs(diff).mean(axis=(1, 2)),
+        "rmse": np.sqrt(np.mean(diff * diff, axis=(1, 2))),
+        "band_order_violation": violation,
+    }
+
+
+def _bootstrap_ci(values: np.ndarray, *, seed: int, replicates: int) -> tuple[float, float]:
+    if replicates <= 0:
+        return float("nan"), float("nan")
+    rng = np.random.default_rng(seed)
+    sample = np.asarray(values, dtype=np.float64)
+    means = np.empty(replicates, dtype=np.float64)
+    for start in range(0, replicates, 256):
+        count = min(256, replicates - start)
+        indices = rng.integers(0, len(sample), size=(count, len(sample)))
+        means[start : start + count] = sample[indices].mean(axis=1)
+    return float(np.quantile(means, 0.025)), float(np.quantile(means, 0.975))
+
+
+def compute_band_metrics(
+    prediction: np.ndarray,
+    target: np.ndarray,
+    *,
+    bootstrap_replicates: int = 10_000,
+    bootstrap_seed: int = 0,
+) -> tuple[dict[str, Any], dict[str, np.ndarray], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return three band-group metric sets plus per-band and per-k evidence.
+
+    MRE values are percentages. Band-order violation is a per-sample rate; the
+    single-band group is explicitly marked not applicable because it has no
+    adjacent-band pair to compare.
+    """
+
+    prediction, target = _validate_arrays(prediction, target)
+    metrics: dict[str, Any] = {"sample_count": int(target.shape[0]), "band_count": 10}
+    sample_values: dict[str, np.ndarray] = {}
+    for group_index, (group, bands) in enumerate(BAND_GROUPS.items()):
+        values = _sample_metrics(prediction, target, bands)
+        sample_values[group] = values["mre"]
+        r2, r2_status, undefined = _r2(prediction[:, :, bands], target[:, :, bands])
+        prefix = group
+        metrics[f"{prefix}_mre"] = float(values["mre"].mean())
+        metrics[f"{prefix}_mae"] = float(values["mae"].mean())
+        metrics[f"{prefix}_rmse"] = float(values["rmse"].mean())
+        metrics[f"{prefix}_r2_variance_weighted"] = r2
+        metrics[f"{prefix}_r2_status"] = r2_status
+        metrics[f"{prefix}_undefined_r2_coordinates"] = undefined
+        if group == "band1":
+            metrics[f"{prefix}_band_order_violation"] = 0.0
+            metrics[f"{prefix}_band_order_violation_status"] = "not_applicable_single_band"
+        else:
+            metrics[f"{prefix}_band_order_violation"] = float(values["band_order_violation"].mean())
+            metrics[f"{prefix}_band_order_violation_status"] = "defined"
+        low, high = _bootstrap_ci(values["mre"], seed=bootstrap_seed + group_index, replicates=bootstrap_replicates)
+        metrics[f"{prefix}_mre_bootstrap_ci95_low"] = low
+        metrics[f"{prefix}_mre_bootstrap_ci95_high"] = high
+        for offset, name in enumerate(("mae", "rmse", "band_order_violation"), start=1):
+            low, high = _bootstrap_ci(values[name], seed=bootstrap_seed + group_index * 10 + offset, replicates=bootstrap_replicates)
+            metrics[f"{prefix}_{name}_bootstrap_ci95_low"] = low
+            metrics[f"{prefix}_{name}_bootstrap_ci95_high"] = high
+        metrics[f"{prefix}_bootstrap_replicates"] = int(bootstrap_replicates)
+
+    per_band: list[dict[str, Any]] = []
+    for band in range(target.shape[2]):
+        values = _sample_metrics(prediction, target, slice(band, band + 1))
+        r2, r2_status, undefined = _r2(prediction[:, :, band : band + 1], target[:, :, band : band + 1])
+        per_band.append({
+            "band_one_based": band + 1,
+            "mre": float(values["mre"].mean()),
+            "mae": float(values["mae"].mean()),
+            "rmse": float(values["rmse"].mean()),
+            "r2_variance_weighted": r2,
+            "r2_status": r2_status,
+            "undefined_r2_coordinates": undefined,
+            "band_order_violation": 0.0,
+            "band_order_violation_status": "not_applicable_single_band",
+        })
+
+    per_k: list[dict[str, Any]] = []
+    for group, bands in BAND_GROUPS.items():
+        for k_index in range(target.shape[1]):
+            values = _sample_metrics(prediction[:, k_index : k_index + 1], target[:, k_index : k_index + 1], bands)
+            r2, r2_status, undefined = _r2(prediction[:, k_index : k_index + 1, bands], target[:, k_index : k_index + 1, bands])
+            per_k.append({
+                "group": group,
+                "k_index": k_index,
+                "mre": float(values["mre"].mean()),
+                "mae": float(values["mae"].mean()),
+                "rmse": float(values["rmse"].mean()),
+                "r2_variance_weighted": r2,
+                "r2_status": r2_status,
+                "undefined_r2_coordinates": undefined,
+                "band_order_violation": 0.0 if group == "band1" else float(values["band_order_violation"].mean()),
+            })
+    return metrics, sample_values, per_band, per_k
+
+
+def paired_bootstrap_mre(
+    left: Mapping[str, np.ndarray],
+    right: Mapping[str, np.ndarray],
+    *,
+    seed: int,
+    replicates: int = 10_000,
+) -> dict[str, Any]:
+    """Compute deterministic paired bootstrap deltas for the three band groups."""
+
+    result: dict[str, Any] = {"bootstrap_replicates": int(replicates), "bootstrap_seed": int(seed)}
+    for group_index, group in enumerate(BAND_GROUPS):
+        delta = np.asarray(left[group], dtype=np.float64) - np.asarray(right[group], dtype=np.float64)
+        low, high = _bootstrap_ci(delta, seed=seed + group_index, replicates=replicates)
+        result[f"{group}_mre_delta"] = float(delta.mean())
+        result[f"{group}_mre_delta_ci95_low"] = low
+        result[f"{group}_mre_delta_ci95_high"] = high
+    return result
+
+
+__all__ = ["BAND_GROUPS", "compute_band_metrics", "paired_bootstrap_mre"]

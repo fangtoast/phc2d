@@ -418,6 +418,34 @@ experiments:
       summary: 17 个 K5 checkpoint 与 510-cell held-out surrogate 评估已完成，旧 272-cell 回归通过；paired-bootstrap/resource 汇总缺失，禁止 promotion，且结果不得提升为 real-MPB 或物理验证。
     tags: [forward, full-cell, k5, k20, dataset-50k, six-domain, surrogate-only]
 
+  - id: EXP-FWD-008
+    title: K5 全模型固定 200 Epoch 训练与六域交叉验证
+    task: forward
+    status: configured
+    mapping_status: complete
+    research_question: 在不改写 EXP-FWD-007 的前提下，固定 K5 17 个 seed0 任务完整训练 200 epoch 后，收敛门与六域 held-out surrogate 迁移诊断是否闭合？
+    spec:
+      - experiments/research/EXP-FWD-008-K5固定200轮训练与六域验证.md
+    config:
+      - configs/research/full_cell_k5_forward_008_binary_seed0_v1.yaml
+      - configs/research/full_cell_k5_forward_008_graded_seed0_v1.yaml
+      - configs/research/full_cell_k5_forward_008_dual_lane_seed0_v1.yaml
+      - configs/research/exp_fwd_008_k5_campaign_profile_v1.yaml
+      - configs/research/full_cell_k5_six_domain_exp_fwd_008_n40_v1.yaml
+    runs:
+      local: []
+      referenced_not_local: []
+    result:
+      - docs/results/forward/EXP-FWD-008-K5固定200轮训练与六域验证.md
+    report: []
+    related_experiments:
+      - EXP-DAT-005
+      - EXP-FWD-007
+    decision:
+      state: pending_execution
+      summary: 已完成独立合同、配置、训练控制面、Band 三口径 schema 和只读监控入口；训练与评估证据尚未产生。
+    tags: [forward, full-cell, k5, fixed-200, six-domain, surrogate-only]
+
   - id: EXP-QRY-001
     title: A1 V2 10k Continuous Query 公平对照
     task: query

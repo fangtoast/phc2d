@@ -244,27 +244,56 @@ def audit_admission(campaign_dir: str | Path, *, phase: str, repository_root: st
 
 def finalize_training(campaign_dir: str | Path, *, repository_root: str | Path = ".") -> Path:
     root = Path(repository_root).resolve(); campaign = Path(campaign_dir).resolve(); rows = _read_csv(campaign / "task_manifest.csv")
+    profile_path = campaign / "campaign_profile.resolved.yaml"
+    profile = yaml.safe_load(profile_path.read_text(encoding="utf-8")) if profile_path.is_file() else {}
+    profile = dict(profile) if isinstance(profile, Mapping) else {}
+    training_contract = dict(profile.get("training") or {})
+    fixed_terminal = training_contract.get("required_stop_epoch") is not None
     inventory: list[dict[str, Any]] = []; summaries: list[dict[str, Any]] = []
     for row in rows:
         run = Path(row["run_dir"]); result_path = run / "results.json"; checkpoint = run / "model.pt"
         if not result_path.is_file() or not checkpoint.is_file(): raise RuntimeError(f"missing formal artifacts: {run}")
         result = json.loads(result_path.read_text(encoding="utf-8"))
         if result.get("status") not in SUCCESS or result.get("test_executed"):
+            if fixed_terminal and result.get("status") == "training_complete_convergence_not_met":
+                raise RuntimeError(f"training complete but convergence gate failed: {run}")
             raise RuntimeError(f"not validation-only training success: {run}")
         stop, best = int(result["stop_epoch"]), int(result["best_epoch"])
-        if not 1 <= stop <= 100 or not 1 <= best <= stop: raise RuntimeError(f"invalid early-stop record: {run}")
+        if fixed_terminal:
+            required_stop = int(training_contract["required_stop_epoch"])
+            if stop != required_stop or not 1 <= best <= stop:
+                raise RuntimeError(f"invalid fixed-terminal epoch record: {run}")
+            history_path = run / "history.csv"
+            history = _read_csv(history_path) if history_path.is_file() else []
+            epochs = [int(item["epoch"]) for item in history]
+            if epochs != list(range(1, required_stop + 1)):
+                raise RuntimeError(f"history.csv must cover epochs 1-{required_stop}: {run}")
+            terminal = run / f"epoch{required_stop}.pt"
+            if not terminal.is_file() or result.get("terminal_checkpoint_sha256") != _sha256(terminal):
+                raise RuntimeError(f"terminal checkpoint artifact/hash missing: {run}")
+            convergence = result.get("convergence")
+            if not isinstance(convergence, Mapping):
+                raise RuntimeError(f"convergence record missing: {run}")
+            curves = convergence.get("curves", {"single": convergence})
+            if not all(bool(item.get("passed")) for item in curves.values() if isinstance(item, Mapping)):
+                raise RuntimeError(f"convergence gate failed: {run}")
+        elif not 1 <= stop <= 100 or not 1 <= best <= stop:
+            raise RuntimeError(f"invalid early-stop record: {run}")
         payload = {**row, "checkpoint_path": checkpoint.as_posix(), "checkpoint_sha256": _sha256(checkpoint), "checkpoint_role": "best_validation", "selection_split": "validation"}
+        if fixed_terminal:
+            terminal = run / f"epoch{int(training_contract['required_stop_epoch'])}.pt"
+            payload.update({"terminal_checkpoint_path": terminal.as_posix(), "terminal_checkpoint_sha256": _sha256(terminal), "terminal_checkpoint_role": "terminal_epoch", "convergence_relative_change": float(result["convergence"].get("relative_change", result["convergence"]["curves"]["equal_lane"]["relative_change"] if "curves" in result["convergence"] else 0.0))})
         identity = result.get("model_identity")
         if not isinstance(identity, Mapping): raise RuntimeError(f"model identity missing: {run}")
         required = {"canonical_model_name", "factory_function_identity", "state_dict_schema_hash", "architecture_fingerprint", "parameter_count"}
         if not required.issubset(identity): raise RuntimeError(f"incomplete model identity: {run}")
         inventory.append({**payload, **{key: identity[key] for key in required}})
-        summaries.append({"task_id": row["task_id"], "model": row["model"], "train_lane": row["train_lane"], "best_epoch": best, "stop_epoch": stop, "best_validation_mre_pct": result.get("best_validation_bands_2_10_mre_pct", result.get("best_validation_equal_lane_mre_pct"))})
+        summaries.append({"task_id": row["task_id"], "model": row["model"], "train_lane": row["train_lane"], "best_epoch": best, "stop_epoch": stop, "best_validation_mre_pct": result.get("best_validation_bands_2_10_mre_pct", result.get("best_validation_equal_lane_mre_pct")), "convergence_passed": None if not fixed_terminal else all(bool(item.get("passed")) for item in result["convergence"].get("curves", {"single": result["convergence"]}).values())})
     if len(inventory) != 17 or len({(x["model"], x["train_lane"], x["seed"]) for x in inventory}) != 17: raise RuntimeError("training checkpoint identity collision")
     _write_csv(campaign / "checkpoint_inventory.csv", inventory); _write_csv(campaign / "training_summary.csv", summaries)
     curve_rows = [{"task_id": row["task_id"], "history_csv": str(Path(row["run_dir"]) / "history.csv"), "png": str(Path(row["run_dir"]) / "figures" / "training_curve.png"), "pdf": str(Path(row["run_dir"]) / "figures" / "training_curve.pdf")} for row in rows]
     _write_csv(campaign / "curve_manifest.csv", curve_rows)
-    _write_json(campaign / "results.json", {"status": "training_complete_pending_six_domain_evaluation", "training_task_count": 17, "checkpoint_count": 17, "evidence_status": "user_authorized_surrogate_training_pending_wsl_acceptance"})
+    _write_json(campaign / "results.json", {"status": "training_complete_pending_six_domain_evaluation", "training_task_count": 17, "checkpoint_count": 17, "required_stop_epoch": int(training_contract["required_stop_epoch"]) if fixed_terminal else None, "convergence_gate": "pass" if fixed_terminal else None, "evidence_status": profile.get("evidence_status", "user_authorized_surrogate_training_pending_wsl_acceptance")})
     return campaign
 
 

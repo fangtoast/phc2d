@@ -30,5 +30,6 @@ primary_layer: L3
 | [Full-Wh 50k 单 seed R²补充](全胞前向50K模型R方补充评估_20260819.md) | seed 0 的 18 个 native 单元；逐坐标中心化 R²，不与 POST 数值直接排名 |
 | [K20 与 50K 跨数据域正向验证](全胞K20与50K跨数据域正向验证_20260820.md) | N40 四个 Full-cell 域、68 个冻结 checkpoint、272 个 held-out surrogate cells；Draft |
 | [EXP-FWD-007：K5训练与六域验证](EXP-FWD-007-K5训练与六域验证.md) | K5 17-task 与 F50=50,000 的六域 510-cell held-out 重推已完成；旧 272-cell 回归通过，bootstrap/resource 汇总仍缺，Draft 不作 promotion |
+| [EXP-FWD-008：K5 固定 200 轮训练与六域验证](EXP-FWD-008-K5固定200轮训练与六域验证.md) | EXP-FWD-007 的独立 derivative；固定 200 epoch、三口径 Band 指标和 510-cell 验收，当前仅配置完成，待训练与评估证据 |
 
 [返回研究结果与报告](../README.md)

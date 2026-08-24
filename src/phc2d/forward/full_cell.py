@@ -119,6 +119,41 @@ def _epoch_100_continue_decision(
     }
 
 
+def _convergence_record(
+    history: Sequence[Mapping[str, Any]],
+    *,
+    metric: str = "val_bands_2_10_mre_pct",
+    first_window: tuple[int, int] = (181, 190),
+    second_window: tuple[int, int] = (191, 200),
+    threshold: float = 0.005,
+) -> dict[str, Any]:
+    """Evaluate the fixed terminal-window relative-change convergence gate."""
+
+    by_epoch = {int(row["epoch"]): float(row[metric]) for row in history}
+    required = set(range(first_window[0], first_window[1] + 1)) | set(range(second_window[0], second_window[1] + 1))
+    if not required.issubset(by_epoch):
+        missing = sorted(required.difference(by_epoch))
+        raise ValueError(f"convergence gate requires complete terminal windows; missing epochs: {missing}")
+    first = np.asarray([by_epoch[epoch] for epoch in range(first_window[0], first_window[1] + 1)], dtype=np.float64)
+    second = np.asarray([by_epoch[epoch] for epoch in range(second_window[0], second_window[1] + 1)], dtype=np.float64)
+    if not np.isfinite(first).all() or not np.isfinite(second).all():
+        raise ValueError("convergence gate received non-finite validation values")
+    mean_first = float(np.mean(first))
+    mean_second = float(np.mean(second))
+    denominator = max(abs(mean_first), 1.0e-12)
+    relative_change = abs(mean_second - mean_first) / denominator
+    return {
+        "metric": metric,
+        "first_window": list(first_window),
+        "second_window": list(second_window),
+        "mean_first_window": mean_first,
+        "mean_second_window": mean_second,
+        "relative_change": relative_change,
+        "threshold": float(threshold),
+        "passed": bool(relative_change <= float(threshold)),
+    }
+
+
 def _load_yaml(path: Path) -> dict[str, Any]:
     payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(payload, Mapping):
@@ -297,6 +332,22 @@ def _validate_and_resolve(
             raise ValueError("formal training requires FP32")
         if bool(runtime.get("amp_enabled")) or bool(runtime.get("tf32_enabled")):
             raise ValueError("formal training forbids AMP and TF32")
+        if training.get("required_stop_epoch") is not None:
+            required_stop = int(training["required_stop_epoch"])
+            if max_epochs != required_stop or required_stop != 200:
+                raise ValueError("fixed-200 training requires max_epochs=required_stop_epoch=200")
+            if int(training.get("early_stopping_patience", -1)) != 0:
+                raise ValueError("fixed-200 training requires early_stopping_patience=0")
+            if bool(training.get("epoch_100_continue_gate", False)):
+                raise ValueError("fixed-200 training forbids epoch_100_continue_gate")
+            if not bool(training.get("require_terminal_checkpoint", False)):
+                raise ValueError("fixed-200 training requires a terminal checkpoint")
+            if tuple(int(value) for value in training.get("convergence_window", [])) != (181, 200):
+                raise ValueError("fixed-200 training requires convergence_window=[181, 200]")
+            if str(training.get("convergence_metric", "")) != "validation_bands_2_10_mre":
+                raise ValueError("fixed-200 training requires validation_bands_2_10_mre")
+            if float(training.get("convergence_relative_threshold", -1.0)) != 0.005:
+                raise ValueError("fixed-200 convergence threshold must be 0.005")
         gate_enabled = bool(training.get("epoch_100_continue_gate", False))
         if gate_enabled:
             if int(resolved["training"]["max_epochs"]) != 200:
@@ -450,6 +501,8 @@ def _evaluate(
     squared = 0.0
     absolute = 0.0
     relative = 0.0
+    relative_band1 = 0.0
+    relative_all = 0.0
     normalized_squared = 0.0
     count = 0
     inference_start = time.perf_counter()
@@ -465,6 +518,8 @@ def _evaluate(
                 lane_index=lane_index,
                 torch=torch,
             )
+            if not bool(torch.isfinite(prediction_norm).all().item()):
+                raise RuntimeError("non-finite validation prediction")
             normalized_diff = prediction_norm - yb
             normalized_squared += float(torch.sum(normalized_diff * normalized_diff).detach().cpu())
             prediction = prediction_norm * std + mean
@@ -475,15 +530,24 @@ def _evaluate(
             relative += float(
                 torch.sum(torch.abs(diff[..., 1:]) / torch.clamp(torch.abs(target[..., 1:]), min=1.0e-8)).detach().cpu()
             )
+            relative_band1 += float(
+                torch.sum(torch.abs(diff[..., :1]) / torch.clamp(torch.abs(target[..., :1]), min=1.0e-8)).detach().cpu()
+            )
+            relative_all += float(
+                torch.sum(torch.abs(diff) / torch.clamp(torch.abs(target), min=1.0e-8)).detach().cpu()
+            )
             count += int(target.numel())
     elapsed = time.perf_counter() - inference_start
     band_count = count * max(int(mean.shape[-1]) - 1, 0) / max(int(mean.shape[-1]), 1)
+    sample_count = max(count // int(mean.shape[-1]), 1)
     return {
         "mse": squared / max(count, 1),
         "normalized_mse": normalized_squared / max(count, 1),
         "mae": absolute / max(count, 1),
         "rmse": float(np.sqrt(squared / max(count, 1))),
         "bands_2_10_mre_pct": 100.0 * relative / max(band_count, 1),
+        "band1_mre_pct": 100.0 * relative_band1 / sample_count,
+        "bands_1_10_mre_pct": 100.0 * relative_all / max(count, 1),
         "eval_time_s": elapsed,
     }
 
@@ -690,7 +754,9 @@ def run_full_cell_forward(
             "epoch": epoch,
             "train_loss": train_sum / max(train_count, 1),
             "val_loss": val["normalized_mse"],
+            "val_band1_mre_pct": val["band1_mre_pct"],
             "val_bands_2_10_mre_pct": val["bands_2_10_mre_pct"],
+            "val_bands_1_10_mre_pct": val["bands_1_10_mre_pct"],
             "learning_rate": float(training["learning_rate"]),
             "epoch_time_s": time.perf_counter() - epoch_start,
             "wall_time_s": time.perf_counter() - wall_start,
@@ -792,6 +858,50 @@ def run_full_cell_forward(
             },
             stop_snapshot,
         )
+    required_stop_epoch = training.get("required_stop_epoch")
+    convergence: dict[str, Any] | None = None
+    terminal_checkpoint: Path | None = None
+    if required_stop_epoch is not None and not admission_probe:
+        required_stop_epoch = int(required_stop_epoch)
+        if stop_epoch != required_stop_epoch:
+            raise RuntimeError(f"required terminal epoch {required_stop_epoch}, observed {stop_epoch}")
+        convergence_window = tuple(int(value) for value in training.get("convergence_window", [181, 200]))
+        if convergence_window != (181, 200):
+            raise ValueError("EXP-FWD-008 convergence_window must be [181, 200]")
+        convergence = _convergence_record(
+            history,
+            metric=("val_bands_2_10_mre_pct" if str(training.get("convergence_metric")) == "validation_bands_2_10_mre" else str(training.get("convergence_metric", "val_bands_2_10_mre_pct"))),
+            first_window=(181, 190),
+            second_window=(191, 200),
+            threshold=float(training.get("convergence_relative_threshold", 0.005)),
+        )
+        convergence["contract_metric"] = str(training.get("convergence_metric", "validation_bands_2_10_mre"))
+        terminal_checkpoint = out / f"epoch{required_stop_epoch}.pt"
+        terminal_tmp = terminal_checkpoint.with_suffix(terminal_checkpoint.suffix + ".tmp")
+        torch.save(
+            {
+                "state_dict": model.state_dict(),
+                "model_name": model_name,
+                "model_params": dict(resolved["model"]["params"]),
+                "model_identity": describe_model_identity(
+                    model, model_name, model_spec, model_kwargs=resolved["model"]["params"]
+                ),
+                "input_shape": input_shape,
+                "output_shape": contract["target_shape"],
+                "k_points": torch.as_tensor(contract["k_points"], dtype=torch.float32) if contract["k_points"] is not None else None,
+                "k_points_sha256": contract["k_points_sha256"],
+                "lane_index": lane_index,
+                "target_mean": torch.as_tensor(contract["target_mean"], dtype=torch.float32),
+                "target_std": torch.as_tensor(contract["target_std"], dtype=torch.float32),
+                "epoch": required_stop_epoch,
+                "checkpoint_role": "terminal_epoch",
+                "selection_split": "terminal_training_state",
+                "convergence": convergence,
+                "resolved_config": resolved,
+            },
+            terminal_tmp,
+        )
+        os.replace(terminal_tmp, terminal_checkpoint)
     checkpoint = out / "model.pt"
     if not checkpoint.is_file():
         role = "final-epoch final-fit" if final_fit else "best-validation"
@@ -840,6 +950,11 @@ def run_full_cell_forward(
         "model_identity": describe_model_identity(
             model, model_name, model_spec, model_kwargs=resolved["model"]["params"]
         ),
+        "convergence": convergence,
+        "required_stop_epoch": required_stop_epoch,
+        "terminal_checkpoint_path": str(terminal_checkpoint) if terminal_checkpoint else None,
+        "terminal_checkpoint_sha256": _sha256_checkpoint(terminal_checkpoint) if terminal_checkpoint else None,
+        "history_epoch_count": len(history),
     }
     _plot_history(
         out,
@@ -856,6 +971,8 @@ def run_full_cell_forward(
                 "output_shape": list(contract["target_shape"]),
                 "best_validation_checkpoint": str(checkpoint),
                 "best_validation_checkpoint_sha256": _sha256_checkpoint(checkpoint),
+                "terminal_checkpoint": str(terminal_checkpoint) if terminal_checkpoint else None,
+                "terminal_checkpoint_sha256": _sha256_checkpoint(terminal_checkpoint) if terminal_checkpoint else None,
                 "model_identity": metrics["model_identity"],
             },
             indent=2,
@@ -864,6 +981,8 @@ def run_full_cell_forward(
         encoding="utf-8",
     )
     status = "full_cell_forward_admission_probe_pass" if admission_probe else "formal_training_success"
+    if not admission_probe and convergence is not None and not bool(convergence["passed"]):
+        status = "training_complete_convergence_not_met"
     write_results(
         out,
         {
@@ -888,6 +1007,11 @@ def run_full_cell_forward(
             "best_monitor_epoch": best_epoch,
             "checkpoint_path": str(checkpoint),
             "checkpoint_sha256": _sha256_checkpoint(checkpoint),
+            "terminal_checkpoint_path": str(terminal_checkpoint) if terminal_checkpoint else None,
+            "terminal_checkpoint_sha256": _sha256_checkpoint(terminal_checkpoint) if terminal_checkpoint else None,
+            "required_stop_epoch": required_stop_epoch,
+            "convergence": convergence,
+            "history_epoch_count": len(history),
             "epoch_100_continue_gate": gate_record,
             "epoch_100_checkpoint_path": str(epoch100_snapshot) if epoch100_snapshot else None,
             "epoch_100_checkpoint_sha256": _sha256_checkpoint(epoch100_snapshot) if epoch100_snapshot else None,

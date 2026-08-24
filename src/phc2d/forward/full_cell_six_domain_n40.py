@@ -22,6 +22,7 @@ import numpy as np
 import yaml
 
 from phc2d.forward.full_cell_cross_domain_n40 import _metric_rows, _normalizer, _predict, sha256_array, sha256_file
+from phc2d.forward.full_cell_metrics import compute_band_metrics, paired_bootstrap_mre
 from phc2d.models import build_model, describe_model_identity, get_model_spec
 
 MODELS = ("mlp", "res_mlp_wide", "lifted_cnn", "fno2d_band_v2", "mlp_mixer_band_v1", "res_mlp_gated_v2", "convnext_band_v1", "tfno2d_band_v3")
@@ -191,6 +192,9 @@ def run_preflight(campaign_dir: str | Path, *, repository_root: str | Path = "."
 
 def run_shard(campaign_dir: str | Path, shard_id: int, *, repository_root: str | Path = ".", device: str = "cuda:0") -> Path:
     root = Path(repository_root).resolve(); campaign = _resolve(root, campaign_dir); import h5py, torch
+    config = yaml.safe_load((campaign / "config.resolved.yaml").read_text(encoding="utf-8"))
+    extended_metrics = str(config.get("metric_schema", "")) == "phc2d.full_cell_band_metrics.v1"
+    bootstrap_replicates = int(config.get("statistics", {}).get("bootstrap_replicates", 10000)) if extended_metrics else 0
     status = json.loads((campaign / "campaign_status.json").read_text(encoding="utf-8"))
     if status["status"] not in {"evaluation_plan_ready", "evaluation_submitted"}: raise RuntimeError("preflight gate not passed")
     selected = [row for row in _read_csv(campaign / "evaluation_plan.csv") if int(row["shard_id"]) == int(shard_id)]
@@ -204,13 +208,28 @@ def run_shard(campaign_dir: str | Path, shard_id: int, *, repository_root: str |
         payload = _load_checkpoint(checkpoint, device_obj, torch); identity = _identity(payload)
         if identity.get("canonical_model_name") != cell["source_model"]: raise RuntimeError("canonical model name drift")
         started = time.perf_counter(); prediction = _predict(payload, x, k, cell["target_lane"], 64, device_obj, torch); elapsed = time.perf_counter() - started
-        metrics, sample_mre, per_band = _metric_rows(prediction, target); np.savez_compressed(out / f"{cell['evaluation_id']}.npz", prediction=prediction, sample_mre=sample_mre, target=target)
-        _write_csv(out / f"{cell['evaluation_id']}_per_band.csv", [{"evaluation_id": cell["evaluation_id"], **item} for item in per_band]); metric_rows.append({**cell, **metrics, "status": "completed", "source_normalizer_reused": True, "lane_id": 0 if cell["target_lane"] == "B" else 1, "inference_time_s": elapsed, "throughput_samples_per_s": len(x) / max(elapsed, 1e-12)})
+        if extended_metrics:
+            metrics, sample_values, per_band, per_k = compute_band_metrics(prediction, target, bootstrap_replicates=bootstrap_replicates, bootstrap_seed=int(cell["evaluation_id"].split("_")[-1], 16) if cell["evaluation_id"].split("_")[-1].isalnum() else 0)
+            sample_mre = sample_values["bands2_10"]
+        else:
+            metrics, sample_mre, per_band = _metric_rows(prediction, target); per_k = []
+        np.savez_compressed(out / f"{cell['evaluation_id']}.npz", prediction=prediction, sample_mre=sample_mre, target=target)
+        _write_csv(out / f"{cell['evaluation_id']}_per_band.csv", [{"evaluation_id": cell["evaluation_id"], **item} for item in per_band])
+        if extended_metrics:
+            _write_csv(out / f"{cell['evaluation_id']}_per_k.csv", [{"evaluation_id": cell["evaluation_id"], **item} for item in per_k])
+        label = config.get("datasets", {}).get(cell["target_domain"], {}).get("label", cell["target_domain"])
+        row = {**cell, **metrics, "status": "completed", "source_normalizer_reused": True, "lane_id": 0 if cell["target_lane"] == "B" else 1, "inference_time_s": elapsed, "throughput_samples_per_s": len(x) / max(elapsed, 1e-12)}
+        if extended_metrics:
+            row.update({"canonical_model_name": identity.get("canonical_model_name"), "factory_function_identity": identity.get("factory_function_identity"), "architecture_fingerprint": identity.get("architecture_fingerprint"), "state_dict_schema_hash": identity.get("state_dict_schema_hash"), "normalizer_source_checkpoint_sha256": cell["checkpoint_sha256"], "target_lane_id": 0 if cell["target_lane"] == "B" else 1, "target_domain_label": label, "metric_schema": "phc2d.full_cell_band_metrics.v1"})
+        metric_rows.append(row)
     _write_csv(out / "evaluation_cells.csv", metric_rows); _write_json(out / "results.json", {"status": "shard_success", "shard_id": int(shard_id), "cell_count": len(metric_rows), "nonfinite": False}); return out
 
 
 def finalize_campaign(campaign_dir: str | Path, *, repository_root: str | Path = ".") -> Path:
     root = Path(repository_root).resolve(); campaign = _resolve(root, campaign_dir); plan = _read_csv(campaign / "evaluation_plan.csv"); rows: list[dict[str, str]] = []; arrays: dict[str, np.ndarray] = {}
+    config = yaml.safe_load((campaign / "config.resolved.yaml").read_text(encoding="utf-8"))
+    extended_metrics = str(config.get("metric_schema", "")) == "phc2d.full_cell_band_metrics.v1"
+    primary_key = "bands2_10_mre" if extended_metrics else "bands_2_10_mre_pct"
     for directory in sorted((campaign / "shards").glob("shard_*")):
         cell_file = directory / "evaluation_cells.csv"
         if not cell_file.is_file(): continue
@@ -220,19 +239,22 @@ def finalize_campaign(campaign_dir: str | Path, *, repository_root: str | Path =
             rows.append(row); arrays[row["evaluation_id"]] = np.load(archive)["sample_mre"]
     ids = [row["evaluation_id"] for row in rows]
     if len(rows) != EXPECTED_CELLS or set(ids) != {row["evaluation_id"] for row in plan} or len(set(ids)) != EXPECTED_CELLS: raise RuntimeError("510-cell completeness failure")
-    if any(row.get("status") != "completed" or not math.isfinite(float(row["bands_2_10_mre_pct"])) for row in rows): raise RuntimeError("failed/nonfinite cell")
+    if any(row.get("status") != "completed" or not math.isfinite(float(row[primary_key])) for row in rows): raise RuntimeError("failed/nonfinite cell")
     _write_csv(campaign / "evaluation_cells.csv", rows)
-    config = yaml.safe_load((campaign / "config.resolved.yaml").read_text(encoding="utf-8"))
-    legacy_root = _resolve(root, str(config.get("legacy_272_campaign", "")))
+    legacy_272_root = _resolve(root, str(config.get("legacy_272_campaign", "")))
+    legacy_full_root = _resolve(root, str(config.get("legacy_007_six_domain_campaign", ""))) if extended_metrics else None
+    legacy_root = legacy_full_root if extended_metrics else legacy_272_root
     legacy_rows_path = legacy_root / "evaluation_cells.csv"
     if not legacy_rows_path.is_file():
         raise RuntimeError(f"legacy 272-cell evidence is required for numeric regression: {legacy_rows_path}")
     legacy_rows = _read_csv(legacy_rows_path)
-    current_by_identity = {(r["source_family"], r["source_model"], r["source_lane"], r["source_seed"], r["target_domain"]): r for r in rows if r["source_family"] in {"K20", "F50"} and r["target_family"] in {"K20", "F50"}}
+    current_by_identity = {(r["source_family"], r["source_model"], r["source_lane"], r["source_seed"], r["target_domain"]): r for r in rows if r["source_family"] in {"K20", "F50"} and (extended_metrics or r["target_family"] in {"K20", "F50"})}
     legacy_by_identity = {(r["source_family"], r["source_model"], r["source_lane"], r["source_seed"], r["target_domain"]): r for r in legacy_rows}
-    if len(current_by_identity) != 272 or set(current_by_identity) != set(legacy_by_identity):
-        raise RuntimeError("legacy 272-cell identity coverage mismatch")
-    tolerance = float(config["statistics"]["legacy_272_abs_tol"]); regression_rows = []
+    expected_legacy_cells = 408 if extended_metrics else 272
+    if len(current_by_identity) != expected_legacy_cells or set(current_by_identity) != set(legacy_by_identity):
+        raise RuntimeError(f"legacy {expected_legacy_cells}-cell identity coverage mismatch")
+    tolerance_key = "legacy_408_abs_tol" if extended_metrics else "legacy_272_abs_tol"
+    tolerance = float(config["statistics"][tolerance_key]); regression_rows = []
     for identity, current in current_by_identity.items():
         legacy = legacy_by_identity[identity]
         current_npz = campaign / "shards" / f"shard_{int(current['shard_id']):02d}" / f"{current['evaluation_id']}.npz"
@@ -242,15 +264,58 @@ def finalize_campaign(campaign_dir: str | Path, *, repository_root: str | Path =
         if current_prediction.shape != legacy_prediction.shape: raise RuntimeError(f"legacy prediction shape mismatch: {identity}")
         delta = float(np.max(np.abs(current_prediction - legacy_prediction)))
         regression_rows.append({"source_family": identity[0], "source_model": identity[1], "source_lane": identity[2], "source_seed": identity[3], "target_domain": identity[4], "max_abs_prediction_delta": delta, "pass": delta <= tolerance})
-    _write_csv(campaign / "legacy_272_numeric_regression.csv", regression_rows)
-    if not all(row["pass"] for row in regression_rows): raise RuntimeError("legacy 272-cell numerical regression exceeds tolerance")
+    _write_csv(campaign / ("legacy_408_numeric_regression.csv" if extended_metrics else "legacy_272_numeric_regression.csv"), regression_rows)
+    if not all(row["pass"] for row in regression_rows): raise RuntimeError(f"legacy {expected_legacy_cells}-cell numerical regression exceeds tolerance")
+    paired_bootstrap_rows: list[dict[str, Any]] = []
+    if extended_metrics:
+        current_272 = {key: row for key, row in current_by_identity.items() if key[4] in {"K20-B", "K20-G", "F50-B", "F50-G"}}
+        old_272_rows = _read_csv(legacy_272_root / "evaluation_cells.csv") if (legacy_272_root / "evaluation_cells.csv").is_file() else []
+        old_272 = {(r["source_family"], r["source_model"], r["source_lane"], r["source_seed"], r["target_domain"]): r for r in old_272_rows}
+        if len(current_272) != 272 or set(current_272) != set(old_272):
+            raise RuntimeError("historical 272-cell identity coverage mismatch")
+        historical_rows: list[dict[str, Any]] = []
+        for identity, current in current_272.items():
+            legacy = old_272[identity]
+            current_npz = campaign / "shards" / f"shard_{int(current['shard_id']):02d}" / f"{current['evaluation_id']}.npz"
+            legacy_npz = legacy_272_root / "shards" / f"shard_{int(legacy['shard_id']):02d}" / f"{legacy['evaluation_id']}.npz"
+            if not current_npz.is_file() or not legacy_npz.is_file():
+                raise RuntimeError(f"historical 272-cell evidence missing for {identity}")
+            delta = float(np.max(np.abs(np.load(current_npz)["prediction"] - np.load(legacy_npz)["prediction"])))
+            historical_rows.append({"source_family": identity[0], "source_model": identity[1], "source_lane": identity[2], "source_seed": identity[3], "target_domain": identity[4], "max_abs_prediction_delta": delta, "pass": delta <= float(config["statistics"]["legacy_272_abs_tol"])})
+        _write_csv(campaign / "legacy_272_numeric_regression.csv", historical_rows)
+        if not all(row["pass"] for row in historical_rows):
+            raise RuntimeError("historical 272-cell numerical regression exceeds tolerance")
+        legacy_full_rows = _read_csv(legacy_full_root / "evaluation_cells.csv") if legacy_full_root and (legacy_full_root / "evaluation_cells.csv").is_file() else []
+        legacy_k5 = {(r["source_family"], r["source_model"], r["source_lane"], r["source_seed"], r["target_domain"]): r for r in legacy_full_rows if r["source_family"] == "K5"}
+        current_k5 = {(r["source_family"], r["source_model"], r["source_lane"], r["source_seed"], r["target_domain"]): r for r in rows if r["source_family"] == "K5"}
+        if len(current_k5) != 102 or set(current_k5) != set(legacy_k5):
+            raise RuntimeError("K5 paired-bootstrap identity coverage mismatch")
+        for identity, current in current_k5.items():
+            legacy = legacy_k5[identity]
+            current_npz = campaign / "shards" / f"shard_{int(current['shard_id']):02d}" / f"{current['evaluation_id']}.npz"
+            legacy_npz = legacy_full_root / "shards" / f"shard_{int(legacy['shard_id']):02d}" / f"{legacy['evaluation_id']}.npz"
+            with np.load(current_npz) as current_archive, np.load(legacy_npz) as legacy_archive:
+                _, current_sample, _, _ = compute_band_metrics(current_archive["prediction"], current_archive["target"], bootstrap_replicates=0)
+                _, legacy_sample, _, _ = compute_band_metrics(legacy_archive["prediction"], legacy_archive["target"], bootstrap_replicates=0)
+            seed = int(hashlib.sha256("/".join(str(value) for value in identity).encode()).hexdigest()[:8], 16)
+            paired_bootstrap_rows.append({**dict(zip(("source_family", "source_model", "source_lane", "source_seed", "target_domain"), identity)), **paired_bootstrap_mre(current_sample, legacy_sample, seed=seed, replicates=int(config["statistics"]["paired_bootstrap_replicates"]))})
+        _write_csv(campaign / "k5_paired_bootstrap.csv", paired_bootstrap_rows)
     for field, selector in (("domain_summary.csv", lambda r: (r["target_domain"], r["comparison_kind"])), ("seed_summary.csv", lambda r: (r["source_family"], r["source_seed"]))):
         groups: dict[tuple[str, ...], list[dict[str, str]]] = defaultdict(list)
         for row in rows: groups[selector(row)].append(row)
-        _write_csv(campaign / field, [{"group": "/".join(key), "cell_count": len(value), "bands_2_10_mre_pct_mean": float(np.mean([float(v["bands_2_10_mre_pct"]) for v in value]))} for key, value in sorted(groups.items())])
-    _write_csv(campaign / "per_band_metrics.csv", [{"evaluation_id": r["evaluation_id"], "bands_2_10_mre_pct": r["bands_2_10_mre_pct"]} for r in rows]); _write_csv(campaign / "per_k_metrics.csv", [{"evaluation_id": r["evaluation_id"], "r2": r["bands_2_10_r2_variance_weighted"]} for r in rows])
-    _write_json(campaign / "results.json", {"status": "evaluation_complete_pending_report", "completed_checkpoints": EXPECTED_CHECKPOINTS, "completed_cells": EXPECTED_CELLS, "completed_shards": EXPECTED_SHARDS, "legacy_272_numeric_regression": "pass", "nonfinite": False, "surrogate_only": True, "real_mpb_replay": False})
-    _write_json(campaign / "campaign_status.json", {"status": "evaluation_complete_pending_report", "planned_cells": EXPECTED_CELLS, "completed_cells": len(rows), "next_gate": "legacy_272_numeric_regression_and_draft_report_review"}); return campaign
+        summary_key = "bands2_10_mre" if extended_metrics else "bands_2_10_mre_pct"
+        _write_csv(campaign / field, [{"group": "/".join(key), "cell_count": len(value), summary_key + "_mean": float(np.mean([float(v[primary_key]) for v in value]))} for key, value in sorted(groups.items())])
+    if extended_metrics:
+        _write_csv(campaign / "per_band_metrics.csv", [{"evaluation_id": r["evaluation_id"], **{key: r[key] for key in r if key.startswith("band") or key.startswith("bands")}} for r in rows])
+        _write_csv(campaign / "per_k_metrics.csv", [{"evaluation_id": r["evaluation_id"], "metric_schema": r.get("metric_schema", "legacy")} for r in rows])
+        _write_json(campaign / "results.json", {"status": "evaluation_complete_pending_report", "completed_checkpoints": EXPECTED_CHECKPOINTS, "completed_cells": EXPECTED_CELLS, "completed_shards": EXPECTED_SHARDS, "legacy_408_numeric_regression": "pass", "legacy_272_numeric_regression": "pass", "k5_paired_bootstrap_cells": len(paired_bootstrap_rows), "nonfinite": False, "surrogate_only": True, "real_mpb_replay": False})
+        next_gate = "draft_report_review"
+    else:
+        _write_csv(campaign / "per_band_metrics.csv", [{"evaluation_id": r["evaluation_id"], "bands_2_10_mre_pct": r["bands_2_10_mre_pct"]} for r in rows])
+        _write_csv(campaign / "per_k_metrics.csv", [{"evaluation_id": r["evaluation_id"], "r2": r["bands_2_10_r2_variance_weighted"]} for r in rows])
+        _write_json(campaign / "results.json", {"status": "evaluation_complete_pending_report", "completed_checkpoints": EXPECTED_CHECKPOINTS, "completed_cells": EXPECTED_CELLS, "completed_shards": EXPECTED_SHARDS, "legacy_272_numeric_regression": "pass", "nonfinite": False, "surrogate_only": True, "real_mpb_replay": False})
+        next_gate = "legacy_272_numeric_regression_and_draft_report_review"
+    _write_json(campaign / "campaign_status.json", {"status": "evaluation_complete_pending_report", "planned_cells": EXPECTED_CELLS, "completed_cells": len(rows), "next_gate": next_gate}); return campaign
 
 
 def status_campaign(campaign_dir: str | Path, *, repository_root: str | Path = ".") -> dict[str, Any]:

@@ -22,6 +22,7 @@ from phc2d.forward.full_cell import (
     _FullCellH5Dataset,
     _evaluate,
     _epoch_100_continue_decision,
+    _convergence_record,
     _git_commit,
     _plot_history,
     _read_contract,
@@ -103,6 +104,22 @@ def _validate_and_resolve(
             raise ValueError("preregistered continuation threshold must equal 0.005")
         if int(training.get("early_stopping_patience", 0)) != 15:
             raise ValueError("dual-lane epoch-100 continuation requires patience 15")
+    if not admission_probe and training.get("required_stop_epoch") is not None:
+        required_stop = int(training["required_stop_epoch"])
+        if max_epochs != required_stop or required_stop != 200:
+            raise ValueError("fixed-200 dual-lane training requires max_epochs=required_stop_epoch=200")
+        if int(training.get("early_stopping_patience", -1)) != 0:
+            raise ValueError("fixed-200 dual-lane training requires early_stopping_patience=0")
+        if bool(training.get("epoch_100_continue_gate", False)):
+            raise ValueError("fixed-200 dual-lane training forbids epoch_100_continue_gate")
+        if not bool(training.get("require_terminal_checkpoint", False)):
+            raise ValueError("fixed-200 dual-lane training requires a terminal checkpoint")
+        if tuple(int(value) for value in training.get("convergence_window", [])) != (181, 200):
+            raise ValueError("fixed-200 dual-lane training requires convergence_window=[181, 200]")
+        if str(training.get("convergence_metric", "")) != "validation_bands_2_10_mre":
+            raise ValueError("fixed-200 dual-lane training requires validation_bands_2_10_mre")
+        if float(training.get("convergence_relative_threshold", -1.0)) != 0.005:
+            raise ValueError("fixed-200 dual-lane convergence threshold must be 0.005")
     params = dict(model_cfg.get("params") or {})
     params["head_kind"] = head_kind
     experiment_id = str(experiment.get("experiment_id", "full_cell_forward_upgrade_dual_lane_10k_v1"))
@@ -326,7 +343,9 @@ def run_full_cell_dual_lane(
             "epoch": epoch,
             "train_loss": train_sum / max(train_count, 1),
             "val_loss": float(np.mean([evaluations[lane]["normalized_mse"] for lane in LANES])),
+            "val_band1_mre_pct": float(np.mean([evaluations[lane]["band1_mre_pct"] for lane in LANES])),
             "val_bands_2_10_mre_pct": score,
+            "val_bands_1_10_mre_pct": float(np.mean([evaluations[lane]["bands_1_10_mre_pct"] for lane in LANES])),
             "binary_val_bands_2_10_mre_pct": evaluations["binary"]["bands_2_10_mre_pct"],
             "graded_val_bands_2_10_mre_pct": evaluations["graded"]["bands_2_10_mre_pct"],
             "learning_rate": float(resolved["training"]["learning_rate"]),
@@ -423,6 +442,52 @@ def run_full_cell_dual_lane(
             },
             stop_snapshot,
         )
+    required_stop_epoch = resolved["training"].get("required_stop_epoch")
+    convergence: dict[str, Any] | None = None
+    terminal_checkpoint: Path | None = None
+    if required_stop_epoch is not None and not admission_probe:
+        required_stop_epoch = int(required_stop_epoch)
+        if stop_epoch != required_stop_epoch:
+            raise RuntimeError(f"required terminal epoch {required_stop_epoch}, observed {stop_epoch}")
+        convergence_window = tuple(int(value) for value in resolved["training"].get("convergence_window", [181, 200]))
+        if convergence_window != (181, 200):
+            raise ValueError("EXP-FWD-008 convergence_window must be [181, 200]")
+        convergence = _convergence_record(
+            history,
+            metric="val_bands_2_10_mre_pct",
+            first_window=(181, 190),
+            second_window=(191, 200),
+            threshold=float(resolved["training"].get("convergence_relative_threshold", 0.005)),
+        )
+        convergence["contract_metric"] = str(resolved["training"].get("convergence_metric", "validation_bands_2_10_mre"))
+        convergence["curves"] = {
+            "binary": _convergence_record(history, metric="binary_val_bands_2_10_mre_pct", first_window=(181, 190), second_window=(191, 200), threshold=float(resolved["training"].get("convergence_relative_threshold", 0.005))),
+            "graded": _convergence_record(history, metric="graded_val_bands_2_10_mre_pct", first_window=(181, 190), second_window=(191, 200), threshold=float(resolved["training"].get("convergence_relative_threshold", 0.005))),
+            "equal_lane": convergence,
+        }
+        terminal_checkpoint = out / f"epoch{required_stop_epoch}.pt"
+        terminal_tmp = terminal_checkpoint.with_suffix(terminal_checkpoint.suffix + ".tmp")
+        torch.save(
+            {
+                "state_dict": model.state_dict(),
+                "model_name": spec.name,
+                "model_params": dict(resolved["model"]["params"]),
+                "model_identity": describe_model_identity(model, spec.name, spec, model_kwargs=resolved["model"]["params"]),
+                "input_shape": reference["grid_shape"],
+                "output_shape": reference["target_shape"],
+                "k_points": torch.as_tensor(reference["k_points"], dtype=torch.float32),
+                "k_points_sha256": reference["k_points_sha256"],
+                "lane_mapping": {"binary": 0, "graded": 1},
+                "target_normalizers": {lane: {"mean": torch.as_tensor(contracts[lane]["target_mean"]), "std": torch.as_tensor(contracts[lane]["target_std"])} for lane in LANES},
+                "epoch": required_stop_epoch,
+                "checkpoint_role": "terminal_epoch",
+                "selection_split": "terminal_training_state",
+                "convergence": convergence,
+                "resolved_config": resolved,
+            },
+            terminal_tmp,
+        )
+        os.replace(terminal_tmp, terminal_checkpoint)
     checkpoint = out / "model.pt"
     if not checkpoint.is_file():
         raise RuntimeError("best-validation dual-lane checkpoint was not written")
@@ -469,6 +534,11 @@ def run_full_cell_dual_lane(
         "model_identity": describe_model_identity(
             model, spec.name, spec, model_kwargs=resolved["model"]["params"]
         ),
+        "convergence": convergence,
+        "required_stop_epoch": required_stop_epoch,
+        "terminal_checkpoint_path": str(terminal_checkpoint) if terminal_checkpoint else None,
+        "terminal_checkpoint_sha256": _sha256_checkpoint(terminal_checkpoint) if terminal_checkpoint else None,
+        "history_epoch_count": len(history),
     }
     _plot_history(out, history, monitor_label="equal-lane validation")
     write_metrics(out, metrics)
@@ -481,6 +551,8 @@ def run_full_cell_dual_lane(
                 "output_shape": list(reference["target_shape"]),
                 "best_validation_checkpoint": str(checkpoint),
                 "best_validation_checkpoint_sha256": _sha256_checkpoint(checkpoint),
+                "terminal_checkpoint": str(terminal_checkpoint) if terminal_checkpoint else None,
+                "terminal_checkpoint_sha256": _sha256_checkpoint(terminal_checkpoint) if terminal_checkpoint else None,
                 "model_identity": metrics["model_identity"],
             },
             indent=2,
@@ -489,6 +561,8 @@ def run_full_cell_dual_lane(
         encoding="utf-8",
     )
     status = "dual_lane_admission_probe_pass" if admission_probe else "dual_lane_training_success"
+    if not admission_probe and convergence is not None and not all(bool(item["passed"]) for item in convergence["curves"].values()):
+        status = "training_complete_convergence_not_met"
     write_results(
         out,
         {
@@ -503,6 +577,11 @@ def run_full_cell_dual_lane(
             "lane": "joint",
             "checkpoint_path": str(checkpoint),
             "checkpoint_sha256": _sha256_checkpoint(checkpoint),
+            "terminal_checkpoint_path": str(terminal_checkpoint) if terminal_checkpoint else None,
+            "terminal_checkpoint_sha256": _sha256_checkpoint(terminal_checkpoint) if terminal_checkpoint else None,
+            "required_stop_epoch": required_stop_epoch,
+            "convergence": convergence,
+            "history_epoch_count": len(history),
             "best_epoch": int(checkpoint_payload["epoch"]),
             "stop_epoch": stop_epoch,
             "epoch_100_continue_gate": gate_record,
