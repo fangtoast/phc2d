@@ -31,9 +31,9 @@ source_artifacts:
 
 | 证据问题 | 当前状态 |
 |---|---|
-| K5 17-task 训练 | blocked；N40 `MaxSubmitJobs=16` 与原 17-task admission array 冲突，已将下一版冻结计划调整为顺序 `15+2` admission 单元 |
+| K5 17-task 训练 | completed；17/17 validation checkpoint 已冻结，所有 admission 与三波正式训练均未读取 held-out test |
 | K5 B→G/G→B | pending K5 checkpoint freeze 与 six-domain evaluation |
-| K5↔K20、K5↔F50 | pending；独立随机样本的迁移诊断，不是 paired-K 因果效应或公平训练排名 |
+| K5↔K20、K5↔F50 | pending；评估器已修正为从冻结配置读取 F50 的 50,000-sample tensor shape，待重新 freeze、GPU preflight 与 10-shard evaluation |
 | WSL real-MPB / 物理验证 | 未完成；不由本页或训练作业升级 |
 
 完成后本页只汇总 K5 native、B→G/G→B、K5↔K20、K5↔F50、baseline/upgrade 对比及汇总训练曲线。510 行 raw cells、预测数组、per-band/per-k/bootstrap/resource 明细仅链接 run 证据，不复制到正文。

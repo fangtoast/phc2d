@@ -62,18 +62,33 @@ def _commit(root: Path) -> str:
     return marker.read_text(encoding="utf-8").strip() if marker.is_file() else "unknown"
 
 
+def _expected_dataset_shapes(contract: Mapping[str, Any]) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """Read Full-Wh and raster shapes from the frozen domain contract."""
+    try:
+        sample_count = int(contract["sample_count"])
+        wh_shape = tuple(int(value) for value in contract["wh_shape"])
+        grid_shape = tuple(int(value) for value in contract["grid_shape"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise RuntimeError("domain contract requires sample_count, wh_shape, and grid_shape") from error
+    if len(wh_shape) != 3 or len(grid_shape) != 3 or wh_shape[0] != sample_count or grid_shape[0] != sample_count:
+        raise RuntimeError("domain shape contract has inconsistent sample_count")
+    return wh_shape, grid_shape
+
+
 def _audit_dataset(root: Path, domain: str, contract: Mapping[str, Any]) -> dict[str, Any]:
     import h5py
     path = _resolve(root, str(contract["path"])); actual = sha256_file(path)
     if actual != str(contract["sha256"]): raise RuntimeError(f"dataset hash drift: {domain}")
     grid = str(contract["grid_field"])
+    wh_shape, grid_shape = _expected_dataset_shapes(contract)
     with h5py.File(path, "r") as data:
-        if tuple(data["Wh"].shape) != (10000, 81, 10) or tuple(data[grid].shape) != (10000, 64, 64): raise RuntimeError(f"shape drift: {domain}")
+        if tuple(data["Wh"].shape) != wh_shape or tuple(data[grid].shape) != grid_shape: raise RuntimeError(f"shape drift: {domain}")
         test = np.asarray(data["idx_test"], dtype=np.int64); val = np.asarray(data["idx_val"], dtype=np.int64); k = np.asarray(data["k_points"], dtype=np.float32)
         if len(test) != int(contract["test_size"]) or k.shape != (81, 2): raise RuntimeError(f"split or k-grid drift: {domain}")
         return {"domain": domain, "family": domain.split("-")[0], "lane": domain[-1], "path": str(contract["path"]), "grid_field": grid,
                 "dataset_sha256": actual, "idx_val_hash": sha256_array(val), "idx_test_hash": sha256_array(test), "k_points_sha256": sha256_array(k),
-                "input_test_sha256": sha256_array(data[grid][test]), "target_test_sha256": sha256_array(data["Wh"][test]), "test_size": len(test)}
+                "input_test_sha256": sha256_array(data[grid][test]), "target_test_sha256": sha256_array(data["Wh"][test]),
+                "sample_count": int(contract["sample_count"]), "wh_shape": list(wh_shape), "grid_shape": list(grid_shape), "test_size": len(test)}
 
 
 def _checkpoint_path(root: Path, row: Mapping[str, Any]) -> Path:

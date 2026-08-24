@@ -38,6 +38,9 @@ def test_k5_configs_freeze_hashes_and_training_contract() -> None:
         assert config["training"]["micro_batch_size"] == 64
         assert config["runtime"]["amp_enabled"] is False and config["runtime"]["tf32_enabled"] is False
         assert set(config["models"]) == set(six.MODELS)
+    domains = yaml.safe_load((ROOT / "configs/research/full_cell_k5_six_domain_n40_v1.yaml").read_text(encoding="utf-8"))["datasets"]
+    assert six._expected_dataset_shapes(domains["F50-B"]) == ((50000, 81, 10), (50000, 64, 64))
+    assert six._expected_dataset_shapes(domains["F50-G"]) == ((50000, 81, 10), (50000, 64, 64))
 
 
 def test_k5_profile_has_exactly_seventeen_tasks_and_three_waves(tmp_path: Path) -> None:
@@ -115,6 +118,7 @@ def test_exp_fwd_007_jobs_are_authorized_and_read_only_status() -> None:
     assert "ADMISSION_A|ADMISSION_B|W1|W2|W3" in submit
     assert "admission B requires a passing admission A audit" in submit
     assert "--array=0-9%8" in evaluation and "--dependency=\"afterok:$job_id\"" in evaluation
+    assert "-J fwd007_preflight" in evaluation and "GPU preflight must pass before evaluation submission" in evaluation
     assert "sbatch" not in status and "squeue" in status and "sacct" in status
     assert "--campaign-dir" in status and "admission_a_manifest.csv" in status and "admission_b_manifest.csv" in status
     assert 'sacct -j "$job_ids" --format' in status
