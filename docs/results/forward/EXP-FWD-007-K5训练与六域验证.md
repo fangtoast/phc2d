@@ -5,8 +5,17 @@ page_type: evidence
 status: draft
 audience: "研究负责人、审阅者与复现执行者"
 owner: "研究生维护"
-last_reviewed: 2026-08-23
+last_reviewed: 2026-08-24
+reading_time: 3 minutes
 primary_layer: L3
+evidence_date: 2026-08-24
+evidence_scope: "K5 B/G 17-task training and K5/K20/F50 six-domain surrogate evaluation; scheduler admission is blocked before training"
+dataset_scope: full_cell_fourier_k5_k20_f50_wh81x10
+evidence_level: surrogate_held_out
+evidence_status: blocked
+validation_backend: surrogate_only
+source_artifacts:
+  - runs/20260823/EXP-FWD-007_K5_20260823220138
 ---
 
 <!--
@@ -22,7 +31,7 @@ primary_layer: L3
 
 | 证据问题 | 当前状态 |
 |---|---|
-| K5 17-task 训练 | planned；仅允许在用户授权的 surrogate training 门后运行 |
+| K5 17-task 训练 | blocked；N40 `MaxSubmitJobs=16` 与原 17-task admission array 冲突，已将下一版冻结计划调整为顺序 `15+2` admission 单元 |
 | K5 B→G/G→B | pending K5 checkpoint freeze 与 six-domain evaluation |
 | K5↔K20、K5↔F50 | pending；独立随机样本的迁移诊断，不是 paired-K 因果效应或公平训练排名 |
 | WSL real-MPB / 物理验证 | 未完成；不由本页或训练作业升级 |

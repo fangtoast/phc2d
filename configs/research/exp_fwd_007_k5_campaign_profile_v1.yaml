@@ -20,3 +20,11 @@ models:
   single_lane_upgrade: [mlp_mixer_band_v1, res_mlp_gated_v2, convnext_band_v1, tfno2d_band_v3]
   joint: dual_lane_band_operator_v1
 training: {seed: 0, head: dense, max_epochs: 100, early_stopping_patience: 15, admission_task_count: 17, max_concurrency: 8}
+# N40 account scw6g7a has MaxSubmitJobs=16.  The retained legacy job 5423636
+# consumes one slot, so the 17 logical admission probes are frozen as two
+# sequential submission units.  This changes scheduler packaging only: all
+# 17 probes must pass before W1 may be submitted.
+submission:
+  account_max_submit_jobs: 16
+  reserved_submitted_jobs: 1
+  admission_submission_units: [15, 2]

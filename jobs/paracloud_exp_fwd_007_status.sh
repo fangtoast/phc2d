@@ -5,9 +5,20 @@
 # Copyright (c) 2026 fangtoast. All rights reserved.
 
 set -euo pipefail
-campaign="${1:?usage: $0 CAMPAIGN_DIR}"; PHC2D_ROOT="${PHC2D_ROOT:-$HOME/run/phc2d}"; PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu118}"
+if [[ "${1:-}" == "--campaign-dir" ]]; then
+  campaign="${2:?usage: $0 [--campaign-dir] CAMPAIGN_DIR}"
+else
+  campaign="${1:?usage: $0 [--campaign-dir] CAMPAIGN_DIR}"
+fi
+PHC2D_ROOT="${PHC2D_ROOT:-$HOME/run/phc2d}"; PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu118}"
 echo "checked_at=$(date -Is)"
-for manifest in "$campaign/admission_manifest.csv" "$campaign/task_manifest.csv"; do
+manifests=()
+for manifest in "$campaign/admission_a_manifest.csv" "$campaign/admission_b_manifest.csv"; do
+  [[ -f "$manifest" ]] && manifests+=("$manifest")
+done
+[[ ${#manifests[@]} -gt 0 ]] || [[ ! -f "$campaign/admission_manifest.csv" ]] || manifests+=("$campaign/admission_manifest.csv")
+manifests+=("$campaign/task_manifest.csv")
+for manifest in "${manifests[@]}"; do
   [[ -f "$manifest" ]] || continue
   tail -n +2 "$manifest" | while IFS=, read -r task_index task_id model train_lane wave seed head config rest; do
     run_dir="$(awk -F, -v id="$task_id" 'NR>1 && $2==id {print $15}' "$manifest")"; status="missing"

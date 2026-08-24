@@ -61,7 +61,7 @@
 
 ## 当前最重要的未解决问题
 
-- EXP-FWD-007 已冻结 K5 B/G 的 17-task 训练与 K5/K20/F50 六域 510-cell surrogate 评估合同；用户豁免 WSL replay 对训练的阻断，但实际 N40 `sbatch` 仍需单独授权，任何结果仍不能称为 real-MPB 或物理验证。
+- EXP-FWD-007 的原 17-task admission array 已被 N40 账户 `MaxSubmitJobs=16` 拒绝；下一版冻结合同将保持全部 17 个逻辑 probes，但按 `15+2` 顺序提交并分别审计。用户豁免 WSL replay 对训练的阻断，任何结果仍不能称为 real-MPB 或物理验证。
 - N50R5 登录仍被平台 `loginCluster` 权限拒绝；N40 已部署当前 inverse Stage-A runner/orchestrator（`b93cc2d`），但当前正式训练只能以既有三卡分配证据为下限，9/18 卡仍需真实 admission 作业证明。
 - Full-cell 50k forward 计算和自动审计已完成，但 AI 整理的 Draft 报告仍需人工接受；inverse 仍未在全胞、多形态、全 BZ 数据上完成正式 45-run Stage-A 或 soft-surrogate Stage B。
 - Full-Wh 升级 native/cross-lane/resolution 主评估已完成，但 `k_conditioned` 头未被选择，threshold proxy 尚无作业或结果；这些 surrogate 结果尚未进入 full-cell inverse Stage B 或 real-MPB replay。

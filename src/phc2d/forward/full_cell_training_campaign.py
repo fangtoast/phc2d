@@ -23,6 +23,7 @@ import yaml
 SINGLE_LANES = ("B", "G")
 JOINT_LANE = "J"
 SUCCESS = frozenset({"formal_training_success", "dual_lane_training_success"})
+ADMISSION_SUCCESS = frozenset({"full_cell_forward_admission_probe_pass", "dual_lane_admission_probe_pass"})
 
 
 def _sha256(path: Path) -> str:
@@ -129,6 +130,39 @@ def _task_rows(campaign: Path, profile: Mapping[str, Any], audits: Mapping[str, 
     return rows
 
 
+def _admission_submission_units(profile: Mapping[str, Any], admission: Sequence[Mapping[str, Any]]) -> tuple[int, ...]:
+    """Return scheduler-sized sequential units without changing the 17-task gate."""
+    submission = profile.get("submission", {})
+    units = tuple(int(value) for value in submission.get("admission_submission_units", (len(admission),)))
+    if not units or any(value < 1 for value in units) or sum(units) != len(admission):
+        raise RuntimeError("admission submission units must partition every admission task exactly once")
+    limit = int(submission.get("account_max_submit_jobs", len(admission)))
+    reserved = int(submission.get("reserved_submitted_jobs", 0))
+    if reserved < 0 or any(value + reserved > limit for value in units):
+        raise RuntimeError("admission submission unit exceeds the configured account submission limit")
+    return units
+
+
+def _write_admission_submission_manifests(campaign: Path, profile: Mapping[str, Any], admission: Sequence[Mapping[str, Any]]) -> tuple[Path, ...]:
+    units = _admission_submission_units(profile, admission)
+    manifests: list[Path] = []
+    offset = 0
+    for phase_number, size in enumerate(units, start=1):
+        phase = chr(ord("A") + phase_number - 1)
+        rows: list[dict[str, Any]] = []
+        for local_index, source in enumerate(admission[offset:offset + size]):
+            row = dict(source)
+            row["source_task_index"] = row["task_index"]
+            row["task_index"] = local_index
+            row["admission_phase"] = phase
+            rows.append(row)
+        path = campaign / f"admission_{phase.lower()}_manifest.csv"
+        _write_csv(path, rows)
+        manifests.append(path)
+        offset += size
+    return tuple(manifests)
+
+
 def freeze_campaign(profile: str | Path | Mapping[str, Any], campaign_dir: str | Path, *, repository_root: str | Path = ".") -> Path:
     root = Path(repository_root).resolve(); resolved = _profile(root, profile); campaign = Path(campaign_dir)
     campaign = campaign if campaign.is_absolute() else root / campaign
@@ -139,12 +173,14 @@ def freeze_campaign(profile: str | Path | Mapping[str, Any], campaign_dir: str |
     formal = _task_rows(campaign, resolved, audits, stage="FORMAL")
     admission = _task_rows(campaign, resolved, audits, stage="ADMISSION")
     _write_csv(campaign / "task_manifest.csv", formal); _write_csv(campaign / "admission_manifest.csv", admission)
+    admission_manifests = _write_admission_submission_manifests(campaign, resolved, admission)
     _write_json(campaign / "dataset_audit.json", {"status": "pass", "lanes": audits, "shared_k_points": True})
     frozen = {**resolved, "deployed_git_commit": _commit(root), "frozen_at": time.time()}
     (campaign / "campaign_profile.resolved.yaml").write_text(yaml.safe_dump(frozen, sort_keys=False, allow_unicode=True), encoding="utf-8")
     _write_json(campaign / "freeze.json", {"status": "frozen", "experiment_id": resolved["experiment_id"], "task_count": 17,
-        "admission_task_count": 17, "test_read_before_checkpoint_freeze": False, "deployed_git_commit": _commit(root),
-        "evidence_status": resolved["evidence_status"], "next_gate": "17_one_batch_admission"})
+        "admission_task_count": 17, "admission_submission_units": [path.name for path in admission_manifests],
+        "test_read_before_checkpoint_freeze": False, "deployed_git_commit": _commit(root),
+        "evidence_status": resolved["evidence_status"], "next_gate": "17_task_admission_a_then_b"})
     return campaign
 
 
@@ -165,6 +201,45 @@ def run_task(*, manifest: str | Path, task_index: int, repository_root: str | Pa
     if stage.lower() == "admission": command.append("--admission-probe")
     subprocess.run(command, cwd=root, check=True)
     return Path(row["run_dir"])
+
+
+def _require_finite_metrics(value: Any, *, path: str = "metrics") -> None:
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            _require_finite_metrics(child, path=f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _require_finite_metrics(child, path=f"{path}[{index}]")
+    elif isinstance(value, float) and not np.isfinite(value):
+        raise RuntimeError(f"nonfinite admission metric: {path}")
+
+
+def audit_admission(campaign_dir: str | Path, *, phase: str, repository_root: str | Path = ".") -> Path:
+    """Freeze a pass/fail audit for one scheduler submission unit of admission."""
+    _ = Path(repository_root).resolve()
+    campaign = Path(campaign_dir).resolve(); normalized = phase.upper()
+    if normalized not in {"A", "B"}:
+        raise ValueError("admission phase must be A or B")
+    if normalized == "B":
+        prior = campaign / "admission_a_audit.json"
+        if not prior.is_file() or json.loads(prior.read_text(encoding="utf-8")).get("status") != "pass":
+            raise RuntimeError("admission B cannot be audited before a passing admission A audit")
+    rows = _read_csv(campaign / f"admission_{normalized.lower()}_manifest.csv")
+    observed: list[dict[str, Any]] = []
+    for row in rows:
+        run = Path(row["run_dir"]); result_path = run / "results.json"; metrics_path = run / "metrics.json"; checkpoint = run / "model.pt"
+        if not result_path.is_file() or not metrics_path.is_file() or not checkpoint.is_file():
+            raise RuntimeError(f"missing admission artifacts: {run}")
+        result = json.loads(result_path.read_text(encoding="utf-8")); metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+        if result.get("status") not in ADMISSION_SUCCESS or result.get("formal_training_started") or result.get("test_executed"):
+            raise RuntimeError(f"invalid admission result: {run}")
+        _require_finite_metrics(metrics)
+        observed.append({"task_id": row["task_id"], "source_task_index": int(row["source_task_index"]), "run_dir": str(run),
+                         "result_status": result["status"], "checkpoint_sha256": _sha256(checkpoint)})
+    output = campaign / f"admission_{normalized.lower()}_audit.json"
+    _write_json(output, {"status": "pass", "phase": normalized, "task_count": len(rows), "tasks": observed,
+                         "test_read_before_checkpoint_freeze": False})
+    return output
 
 
 def finalize_training(campaign_dir: str | Path, *, repository_root: str | Path = ".") -> Path:
@@ -197,14 +272,16 @@ def _main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__); sub = parser.add_subparsers(dest="command", required=True)
     freeze = sub.add_parser("freeze"); freeze.add_argument("--profile", required=True); freeze.add_argument("--campaign-dir", required=True); freeze.add_argument("--repository-root", default=".")
     task = sub.add_parser("run-task"); task.add_argument("--manifest", required=True); task.add_argument("--task-index", type=int, required=True); task.add_argument("--stage", choices=("admission", "formal"), default="formal"); task.add_argument("--repository-root", default=".")
+    admission = sub.add_parser("audit-admission"); admission.add_argument("--campaign-dir", required=True); admission.add_argument("--phase", choices=("A", "B"), required=True); admission.add_argument("--repository-root", default=".")
     final = sub.add_parser("finalize-training"); final.add_argument("--campaign-dir", required=True); final.add_argument("--repository-root", default=".")
     args = parser.parse_args(argv)
     if args.command == "freeze": print(freeze_campaign(args.profile, args.campaign_dir, repository_root=args.repository_root))
     elif args.command == "run-task": print(run_task(manifest=args.manifest, task_index=args.task_index, stage=args.stage, repository_root=args.repository_root))
+    elif args.command == "audit-admission": print(audit_admission(args.campaign_dir, phase=args.phase, repository_root=args.repository_root))
     else: print(finalize_training(args.campaign_dir, repository_root=args.repository_root))
 
 
 if __name__ == "__main__": _main()
 
 
-__all__ = ["freeze_campaign", "run_task", "finalize_training"]
+__all__ = ["freeze_campaign", "run_task", "audit_admission", "finalize_training"]

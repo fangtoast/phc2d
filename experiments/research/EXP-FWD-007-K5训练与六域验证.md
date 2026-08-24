@@ -6,7 +6,7 @@ plan_state: active
 status: draft
 audience: "研究执行者、导师与结果审阅者"
 owner: "研究生维护"
-last_reviewed: 2026-08-23
+last_reviewed: 2026-08-24
 primary_layer: L3
 ---
 
@@ -23,7 +23,7 @@ primary_layer: L3
 
 | 冻结项 | 合同 |
 |---|---|
-| 训练 | 8 baseline B/G、8 single-lane upgrade B/G、1 joint；三波 `W1/W2/W3`，先完成 17 个 one-batch admission |
+| 训练 | 8 baseline B/G、8 single-lane upgrade B/G、1 joint；三波 `W1/W2/W3`。17 个逻辑 admission 固定为 `15+2` 两个顺序 Slurm 单元，均审计通过后才进入 W1 |
 | 数据 | K5 B/G 各 `Wh[10000,81,10]`、`8000/1000/1000`、64×64；哈希见 K5 配置 |
 | 评估 | 85 unique checkpoints、510 cells、10 N40 shards；joint 按目标 lane 选择其 B/G source normalizer 并传入 `lane_id` |
 | 验收 | `17/17`、`85/85`、`510/510`、`10/10`，零 missing/duplicate/OOM/nonfinite；旧 272-cell 的数值回归必须通过 |
@@ -36,7 +36,7 @@ primary_layer: L3
 - N40 脚本：`jobs/paracloud_submit_exp_fwd_007_k5.sh`、`jobs/paracloud_submit_exp_fwd_007_six_domain.sh` 与只读 `jobs/paracloud_exp_fwd_007_status.sh`。
 - 仅在单独提供 `PHC2D_AUTHORIZE_EXP_FWD_007=YES` 和授权编号时，脚本才会调用 `sbatch`。本实验协议本身不授予提交权限。
 
-每波结束必须先审计其结果，再由人工决定是否进入下一波。训练提交后每 30 分钟只读检查 Slurm、制品覆盖和 finalizer 状态；异常进入人工处理门，不自动重试、取消、重提或改参。
+N40 账户 `scw6g7a` 的 `MaxSubmitJobs=16`，且保留的 `5423636` 占用一个提交槽位；因此 admission-A 固定提交 15 个 probes，完成并冻结 `admission_a_audit.json` 后才可提交 admission-B 的其余 2 个 probes。两个单元合计仍是原始 17-task admission，任务、数据、模型、参数和 held-out 边界均不变；这只是调度包装调整。每波结束必须先审计其结果，再由人工决定是否进入下一波。训练提交后每 30 分钟只读检查 Slurm、制品覆盖和 finalizer 状态；异常进入人工处理门，不自动重试、取消、重提或改参。
 
 ## 结果解释边界
 

@@ -15,14 +15,34 @@ cd "$PHC2D_ROOT"
 if [[ "$mode" == "freeze" ]]; then
   PYTHONPATH=src "$PHC2D_PYTHON" -m phc2d.forward.full_cell_training_campaign freeze --profile "$profile" --campaign-dir "$campaign" --repository-root "$PHC2D_ROOT"; exit 0
 fi
-[[ "$mode" == "dry-run" || "$mode" == "submit" ]] || { echo "usage: $0 freeze|dry-run|submit ADMISSION|W1|W2|W3 AUTHORIZATION_ID" >&2; exit 2; }
-[[ "$wave" =~ ^(ADMISSION|W1|W2|W3)$ ]] || { echo "wave must be ADMISSION, W1, W2, or W3" >&2; exit 2; }
+[[ "$mode" == "dry-run" || "$mode" == "submit" ]] || { echo "usage: $0 freeze|dry-run|submit ADMISSION_A|ADMISSION_B|W1|W2|W3 AUTHORIZATION_ID" >&2; exit 2; }
+[[ "$wave" =~ ^(ADMISSION_A|ADMISSION_B|W1|W2|W3)$ ]] || { echo "wave must be ADMISSION_A, ADMISSION_B, W1, W2, or W3" >&2; exit 2; }
 [[ -f "$campaign/freeze.json" ]] || { echo "frozen campaign required" >&2; exit 3; }
 [[ "$mode" != "submit" || "${PHC2D_AUTHORIZE_EXP_FWD_007:-}" == "YES" ]] || { echo "submit requires PHC2D_AUTHORIZE_EXP_FWD_007=YES" >&2; exit 4; }
 [[ "$mode" != "submit" || -n "$authorization_id" ]] || { echo "explicit authorization id is required" >&2; exit 4; }
-source_manifest="$campaign/$([[ "$wave" == "ADMISSION" ]] && echo admission_manifest.csv || echo task_manifest.csv)"
-manifest="$campaign/${wave,,}_manifest.csv"
-"$PHC2D_PYTHON" - "$source_manifest" "$manifest" "$wave" <<'PY'
+if [[ "$wave" == "ADMISSION_A" || "$wave" == "ADMISSION_B" ]]; then
+  manifest="$campaign/${wave,,}_manifest.csv"
+  [[ -f "$manifest" ]] || { echo "frozen admission submission manifest required: $manifest" >&2; exit 3; }
+  if [[ "$wave" == "ADMISSION_B" ]]; then
+    "$PHC2D_PYTHON" - "$campaign/admission_a_audit.json" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+if not path.is_file() or json.loads(path.read_text(encoding="utf-8")).get("status") != "pass":
+    raise SystemExit("admission B requires a passing admission A audit")
+PY
+  fi
+else
+  for audit in "$campaign/admission_a_audit.json" "$campaign/admission_b_audit.json"; do
+    "$PHC2D_PYTHON" - "$audit" <<'PY'
+import json, pathlib, sys
+path = pathlib.Path(sys.argv[1])
+if not path.is_file() or json.loads(path.read_text(encoding="utf-8")).get("status") != "pass":
+    raise SystemExit("formal training requires passing admission A and B audits")
+PY
+  done
+  source_manifest="$campaign/task_manifest.csv"
+  manifest="$campaign/${wave,,}_manifest.csv"
+  "$PHC2D_PYTHON" - "$source_manifest" "$manifest" "$wave" <<'PY'
 import csv, sys
 source, target, wave = sys.argv[1:]
 rows = list(csv.DictReader(open(source, encoding="utf-8")))
@@ -33,8 +53,9 @@ for index, row in enumerate(rows): row["task_index"] = index
 with open(target, "w", encoding="utf-8", newline="") as handle:
     writer = csv.DictWriter(handle, fieldnames=rows[0].keys()); writer.writeheader(); writer.writerows(rows)
 PY
+fi
 count="$(( $(wc -l < "$manifest") - 1 ))"; time_limit="12:00:00"; stage="formal"
-if [[ "$wave" == "ADMISSION" ]]; then time_limit="00:30:00"; stage="admission"; fi
+if [[ "$wave" == ADMISSION_* ]]; then time_limit="00:30:00"; stage="admission"; fi
 if [[ "$mode" == "dry-run" ]]; then echo "campaign_dir=$campaign wave=$wave tasks=$count sbatch --array=0-$((count-1))%8 --gres=gpu:1 -c 6 -t $time_limit"; exit 0; fi
 job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t "$time_limit" --array="0-$((count-1))%8" -J "fwd007_${wave,,}" -o "$campaign/slurm_${wave,,}_%A_%a.out" -e "$campaign/slurm_${wave,,}_%A_%a.err" --export="ALL,PHC2D_ROOT=$PHC2D_ROOT,PHC2D_FWD007_MANIFEST=$manifest,PHC2D_FWD007_STAGE=$stage" jobs/paracloud_full_cell_k5_train.sh)"
 printf 'authorization_id=%s\nwave=%s\njob_id=%s\nmanifest=%s\nsubmitted_at=%s\n' "$authorization_id" "$wave" "$job_id" "$manifest" "$(date -Is)" >> "$campaign/submission.env"

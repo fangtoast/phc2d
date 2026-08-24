@@ -7,9 +7,11 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import yaml
+import pytest
 
 from phc2d.forward import full_cell_six_domain_n40 as six
 from phc2d.forward import full_cell_training_campaign as training
@@ -47,6 +49,40 @@ def test_k5_profile_has_exactly_seventeen_tasks_and_three_waves(tmp_path: Path) 
     assert [row["wave"] for row in rows].count("W3") == 1
     assert {row["seed"] for row in rows} == {0}
     assert rows[-1]["train_lane"] == "J"
+    assert training._admission_submission_units(profile, rows) == (15, 2)
+
+
+def test_k5_admission_submission_units_preserve_all_seventeen_tasks(tmp_path: Path) -> None:
+    profile = yaml.safe_load((ROOT / "configs/research/exp_fwd_007_k5_campaign_profile_v1.yaml").read_text(encoding="utf-8"))
+    rows = training._task_rows(tmp_path, profile, {"B": _audit("B"), "G": _audit("G")}, stage="ADMISSION")
+    manifests = training._write_admission_submission_manifests(tmp_path, profile, rows)
+    first = training._read_csv(manifests[0]); second = training._read_csv(manifests[1])
+    assert [len(first), len(second)] == [15, 2]
+    assert {int(row["source_task_index"]) for row in first + second} == set(range(17))
+    assert [int(row["task_index"]) for row in first] == list(range(15))
+    assert [int(row["task_index"]) for row in second] == list(range(2))
+
+
+def test_admission_b_requires_passing_a_audit_and_preserves_test_boundary(tmp_path: Path) -> None:
+    profile = yaml.safe_load((ROOT / "configs/research/exp_fwd_007_k5_campaign_profile_v1.yaml").read_text(encoding="utf-8"))
+    rows = training._task_rows(tmp_path, profile, {"B": _audit("B"), "G": _audit("G")}, stage="ADMISSION")
+    manifests = training._write_admission_submission_manifests(tmp_path, profile, rows)
+    for manifest in manifests:
+        for row in training._read_csv(manifest):
+            run = Path(row["run_dir"]); run.mkdir(parents=True)
+            (run / "model.pt").write_bytes(b"admission")
+            (run / "results.json").write_text(json.dumps({
+                "status": "dual_lane_admission_probe_pass" if row["train_lane"] == "J" else "full_cell_forward_admission_probe_pass",
+                "formal_training_started": False, "test_executed": False,
+            }), encoding="utf-8")
+            (run / "metrics.json").write_text(json.dumps({"loss": 0.25, "peak_gpu_memory_mb": 1.0}), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="before a passing admission A audit"):
+        training.audit_admission(tmp_path, phase="B")
+    assert training.audit_admission(tmp_path, phase="A").is_file()
+    audit_b = json.loads(training.audit_admission(tmp_path, phase="B").read_text(encoding="utf-8"))
+    assert audit_b["status"] == "pass"
+    assert audit_b["task_count"] == 2
+    assert audit_b["test_read_before_checkpoint_freeze"] is False
 
 
 def _checkpoints() -> list[dict[str, object]]:
@@ -76,5 +112,8 @@ def test_exp_fwd_007_jobs_are_authorized_and_read_only_status() -> None:
     evaluation = (ROOT / "jobs/paracloud_submit_exp_fwd_007_six_domain.sh").read_text(encoding="utf-8")
     status = (ROOT / "jobs/paracloud_exp_fwd_007_status.sh").read_text(encoding="utf-8")
     assert "PHC2D_AUTHORIZE_EXP_FWD_007" in submit and "--array=0-$((count-1))%8" in submit
+    assert "ADMISSION_A|ADMISSION_B|W1|W2|W3" in submit
+    assert "admission B requires a passing admission A audit" in submit
     assert "--array=0-9%8" in evaluation and "--dependency=\"afterok:$job_id\"" in evaluation
     assert "sbatch" not in status and "squeue" in status and "sacct" in status
+    assert "--campaign-dir" in status and "admission_a_manifest.csv" in status and "admission_b_manifest.csv" in status
