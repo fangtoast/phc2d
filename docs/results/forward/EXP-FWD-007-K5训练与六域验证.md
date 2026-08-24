@@ -63,11 +63,13 @@ K5 Binary 与 Graded 数据哈希分别为 `7d2c6bef…2ea86b6`、`eb140534…0e
 
 ### K5 各模型六域细表
 
-下表给出 K5 的每个正式 checkpoint 对六个 held-out 目标域的 bands 2–10 MRE，共 17 × 6 = 102 个 cells；`best / stop` 来自冻结的 validation 训练曲线。为避免 Binary 与 Graded 混读，B 源与 G 源分表；每张表中前三列是 Binary 目标域，后三列是 Graded 目标域。该表是模型级核查入口，不以跨行最低值构成 promotion。
+下表给出 K5 的每个正式 checkpoint 对六个 held-out 目标域的 bands 2–10 MRE，共 17 × 6 = 102 个 cells；`best / stop` 来自冻结的 validation 训练曲线。术语中 **Binary（B）** 与 **Graded（G）** 始终表示数据路线，表头中的“目标”表示被测试的数据域，而非训练来源。为避免混读，B 源与 G 源分表；每张表中前三列都是 Binary 目标域，后三列都是 Graded 目标域。该表是模型级核查入口，不以跨行最低值构成 promotion。
 
 #### Binary 源模型（B）
 
-| 模型 | best / stop | B: K5-B | B: K20-B | B: F50-B | G: K5-G | G: K20-G | G: F50-G |
+这些模型只在 **K5-Binary** 上训练：前三列是 **同路线 Binary 迁移**，后三列是 **Binary→Graded 跨路线迁移**。
+
+| 模型 | best / stop | 目标 Binary: K5 | 目标 Binary: K20 | 目标 Binary: F50 | 目标 Graded: K5 | 目标 Graded: K20 | 目标 Graded: F50 |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | `mlp` | 3 / 18 | 2.0168% | 4.0013% | 2.3064% | 2.0544% | 1.9387% | 6.7601% |
 | `res_mlp_wide` | 44 / 59 | 1.5866% | 2.9161% | 2.5826% | 3.2960% | 2.1417% | 8.4970% |
@@ -80,7 +82,9 @@ K5 Binary 与 Graded 数据哈希分别为 `7d2c6bef…2ea86b6`、`eb140534…0e
 
 #### Graded 源模型（G）
 
-| 模型 | best / stop | B: K5-B | B: K20-B | B: F50-B | G: K5-G | G: K20-G | G: F50-G |
+这些模型只在 **K5-Graded** 上训练：前三列是 **Graded→Binary 跨路线迁移**，后三列是 **同路线 Graded 迁移**。
+
+| 模型 | best / stop | 目标 Binary: K5 | 目标 Binary: K20 | 目标 Binary: F50 | 目标 Graded: K5 | 目标 Graded: K20 | 目标 Graded: F50 |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | `mlp` | 5 / 20 | 5.0762% | 6.5407% | 5.9515% | 1.7434% | 1.9193% | 6.3424% |
 | `res_mlp_wide` | 32 / 47 | 3.5350% | 6.8051% | 3.0003% | 1.4604% | 3.7669% | 4.6159% |
@@ -93,7 +97,9 @@ K5 Binary 与 Graded 数据哈希分别为 `7d2c6bef…2ea86b6`、`eb140534…0e
 
 #### 联合来源模型（J）
 
-| 模型 | best / stop | B: K5-B | B: K20-B | B: F50-B | G: K5-G | G: K20-G | G: F50-G |
+联合模型没有单一训练路线：对每个目标域选择对应的 Binary/Graded normalizer 与 `lane_id`。
+
+| 模型 | best / stop | 目标 Binary: K5 | 目标 Binary: K20 | 目标 Binary: F50 | 目标 Graded: K5 | 目标 Graded: K20 | 目标 Graded: F50 |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | `dual_lane_band_operator_v1` | 100 / 100 | 0.5805% | 3.2451% | 1.0373% | 0.4488% | 3.8289% | 1.1094% |
 
