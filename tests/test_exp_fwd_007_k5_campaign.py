@@ -66,6 +66,22 @@ def test_k5_admission_submission_units_preserve_all_seventeen_tasks(tmp_path: Pa
     assert [int(row["task_index"]) for row in second] == list(range(2))
 
 
+def test_six_domain_cache_creates_its_parent_directory(tmp_path: Path) -> None:
+    import h5py
+    import numpy as np
+
+    source = tmp_path / "source.h5"
+    with h5py.File(source, "w") as data:
+        data.create_dataset("input", data=np.zeros((2, 2, 2), dtype=np.float32))
+        data.create_dataset("Wh", data=np.zeros((2, 2, 2), dtype=np.float32))
+        data.create_dataset("k_points", data=np.zeros((2, 2), dtype=np.float32))
+        data.create_dataset("idx_test", data=np.asarray([1], dtype=np.int64))
+    cached = six._cache(tmp_path, tmp_path / "campaign", {
+        "domain": "K5-B", "path": source.name, "grid_field": "input", "dataset_sha256": "a" * 64,
+    })
+    assert Path(cached["cache_path"]).is_file()
+
+
 def test_admission_b_requires_passing_a_audit_and_preserves_test_boundary(tmp_path: Path) -> None:
     profile = yaml.safe_load((ROOT / "configs/research/exp_fwd_007_k5_campaign_profile_v1.yaml").read_text(encoding="utf-8"))
     rows = training._task_rows(tmp_path, profile, {"B": _audit("B"), "G": _audit("G")}, stage="ADMISSION")

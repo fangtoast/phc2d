@@ -117,6 +117,7 @@ def _inventory(root: Path, path: str, family: str, seeds: set[int]) -> list[dict
 def _cache(root: Path, campaign: Path, audit: Mapping[str, Any]) -> dict[str, Any]:
     import h5py
     cache = campaign / "test_cache" / f"{audit['domain']}.h5"
+    cache.parent.mkdir(parents=True, exist_ok=True)
     with h5py.File(_resolve(root, audit["path"]), "r") as source, h5py.File(cache, "w") as target:
         indices = np.asarray(source["idx_test"], dtype=np.int64); target.create_dataset("input", data=source[audit["grid_field"]][indices], dtype="f4")
         target.create_dataset("Wh", data=source["Wh"][indices], dtype="f4"); target.create_dataset("k_points", data=np.asarray(source["k_points"], dtype="f4")); target.create_dataset("test_indices", data=indices, dtype="i8")
