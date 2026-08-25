@@ -148,6 +148,31 @@ def _kind(row: Mapping[str, Any], domain: str) -> str:
     return "native" if (row["source_family"], row["source_lane"]) == (family, lane) else ("same_family_cross_lane" if row["source_family"] == family else ("cross_generator_same_lane" if row["source_lane"] == lane else "generator_and_lane"))
 
 
+def _identity_index(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    source_families: set[str] | None = None,
+    target_domains: set[str] | None = None,
+) -> dict[tuple[str, str, str, str, str], Mapping[str, Any]]:
+    index: dict[tuple[str, str, str, str, str], Mapping[str, Any]] = {}
+    for row in rows:
+        if source_families is not None and str(row["source_family"]) not in source_families:
+            continue
+        if target_domains is not None and str(row["target_domain"]) not in target_domains:
+            continue
+        identity = (
+            str(row["source_family"]),
+            str(row["source_model"]),
+            str(row["source_lane"]),
+            str(row["source_seed"]),
+            str(row["target_domain"]),
+        )
+        if identity in index:
+            raise RuntimeError(f"duplicate evaluation identity: {identity}")
+        index[identity] = row
+    return index
+
+
 def build_evaluation_cells(checkpoints: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     if len(checkpoints) != EXPECTED_CHECKPOINTS: raise RuntimeError(f"expected {EXPECTED_CHECKPOINTS} checkpoints")
     rows: list[dict[str, Any]] = []
@@ -258,7 +283,12 @@ def finalize_campaign(campaign_dir: str | Path, *, repository_root: str | Path =
     ids = [row["evaluation_id"] for row in rows]
     if len(rows) != EXPECTED_CELLS or set(ids) != {row["evaluation_id"] for row in plan} or len(set(ids)) != EXPECTED_CELLS: raise RuntimeError("510-cell completeness failure")
     if any(row.get("status") != "completed" or not math.isfinite(float(row[primary_key])) for row in rows): raise RuntimeError("failed/nonfinite cell")
-    _write_csv(campaign / "evaluation_cells.csv", rows)
+    merged_cells = campaign / "evaluation_cells.csv"
+    if merged_cells.is_file():
+        if _read_csv(merged_cells) != rows:
+            raise RuntimeError("existing merged evaluation cells differ from shard evidence")
+    else:
+        _write_csv(merged_cells, rows)
     legacy_272_root = _resolve(root, str(config.get("legacy_272_campaign", "")))
     legacy_full_root = _resolve(root, str(config.get("legacy_007_six_domain_campaign", ""))) if extended_metrics else None
     legacy_root = legacy_full_root if extended_metrics else legacy_272_root
@@ -266,8 +296,10 @@ def finalize_campaign(campaign_dir: str | Path, *, repository_root: str | Path =
     if not legacy_rows_path.is_file():
         raise RuntimeError(f"legacy 272-cell evidence is required for numeric regression: {legacy_rows_path}")
     legacy_rows = _read_csv(legacy_rows_path)
-    current_by_identity = {(r["source_family"], r["source_model"], r["source_lane"], r["source_seed"], r["target_domain"]): r for r in rows if r["source_family"] in {"K20", "F50"} and (extended_metrics or r["target_family"] in {"K20", "F50"})}
-    legacy_by_identity = {(r["source_family"], r["source_model"], r["source_lane"], r["source_seed"], r["target_domain"]): r for r in legacy_rows}
+    historical_targets = {"K20-B", "K20-G", "F50-B", "F50-G"}
+    regression_targets = None if extended_metrics else historical_targets
+    current_by_identity = _identity_index(rows, source_families={"K20", "F50"}, target_domains=regression_targets)
+    legacy_by_identity = _identity_index(legacy_rows, source_families={"K20", "F50"}, target_domains=regression_targets)
     expected_legacy_cells = 408 if extended_metrics else 272
     if len(current_by_identity) != expected_legacy_cells or set(current_by_identity) != set(legacy_by_identity):
         raise RuntimeError(f"legacy {expected_legacy_cells}-cell identity coverage mismatch")
@@ -286,9 +318,9 @@ def finalize_campaign(campaign_dir: str | Path, *, repository_root: str | Path =
     if not all(row["pass"] for row in regression_rows): raise RuntimeError(f"legacy {expected_legacy_cells}-cell numerical regression exceeds tolerance")
     paired_bootstrap_rows: list[dict[str, Any]] = []
     if extended_metrics:
-        current_272 = {key: row for key, row in current_by_identity.items() if key[4] in {"K20-B", "K20-G", "F50-B", "F50-G"}}
+        current_272 = _identity_index(rows, source_families={"K20", "F50"}, target_domains=historical_targets)
         old_272_rows = _read_csv(legacy_272_root / "evaluation_cells.csv") if (legacy_272_root / "evaluation_cells.csv").is_file() else []
-        old_272 = {(r["source_family"], r["source_model"], r["source_lane"], r["source_seed"], r["target_domain"]): r for r in old_272_rows}
+        old_272 = _identity_index(old_272_rows, source_families={"K20", "F50"}, target_domains=historical_targets)
         if len(current_272) != 272 or set(current_272) != set(old_272):
             raise RuntimeError("historical 272-cell identity coverage mismatch")
         historical_rows: list[dict[str, Any]] = []
@@ -304,8 +336,8 @@ def finalize_campaign(campaign_dir: str | Path, *, repository_root: str | Path =
         if not all(row["pass"] for row in historical_rows):
             raise RuntimeError("historical 272-cell numerical regression exceeds tolerance")
         legacy_full_rows = _read_csv(legacy_full_root / "evaluation_cells.csv") if legacy_full_root and (legacy_full_root / "evaluation_cells.csv").is_file() else []
-        legacy_k5 = {(r["source_family"], r["source_model"], r["source_lane"], r["source_seed"], r["target_domain"]): r for r in legacy_full_rows if r["source_family"] == "K5"}
-        current_k5 = {(r["source_family"], r["source_model"], r["source_lane"], r["source_seed"], r["target_domain"]): r for r in rows if r["source_family"] == "K5"}
+        legacy_k5 = _identity_index(legacy_full_rows, source_families={"K5"})
+        current_k5 = _identity_index(rows, source_families={"K5"})
         if len(current_k5) != 102 or set(current_k5) != set(legacy_k5):
             raise RuntimeError("K5 paired-bootstrap identity coverage mismatch")
         for identity, current in current_k5.items():

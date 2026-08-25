@@ -63,5 +63,30 @@ case "$mode" in
     printf 'authorization_id=%s\nshard_job_id=%s\nfinalizer_job_id=%s\nsubmitted_at=%s\n' "$authorization_id" "$shard_id" "$finalizer_id" "$(date -Is)" > "$campaign/submission.env"
     echo "shard_job_id=$shard_id finalizer_job_id=$finalizer_id"
     ;;
-  *) echo "usage: $0 freeze|preflight|submit AUTHORIZATION_ID" >&2; exit 2 ;;
+  recover-finalizer)
+    require_authorization
+    [[ -f "$campaign/submission.env" ]] || { echo "original submission evidence missing" >&2; exit 5; }
+    [[ ! -f "$campaign/results.json" ]] || { echo "campaign is already finalized" >&2; exit 6; }
+    [[ ! -f "$campaign/finalizer_recovery_submission.env" ]] || { echo "finalizer recovery already submitted; no retry" >&2; exit 6; }
+    failed_finalizer_id="$(sed -n 's/^finalizer_job_id=//p' "$campaign/submission.env")"
+    failed_state="$(sacct -X -j "$failed_finalizer_id" -n -o State | awk 'NF {print $1; exit}')"
+    [[ "$failed_state" == FAILED* ]] || { echo "source finalizer is not failed: $failed_finalizer_id $failed_state" >&2; exit 5; }
+    merged_cells_sha256="$(sha256sum "$campaign/evaluation_cells.csv" | awk '{print $1}')"
+    set +e
+    output="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t 02:00:00 -J fwd009_finalize_recovery \
+      -o "$campaign/slurm_finalizer_recovery_%j.out" -e "$campaign/slurm_finalizer_recovery_%j.err" \
+      --export="ALL,PHC2D_ROOT=$PHC2D_ROOT,PHC2D_SIX_DOMAIN_CAMPAIGN=$campaign" \
+      jobs/paracloud_full_cell_six_domain_finalize.sh 2>&1)"
+    code=$?
+    set -e
+    if [[ "$code" -ne 0 ]]; then
+      printf 'failed_at=%s\nsource_finalizer_job_id=%s\nsbatch_output=%s\nnext_action=human_diagnosis_and_explicit_resubmission\n' "$(date -Is)" "$failed_finalizer_id" "$output" > "$campaign/finalizer_recovery_submission_failure.txt"
+      echo "finalizer recovery submission failed; no automatic retry" >&2
+      exit "$code"
+    fi
+    printf 'authorization_id=%s\nsource_finalizer_job_id=%s\nrecovery_finalizer_job_id=%s\nsource_evaluation_cells_sha256=%s\ndeployed_git_commit=%s\nsubmitted_at=%s\n' \
+      "$authorization_id" "$failed_finalizer_id" "$output" "$merged_cells_sha256" "$(cat "$PHC2D_ROOT/DEPLOYED_GIT_COMMIT")" "$(date -Is)" > "$campaign/finalizer_recovery_submission.env"
+    echo "source_finalizer_job_id=$failed_finalizer_id recovery_finalizer_job_id=$output"
+    ;;
+  *) echo "usage: $0 freeze|preflight|submit|recover-finalizer AUTHORIZATION_ID" >&2; exit 2 ;;
 esac

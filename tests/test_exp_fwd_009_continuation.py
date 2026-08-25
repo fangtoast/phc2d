@@ -220,3 +220,5 @@ def test_exp_fwd_009_six_domain_contract_matches_007_matrix() -> None:
     assert "--array=0-9%8" in submit
     assert "afterok:$shard_id" in submit
     assert "PHC2D_AUTHORIZE_EXP_FWD_009" in submit
+    assert "recover-finalizer" in submit
+    assert "source_evaluation_cells_sha256" in submit

@@ -242,6 +242,21 @@ def test_legacy_inventory_relative_checkpoint_uses_inventory_repository_root(tmp
     assert resolved == checkpoint
 
 
+def test_six_domain_identity_index_filters_legacy_k5_and_rejects_duplicates() -> None:
+    rows = [
+        {"source_family": "K5", "source_model": "mlp", "source_lane": "B", "source_seed": "0", "target_domain": "K5-B"},
+        {"source_family": "K20", "source_model": "mlp", "source_lane": "B", "source_seed": "0", "target_domain": "K5-B"},
+        {"source_family": "F50", "source_model": "mlp", "source_lane": "B", "source_seed": "0", "target_domain": "F50-B"},
+    ]
+    filtered = six._identity_index(rows, source_families={"K20", "F50"})
+    assert len(filtered) == 2
+    assert all(key[0] in {"K20", "F50"} for key in filtered)
+    historical = six._identity_index(rows, source_families={"K20", "F50"}, target_domains={"F50-B"})
+    assert len(historical) == 1
+    with pytest.raises(RuntimeError, match="duplicate evaluation identity"):
+        six._identity_index(rows + [dict(rows[1])])
+
+
 def test_exp_fwd_008_job_contract_is_read_only_on_failure_and_30_minute_watch() -> None:
     root = ROOT
     submit = (root / "jobs/paracloud_submit_exp_fwd_008_k5.sh").read_text(encoding="utf-8")
