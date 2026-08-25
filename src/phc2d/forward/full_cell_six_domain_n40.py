@@ -92,18 +92,34 @@ def _audit_dataset(root: Path, domain: str, contract: Mapping[str, Any]) -> dict
                 "sample_count": int(contract["sample_count"]), "wh_shape": list(wh_shape), "grid_shape": list(grid_shape), "test_size": len(test)}
 
 
-def _checkpoint_path(root: Path, row: Mapping[str, Any]) -> Path:
+def _checkpoint_path(root: Path, row: Mapping[str, Any], *, inventory_root: Path | None = None) -> Path:
     value = row.get("checkpoint_path") or (str(Path(str(row["run_dir"])) / "model.pt") if row.get("run_dir") else "")
     if not value: raise RuntimeError(f"checkpoint path missing: {row}")
-    return _resolve(root, str(value))
+    checkpoint = Path(str(value))
+    if checkpoint.is_absolute():
+        return checkpoint
+    primary = root / checkpoint
+    if primary.is_file() or inventory_root is None:
+        return primary
+    inherited = inventory_root / checkpoint
+    return inherited if inherited.is_file() else primary
+
+
+def _inventory_repository_root(path: Path) -> Path | None:
+    for parent in path.parents:
+        if parent.name == "runs":
+            return parent.parent
+    return None
 
 
 def _inventory(root: Path, path: str, family: str, seeds: set[int]) -> list[dict[str, Any]]:
     if path.startswith("PLACEHOLDER_"): raise RuntimeError(f"{family} inventory must be frozen before six-domain evaluation")
     rows: list[dict[str, Any]] = []
-    for row in _read_csv(_resolve(root, path)):
+    inventory_path = _resolve(root, path)
+    inventory_root = _inventory_repository_root(inventory_path)
+    for row in _read_csv(inventory_path):
         model, lane = str(row.get("model", "")), str(row.get("source_lane", row.get("train_lane", "")))
-        checkpoint = _checkpoint_path(root, row); actual = sha256_file(checkpoint)
+        checkpoint = _checkpoint_path(root, row, inventory_root=inventory_root); actual = sha256_file(checkpoint)
         if model not in MODELS + (JOINT_MODEL,) or lane not in {"B", "G", "J"}: raise RuntimeError(f"invalid model identity: {row}")
         if str(row.get("checkpoint_sha256", "")) != actual: raise RuntimeError(f"checkpoint hash drift: {checkpoint}")
         rows.append({**row, "source_family": family, "source_lane": lane, "source_seed": int(row["seed"]), "checkpoint_path": checkpoint.as_posix(), "checkpoint_sha256": actual})

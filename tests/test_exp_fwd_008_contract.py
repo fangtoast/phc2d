@@ -225,6 +225,23 @@ def test_exp_fwd_008_counts_and_full_domain_labels() -> None:
     ]
 
 
+def test_legacy_inventory_relative_checkpoint_uses_inventory_repository_root(tmp_path: Path) -> None:
+    current_root = tmp_path / "new-root"
+    legacy_root = tmp_path / "legacy-root"
+    inventory = legacy_root / "runs" / "20260810" / "campaign" / "checkpoint_inventory.csv"
+    checkpoint = legacy_root / "runs" / "20260807" / "model" / "model.pt"
+    inventory.parent.mkdir(parents=True)
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"checkpoint")
+    current_root.mkdir()
+    resolved = six._checkpoint_path(
+        current_root,
+        {"checkpoint_path": "runs/20260807/model/model.pt"},
+        inventory_root=six._inventory_repository_root(inventory),
+    )
+    assert resolved == checkpoint
+
+
 def test_exp_fwd_008_job_contract_is_read_only_on_failure_and_30_minute_watch() -> None:
     root = ROOT
     submit = (root / "jobs/paracloud_submit_exp_fwd_008_k5.sh").read_text(encoding="utf-8")
