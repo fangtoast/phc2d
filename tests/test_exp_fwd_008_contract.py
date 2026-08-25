@@ -16,6 +16,8 @@ import yaml
 from phc2d.forward import full_cell_six_domain_n40 as six
 from phc2d.forward import full_cell_training_campaign as training
 from phc2d.forward.full_cell import _convergence_record
+from phc2d.forward import full_cell_dual_lane as dual
+from phc2d.forward.full_cell_dual_lane import _dual_lane_convergence_record
 from phc2d.forward.full_cell_metrics import compute_band_metrics, paired_bootstrap_mre
 
 
@@ -75,6 +77,122 @@ def test_fixed_convergence_formula_and_zero_denominator() -> None:
     history[180]["val_bands_2_10_mre_pct"] = float("nan")
     with pytest.raises(ValueError, match="non-finite"):
         _convergence_record(history)
+
+
+def test_dual_lane_convergence_record_is_json_serializable() -> None:
+    history = [
+        {
+            "epoch": epoch,
+            "binary_val_bands_2_10_mre_pct": 1.0,
+            "graded_val_bands_2_10_mre_pct": 2.0,
+            "val_bands_2_10_mre_pct": 1.5,
+        }
+        for epoch in range(1, 201)
+    ]
+    result = _dual_lane_convergence_record(
+        history,
+        threshold=0.005,
+        contract_metric="validation_bands_2_10_mre",
+    )
+
+    import json
+
+    json.dumps(result)
+    assert set(result["curves"]) == {"binary", "graded", "equal_lane"}
+    assert result["curves"]["equal_lane"] is not result
+    assert all(curve["passed"] for curve in result["curves"].values())
+
+
+def test_dual_lane_fixed_200_finalizer_recovery_preserves_checkpoints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import csv
+    import json
+    import torch
+
+    run = tmp_path / "joint"
+    (run / "figures").mkdir(parents=True)
+    (run / "run.log").write_text("original training log\n", encoding="utf-8")
+    (run / "run.meta.json").write_text("{}\n", encoding="utf-8")
+    config = {
+        "datasets": {"binary": {}, "graded": {}},
+        "model": {"name": "dual_lane_band_operator_v1", "params": {"head_kind": "dense"}},
+        "training": {
+            "required_stop_epoch": 200,
+            "convergence_relative_threshold": 0.005,
+            "convergence_metric": "validation_bands_2_10_mre",
+            "seed": 0,
+        },
+    }
+    (run / "config.resolved.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    fields = [
+        "epoch",
+        "val_bands_2_10_mre_pct",
+        "binary_val_bands_2_10_mre_pct",
+        "graded_val_bands_2_10_mre_pct",
+        "wall_time_s",
+        "optimizer_steps",
+        "samples_seen",
+    ]
+    with (run / "history.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        for epoch in range(1, 201):
+            writer.writerow(
+                {
+                    "epoch": epoch,
+                    "val_bands_2_10_mre_pct": 1.5,
+                    "binary_val_bands_2_10_mre_pct": 1.0,
+                    "graded_val_bands_2_10_mre_pct": 2.0,
+                    "wall_time_s": epoch,
+                    "optimizer_steps": epoch * 10,
+                    "samples_seen": epoch * 64,
+                }
+            )
+    identity = {
+        "canonical_model_name": "dual_lane_band_operator_v1",
+        "factory_function_identity": "factory",
+        "state_dict_schema_hash": "schema",
+        "architecture_fingerprint": "fingerprint",
+        "parameter_count": 3,
+    }
+    torch.save(
+        {
+            "epoch": 7,
+            "model_name": "dual_lane_band_operator_v1",
+            "model_identity": identity,
+            "input_shape": (64, 64),
+            "output_shape": (81, 10),
+        },
+        run / "model.pt",
+    )
+    torch.save({"epoch": 200}, run / "epoch200.pt")
+    source_hashes = {
+        name: dual._sha256_checkpoint(run / name) for name in ("model.pt", "epoch200.pt")
+    }
+    monkeypatch.setattr(
+        dual,
+        "_lane_contracts",
+        lambda resolved: {
+            "binary": {"selected_train": range(8), "idx_val": range(2)},
+            "graded": {"selected_train": range(9), "idx_val": range(3)},
+        },
+    )
+
+    dual.recover_fixed_200_finalizer(run, source_slurm_job_id="123")
+
+    assert source_hashes == {
+        name: dual._sha256_checkpoint(run / name) for name in ("model.pt", "epoch200.pt")
+    }
+    metrics = json.loads((run / "metrics.json").read_text(encoding="utf-8"))
+    results = json.loads((run / "results.json").read_text(encoding="utf-8"))
+    recovery = json.loads((run / "finalizer_recovery.json").read_text(encoding="utf-8"))
+    assert metrics["binary_n_train"] == 8
+    assert metrics["graded_n_val"] == 3
+    assert results["status"] == "dual_lane_training_success"
+    assert recovery["source_slurm_job_id"] == "123"
+    with pytest.raises(RuntimeError, match="refusing to overwrite"):
+        dual.recover_fixed_200_finalizer(run)
 
 
 def test_band_slices_metrics_zero_variance_and_reproducible_bootstrap() -> None:

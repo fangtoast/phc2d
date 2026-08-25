@@ -303,11 +303,15 @@ def _main(argv: Sequence[str] | None = None) -> None:
     task = sub.add_parser("run-task"); task.add_argument("--manifest", required=True); task.add_argument("--task-index", type=int, required=True); task.add_argument("--stage", choices=("admission", "formal"), default="formal"); task.add_argument("--repository-root", default=".")
     admission = sub.add_parser("audit-admission"); admission.add_argument("--campaign-dir", required=True); admission.add_argument("--phase", choices=("A", "B"), required=True); admission.add_argument("--repository-root", default=".")
     final = sub.add_parser("finalize-training"); final.add_argument("--campaign-dir", required=True); final.add_argument("--repository-root", default=".")
+    recover = sub.add_parser("recover-dual-lane-finalizer"); recover.add_argument("--run-dir", required=True); recover.add_argument("--source-slurm-job-id")
     args = parser.parse_args(argv)
     if args.command == "freeze": print(freeze_campaign(args.profile, args.campaign_dir, repository_root=args.repository_root))
     elif args.command == "run-task": print(run_task(manifest=args.manifest, task_index=args.task_index, stage=args.stage, repository_root=args.repository_root))
     elif args.command == "audit-admission": print(audit_admission(args.campaign_dir, phase=args.phase, repository_root=args.repository_root))
-    else: print(finalize_training(args.campaign_dir, repository_root=args.repository_root))
+    elif args.command == "finalize-training": print(finalize_training(args.campaign_dir, repository_root=args.repository_root))
+    else:
+        from phc2d.forward.full_cell_dual_lane import recover_fixed_200_finalizer
+        print(recover_fixed_200_finalizer(args.run_dir, source_slurm_job_id=args.source_slurm_job_id))
 
 
 if __name__ == "__main__": _main()
