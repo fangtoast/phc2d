@@ -1,8 +1,8 @@
 ---
 title: "EXP-FWD-009：K5 epoch-200 权重热启动收敛续训"
 summary: "从 EXP-FWD-008 的五个 epoch200 权重状态建立独立 derivative，以重置 AdamW 的方式续训并按滚动双十轮窗口停止。"
-page_type: plan
-plan_state: active
+page_type: experiment
+plan_state: completed
 status: draft
 audience: "研究执行者与结果审阅者"
 owner: "研究生维护"
@@ -32,3 +32,9 @@ primary_layer: L3
 评估始终使用源 checkpoint normalizer，joint 按目标路线传入 `lane_id`，不微调、不重拟合 normalizer、不修改测试集。K20/F50 408 cells 与 EXP-FWD-007 做 `1e-6` 数值回归，历史 272 cells 单独回归；K5 102 cells 与 EXP-FWD-007 做 10,000 次 paired bootstrap。指标和结论仍只属于 held-out surrogate evidence。
 
 若到总 epoch 600 仍未通过，状态保持 `training_complete_convergence_not_met`，不得宣称收敛。所有结果仍仅属于 held-out surrogate evidence。
+
+## 执行结果
+
+五个续训任务均在总 epoch 600 前通过主收敛门，最终由 12 个 EXP-FWD-008 checkpoint 与 5 个 EXP-FWD-009 checkpoint 组成 17 个 K5 身份，并完成 85 checkpoint × 6 域的 510-cell 评估。由于 12 个保留身份中仍有 8 个未通过 EXP-FWD-008 原收敛门，最终结果属于带人工收敛豁免的完整评估，不等于原合同 17/17 收敛通过。
+
+[阅读 EXP-FWD-009 结果](../../docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md)。

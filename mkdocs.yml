@@ -159,6 +159,8 @@ nav:
           - K=20 B/G 单 Seed 正向: results/forward/full_cell_k20_b_g_seed0_cross_eval_20260820.md
           - K20 与 50K 跨数据域正向: results/forward/全胞K20与50K跨数据域正向验证_20260820.md
           - EXP-FWD-007 K5 训练与六域验证: results/forward/EXP-FWD-007-K5训练与六域验证.md
+          - EXP-FWD-008 K5 固定 200 轮训练: results/forward/EXP-FWD-008-K5固定200轮训练与六域验证.md
+          - EXP-FWD-009 K5 权重热启动与六域验证: results/forward/EXP-FWD-009-K5权重热启动与六域验证.md
           - Meep 近远场: results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md
           - K5 代理选频与真实响应差异: results/field-physics/代理选频与真实响应差异_20260825.md
           - 全胞综合报告: reports/全胞双路线正向与逆向模型报告_20260810.md

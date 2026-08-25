@@ -421,7 +421,7 @@ experiments:
   - id: EXP-FWD-008
     title: K5 全模型固定 200 Epoch 训练与六域交叉验证
     task: forward
-    status: configured
+    status: completed_with_convergence_waiver
     mapping_status: complete
     research_question: 在不改写 EXP-FWD-007 的前提下，固定 K5 17 个 seed0 任务完整训练 200 epoch 后，收敛门与六域 held-out surrogate 迁移诊断是否闭合？
     spec:
@@ -434,7 +434,8 @@ experiments:
       - configs/research/full_cell_k5_six_domain_exp_fwd_008_n40_v1.yaml
     runs:
       local: []
-      referenced_not_local: []
+      referenced_not_local:
+        - runs/20260825/EXP-FWD-008_K5_20260825083000
     result:
       - docs/results/forward/EXP-FWD-008-K5固定200轮训练与六域验证.md
     report: []
@@ -442,9 +443,38 @@ experiments:
       - EXP-DAT-005
       - EXP-FWD-007
     decision:
-      state: pending_execution
-      summary: 已完成独立合同、配置、训练控制面、Band 三口径 schema 和只读监控入口；训练与评估证据尚未产生。
+      state: superseded_by_exp_fwd_009_evaluation
+      summary: 17 个任务均完成 200 epoch，但仅 5/17 通过原主收敛门；用户豁免阻断后，其中五个指定身份进入 EXP-FWD-009 续训，最终六域评估不得解释为 EXP-FWD-008 的 17/17 收敛通过。
     tags: [forward, full-cell, k5, fixed-200, six-domain, surrogate-only]
+
+  - id: EXP-FWD-009
+    title: K5 epoch-200 权重热启动收敛续训与六域验证
+    task: forward
+    status: completed_with_convergence_waiver
+    mapping_status: complete
+    research_question: 五个指定身份从 EXP-FWD-008 epoch-200 权重热启动并重置 AdamW 后能否达到滚动收敛门，并与其余 12 个 K5 身份共同完成 EXP-FWD-007 同合同的六域评估？
+    spec:
+      - experiments/research/EXP-FWD-009-K5权重热启动收敛续训.md
+    config:
+      - configs/research/full_cell_k5_forward_009_binary_seed0_v1.yaml
+      - configs/research/full_cell_k5_forward_009_graded_seed0_v1.yaml
+      - configs/research/full_cell_k5_forward_009_dual_lane_seed0_v1.yaml
+      - configs/research/full_cell_k5_six_domain_exp_fwd_009_n40_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+        - runs/20260825/EXP-FWD-009_K5_CONT_20260825164000
+        - runs/20260825/EXP-FWD-009_six_domain_20260825181500
+    result:
+      - docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md
+    report: []
+    related_experiments:
+      - EXP-FWD-007
+      - EXP-FWD-008
+    decision:
+      state: pending_human_review
+      summary: 五个续训任务通过主收敛门，510-cell、408/272 回归与 102-cell bootstrap 完成；最终 17 身份仅 9 个满足主收敛门，另 8 个依据人工豁免纳入，禁止写成 17/17 收敛或物理验证。
+    tags: [forward, full-cell, k5, weight-only-warm-start, six-domain, convergence-waiver, surrogate-only]
 
   - id: EXP-QRY-001
     title: A1 V2 10k Continuous Query 公平对照
