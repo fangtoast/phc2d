@@ -5,7 +5,7 @@ page_type: landing
 status: draft
 audience: 研究使用者、导师与结果审阅者
 owner: 研究生维护，导师审阅研究主张
-last_reviewed: 2026-08-21
+last_reviewed: 2026-08-25
 reading_time: 5 minutes
 primary_layer: L3
 ---
@@ -34,6 +34,7 @@ primary_layer: L3
 | `EXP-FWD-007` | surrogate cross-domain | completed, Draft review | K5 17-task 与 K5/K20/F50 六域 510-cell held-out 重推完成，旧 272-cell 回归通过；缺 paired-bootstrap/resource 汇总，尚不作 promotion | [Draft 结果页](../results/forward/EXP-FWD-007-K5训练与六域验证.md) |
 | `EXP-INV-004` | solver replay | completed, seed 0 | Objective-Bridge 完成 Test625 real-MPB replay，但尚无跨 seed 结论 | [短结果](EXP-INV-004-Objective-Bridge.md) · [详细证据](../results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md) |
 | `EXP-PHY-003` | admission gate | blocked | Field/adapted PINO 三项准入未通过，不进入当前正式 inverse 主线 | [详细证据](../results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md) |
+| `EXP-PHY-004` | physical sensitivity | completed | K5 全量 MRE 较低，但代表样本最大带隙选择失配可显著改变真实 Meep 响应 | [详细证据](../results/field-physics/代理选频与真实响应差异_20260825.md) |
 
 ## 当前结论
 
@@ -41,6 +42,7 @@ primary_layer: L3
 2. 全胞正向模型在本域已有稳定候选，但 K 截断、路线与样本分布改变会造成明显域偏移。
 3. V2 inverse 的 seed-0 replay 已完成；full-cell inverse 的正式训练、筛选和 replay 仍未完成。
 4. Field/adapted PINO 仍是被阻塞的历史方向，不能与当前全胞正向结果并列宣传。
+5. K5 的整体 held-out MRE 较低，但最大带隙的离散 band/k 选择可能失配；forward 进入 inverse 选频前需要独立的 gap-selection 与 real-solver sensitivity gate。
 
 ## 证据路径
 

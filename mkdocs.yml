@@ -160,6 +160,7 @@ nav:
           - K20 与 50K 跨数据域正向: results/forward/全胞K20与50K跨数据域正向验证_20260820.md
           - EXP-FWD-007 K5 训练与六域验证: results/forward/EXP-FWD-007-K5训练与六域验证.md
           - Meep 近远场: results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md
+          - K5 代理选频与真实响应差异: results/field-physics/代理选频与真实响应差异_20260825.md
           - 全胞综合报告: reports/全胞双路线正向与逆向模型报告_20260810.md
   - 计划与治理:
       - 规划索引: planning/README.md

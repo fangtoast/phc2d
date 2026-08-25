@@ -1,0 +1,90 @@
+# Frozen contract for Full-Wh surrogate spectra and real-solver response sensitivity.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: EXP-PHY-004
+  family: research
+  stage: surrogate_spectral_and_response_sensitivity
+  primary_layer: L3
+
+evidence:
+  campaign_dir: runs/20260824/EXP-FWD-007_six_domain_20260824162756
+  source_family: K5
+  source_seed: 0
+  models:
+    convnext:
+      source_model: convnext_band_v1
+      source_lane: match_target
+    joint:
+      source_model: dual_lane_band_operator_v1
+      source_lane: J
+
+datasets:
+  B:
+    target_domain: K5-B
+    display_name: K5 Binary
+    path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5
+    grid_field: material_area_fraction_grid_64
+    expected_dataset_sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6
+  G:
+    target_domain: K5-G
+    display_name: K5 Graded
+    path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5
+    grid_field: material_weight_grid_64
+    expected_dataset_sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20
+
+sampling:
+  split: test
+  expected_test_count: 1000
+  quantiles: [0.1, 0.5, 0.9]
+  selection_metric: mean_convnext_and_joint_bands_2_10_sample_mre_pct
+  tie_break: lowest_test_position
+
+bands:
+  gap_lower_bands_one_based: [2, 9]
+  plotted_path: sampled_gamma_x9_m9_gamma
+
+statistics:
+  paired_bootstrap_replicates: 10000
+  bootstrap_seed: 20260825
+
+mpb_eigenfield:
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 64
+  mesh_size: 3
+  polarization: TE
+  num_bands: 10
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+  eigensolver_tolerance: 1.0e-7
+  frequency_mre_max: 0.01
+
+meep_response:
+  periods_x: 5
+  periods_y: 5
+  resolution: 24
+  pml_thickness: 1.0
+  monitor_padding: 0.75
+  source_gap: 0.75
+  fractional_bandwidth: 0.10
+  dft_decay_tolerance: 1.0e-5
+  dft_minimum_run_time: 50.0
+  dft_maximum_run_time: 2000.0
+  require_decay_before_max: true
+  farfield_radius_wavelengths: 100.0
+  farfield_angle_count: 181
+  greencyl_tolerance: 1.0e-6
+
+runtime:
+  authorized_solver_execution: true
+  authorization_basis: user_requested_plan_execution_2026_08_25
+  required_platform: WSL Ubuntu
+  required_conda_environment: meep_env
+
+output:
+  runs_dir: runs
+  formats: [png, svg, pdf, tiff]
+  dpi: 600

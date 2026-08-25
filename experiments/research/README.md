@@ -28,6 +28,7 @@
 - [`full_cell_forward_upgrade_10k.md`](full_cell_forward_upgrade_10k.md)：五个 Full-Wh 升级模型在 N40 的 admission 与 10k 七波训练合同。
 - [`field_eigen_te.md`](field_eigen_te.md)：TE Bloch eigenfield、Field FNO 与 adapted PINO。
 - [`near_field_surrogate.md`](near_field_surrogate.md)：near-field、NeurOLight 与 Maxwell residual 可行性边界。
+- [`EXP-PHY-004-代理选频响应差异.md`](EXP-PHY-004-代理选频响应差异.md)：K5 Full-Wh 全量频谱误差、最大带隙选频稳定性与代表样本 real-MPB/Meep 响应差异。
 
 ## Inverse 与 replay
 

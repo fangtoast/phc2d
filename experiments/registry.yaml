@@ -4,7 +4,7 @@
 # Copyright (c) 2026 fangtoast. All rights reserved.
 
 schema_version: 1
-last_reviewed: 2026-08-21
+last_reviewed: 2026-08-25
 
 registry_scope:
   policy: >-
@@ -744,6 +744,33 @@ experiments:
       state: blocked
       summary: dense-k、跨分辨率与物理残差准入未通过；不得进入 inverse cross-check 或正式物理 claim。
     tags: [physical-validation, eigenfield, te, adapted-pino, blocked]
+
+  - id: EXP-PHY-004
+    title: K5 Full-Wh 代理选频与真实响应差异
+    task: physical_validation
+    status: completed
+    mapping_status: complete
+    research_question: K5 Full-Wh held-out MRE 较低时，最大带隙 band/k/频率选择是否稳定，残余选频误差是否改变同一结构的真实 Meep 近远场响应？
+    spec:
+      - experiments/research/EXP-PHY-004-代理选频响应差异.md
+    config:
+      - configs/research/exp_phy_004_full_wh_response_sensitivity_v1.yaml
+    runs:
+      local:
+        - runs/20260825/EXP-PHY-004_202608251101
+      referenced_not_local:
+        - runs/20260824/EXP-FWD-007_six_domain_20260824162756
+    result:
+      - docs/results/field-physics/代理选频与真实响应差异_20260825.md
+    report: []
+    related_experiments:
+      - EXP-DAT-005
+      - EXP-FWD-007
+      - EXP-PHY-002
+    decision:
+      state: pending
+      summary: 物理 sensitivity 已完成；建议把最大带隙选择一致率与 real-solver 选频响应差异设为 forward 进入 inverse 前的独立 gate，待负责人接受。
+    tags: [physical-validation, surrogate, bandgap-selection, meep, near-field, far-field, full-cell]
 
 deferred_history:
   - scope: 2026-05 至 2026-06 初期的 legacy reproduction、FEM/MPB 与 smoke runs

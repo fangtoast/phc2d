@@ -11,6 +11,8 @@
 
 > 2026-08-13 维护状态：CLI、模型与 inverse runtime 模块化已分别提交为 `082ac2d`、`5c01bf9`，架构边界记录于 `75bab09`。WSL `Ubuntu` + conda `meep_env` 下 compileall、基础 CLI、`models list`、40 项定向测试与完整 `482 passed` 回归均通过；这只证明 L4 工程兼容性，不新增模型性能或物理验证结论。同期生成的多份 `paper_like_64` representation benchmark 仅为重复小样本 smoke，不构成新的正式模型或物理结论。
 
+> 2026-08-25 EXP-PHY-004 状态：K5-B/G 各 1000 条 frozen test 的 Full-Wh 频谱审计与 6 条代表结构的 real-MPB/18 条 real-Meep response sensitivity 已完成。整体 MRE 较低不保证最大带隙 band/k 选择稳定；该结论不等于 field surrogate 已建立，也不升级 inverse 状态。详见[代理选频与真实响应差异](docs/results/field-physics/代理选频与真实响应差异_20260825.md)。
+
 # PROJECT MAP
 
 | Metadata | Value |
@@ -58,6 +60,7 @@
 6. 50k 全胞 Forward 的 40k held-out test 中，FNO 在全部 12 个方向/epoch 组均为最低三 seed 均值；binary 100/200 epoch 均为约 `0.630%`，continuous 200 epoch 为约 `0.160%`。50k final-fit 和 threshold 结果只属于训练重叠 monitor。
 7. CNN/FNO 能接受 32/128 输入不等于分辨率不变；相对 64 的 156 个 paired comparisons 中有 151 个 MRE CI 显著变差。该结果不是 MPB 分辨率收敛或物理验证。
 8. Full-Wh 升级 50k held-out test 中，ConvNeXt 的 B/G MRE 为约 `0.321%/0.050%`；Mixer 的 32/128 直接输入诊断总体最稳。Gated ResMLP 负结果和 dual-lane 未通过替代门必须保留。
+9. K5 Full-Wh 的整体 test MRE 不能替代最大带隙选择审计；EXP-PHY-004 的 6 条代表结构中，ConvNeXt 仅 1/6、joint 仅 4/6 同时保持 real-MPB band 与 k 选择，选频差异可显著改变冻结 real-Meep 响应。
 
 ## 当前最重要的未解决问题
 
@@ -77,6 +80,7 @@
 4. **P1：重做 Field/PINO 校准**；任一 frequency、dense-k、跨分辨率或 residual–error 门失败即保持 blocked。
 5. **P1：汇总 OOD / cross-dataset / cross-surrogate**；统一报告统计量、运行时间、失败案例和 surrogate–replay gap。
 6. **P1：冻结 full-cell inverse 的 forward ranker 与数据版本**；决定继续 10k 还是迁移 50k，更新 Stage-B admission、normalization 和 checkpoint manifests 后再单独授权训练/replay。
+7. **P1：把 gap-selection 纳入 forward→inverse gate**；先对完整 test split 做低成本 band/k/gap 一致率审计，再决定是否按失配类型扩大 real-MPB/Meep replay。
 
 ## 详细内容去哪里查看
 

@@ -1,11 +1,11 @@
 ---
-title: Field 与 PINO 历史结果
-summary: 64/1k/9216 规模、dense-k、物理残差和度规修正的历史证据索引。
+title: Field 与物理响应结果
+summary: 当前 real-MPB/Meep 响应证据与历史 Field/PINO 准入记录的分层索引。
 page_type: landing
 status: draft
 audience: 物理建模研究者、复现执行者与证据审阅者
 owner: 研究生维护
-last_reviewed: 2026-08-14
+last_reviewed: 2026-08-25
 reading_time: 4 minutes
 primary_layer: L3
 ---
@@ -17,10 +17,19 @@ primary_layer: L3
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
-# Field 与 PINO 历史结果
+# Field 与物理响应结果
 
-!!! warning "历史证据"
-    下列 Field/PINO 页面不进入当前正式结果白名单。它们保留失败、修正与准入过程；全胞 Meep 结果请从[新全胞数据正式结果](../全胞数据正式结果.md)进入。
+!!! warning "证据分层"
+    下列 Field/PINO 页面不进入当前正式结果白名单。它们保留失败、修正与准入过程；全胞 Meep 与代理选频响应差异属于独立的正式物理证据。
+
+## 当前物理证据
+
+| 结果页面 | 状态与边界 |
+|---|---|
+| [K5 代理选频与真实响应差异](代理选频与真实响应差异_20260825.md) | EXP-PHY-004；1000 条 test 频谱审计 + 6 条代表结构 real-MPB/Meep sensitivity |
+| [双路线有限阵列 Meep 近远场](full_cell_dual_lane_meep_scattering_20260806.md) | EXP-PHY-002；冻结 32 结构的真实受激响应 |
+
+## 历史 Field / PINO 证据
 
 | 结果页面 | 状态与边界 |
 |---|---|
@@ -34,4 +43,4 @@ primary_layer: L3
 
 较低 Maxwell residual 不能单独证明 frequency、inverse reranking 或 field inverse 收益。
 
-[查看正式 Meep 结果](full_cell_dual_lane_meep_scattering_20260806.md) · [返回历史档案](../../历史档案.md)
+[返回实验与证据库](../README.md) · [查看历史档案](../../历史档案.md)
