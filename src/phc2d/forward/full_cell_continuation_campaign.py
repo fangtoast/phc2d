@@ -42,6 +42,16 @@ def _read_manifest(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(handle))
 
 
+def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
+    if not rows:
+        raise ValueError(f"refusing empty CSV: {path}")
+    fields = list(dict.fromkeys(key for row in rows for key in row))
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def freeze_campaign(source_campaign: str | Path, campaign_dir: str | Path, *, repository_root: str | Path = ".") -> Path:
     root = Path(repository_root).resolve()
     source = Path(source_campaign).resolve()
@@ -160,23 +170,111 @@ def run_task(manifest: str | Path, task_index: int, *, repository_root: str | Pa
     return Path(row["run_dir"])
 
 
+def finalize_evaluation_inventory(
+    source_campaign: str | Path,
+    continuation_campaign: str | Path,
+    *,
+    output_path: str | Path | None = None,
+) -> Path:
+    """Freeze the final 17-checkpoint K5 evaluation inventory.
+
+    The twelve untouched identities retain their EXP-FWD-008 best-validation
+    checkpoints. The five identities listed in ``TASKS`` are replaced by the
+    converged EXP-FWD-009 best-validation checkpoints.
+    """
+
+    source = Path(source_campaign).resolve()
+    continuation = Path(continuation_campaign).resolve()
+    base_rows = _read_manifest(source / "task_manifest.csv")
+    continuation_rows = _read_manifest(continuation / "task_manifest.csv")
+    replacements = {(row["model"], row["lane"], int(row["seed"])): row for row in continuation_rows}
+    expected_replacements = {(model, lane, 0) for model, lane, _task, _config in TASKS}
+    if len(base_rows) != 17 or set(replacements) != expected_replacements:
+        raise RuntimeError("EXP-FWD-009 evaluation inventory source matrix mismatch")
+
+    inventory: list[dict[str, Any]] = []
+    for base in base_rows:
+        identity_key = (base["model"], base["train_lane"], int(base["seed"]))
+        replacement = replacements.get(identity_key)
+        run = Path(replacement["run_dir"] if replacement else base["run_dir"])
+        result_path, checkpoint = run / "results.json", run / "model.pt"
+        if not result_path.is_file() or not checkpoint.is_file():
+            raise RuntimeError(f"missing evaluation checkpoint evidence: {run}")
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        if replacement:
+            if result.get("status") != "continuation_training_success":
+                raise RuntimeError(f"continuation checkpoint has not converged: {run}")
+        elif result.get("status") not in {
+            "training_success",
+            "dual_lane_training_success",
+            "training_complete_convergence_not_met",
+        }:
+            raise RuntimeError(f"invalid EXP-FWD-008 checkpoint status: {run}")
+        model_identity = result.get("model_identity")
+        required_identity = {
+            "canonical_model_name",
+            "factory_function_identity",
+            "state_dict_schema_hash",
+            "architecture_fingerprint",
+            "parameter_count",
+        }
+        if not isinstance(model_identity, Mapping) or not required_identity.issubset(model_identity):
+            raise RuntimeError(f"incomplete checkpoint identity: {run}")
+        inventory.append(
+            {
+                **base,
+                "checkpoint_path": checkpoint.as_posix(),
+                "checkpoint_sha256": _sha256(checkpoint),
+                "checkpoint_role": "best_validation",
+                "selection_split": "validation",
+                "evaluation_checkpoint_source_experiment": "EXP-FWD-009" if replacement else "EXP-FWD-008",
+                "evaluation_checkpoint_source_status": result["status"],
+                "evaluation_checkpoint_stop_epoch": result.get("stopped_total_epoch", result.get("stop_epoch")),
+                **{key: model_identity[key] for key in required_identity},
+            }
+        )
+    identities = {(row["model"], row["train_lane"], int(row["seed"])) for row in inventory}
+    if len(inventory) != 17 or len(identities) != 17:
+        raise RuntimeError("final K5 evaluation checkpoint identity collision")
+    output = Path(output_path).resolve() if output_path else continuation / "evaluation_checkpoint_inventory.csv"
+    if output.exists() or output.with_suffix(".json").exists():
+        raise FileExistsError(f"refusing to overwrite frozen evaluation inventory: {output}")
+    _write_csv(output, inventory)
+    _write_json(
+        output.with_suffix(".json"),
+        {
+            "status": "evaluation_checkpoint_inventory_frozen",
+            "checkpoint_count": 17,
+            "exp_fwd_008_checkpoint_count": 12,
+            "exp_fwd_009_checkpoint_count": 5,
+            "source_campaign": str(source),
+            "continuation_campaign": str(continuation),
+            "inventory_sha256": _sha256(output),
+        },
+    )
+    return output
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     freeze = sub.add_parser("freeze"); freeze.add_argument("--source-campaign", required=True); freeze.add_argument("--campaign-dir", required=True); freeze.add_argument("--repository-root", default=".")
     preflight = sub.add_parser("preflight-task"); preflight.add_argument("--manifest", required=True); preflight.add_argument("--task-index", type=int, required=True); preflight.add_argument("--repository-root", default=".")
     run = sub.add_parser("run-task"); run.add_argument("--manifest", required=True); run.add_argument("--task-index", type=int, required=True); run.add_argument("--repository-root", default=".")
+    inventory = sub.add_parser("finalize-evaluation-inventory"); inventory.add_argument("--source-campaign", required=True); inventory.add_argument("--continuation-campaign", required=True); inventory.add_argument("--output-path")
     args = parser.parse_args(argv)
     if args.command == "freeze":
         print(freeze_campaign(args.source_campaign, args.campaign_dir, repository_root=args.repository_root))
     elif args.command == "preflight-task":
         print(preflight_task(args.manifest, args.task_index, repository_root=args.repository_root))
-    else:
+    elif args.command == "run-task":
         print(run_task(args.manifest, args.task_index, repository_root=args.repository_root))
+    else:
+        print(finalize_evaluation_inventory(args.source_campaign, args.continuation_campaign, output_path=args.output_path))
 
 
 if __name__ == "__main__":
     main()
 
 
-__all__ = ["freeze_campaign", "preflight_task", "run_task"]
+__all__ = ["finalize_evaluation_inventory", "freeze_campaign", "preflight_task", "run_task"]

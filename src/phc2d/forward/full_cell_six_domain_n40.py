@@ -143,8 +143,10 @@ def build_evaluation_cells(checkpoints: Sequence[Mapping[str, Any]]) -> list[dic
     return rows
 
 
-def freeze_campaign(campaign_dir: str | Path, *, repository_root: str | Path = ".", config_path: str | Path = "configs/research/full_cell_k5_six_domain_n40_v1.yaml") -> Path:
+def freeze_campaign(campaign_dir: str | Path, *, repository_root: str | Path = ".", config_path: str | Path = "configs/research/full_cell_k5_six_domain_n40_v1.yaml", k5_inventory: str | Path | None = None) -> Path:
     root = Path(repository_root).resolve(); campaign = _resolve(root, campaign_dir); config = _config(root, config_path)
+    if k5_inventory is not None:
+        config["checkpoints"] = {**dict(config["checkpoints"]), "K5_inventory": str(k5_inventory)}
     if campaign.exists(): raise FileExistsError(campaign)
     campaign.mkdir(parents=True); audits = {domain: _audit_dataset(root, domain, contract) for domain, contract in config["datasets"].items()}
     if tuple(audits) != DOMAINS: raise RuntimeError("six domains must be K5/K20/F50 × B/G")
@@ -327,11 +329,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__); sub = parser.add_subparsers(dest="command", required=True)
     for name in ("freeze", "preflight", "run-shard", "finalize", "status"):
         item = sub.add_parser(name); item.add_argument("--campaign-dir", required=True); item.add_argument("--repository-root", default=".")
-        if name == "freeze": item.add_argument("--config", default="configs/research/full_cell_k5_six_domain_n40_v1.yaml")
+        if name == "freeze":
+            item.add_argument("--config", default="configs/research/full_cell_k5_six_domain_n40_v1.yaml")
+            item.add_argument("--k5-inventory")
         if name in {"preflight", "run-shard"}: item.add_argument("--device", default="cuda:0")
         if name == "run-shard": item.add_argument("--shard-id", required=True, type=int)
     args = parser.parse_args(argv)
-    if args.command == "freeze": print(freeze_campaign(args.campaign_dir, repository_root=args.repository_root, config_path=args.config))
+    if args.command == "freeze": print(freeze_campaign(args.campaign_dir, repository_root=args.repository_root, config_path=args.config, k5_inventory=args.k5_inventory))
     elif args.command == "preflight": print(run_preflight(args.campaign_dir, repository_root=args.repository_root, device=args.device))
     elif args.command == "run-shard": print(run_shard(args.campaign_dir, args.shard_id, repository_root=args.repository_root, device=args.device))
     elif args.command == "finalize": print(finalize_campaign(args.campaign_dir, repository_root=args.repository_root))

@@ -152,3 +152,70 @@ def test_exp_fwd_009_freezes_exact_five_task_derivative(tmp_path: Path) -> None:
     freeze = json.loads((campaign / "freeze.json").read_text(encoding="utf-8"))
     assert freeze["continuation_mode"] == "epoch200_weights_optimizer_reset"
     assert freeze["max_total_epoch"] == 600
+
+
+def test_exp_fwd_009_freezes_12_plus_5_evaluation_inventory(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    continuation = tmp_path / "continuation"
+    source.mkdir()
+    continuation.mkdir()
+    models = [
+        "mlp", "res_mlp_wide", "lifted_cnn", "fno2d_band_v2",
+        "mlp_mixer_band_v1", "res_mlp_gated_v2", "convnext_band_v1",
+        "tfno2d_band_v3",
+    ]
+    identity = {
+        "canonical_model_name": "model",
+        "factory_function_identity": "factory",
+        "state_dict_schema_hash": "schema",
+        "architecture_fingerprint": "architecture",
+        "parameter_count": 1,
+    }
+    base_rows = []
+    for index, (model, lane) in enumerate(
+        [(model, lane) for model in models for lane in ("B", "G")]
+        + [("dual_lane_band_operator_v1", "J")]
+    ):
+        run = source / f"formal_{index:02d}_{model}_{lane}_s0"
+        run.mkdir()
+        (run / "model.pt").write_bytes(f"base-{index}".encode())
+        (run / "results.json").write_text(
+            json.dumps({"status": "training_complete_convergence_not_met", "stop_epoch": 200, "model_identity": identity}),
+            encoding="utf-8",
+        )
+        base_rows.append({"task_index": index, "task_id": run.name, "model": model, "train_lane": lane, "seed": 0, "run_dir": str(run)})
+    with (source / "task_manifest.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(base_rows[0])); writer.writeheader(); writer.writerows(base_rows)
+
+    continuation_rows = []
+    for index, (model, lane, _source_task, _config) in enumerate(full_cell_continuation_campaign.TASKS):
+        run = continuation / f"continue_{index:02d}_{model}_{lane}_s0"
+        run.mkdir()
+        (run / "model.pt").write_bytes(f"continued-{index}".encode())
+        (run / "results.json").write_text(
+            json.dumps({"status": "continuation_training_success", "stopped_total_epoch": 220, "model_identity": {**identity, "canonical_model_name": model}}),
+            encoding="utf-8",
+        )
+        continuation_rows.append({"task_index": index, "model": model, "lane": lane, "seed": 0, "run_dir": str(run)})
+    with (continuation / "task_manifest.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(continuation_rows[0])); writer.writeheader(); writer.writerows(continuation_rows)
+
+    output = full_cell_continuation_campaign.finalize_evaluation_inventory(source, continuation)
+    with output.open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == 17
+    assert sum(row["evaluation_checkpoint_source_experiment"] == "EXP-FWD-009" for row in rows) == 5
+    assert sum(row["evaluation_checkpoint_source_experiment"] == "EXP-FWD-008" for row in rows) == 12
+    with pytest.raises(FileExistsError, match="refusing to overwrite"):
+        full_cell_continuation_campaign.finalize_evaluation_inventory(source, continuation)
+
+
+def test_exp_fwd_009_six_domain_contract_matches_007_matrix() -> None:
+    config = yaml.safe_load((ROOT / "configs/research/full_cell_k5_six_domain_exp_fwd_009_n40_v1.yaml").read_text(encoding="utf-8"))
+    assert config["experiment_id"] == "EXP-FWD-009"
+    assert config["shards"] == {**config["shards"], "fixed_array": "0-9%8", "count": 10}
+    assert config["statistics"]["paired_bootstrap_replicates"] == 10000
+    submit = (ROOT / "jobs/paracloud_submit_exp_fwd_009_six_domain.sh").read_text(encoding="utf-8")
+    assert "--array=0-9%8" in submit
+    assert "afterok:$shard_id" in submit
+    assert "PHC2D_AUTHORIZE_EXP_FWD_009" in submit

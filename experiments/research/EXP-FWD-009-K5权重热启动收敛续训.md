@@ -25,4 +25,10 @@ primary_layer: L3
 | Band 1 | 同步报告，不阻断 |
 | 选模 | 在源 epoch 1–200 与新增 epoch 201–stop 的全部验证历史中选择 bands 2–10 MRE 最优 checkpoint |
 
+## 六域交叉验证
+
+五个续训任务全部通过收敛门后，冻结最终 K5 17-checkpoint inventory：未续训的 12 个身份使用 EXP-FWD-008 的验证最优 checkpoint，ConvNeXt B/G、TFNO B/G 与 joint 使用 EXP-FWD-009 的验证最优 checkpoint。随后严格复用 EXP-FWD-007 的六域测试合同：K5 17 + 原 K20 17 + 原 F50 51 = 85 checkpoint，完整推理 510 cells；先完成 54 个去重身份 GPU preflight，再提交 10 shards（`0-9%8`）。
+
+评估始终使用源 checkpoint normalizer，joint 按目标路线传入 `lane_id`，不微调、不重拟合 normalizer、不修改测试集。K20/F50 408 cells 与 EXP-FWD-007 做 `1e-6` 数值回归，历史 272 cells 单独回归；K5 102 cells 与 EXP-FWD-007 做 10,000 次 paired bootstrap。指标和结论仍只属于 held-out surrogate evidence。
+
 若到总 epoch 600 仍未通过，状态保持 `training_complete_convergence_not_met`，不得宣称收敛。所有结果仍仅属于 held-out surrogate evidence。
