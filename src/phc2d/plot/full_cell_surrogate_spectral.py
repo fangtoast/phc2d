@@ -22,6 +22,7 @@ from phc2d.plot.full_cell_surrogate_support import (
     decode_text,
     hash_file,
     paired_bootstrap_mean_difference,
+    quantile_role_label,
     read_csv_rows,
     relative_path,
     repo_path,
@@ -151,6 +152,7 @@ def load_spectral_evidence(
                         "display_name": str(dataset["display_name"]),
                         "quantile": quantile,
                         "quantile_label": f"p{int(round(100.0 * quantile))}",
+                        "quantile_role": quantile_role_label(quantile),
                         "quantile_target_mre_pct": target_quantile,
                         "sample_label": f"{lane}-p{int(round(100.0 * quantile)):02d}",
                         "test_position": position,
@@ -356,6 +358,8 @@ def prepare_spectral_evidence(
             "selected_sample_count": len(selected_rows),
             "physical_solver_execution_completed": False,
             "field_surrogate_prediction_included": False,
+            "spectral_ground_truth": "frozen_hdf5_stored_real_mpb_Wh_idx_test",
+            "selection_score": "mean_convnext_and_joint_bands_2_10_sample_mre_pct",
         },
     )
     write_history(out / "history.csv", [{"phase": "spectral", "wall_time_s": elapsed, "record_count": len(sample_rows)}])

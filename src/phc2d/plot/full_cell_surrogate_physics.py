@@ -443,6 +443,9 @@ def _complete_physics(
             "physical_solver_execution_completed": complete,
             "field_surrogate_prediction_included": False,
             "response_interpretation": "real_meep_at_real_and_surrogate_selected_frequencies_not_surrogate_field_prediction",
+            "spectral_ground_truth": "frozen_hdf5_stored_real_mpb_Wh_idx_test",
+            "response_reference": "real_meep_at_real_mpb_selected_frequency",
+            "surrogate_role_in_response": "predict_bands_then_select_band_k_frequency_frequency_only_drives_real_meep",
             "absolute_scattering_power_claim_allowed": False,
         },
     )
@@ -461,7 +464,7 @@ def _complete_physics(
         out / "figure_manifest.json",
         {
             "schema_version": "phc2d.exp_phy_004_figure_manifest.v1",
-            "core_conclusion": "The figure tests whether low Full-Wh MRE preserves MPB spectra and whether residual frequency error changes a frozen real-Meep response.",
+            "core_conclusion": "Ground truth is frozen real-MPB Wh; all response panels are real-Meep solves, and surrogates affect them only through selected frequency.",
             "archetype": "asymmetric_mixed_modality_figure",
             "backend": "python_matplotlib_only",
             "field_surrogate_prediction_included": False,

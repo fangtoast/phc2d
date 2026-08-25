@@ -117,14 +117,14 @@ def render_spectral_summary(
             ax.text(
                 float(selected["difficulty_mre_pct"]),
                 0.04,
-                str(selected["quantile_label"]),
+                f"{selected['quantile_role']} {selected['quantile_label']}",
                 rotation=90,
                 va="bottom",
                 ha="right",
                 fontsize=5.0,
                 color="#606060",
             )
-        ax.set_xlabel("Bands 2–10 sample MRE (%)")
+        ax.set_xlabel("Bands 2–10 sample MRE vs ground truth (%)")
         ax.set_ylabel("Empirical cumulative fraction")
         ax.set_title(f"{payload['display_name']} · n={len(values):,}")
         ax.grid(alpha=0.16)
@@ -154,14 +154,21 @@ def render_spectral_summary(
         ax.text(1.0, ax.get_ylim()[1] if ax.get_ylim()[1] > 0 else 1.0, "context only", ha="center", va="top", fontsize=4.8)
         ax.set_xticks(bands)
         ax.set_xlabel("Band (one-based)")
-        ax.set_ylabel("Full-BZ MRE (%)")
-        ax.set_title(f"{payload['display_name']} · per-band error")
+        ax.set_ylabel("Full-BZ MRE vs ground truth (%)")
+        ax.set_title(f"{payload['display_name']} · per-band error vs ground truth")
         ax.grid(alpha=0.16)
         ax.legend()
     for label, ax in zip("abcd", axes.flat, strict=True):
         ax.text(-0.14, 1.04, label, transform=ax.transAxes, fontsize=8, fontweight="bold", va="bottom")
-    fig.suptitle("EXP-PHY-004 · Full-test spectral fidelity before representative-image selection", fontsize=8, fontweight="bold")
-    fig.subplots_adjust(left=0.10, right=0.985, bottom=0.12, top=0.90, wspace=0.28, hspace=0.42)
+    fig.suptitle("EXP-PHY-004 · Errors against frozen real-MPB ground truth", fontsize=8, fontweight="bold")
+    fig.text(
+        0.5,
+        0.015,
+        "Ground truth: frozen HDF5 real-MPB Wh[idx_test]. Gray markers: quantiles of mean(ConvNeXt, Joint) sample MRE.",
+        ha="center",
+        fontsize=5.1,
+    )
+    fig.subplots_adjust(left=0.10, right=0.985, bottom=0.15, top=0.90, wspace=0.28, hspace=0.42)
     paths = _save(fig, figures_dir / "spectral_full_test_summary", formats=formats, dpi=dpi)
     plt.close(fig)
     return paths
@@ -200,11 +207,14 @@ def render_band_plates(
             pos = int(selected["test_position"])
             ax = axes[row_index, 0]
             image = ax.imshow(payload["epsilon_by_test_position"][pos], origin="lower", cmap="Blues", vmin=1.0, vmax=8.9)
-            ax.set_title(f"{selected['sample_label']} · {selected['quantile_label']}\n$\\varepsilon_r$ map")
+            ax.set_title(
+                f"{selected['sample_label']} · {selected['quantile_role']} {selected['quantile_label']}\n"
+                r"$\varepsilon_r$ map"
+            )
             ax.set_xticks([])
             ax.set_yticks([])
             for col, source, title, color in (
-                (1, "target", "stored real-MPB", PALETTE["truth"]),
+                (1, "target", "Ground truth\n(stored real-MPB)", PALETTE["truth"]),
                 (2, "convnext", "ConvNeXt", PALETTE["convnext_dark"]),
                 (3, "joint", "Joint", PALETTE["joint_dark"]),
             ):
@@ -217,7 +227,7 @@ def render_band_plates(
                 if col == 1:
                     ax.set_ylabel(r"Frequency $a/\lambda$")
             ax = axes[row_index, 4]
-            _plot_bands(ax, payload["target"][pos], path_indices, color=PALETTE["truth"], label="MPB")
+            _plot_bands(ax, payload["target"][pos], path_indices, color=PALETTE["truth"], label="Ground truth")
             _plot_bands(
                 ax,
                 payload["convnext"][pos],
@@ -234,7 +244,7 @@ def render_band_plates(
                 linestyle=":",
                 label="Joint",
             )
-            ax.set_title("paired overlay")
+            ax.set_title("Ground truth + predictions")
             ax.set_ylim(*limits)
             ax.set_xticks(ticks, tick_labels)
             ax.grid(axis="x", alpha=0.18)
@@ -243,7 +253,7 @@ def render_band_plates(
         for label, ax in zip("abcde", axes[0], strict=True):
             ax.text(-0.12, 1.12, label, transform=ax.transAxes, fontsize=8, fontweight="bold", va="bottom")
         fig.suptitle(
-            f"{payload['display_name']} · raw dielectric and band evidence shown before differences",
+            f"{payload['display_name']} · ground-truth bands shown before predictions and differences",
             fontsize=8,
             fontweight="bold",
         )
@@ -266,7 +276,7 @@ def render_band_plates(
             pos = int(selected["test_position"])
             truth = np.asarray(payload["target"][pos], dtype=np.float64)
             ax = axes[row_index, 0]
-            _plot_bands(ax, truth, path_indices, color=PALETTE["truth"], label="MPB")
+            _plot_bands(ax, truth, path_indices, color=PALETTE["truth"], label="Ground truth")
             _plot_bands(ax, payload["convnext"][pos], path_indices, color=PALETTE["convnext_dark"], linestyle="--", label="ConvNeXt")
             _plot_bands(ax, payload["joint"][pos], path_indices, color=PALETTE["joint_dark"], linestyle=":", label="Joint")
             ax.set_ylim(*limits)
@@ -279,7 +289,10 @@ def render_band_plates(
             ax.grid(axis="x", alpha=0.18)
             if row_index == 0:
                 ax.legend(fontsize=4.8)
-            for col, source, title in ((1, "convnext", "ConvNeXt − MPB"), (2, "joint", "Joint − MPB")):
+            for col, source, title in (
+                (1, "convnext", "ConvNeXt − ground truth"),
+                (2, "joint", "Joint − ground truth"),
+            ):
                 signed = 100.0 * (np.asarray(payload[source][pos], dtype=np.float64) - truth) / np.maximum(np.abs(truth), 1.0e-8)
                 image = axes[row_index, col].imshow(
                     signed.T,
@@ -300,7 +313,11 @@ def render_band_plates(
         cbar.set_label("Signed relative frequency error (%)")
         for label, ax in zip("abc", axes[0], strict=True):
             ax.text(-0.10, 1.12, label, transform=ax.transAxes, fontsize=8, fontweight="bold", va="bottom")
-        fig.suptitle(f"{payload['display_name']} · full-BZ spectral differences", fontsize=8, fontweight="bold")
+        fig.suptitle(
+            f"{payload['display_name']} · full-BZ differences from real-MPB ground truth",
+            fontsize=8,
+            fontweight="bold",
+        )
         fig.subplots_adjust(left=0.07, right=0.895, bottom=0.07, top=0.89, wspace=0.34, hspace=0.58)
         outputs += _save(fig, figures_dir / f"spectral_difference_{lane.lower()}", formats=formats, dpi=dpi)
         plt.close(fig)
@@ -335,11 +352,17 @@ def render_eigenfield_plates(
         cbar = fig.colorbar(images[-1], ax=axes.ravel().tolist(), fraction=0.018, pad=0.018)
         cbar.set_label(r"Per-sample normalized $\varepsilon|E|^2$")
         fig.suptitle(
-            f"K5-{lane} · truth-only real-MPB upper-gap-edge TE eigenfields",
+            f"K5-{lane} · solver-reference real-MPB upper-gap-edge TE eigenfields",
             fontsize=8,
             fontweight="bold",
         )
-        fig.text(0.5, 0.015, "No Full-Wh surrogate field is shown; colors are not comparable across structures.", ha="center", fontsize=5.4)
+        fig.text(
+            0.5,
+            0.015,
+            "Reference fields come from real-MPB replay; the Full-Wh surrogate predicts bands, not fields.",
+            ha="center",
+            fontsize=5.4,
+        )
         fig.subplots_adjust(left=0.025, right=0.91, bottom=0.09, top=0.82, wspace=0.10)
         outputs += _save(fig, figures_dir / f"real_mpb_eigenfield_{lane.lower()}", formats=formats, dpi=dpi)
         plt.close(fig)
@@ -384,7 +407,13 @@ def render_response_plates(
         fig = plt.figure(figsize=(183 / 25.4, 142 / 25.4))
         grid = fig.add_gridspec(len(lane_groups), 6, wspace=0.40, hspace=0.42)
         for row_index, ((_, sample_label), values) in enumerate(lane_groups):
-            for pair_index, (source, label) in enumerate((("real_mpb", "MPB f"), ("convnext", "ConvNeXt f"), ("joint", "Joint f"))):
+            for pair_index, (source, label) in enumerate(
+                (
+                    ("real_mpb", "Reference: real-MPB f"),
+                    ("convnext", "ConvNeXt-selected f"),
+                    ("joint", "Joint-selected f"),
+                )
+            ):
                 record = values[source]
                 near_ax = fig.add_subplot(grid[row_index, 2 * pair_index])
                 extent = (record["x"][0], record["x"][-1], record["y"][0], record["y"][-1])
@@ -404,11 +433,17 @@ def render_response_plates(
                 far_ax.tick_params(labelsize=4.2, pad=0)
                 far_ax.set_title("far shape", fontsize=5.2, pad=6)
         fig.suptitle(
-            f"K5-{lane} · real-Meep responses at stored-MPB and surrogate-selected frequencies",
+            f"K5-{lane} · real-Meep responses at reference and surrogate-selected frequencies",
             fontsize=8,
             fontweight="bold",
         )
-        fig.text(0.5, 0.01, "All three columns are real Meep solves; surrogate models supply frequency only.", ha="center", fontsize=5.4)
+        fig.text(
+            0.5,
+            0.01,
+            "All columns are real-Meep solves. Surrogates predict bands, select (band, k, f), and supply only f to Meep.",
+            ha="center",
+            fontsize=5.4,
+        )
         fig.subplots_adjust(left=0.02, right=0.99, bottom=0.05, top=0.91)
         outputs += _save(fig, figures_dir / f"meep_response_raw_{lane.lower()}", formats=formats, dpi=dpi)
         plt.close(fig)
@@ -420,7 +455,12 @@ def render_response_plates(
             diffs = [values[source]["near_common_normalized"] - truth["near_common_normalized"] for source in ("convnext", "joint")]
             bound = max(float(np.max(np.abs(item))) for item in diffs)
             bound = max(bound, 1.0e-6)
-            for col, (source, title) in enumerate((("convnext", "ConvNeXt f − MPB f"), ("joint", "Joint f − MPB f"))):
+            for col, (source, title) in enumerate(
+                (
+                    ("convnext", "ConvNeXt-selected f − reference f"),
+                    ("joint", "Joint-selected f − reference f"),
+                )
+            ):
                 ax = fig.add_subplot(grid[row_index, col])
                 image = ax.imshow(diffs[col], origin="lower", cmap="RdBu_r", vmin=-bound, vmax=bound)
                 ax.set_title(f"{sample_label} · near Δ\n{title}", fontsize=5.2)
@@ -431,9 +471,9 @@ def render_response_plates(
                     cbar.set_label("Common-scale energy Δ", fontsize=4.8)
             far_ax = fig.add_subplot(grid[row_index, 2], projection="polar")
             for source, color, linestyle, label in (
-                ("real_mpb", PALETTE["truth"], "-", "MPB f"),
-                ("convnext", PALETTE["convnext_dark"], "--", "ConvNeXt f"),
-                ("joint", PALETTE["joint_dark"], ":", "Joint f"),
+                ("real_mpb", PALETTE["truth"], "-", "Reference f"),
+                ("convnext", PALETTE["convnext_dark"], "--", "ConvNeXt-selected f"),
+                ("joint", PALETTE["joint_dark"], ":", "Joint-selected f"),
             ):
                 record = values[source]
                 angles = np.r_[record["far_angles_rad"], record["far_angles_rad"][0] + 2.0 * np.pi]
@@ -462,7 +502,11 @@ def render_response_plates(
                     ]
                 )
             metric_ax.text(0.0, 0.98, "\n".join(lines), va="top", ha="left", fontsize=5.2, family="monospace")
-        fig.suptitle(f"K5-{lane} · downstream response differences caused by frequency selection", fontsize=8, fontweight="bold")
+        fig.suptitle(
+            f"K5-{lane} · real-Meep response differences caused only by selected-frequency changes",
+            fontsize=8,
+            fontweight="bold",
+        )
         fig.subplots_adjust(left=0.02, right=0.985, bottom=0.04, top=0.91)
         outputs += _save(fig, figures_dir / f"meep_response_difference_{lane.lower()}", formats=formats, dpi=dpi)
         plt.close(fig)

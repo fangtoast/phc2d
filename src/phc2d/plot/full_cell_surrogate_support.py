@@ -130,6 +130,17 @@ def select_quantile_positions(values: np.ndarray, quantiles: Sequence[float]) ->
     return selected
 
 
+def quantile_role_label(quantile: float) -> str:
+    """Return a reader-facing difficulty role for an empirical quantile."""
+
+    value = float(quantile)
+    if not 0.0 < value < 1.0:
+        raise ValueError("selection quantiles must lie in (0, 1)")
+    if np.isclose(value, 0.5):
+        return "median"
+    return "low-error" if value < 0.5 else "high-error"
+
+
 def sample_mre_pct(prediction: np.ndarray, target: np.ndarray, band_slice: slice = slice(1, 10)) -> np.ndarray:
     """Return per-sample MRE in percent for the configured band slice."""
 
@@ -179,6 +190,7 @@ __all__ = [
     "jsonable",
     "load_surrogate_physics_config",
     "paired_bootstrap_mean_difference",
+    "quantile_role_label",
     "read_csv_rows",
     "relative_path",
     "repo_path",

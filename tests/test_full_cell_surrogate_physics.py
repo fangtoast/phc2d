@@ -213,8 +213,11 @@ def _fake_scattering_solver(structure, *, frequency, config: MeepScatteringConfi
 
 
 def test_quantile_bootstrap_and_identical_response_metrics() -> None:
+    from phc2d.plot.full_cell_surrogate_support import quantile_role_label
+
     selected = select_quantile_positions(np.arange(10.0), [0.1, 0.5, 0.9])
     assert [item[1] for item in selected] == [1, 4, 8]
+    assert [quantile_role_label(value) for value in (0.1, 0.5, 0.9)] == ["low-error", "median", "high-error"]
     interval = paired_bootstrap_mean_difference(np.ones(6), np.zeros(6), replicates=100, seed=1)
     assert interval["mean_difference_pct_points"] == pytest.approx(1.0)
     x = y = np.linspace(-1.0, 1.0, 4)
@@ -267,11 +270,16 @@ def test_end_to_end_spectral_preflight_and_full_physics(tmp_path: Path) -> None:
     metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
     assert results["status"] == "completed"
     assert results["physical_solver_execution_completed"] is True
+    assert results["spectral_ground_truth"] == "frozen_hdf5_stored_real_mpb_Wh_idx_test"
+    assert results["response_reference"] == "real_meep_at_real_mpb_selected_frequency"
+    assert results["surrogate_role_in_response"].endswith("frequency_only_drives_real_meep")
     assert metrics["mpb_eigenfield_logical_case_count"] == 6
     assert metrics["meep_response_logical_case_count"] == 18
     assert len(list((run_dir / "mpb_field_shards").glob("*.npz"))) == 6
     assert len(list((run_dir / "response_shards").glob("*.npz"))) == 18
     assert len(list(csv.DictReader((run_dir / "response_difference_metrics.csv").open(encoding="utf-8")))) == 12
+    selected_rows = list(csv.DictReader((run_dir / "selected_samples.csv").open(encoding="utf-8")))
+    assert {row["quantile_role"] for row in selected_rows} == {"low-error", "median", "high-error"}
 
 
 def test_surrogate_physics_cli_help_does_not_import_meep(monkeypatch: pytest.MonkeyPatch) -> None:
