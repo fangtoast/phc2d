@@ -244,6 +244,7 @@ def _validate_and_resolve(
         dataset["grid_field"] = f"material_weight_grid_{int(resolution_override)}"
     models = dict(config.get("models") or {})
     training = dict(config.get("training") or {})
+    continuation = dict(config.get("continuation") or {})
     runtime = dict(config.get("runtime") or {})
     experiment = dict(config.get("experiment") or {})
     output = dict(config.get("output") or {})
@@ -318,10 +319,13 @@ def _validate_and_resolve(
         },
         "runtime": runtime,
         "output": output,
+        "continuation": continuation,
     }
     if not admission_probe:
-        if int(resolved["training"]["max_epochs"]) not in {20, 100, 200}:
-            raise ValueError("formal training max_epochs must be one of 20, 100, or 200")
+        continuation_enabled = bool(continuation)
+        allowed_epochs = {20, 100, 200, 600} if continuation_enabled else {20, 100, 200}
+        if int(resolved["training"]["max_epochs"]) not in allowed_epochs:
+            raise ValueError(f"formal training max_epochs must be one of {sorted(allowed_epochs)}")
         if int(training.get("early_stopping_patience", 0)) < 0:
             raise ValueError("early_stopping_patience must be nonnegative")
         if int(training.get("effective_batch_size", 0)) != 64:
@@ -332,6 +336,25 @@ def _validate_and_resolve(
             raise ValueError("formal training requires FP32")
         if bool(runtime.get("amp_enabled")) or bool(runtime.get("tf32_enabled")):
             raise ValueError("formal training forbids AMP and TF32")
+        if continuation_enabled:
+            if str(experiment.get("experiment_id")) != "EXP-FWD-009":
+                raise ValueError("weight-only convergence continuation requires EXP-FWD-009")
+            if str(continuation.get("mode")) != "epoch200_weights_optimizer_reset":
+                raise ValueError("unsupported continuation mode")
+            if int(continuation.get("source_epoch", -1)) != 200:
+                raise ValueError("continuation source_epoch must equal 200")
+            if int(continuation.get("check_interval", -1)) != 20:
+                raise ValueError("continuation check_interval must equal 20")
+            if float(continuation.get("relative_threshold", -1.0)) != 0.005:
+                raise ValueError("continuation relative_threshold must equal 0.005")
+            if not bool(continuation.get("optimizer_reset", False)):
+                raise ValueError("weight-only continuation must declare optimizer_reset=true")
+            if int(resolved["training"]["max_epochs"]) != 600:
+                raise ValueError("EXP-FWD-009 continuation max_epochs must equal 600")
+            if training.get("required_stop_epoch") is not None:
+                raise ValueError("continuation uses a convergence stop, not required_stop_epoch")
+            if int(training.get("early_stopping_patience", -1)) != 0:
+                raise ValueError("continuation requires early_stopping_patience=0")
         if training.get("required_stop_epoch") is not None:
             required_stop = int(training["required_stop_epoch"])
             if max_epochs != required_stop or required_stop != 200:
@@ -592,12 +615,16 @@ def run_full_cell_forward(
     train_size: int | None = None,
     max_epochs: int | None = None,
     head_kind: str | None = None,
+    warm_start_run: str | Path | None = None,
 ) -> Path:
     """Run one isolated model-plus-seed job from a frozen wave config."""
 
     config_file = Path(config_path)
+    raw_config = _load_yaml(config_file)
+    if warm_start_run is not None:
+        raw_config.setdefault("continuation", {})["source_run"] = str(Path(warm_start_run).resolve())
     resolved = _validate_and_resolve(
-        _load_yaml(config_file),
+        raw_config,
         model_name=model_name,
         seed=seed,
         admission_probe=admission_probe,
@@ -656,6 +683,20 @@ def run_full_cell_forward(
         output_shape=contract["target_shape"],
         **model_kwargs,
     ).to(device)
+    warm_start: dict[str, Any] | None = None
+    if resolved.get("continuation"):
+        from phc2d.forward.full_cell_warm_start import load_weight_only_warm_start
+
+        source_run = resolved["continuation"].get("source_run")
+        if not source_run:
+            raise ValueError("continuation source_run is required")
+        warm_start = load_weight_only_warm_start(
+            source_run,
+            expected_model=model_name,
+            expected_seed=seed,
+            torch_module=torch,
+        )
+        model.load_state_dict(warm_start["terminal_payload"]["state_dict"])
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(training["learning_rate"]),
@@ -693,18 +734,25 @@ def run_full_cell_forward(
     if accumulation < 1 or int(training.get("effective_batch_size", 64)) % int(training.get("micro_batch_size", 64)):
         raise ValueError("effective_batch_size must be an integer multiple of micro_batch_size")
 
-    history: list[dict[str, Any]] = []
-    best_mre = float("inf")
-    best_epoch = 0
+    history: list[dict[str, Any]] = [] if warm_start is None else list(warm_start["source_history"])
+    best_mre = float("inf") if warm_start is None else min(float(row["val_bands_2_10_mre_pct"]) for row in history)
+    best_epoch = 0 if warm_start is None else int(warm_start["source_result"]["best_epoch"])
     stale_epochs = 0
     train_start = time.perf_counter()
     max_batches = training.get("max_train_batches")
-    optimizer_steps = 0
-    samples_seen = 0
+    optimizer_steps = 0 if warm_start is None else int(history[-1]["optimizer_steps"])
+    samples_seen = 0 if warm_start is None else int(history[-1]["samples_seen"])
+    wall_time_offset = 0.0 if warm_start is None else float(history[-1]["wall_time_s"])
+    continuation_convergence: dict[str, Any] | None = None
+    if warm_start is not None:
+        from phc2d.forward.full_cell_warm_start import seed_derivative_best_checkpoint
+
+        seed_derivative_best_checkpoint(warm_start, out)
     gate_enabled = bool(training.get("epoch_100_continue_gate", False)) and not admission_probe
     gate_record: dict[str, Any] | None = None
     epoch100_snapshot: Path | None = None
-    for epoch in range(1, int(training["max_epochs"]) + 1):
+    start_epoch = 1 if warm_start is None else int(warm_start["source_epoch"]) + 1
+    for epoch in range(start_epoch, int(training["max_epochs"]) + 1):
         epoch_start = time.perf_counter()
         model.train()
         optimizer.zero_grad(set_to_none=True)
@@ -759,7 +807,7 @@ def run_full_cell_forward(
             "val_bands_1_10_mre_pct": val["bands_1_10_mre_pct"],
             "learning_rate": float(training["learning_rate"]),
             "epoch_time_s": time.perf_counter() - epoch_start,
-            "wall_time_s": time.perf_counter() - wall_start,
+            "wall_time_s": wall_time_offset + time.perf_counter() - wall_start,
             "optimizer_steps": optimizer_steps,
             "samples_seen": samples_seen,
         }
@@ -809,11 +857,32 @@ def run_full_cell_forward(
                         float(val["bands_2_10_mre_pct"]) if final_fit else None
                     ),
                     "resolved_config": resolved,
+                    "warm_start": None if warm_start is None else {
+                        key: value for key, value in warm_start.items()
+                        if key not in {"source_history", "source_result", "terminal_payload"}
+                    },
                 },
                 checkpoint_tmp,
             )
             os.replace(checkpoint_tmp, out / "model.pt")
         _write_history(out / "history.csv", history)
+        if warm_start is not None and epoch % int(resolved["continuation"]["check_interval"]) == 0:
+            from phc2d.forward.full_cell_warm_start import rolling_convergence_record
+
+            continuation_convergence = rolling_convergence_record(
+                history,
+                end_epoch=epoch,
+                metric="val_bands_2_10_mre_pct",
+                threshold=float(resolved["continuation"]["relative_threshold"]),
+            )
+            logger.info(
+                "continuation convergence epoch=%d relative_change=%.8f passed=%s",
+                epoch,
+                continuation_convergence["relative_change"],
+                continuation_convergence["passed"],
+            )
+            if bool(continuation_convergence["passed"]):
+                break
         if gate_enabled and epoch == 100:
             gate_record = _epoch_100_continue_decision(
                 history,
@@ -902,6 +971,37 @@ def run_full_cell_forward(
             terminal_tmp,
         )
         os.replace(terminal_tmp, terminal_checkpoint)
+    elif warm_start is not None and not admission_probe:
+        convergence = continuation_convergence
+        if convergence is None:
+            raise RuntimeError("continuation ended without a convergence checkpoint")
+        terminal_checkpoint = out / f"epoch{stop_epoch}.pt"
+        terminal_tmp = terminal_checkpoint.with_suffix(terminal_checkpoint.suffix + ".tmp")
+        from phc2d.forward.full_cell_warm_start import public_warm_start_metadata
+
+        torch.save(
+            {
+                "state_dict": model.state_dict(),
+                "model_name": model_name,
+                "model_params": dict(resolved["model"]["params"]),
+                "model_identity": describe_model_identity(model, model_name, model_spec, model_kwargs=resolved["model"]["params"]),
+                "input_shape": input_shape,
+                "output_shape": contract["target_shape"],
+                "k_points": torch.as_tensor(contract["k_points"], dtype=torch.float32) if contract["k_points"] is not None else None,
+                "k_points_sha256": contract["k_points_sha256"],
+                "lane_index": lane_index,
+                "target_mean": torch.as_tensor(contract["target_mean"], dtype=torch.float32),
+                "target_std": torch.as_tensor(contract["target_std"], dtype=torch.float32),
+                "epoch": stop_epoch,
+                "checkpoint_role": "continuation_terminal_epoch",
+                "selection_split": "terminal_training_state",
+                "convergence": convergence,
+                "warm_start": public_warm_start_metadata(warm_start),
+                "resolved_config": resolved,
+            },
+            terminal_tmp,
+        )
+        os.replace(terminal_tmp, terminal_checkpoint)
     checkpoint = out / "model.pt"
     if not checkpoint.is_file():
         role = "final-epoch final-fit" if final_fit else "best-validation"
@@ -955,6 +1055,7 @@ def run_full_cell_forward(
         "terminal_checkpoint_path": str(terminal_checkpoint) if terminal_checkpoint else None,
         "terminal_checkpoint_sha256": _sha256_checkpoint(terminal_checkpoint) if terminal_checkpoint else None,
         "history_epoch_count": len(history),
+        "warm_start": None if warm_start is None else public_warm_start_metadata(warm_start),
     }
     _plot_history(
         out,
@@ -980,7 +1081,13 @@ def run_full_cell_forward(
         + "\n",
         encoding="utf-8",
     )
-    status = "full_cell_forward_admission_probe_pass" if admission_probe else "formal_training_success"
+    status = (
+        "full_cell_forward_admission_probe_pass"
+        if admission_probe
+        else "continuation_training_success"
+        if warm_start is not None
+        else "formal_training_success"
+    )
     if not admission_probe and convergence is not None and not bool(convergence["passed"]):
         status = "training_complete_convergence_not_met"
     write_results(
@@ -1012,6 +1119,7 @@ def run_full_cell_forward(
             "required_stop_epoch": required_stop_epoch,
             "convergence": convergence,
             "history_epoch_count": len(history),
+            "warm_start": None if warm_start is None else public_warm_start_metadata(warm_start),
             "epoch_100_continue_gate": gate_record,
             "epoch_100_checkpoint_path": str(epoch100_snapshot) if epoch100_snapshot else None,
             "epoch_100_checkpoint_sha256": _sha256_checkpoint(epoch100_snapshot) if epoch100_snapshot else None,
@@ -1020,6 +1128,8 @@ def run_full_cell_forward(
             "next_gate": (
                 "wave_admission_decision"
                 if admission_probe
+                else "continuation_checkpoint_freeze"
+                if warm_start is not None
                 else "12_job_final_fit_aggregation"
                 if final_fit
                 else "12_job_wave_aggregation"
@@ -1071,6 +1181,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--train-size", type=int)
     parser.add_argument("--max-epochs", type=int)
     parser.add_argument("--head-kind", choices=("dense", "k_conditioned"))
+    parser.add_argument("--warm-start-run", type=Path)
     args = parser.parse_args(argv)
     print(
         run_full_cell_forward(
@@ -1084,6 +1195,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             train_size=args.train_size,
             max_epochs=args.max_epochs,
             head_kind=args.head_kind,
+            warm_start_run=args.warm_start_run,
         )
     )
 

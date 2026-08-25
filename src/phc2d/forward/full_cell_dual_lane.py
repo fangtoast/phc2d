@@ -277,6 +277,7 @@ def _validate_and_resolve(
     representation = dict(config.get("representation") or {})
     model_cfg = dict(config.get("model") or {})
     training = dict(config.get("training") or {})
+    continuation = dict(config.get("continuation") or {})
     runtime = dict(config.get("runtime") or {})
     output = dict(config.get("output") or {})
     if set(datasets) != set(LANES):
@@ -312,8 +313,8 @@ def _validate_and_resolve(
             raise ValueError("dual-lane short-budget screening forbids the epoch-100 continuation gate")
         if int(training.get("early_stopping_patience", 0)) != 0:
             raise ValueError("dual-lane short-budget screening requires early_stopping_patience=0")
-    elif not admission_probe and max_epochs not in {100, 200}:
-        raise ValueError("formal dual-lane max_epochs must be 100 or 200")
+    elif not admission_probe and max_epochs not in ({100, 200, 600} if continuation else {100, 200}):
+        raise ValueError("formal dual-lane max_epochs is outside the registered contract")
     gate_enabled = bool(training.get("epoch_100_continue_gate", False))
     if not admission_probe and gate_enabled:
         if max_epochs != 200:
@@ -338,6 +339,23 @@ def _validate_and_resolve(
             raise ValueError("fixed-200 dual-lane training requires validation_bands_2_10_mre")
         if float(training.get("convergence_relative_threshold", -1.0)) != 0.005:
             raise ValueError("fixed-200 dual-lane convergence threshold must be 0.005")
+    if not admission_probe and continuation:
+        if str(experiment.get("experiment_id")) != "EXP-FWD-009":
+            raise ValueError("weight-only dual-lane continuation requires EXP-FWD-009")
+        if str(continuation.get("mode")) != "epoch200_weights_optimizer_reset":
+            raise ValueError("unsupported dual-lane continuation mode")
+        if int(continuation.get("source_epoch", -1)) != 200:
+            raise ValueError("dual-lane continuation source_epoch must equal 200")
+        if int(continuation.get("check_interval", -1)) != 20:
+            raise ValueError("dual-lane continuation check_interval must equal 20")
+        if float(continuation.get("relative_threshold", -1.0)) != 0.005:
+            raise ValueError("dual-lane continuation relative_threshold must equal 0.005")
+        if not bool(continuation.get("optimizer_reset", False)):
+            raise ValueError("weight-only dual-lane continuation must declare optimizer_reset=true")
+        if max_epochs != 600 or training.get("required_stop_epoch") is not None:
+            raise ValueError("dual-lane continuation requires max_epochs=600 and no required stop")
+        if int(training.get("early_stopping_patience", -1)) != 0:
+            raise ValueError("dual-lane continuation requires early_stopping_patience=0")
     params = dict(model_cfg.get("params") or {})
     params["head_kind"] = head_kind
     experiment_id = str(experiment.get("experiment_id", "full_cell_forward_upgrade_dual_lane_10k_v1"))
@@ -362,6 +380,7 @@ def _validate_and_resolve(
         },
         "runtime": runtime,
         "output": output,
+        "continuation": continuation,
     }
 
 
@@ -404,6 +423,7 @@ def run_full_cell_dual_lane(
     head_kind: str,
     run_dir: Path,
     admission_probe: bool = False,
+    warm_start_run: str | Path | None = None,
 ) -> Path:
     """Train or probe one balanced dual-lane model checkpoint."""
 
@@ -411,8 +431,14 @@ def run_full_cell_dual_lane(
     payload = yaml.safe_load(config_file.read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping):
         raise ValueError("dual-lane config root must be a mapping")
+    mutable_payload = dict(payload)
+    if warm_start_run is not None:
+        mutable_payload["continuation"] = {
+            **dict(mutable_payload.get("continuation") or {}),
+            "source_run": str(Path(warm_start_run).resolve()),
+        }
     resolved = _validate_and_resolve(
-        payload,
+        mutable_payload,
         seed=seed,
         admission_probe=admission_probe,
         head_kind=head_kind,
@@ -456,6 +482,20 @@ def run_full_cell_dual_lane(
         k_points=reference["k_points"],
         **dict(resolved["model"]["params"]),
     ).to(device)
+    warm_start: dict[str, Any] | None = None
+    if resolved.get("continuation"):
+        from phc2d.forward.full_cell_warm_start import load_weight_only_warm_start
+
+        source_run = resolved["continuation"].get("source_run")
+        if not source_run:
+            raise ValueError("dual-lane continuation source_run is required")
+        warm_start = load_weight_only_warm_start(
+            source_run,
+            expected_model=spec.name,
+            expected_seed=seed,
+            torch_module=torch,
+        )
+        model.load_state_dict(warm_start["terminal_payload"]["state_dict"])
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(resolved["training"]["learning_rate"]),
@@ -495,18 +535,25 @@ def run_full_cell_dual_lane(
     }
     k_points = torch.as_tensor(reference["k_points"], dtype=torch.float32, device=device)
 
-    history: list[dict[str, Any]] = []
-    best_score = float("inf")
-    best_epoch = 0
+    history: list[dict[str, Any]] = [] if warm_start is None else list(warm_start["source_history"])
+    best_score = float("inf") if warm_start is None else min(float(row["val_bands_2_10_mre_pct"]) for row in history)
+    best_epoch = 0 if warm_start is None else int(warm_start["source_result"]["best_epoch"])
     stale_epochs = 0
-    optimizer_steps = 0
-    samples_seen = 0
+    optimizer_steps = 0 if warm_start is None else int(history[-1]["optimizer_steps"])
+    samples_seen = 0 if warm_start is None else int(history[-1]["samples_seen"])
+    wall_time_offset = 0.0 if warm_start is None else float(history[-1]["wall_time_s"])
+    continuation_convergence: dict[str, Any] | None = None
+    if warm_start is not None:
+        from phc2d.forward.full_cell_warm_start import seed_derivative_best_checkpoint
+
+        seed_derivative_best_checkpoint(warm_start, out)
     wall_start = time.perf_counter()
     train_start = time.perf_counter()
     gate_enabled = bool(resolved["training"].get("epoch_100_continue_gate", False)) and not admission_probe
     gate_record: dict[str, Any] | None = None
     epoch100_snapshot: Path | None = None
-    for epoch in range(1, int(resolved["training"]["max_epochs"]) + 1):
+    start_epoch = 1 if warm_start is None else int(warm_start["source_epoch"]) + 1
+    for epoch in range(start_epoch, int(resolved["training"]["max_epochs"]) + 1):
         epoch_start = time.perf_counter()
         model.train()
         train_sum = 0.0
@@ -568,7 +615,7 @@ def run_full_cell_dual_lane(
             "graded_val_bands_2_10_mre_pct": evaluations["graded"]["bands_2_10_mre_pct"],
             "learning_rate": float(resolved["training"]["learning_rate"]),
             "epoch_time_s": time.perf_counter() - epoch_start,
-            "wall_time_s": time.perf_counter() - wall_start,
+            "wall_time_s": wall_time_offset + time.perf_counter() - wall_start,
             "optimizer_steps": optimizer_steps,
             "samples_seen": samples_seen,
         }
@@ -602,6 +649,10 @@ def run_full_cell_dual_lane(
                     "epoch": epoch,
                     "validation_equal_lane_mre_pct": best_score,
                     "resolved_config": resolved,
+                    "warm_start": None if warm_start is None else {
+                        key: value for key, value in warm_start.items()
+                        if key not in {"source_history", "source_result", "terminal_payload"}
+                    },
                 },
                 checkpoint_tmp,
             )
@@ -617,6 +668,28 @@ def run_full_cell_dual_lane(
             row["graded_val_bands_2_10_mre_pct"],
             score,
         )
+        if warm_start is not None and epoch % int(resolved["continuation"]["check_interval"]) == 0:
+            from phc2d.forward.full_cell_warm_start import rolling_convergence_record
+
+            curves = {
+                "binary": rolling_convergence_record(history, end_epoch=epoch, metric="binary_val_bands_2_10_mre_pct", threshold=float(resolved["continuation"]["relative_threshold"])),
+                "graded": rolling_convergence_record(history, end_epoch=epoch, metric="graded_val_bands_2_10_mre_pct", threshold=float(resolved["continuation"]["relative_threshold"])),
+                "equal_lane": rolling_convergence_record(history, end_epoch=epoch, metric="val_bands_2_10_mre_pct", threshold=float(resolved["continuation"]["relative_threshold"])),
+            }
+            continuation_convergence = {
+                **curves["equal_lane"],
+                "contract_metric": "validation_bands_2_10_mre",
+                "curves": curves,
+            }
+            logger.info(
+                "dual-lane continuation convergence epoch=%d binary=%s graded=%s equal_lane=%s",
+                epoch,
+                curves["binary"]["passed"],
+                curves["graded"]["passed"],
+                curves["equal_lane"]["passed"],
+            )
+            if all(bool(item["passed"]) for item in curves.values()):
+                break
         if gate_enabled and epoch == 100:
             gate_record = _epoch_100_continue_decision(
                 history,
@@ -702,6 +775,36 @@ def run_full_cell_dual_lane(
             terminal_tmp,
         )
         os.replace(terminal_tmp, terminal_checkpoint)
+    elif warm_start is not None and not admission_probe:
+        convergence = continuation_convergence
+        if convergence is None:
+            raise RuntimeError("dual-lane continuation ended without a convergence checkpoint")
+        terminal_checkpoint = out / f"epoch{stop_epoch}.pt"
+        terminal_tmp = terminal_checkpoint.with_suffix(terminal_checkpoint.suffix + ".tmp")
+        from phc2d.forward.full_cell_warm_start import public_warm_start_metadata
+
+        torch.save(
+            {
+                "state_dict": model.state_dict(),
+                "model_name": spec.name,
+                "model_params": dict(resolved["model"]["params"]),
+                "model_identity": describe_model_identity(model, spec.name, spec, model_kwargs=resolved["model"]["params"]),
+                "input_shape": reference["grid_shape"],
+                "output_shape": reference["target_shape"],
+                "k_points": torch.as_tensor(reference["k_points"], dtype=torch.float32),
+                "k_points_sha256": reference["k_points_sha256"],
+                "lane_mapping": {"binary": 0, "graded": 1},
+                "target_normalizers": {lane: {"mean": torch.as_tensor(contracts[lane]["target_mean"]), "std": torch.as_tensor(contracts[lane]["target_std"])} for lane in LANES},
+                "epoch": stop_epoch,
+                "checkpoint_role": "continuation_terminal_epoch",
+                "selection_split": "terminal_training_state",
+                "convergence": convergence,
+                "warm_start": public_warm_start_metadata(warm_start),
+                "resolved_config": resolved,
+            },
+            terminal_tmp,
+        )
+        os.replace(terminal_tmp, terminal_checkpoint)
     checkpoint = out / "model.pt"
     if not checkpoint.is_file():
         raise RuntimeError("best-validation dual-lane checkpoint was not written")
@@ -753,6 +856,7 @@ def run_full_cell_dual_lane(
         "terminal_checkpoint_path": str(terminal_checkpoint) if terminal_checkpoint else None,
         "terminal_checkpoint_sha256": _sha256_checkpoint(terminal_checkpoint) if terminal_checkpoint else None,
         "history_epoch_count": len(history),
+        "warm_start": None if warm_start is None else public_warm_start_metadata(warm_start),
     }
     _plot_history(out, history, monitor_label="equal-lane validation")
     write_metrics(out, metrics)
@@ -774,7 +878,13 @@ def run_full_cell_dual_lane(
         + "\n",
         encoding="utf-8",
     )
-    status = "dual_lane_admission_probe_pass" if admission_probe else "dual_lane_training_success"
+    status = (
+        "dual_lane_admission_probe_pass"
+        if admission_probe
+        else "continuation_training_success"
+        if warm_start is not None
+        else "dual_lane_training_success"
+    )
     if not admission_probe and convergence is not None and not all(bool(item["passed"]) for item in convergence["curves"].values()):
         status = "training_complete_convergence_not_met"
     write_results(
@@ -796,6 +906,7 @@ def run_full_cell_dual_lane(
             "required_stop_epoch": required_stop_epoch,
             "convergence": convergence,
             "history_epoch_count": len(history),
+            "warm_start": None if warm_start is None else public_warm_start_metadata(warm_start),
             "best_epoch": int(checkpoint_payload["epoch"]),
             "stop_epoch": stop_epoch,
             "epoch_100_continue_gate": gate_record,
@@ -804,7 +915,7 @@ def run_full_cell_dual_lane(
             "actual_stop_checkpoint_path": str(stop_snapshot) if stop_snapshot else None,
             "actual_stop_checkpoint_sha256": _sha256_checkpoint(stop_snapshot) if stop_snapshot else None,
             "selection_metric": "equal_lane_validation_bands_2_10_mre_pct",
-            "next_gate": "dual_lane_admission_decision" if admission_probe else "10k_head_selection",
+            "next_gate": "dual_lane_admission_decision" if admission_probe else "continuation_checkpoint_freeze" if warm_start is not None else "10k_head_selection",
         },
     )
     write_run_meta(
@@ -843,6 +954,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--head-kind", choices=("dense", "k_conditioned"), required=True)
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--admission-probe", action="store_true")
+    parser.add_argument("--warm-start-run", type=Path)
     args = parser.parse_args(argv)
     print(
         run_full_cell_dual_lane(
@@ -851,6 +963,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             head_kind=args.head_kind,
             run_dir=args.run_dir,
             admission_probe=args.admission_probe,
+            warm_start_run=args.warm_start_run,
         )
     )
 

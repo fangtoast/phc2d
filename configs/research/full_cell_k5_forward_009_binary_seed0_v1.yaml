@@ -1,0 +1,15 @@
+# EXP-FWD-009 K5 binary weight-only convergence continuation.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment: {experiment_id: EXP-FWD-009, family: full_cell_k5_epoch200_weight_continuation, lane: binary_fourier, evidence_status: user_authorized_weight_only_continuation}
+dataset: {path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, expected_dataset_sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6}
+representation: {source: material_area_fraction_grid, sampling: continuous, threshold: null, resolution: 64, physical_equivalence: true, label_semantics: binary_fourier_k5_Wh}
+models:
+  convnext_band_v1: {stage_dims: [48, 96, 192], stage_depths: [2, 3, 6], stem_stride: 4, kernel_size: 7, channel_expansion: 4, drop_path: 0.1, layer_scale_init: 1.0e-6, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8], dropout: 0.05}
+  tfno2d_band_v3: {width: 64, depth: 6, modes: [12, 12], factorization_rank: 0.75, norm_groups: 8, channel_expansion: 2, local_kernel: 3, drop_path: 0.1, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8], dropout: 0.05}
+training: {max_epochs: 600, early_stopping_patience: 0, epoch_100_continue_gate: false, optimizer: adamw, weight_decay: 1.0e-5, learning_rates: {convnext_band_v1: 1.0e-3, tfno2d_band_v3: 5.0e-4}, micro_batch_size: 64, effective_batch_size: 64, loss: normalized_full_matrix_mse, checkpoint_selection: validation_bands_2_10_mre}
+continuation: {mode: epoch200_weights_optimizer_reset, source_epoch: 200, optimizer_reset: true, check_interval: 20, relative_threshold: 0.005, max_total_epoch: 600, band1_blocking: false}
+runtime: {device: 'cuda:0', require_accelerator: true, precision: fp32, amp_enabled: false, tf32_enabled: false, num_workers: 4, pin_memory: true, non_blocking_transfer: true}
+output: {runs_dir: runs}
