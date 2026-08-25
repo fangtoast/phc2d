@@ -179,8 +179,9 @@ def test_exp_fwd_009_freezes_12_plus_5_evaluation_inventory(tmp_path: Path) -> N
         run = source / f"formal_{index:02d}_{model}_{lane}_s0"
         run.mkdir()
         (run / "model.pt").write_bytes(f"base-{index}".encode())
+        source_status = "formal_training_success" if index == 2 else "training_complete_convergence_not_met"
         (run / "results.json").write_text(
-            json.dumps({"status": "training_complete_convergence_not_met", "stop_epoch": 200, "model_identity": identity}),
+            json.dumps({"status": source_status, "stop_epoch": 200, "model_identity": identity}),
             encoding="utf-8",
         )
         base_rows.append({"task_index": index, "task_id": run.name, "model": model, "train_lane": lane, "seed": 0, "run_dir": str(run)})

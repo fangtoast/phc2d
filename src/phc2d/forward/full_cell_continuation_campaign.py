@@ -205,6 +205,7 @@ def finalize_evaluation_inventory(
             if result.get("status") != "continuation_training_success":
                 raise RuntimeError(f"continuation checkpoint has not converged: {run}")
         elif result.get("status") not in {
+            "formal_training_success",
             "training_success",
             "dual_lane_training_success",
             "training_complete_convergence_not_met",
