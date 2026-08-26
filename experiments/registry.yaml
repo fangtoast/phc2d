@@ -476,6 +476,30 @@ experiments:
       summary: 五个续训任务通过主收敛门，510-cell、408/272 回归与 102-cell bootstrap 完成；最终 17 身份仅 9 个满足主收敛门，另 8 个依据人工豁免纳入，禁止写成 17/17 收敛或物理验证。
     tags: [forward, full-cell, k5, weight-only-warm-start, six-domain, convergence-waiver, surrogate-only]
 
+  - id: EXP-FWD-010
+    title: Joint 各 4k 公平训练与六域验证
+    task: forward
+    status: running
+    mapping_status: partial
+    research_question: dual-lane joint 从零训练时仅使用 Binary 4,000 与 Graded 4,000 条、总训练样本量与单一路线模型一致后，在冻结六域 held-out 测试集上的表现如何？
+    spec:
+      - experiments/research/EXP-FWD-010-Joint各4k公平训练与六域验证.md
+    config:
+      - configs/research/full_cell_k5_forward_010_dual_lane_4k_seed0_v1.yaml
+    runs:
+      local: []
+      referenced_not_local: []
+    result:
+      - docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md
+    report: []
+    related_experiments:
+      - EXP-FWD-008
+      - EXP-FWD-009
+    decision:
+      state: training_authorized
+      summary: 固定 seed0、从零训练、各 lane 4,000 条及 200 epoch；等待训练与六域评估证据，禁止沿用原 8k-per-lane joint 权重。
+    tags: [forward, full-cell, k5, joint, fair-total-data, six-domain, surrogate-only]
+
   - id: EXP-QRY-001
     title: A1 V2 10k Continuous Query 公平对照
     task: query
