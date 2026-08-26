@@ -35,6 +35,14 @@ primary_layer: L3
 | V2 10k | `Wh[10000,31,10]`；A1 Forward/Query、inverse 与 real-MPB replay | [V2 10k 证据集合](V2-10k正式结果.md) |
 | 新全胞数据 | `Wh[N,81,10]`；数据验收、10k/50k/K20 正向、跨域验证与 Meep | [全胞数据证据集合](全胞数据正式结果.md) |
 
+### 日期化历史快照
+
+下列页面只保留当时的局部运行记录，**不进入正式结果白名单**：
+
+| 证据 | 入口 |
+|---|---|
+| Representation Benchmark | [2026-08-03](representation_benchmark_20260803.md) · [2026-08-13](representation_benchmark_20260813.md) · [2026-08-17](representation_benchmark_20260817.md) · [2026-08-19](representation_benchmark_20260819.md) · [2026-08-20](representation_benchmark_20260820.md) · [2026-08-21](representation_benchmark_20260821.md) · [2026-08-25](representation_benchmark_20260825.md) |
+
 ## 证据使用规则
 
 1. 先确认 `dataset_scope`、target shape、seed 和模型身份，再比较指标。
