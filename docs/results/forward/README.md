@@ -32,5 +32,6 @@ primary_layer: L3
 | [EXP-FWD-007：K5训练与六域验证](EXP-FWD-007-K5训练与六域验证.md) | K5 17-task 与 F50=50,000 的六域 510-cell held-out 重推已完成；旧 272-cell 回归通过，bootstrap/resource 汇总仍缺，Draft 不作 promotion |
 | [EXP-FWD-008：K5 固定 200 轮训练与六域验证](EXP-FWD-008-K5固定200轮训练与六域验证.md) | 17/17 完成 200 epoch，但仅 5/17 满足原主收敛门；未按原合同直接进入六域正式排名，后续由 EXP-FWD-009 接续 |
 | [EXP-FWD-009/010/011：K5 权重热启动、joint 公平数据量与六域验证](EXP-FWD-009-K5权重热启动与六域验证.md) | 009 完成 510-cell；010/011 的 joint 各 4k 完成 200/300 轮与两组 6-cell 评估。300 轮 Graded/等权未收敛，六域相对 200 轮五升一降，只在 K5 Binary 击败最佳单路线，Draft |
+| [超参数灵敏度分析（历史单 seed）](灵敏度分析.md) | 局部搜索的解释性记录；残差 MLP 加深是待多 seed 确认的假设，不作正式排名或 promotion |
 
 [返回研究结果与报告](../README.md)
