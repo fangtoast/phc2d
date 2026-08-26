@@ -479,8 +479,8 @@ experiments:
   - id: EXP-FWD-010
     title: Joint 各 4k 公平训练与六域验证
     task: forward
-    status: running
-    mapping_status: partial
+    status: completed_with_convergence_not_met
+    mapping_status: complete
     research_question: dual-lane joint 从零训练时仅使用 Binary 4,000 与 Graded 4,000 条、总训练样本量与单一路线模型一致后，在冻结六域 held-out 测试集上的表现如何？
     spec:
       - experiments/research/EXP-FWD-010-Joint各4k公平训练与六域验证.md
@@ -489,7 +489,8 @@ experiments:
       - configs/research/full_cell_k5_joint_4k_six_domain_exp_fwd_010_n40_v1.yaml
     runs:
       local: []
-      referenced_not_local: []
+      referenced_not_local:
+        - runs/20260826/EXP-FWD-010_joint_4k_20260826094605
     result:
       - docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md
     report: []
@@ -497,9 +498,9 @@ experiments:
       - EXP-FWD-008
       - EXP-FWD-009
     decision:
-      state: training_authorized
-      summary: 固定 seed0、从零训练、各 lane 4,000 条及 200 epoch；等待训练与六域评估证据，禁止沿用原 8k-per-lane joint 权重。
-    tags: [forward, full-cell, k5, joint, fair-total-data, six-domain, surrogate-only]
+      state: negative_control_pending_human_review
+      summary: seed0 各 lane 4,000 条从零完成 200 epoch 与六域 6-cell 评估；Binary 末窗收敛门略未过，且六域均未击败最佳 K5 单路线，不支持 joint promotion。
+    tags: [forward, full-cell, k5, joint, fair-total-data, six-domain, convergence-not-met, negative-control, surrogate-only]
 
   - id: EXP-QRY-001
     title: A1 V2 10k Continuous Query 公平对照

@@ -31,6 +31,6 @@ primary_layer: L3
 | [K20 与 50K 跨数据域正向验证](全胞K20与50K跨数据域正向验证_20260820.md) | N40 四个 Full-cell 域、68 个冻结 checkpoint、272 个 held-out surrogate cells；Draft |
 | [EXP-FWD-007：K5训练与六域验证](EXP-FWD-007-K5训练与六域验证.md) | K5 17-task 与 F50=50,000 的六域 510-cell held-out 重推已完成；旧 272-cell 回归通过，bootstrap/resource 汇总仍缺，Draft 不作 promotion |
 | [EXP-FWD-008：K5 固定 200 轮训练与六域验证](EXP-FWD-008-K5固定200轮训练与六域验证.md) | 17/17 完成 200 epoch，但仅 5/17 满足原主收敛门；未按原合同直接进入六域正式排名，后续由 EXP-FWD-009 接续 |
-| [EXP-FWD-009：K5 权重热启动与六域验证](EXP-FWD-009-K5权重热启动与六域验证.md) | 五个指定身份从 epoch-200 权重热启动后收敛；最终 17 身份完成 510-cell、408/272 回归和 102-cell bootstrap，但仅 9/17 满足主收敛门，Draft |
+| [EXP-FWD-009/010：K5 权重热启动、joint 公平数据量与六域验证](EXP-FWD-009-K5权重热启动与六域验证.md) | 009 完成 510-cell；010 的 joint 各 4k seed0 完成 200 轮与 6-cell 增量评估，Binary 收敛门略未过且六域均未击败最佳单路线，Draft |
 
 [返回研究结果与报告](../README.md)

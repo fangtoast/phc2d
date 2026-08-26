@@ -2,7 +2,7 @@
 title: "EXP-FWD-010：Joint 各 4k 公平训练与六域验证"
 summary: "将 dual-lane joint 的总训练样本固定为 8,000，与单一路线模型的总训练样本量一致，并在冻结六域测试集上比较。"
 page_type: experiment
-plan_state: active
+plan_state: completed
 status: draft
 audience: "模型研究者、复现执行者与结果审阅者"
 owner: "研究生维护，导师审阅研究主张"
@@ -36,3 +36,11 @@ primary_layer: L3
 | 证据边界 | `surrogate_held_out_cross_domain`；无 real-MPB、Meep 或物理验收 |
 
 本实验只修正 joint 的训练数据量公平性。它不重写 EXP-FWD-009 的原始 8k+8k joint 结果，也不改变 16 个单路线 checkpoint。若固定 200 epoch 未通过收敛门，结果仍可作为固定预算对照报告，但必须保持 `training_complete_convergence_not_met`，不得写成收敛通过。
+
+## 执行结果
+
+seed0 从零完成 200/200 epoch，best checkpoint 为 epoch 191。等权与 Graded 末窗收敛曲线通过，Binary `r=0.005170` 略高于 `0.005`，因此训练状态保持 `training_complete_convergence_not_met`。4k/4k 子集与 validation/test 均零重叠，checkpoint normalizer 与对应 4k 子集回算一致。
+
+六个增量 held-out cells 全部完成。各 4k joint 在六域的 bands 2–10 MRE 均未低于对应最佳 K5 单路线模型；相对原 8k+8k joint，五域显著变差，仅 K20 Graded 显著改善。该结果是 seed0 固定预算负对照，不支持 joint promotion，也不是数据量的单因素因果消融。
+
+[阅读汇总结果](../../docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md)。
