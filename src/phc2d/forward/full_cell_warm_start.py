@@ -14,6 +14,8 @@ import shutil
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+import yaml
+
 
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -42,6 +44,7 @@ def load_weight_only_warm_start(
     expected_model: str,
     expected_seed: int,
     torch_module: Any,
+    expected_source_experiment: str | None = None,
 ) -> dict[str, Any]:
     """Validate and load an epoch-200 source without claiming optimizer resume."""
     source = Path(source_run).resolve()
@@ -54,6 +57,12 @@ def load_weight_only_warm_start(
         raise RuntimeError("warm-start source model/seed identity mismatch")
     if int(result.get("stop_epoch", -1)) != 200 or int(result.get("history_epoch_count", -1)) != 200:
         raise RuntimeError("warm-start source must be a complete epoch-200 run")
+    source_config = yaml.safe_load(
+        (source / "config.resolved.yaml").read_text(encoding="utf-8")
+    )
+    source_experiment = str((source_config or {}).get("experiment", {}).get("experiment_id", ""))
+    if expected_source_experiment is not None and source_experiment != expected_source_experiment:
+        raise RuntimeError("warm-start source experiment identity mismatch")
     history = _read_history(source / "history.csv")
     if [row["epoch"] for row in history] != list(range(1, 201)):
         raise RuntimeError("warm-start source history must cover exactly epochs 1-200")
@@ -77,6 +86,7 @@ def load_weight_only_warm_start(
         "source_terminal_checkpoint": str(source / "epoch200.pt"),
         "source_terminal_checkpoint_sha256": terminal_sha,
         "source_config_sha256": _sha256(source / "config.resolved.yaml"),
+        "source_experiment_id": source_experiment,
         "source_epoch": 200,
         "optimizer_state_restored": False,
         "optimizer_reset_reason": "source epoch200.pt contains weights but no AdamW state",

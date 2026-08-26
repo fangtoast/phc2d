@@ -56,7 +56,7 @@ def _baseline_rows(config: Mapping[str, Any]) -> tuple[Path, dict[str, dict[str,
     campaign = Path(str(config["baseline_campaign"]))
     result = json.loads((campaign / "results.json").read_text(encoding="utf-8"))
     if result.get("status") != "evaluation_complete_pending_report":
-        raise RuntimeError("EXP-FWD-009 baseline campaign is not complete")
+        raise RuntimeError("baseline campaign is not complete")
     identity = {key: str(value) for key, value in dict(config["baseline_identity"]).items()}
     selected = [
         row
@@ -83,8 +83,9 @@ def freeze_evaluation(
     if not config_file.is_absolute():
         config_file = root / config_file
     config = _load_config(config_file)
-    if str(config.get("experiment_id")) != "EXP-FWD-010" or tuple(config.get("domains", ())) != DOMAINS:
-        raise ValueError("EXP-FWD-010 must freeze K5/K20/F50 x Binary/Graded exactly")
+    experiment_id = str(config.get("experiment_id"))
+    if experiment_id not in {"EXP-FWD-010", "EXP-FWD-011"} or tuple(config.get("domains", ())) != DOMAINS:
+        raise ValueError("fair joint evaluation must freeze K5/K20/F50 x Binary/Graded exactly")
     checkpoint = Path(checkpoint_path).resolve()
     if not checkpoint.is_file():
         raise FileNotFoundError(checkpoint)
@@ -102,8 +103,8 @@ def freeze_evaluation(
     checkpoint_sha256 = sha256_file(checkpoint)
     cells = [
         {
-            "evaluation_id": f"fairjoint_{index:02d}",
-            "checkpoint_id": "EXP-FWD-010_dual_lane_band_operator_v1_J_s0",
+            "evaluation_id": f"{config.get('evaluation_id_prefix', 'fairjoint')}_{index:02d}",
+            "checkpoint_id": str(config.get("checkpoint_id", f"{experiment_id}_dual_lane_band_operator_v1_J_s0")),
             "source_family": "K5",
             "source_model": "dual_lane_band_operator_v1",
             "source_lane": "J",
@@ -113,7 +114,7 @@ def freeze_evaluation(
             "target_domain": domain,
             "target_family": domain.split("-")[0],
             "target_lane": domain[-1],
-            "comparison_kind": "joint_source_family_fair_total_8k",
+            "comparison_kind": str(config.get("comparison_kind", "joint_source_family_fair_total_8k")),
             "status": "planned",
             "shard_id": 0,
             "baseline_evaluation_id": baseline_rows[domain]["evaluation_id"],
@@ -155,7 +156,7 @@ def finalize_evaluation(campaign_dir: str | Path, *, repository_root: str | Path
     baseline_campaign, baseline_rows = _baseline_rows(config)
     current_rows = _read_csv(campaign / "shards" / "shard_00" / "evaluation_cells.csv")
     if len(current_rows) != 6 or {row["target_domain"] for row in current_rows} != set(DOMAINS):
-        raise RuntimeError("EXP-FWD-010 incremental evaluation is not 6/6 complete")
+        raise RuntimeError("fair joint incremental evaluation is not 6/6 complete")
     comparisons: list[dict[str, Any]] = []
     for current in current_rows:
         domain = current["target_domain"]
@@ -188,17 +189,21 @@ def finalize_evaluation(campaign_dir: str | Path, *, repository_root: str | Path
             }
         )
     _write_csv(campaign / "evaluation_cells.csv", current_rows)
-    _write_csv(campaign / "comparison_to_exp_fwd_009_joint.csv", comparisons)
+    comparison_file = str(config.get("comparison_output", "comparison_to_exp_fwd_009_joint.csv"))
+    _write_csv(campaign / comparison_file, comparisons)
     _write_json(campaign / "metrics.json", {"domains": comparisons})
     _write_json(
         campaign / "results.json",
-        {"status": "evaluation_complete_pending_report", "completed_checkpoints": 1, "completed_cells": 6, "completed_shards": 1, "baseline": "EXP-FWD-009 8k+8k joint", "surrogate_only": True, "real_mpb_replay": False},
+        {"status": "evaluation_complete_pending_report", "completed_checkpoints": 1, "completed_cells": 6, "completed_shards": 1, "baseline": str(config.get("baseline_label", "EXP-FWD-009 8k+8k joint")), "surrogate_only": True, "real_mpb_replay": False},
     )
     _write_json(
         campaign / "run.meta.json",
         {"script": "python -m phc2d.forward.full_cell_joint_fair_evaluation", "created_at_utc": datetime.now(timezone.utc).isoformat(), "checkpoint_sha256": config["checkpoint_sha256"]},
     )
-    (campaign / "run.log").write_text("six affected joint cells evaluated and compared with EXP-FWD-009.\n", encoding="utf-8")
+    (campaign / "run.log").write_text(
+        f"six affected joint cells evaluated and compared with {config.get('baseline_label', 'EXP-FWD-009 8k+8k joint')}.\n",
+        encoding="utf-8",
+    )
     _write_json(campaign / "campaign_status.json", {"status": "evaluation_complete_pending_report", "planned_cells": 6, "completed_cells": 6, "next_gate": "draft_report_update"})
     return campaign
 

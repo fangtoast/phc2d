@@ -502,6 +502,31 @@ experiments:
       summary: seed0 各 lane 4,000 条从零完成 200 epoch 与六域 6-cell 评估；Binary 末窗收敛门略未过，且六域均未击败最佳 K5 单路线，不支持 joint promotion。
     tags: [forward, full-cell, k5, joint, fair-total-data, six-domain, convergence-not-met, negative-control, surrogate-only]
 
+  - id: EXP-FWD-011
+    title: Joint 各 4k 权重续训至 300 轮
+    task: forward
+    status: authorized_training_pending
+    mapping_status: partial
+    mapping_notes: 已冻结训练与六域评估合同；正式 N40 run 尚待完成。
+    research_question: EXP-FWD-010 的公平 4k+4k joint 从 epoch-200 权重重置 AdamW 并固定续训至总 epoch 300 后，三条 validation 曲线能否同时收敛，并改善六域 held-out 表现？
+    spec:
+      - experiments/research/EXP-FWD-011-Joint各4k续训至300轮.md
+    config:
+      - configs/research/full_cell_k5_forward_011_dual_lane_4k_epoch300_seed0_v1.yaml
+      - configs/research/full_cell_k5_joint_4k_epoch300_six_domain_exp_fwd_011_n40_v1.yaml
+    runs:
+      local: []
+      referenced_not_local: []
+    result:
+      - docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md
+    report: []
+    related_experiments:
+      - EXP-FWD-010
+    decision:
+      state: training_authorized
+      summary: 用户已明确授权从 EXP-FWD-010 epoch-200 权重继续到总 epoch 300，并复查收敛；optimizer 与数据顺序状态不恢复。
+    tags: [forward, full-cell, k5, joint, fair-total-data, weight-only-warm-start, fixed-epoch300, surrogate-only]
+
   - id: EXP-QRY-001
     title: A1 V2 10k Continuous Query 公平对照
     task: query

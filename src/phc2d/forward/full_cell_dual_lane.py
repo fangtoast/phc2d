@@ -313,7 +313,7 @@ def _validate_and_resolve(
             raise ValueError("dual-lane short-budget screening forbids the epoch-100 continuation gate")
         if int(training.get("early_stopping_patience", 0)) != 0:
             raise ValueError("dual-lane short-budget screening requires early_stopping_patience=0")
-    elif not admission_probe and max_epochs not in ({100, 200, 600} if continuation else {100, 200}):
+    elif not admission_probe and max_epochs not in ({100, 200, 300, 600} if continuation else {100, 200}):
         raise ValueError("formal dual-lane max_epochs is outside the registered contract")
     gate_enabled = bool(training.get("epoch_100_continue_gate", False))
     if not admission_probe and gate_enabled:
@@ -340,20 +340,34 @@ def _validate_and_resolve(
         if float(training.get("convergence_relative_threshold", -1.0)) != 0.005:
             raise ValueError("fixed-200 dual-lane convergence threshold must be 0.005")
     if not admission_probe and continuation:
-        if str(experiment.get("experiment_id")) != "EXP-FWD-009":
-            raise ValueError("weight-only dual-lane continuation requires EXP-FWD-009")
+        experiment_id = str(experiment.get("experiment_id"))
+        if experiment_id not in {"EXP-FWD-009", "EXP-FWD-011"}:
+            raise ValueError("weight-only dual-lane continuation requires a registered experiment")
         if str(continuation.get("mode")) != "epoch200_weights_optimizer_reset":
             raise ValueError("unsupported dual-lane continuation mode")
         if int(continuation.get("source_epoch", -1)) != 200:
             raise ValueError("dual-lane continuation source_epoch must equal 200")
-        if int(continuation.get("check_interval", -1)) != 20:
-            raise ValueError("dual-lane continuation check_interval must equal 20")
+        expected_check_interval = 20 if experiment_id == "EXP-FWD-009" else 100
+        if int(continuation.get("check_interval", -1)) != expected_check_interval:
+            raise ValueError(
+                f"dual-lane continuation check_interval must equal {expected_check_interval}"
+            )
         if float(continuation.get("relative_threshold", -1.0)) != 0.005:
             raise ValueError("dual-lane continuation relative_threshold must equal 0.005")
         if not bool(continuation.get("optimizer_reset", False)):
             raise ValueError("weight-only dual-lane continuation must declare optimizer_reset=true")
-        if max_epochs != 600 or training.get("required_stop_epoch") is not None:
-            raise ValueError("dual-lane continuation requires max_epochs=600 and no required stop")
+        expected_max_epochs = 600 if experiment_id == "EXP-FWD-009" else 300
+        if max_epochs != expected_max_epochs or training.get("required_stop_epoch") is not None:
+            raise ValueError(
+                f"dual-lane continuation requires max_epochs={expected_max_epochs} and no required stop"
+            )
+        if int(continuation.get("max_total_epoch", -1)) != expected_max_epochs:
+            raise ValueError("dual-lane continuation max_total_epoch mismatch")
+        if experiment_id == "EXP-FWD-011":
+            if str(continuation.get("source_experiment")) != "EXP-FWD-010":
+                raise ValueError("EXP-FWD-011 must continue EXP-FWD-010")
+            if bool(continuation.get("stop_when_converged", True)):
+                raise ValueError("EXP-FWD-011 must run through total epoch 300")
         if int(training.get("early_stopping_patience", -1)) != 0:
             raise ValueError("dual-lane continuation requires early_stopping_patience=0")
     params = dict(model_cfg.get("params") or {})
@@ -494,6 +508,7 @@ def run_full_cell_dual_lane(
             expected_model=spec.name,
             expected_seed=seed,
             torch_module=torch,
+            expected_source_experiment=resolved["continuation"].get("source_experiment"),
         )
         model.load_state_dict(warm_start["terminal_payload"]["state_dict"])
     optimizer = torch.optim.AdamW(
@@ -688,7 +703,9 @@ def run_full_cell_dual_lane(
                 curves["graded"]["passed"],
                 curves["equal_lane"]["passed"],
             )
-            if all(bool(item["passed"]) for item in curves.values()):
+            if bool(resolved["continuation"].get("stop_when_converged", True)) and all(
+                bool(item["passed"]) for item in curves.values()
+            ):
                 break
         if gate_enabled and epoch == 100:
             gate_record = _epoch_100_continue_decision(
