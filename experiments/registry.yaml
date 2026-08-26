@@ -486,6 +486,7 @@ experiments:
       - experiments/research/EXP-FWD-010-Joint各4k公平训练与六域验证.md
     config:
       - configs/research/full_cell_k5_forward_010_dual_lane_4k_seed0_v1.yaml
+      - configs/research/full_cell_k5_joint_4k_six_domain_exp_fwd_010_n40_v1.yaml
     runs:
       local: []
       referenced_not_local: []
