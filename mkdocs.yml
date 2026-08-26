@@ -72,6 +72,11 @@ validation:
 exclude_docs: |
   /README.md
   results/representation_benchmark_20260813.md
+  results/representation_benchmark_20260817.md
+  results/representation_benchmark_20260819.md
+  results/representation_benchmark_20260820.md
+  results/representation_benchmark_20260821.md
+  results/representation_benchmark_20260825.md
 
 not_in_nav: |
   README.md
@@ -79,6 +84,12 @@ not_in_nav: |
   reproducibility.md
   architecture.md
   hpc_physics_campaigns.md
+  results/representation_benchmark_20260813.md
+  results/representation_benchmark_20260817.md
+  results/representation_benchmark_20260819.md
+  results/representation_benchmark_20260820.md
+  results/representation_benchmark_20260821.md
+  results/representation_benchmark_20260825.md
   results/forward/README.md
   results/forward/灵敏度分析.md
   results/inverse/README.md
