@@ -15,7 +15,7 @@
 
 > 2026-08-25 EXP-FWD-009 状态：五个 epoch-200 权重热启动身份均通过主收敛门，最终 17 个 K5 身份完成六域 510-cell、408/272 数值回归和 102-cell paired bootstrap。最终 inventory 仅 9/17 满足主收敛门，另 8 个依据人工豁免纳入；不得写成原 EXP-FWD-008 的 17/17 收敛通过。详见[EXP-FWD-009 结果](docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md)。
 
-> 2026-08-26 EXP-FWD-010 状态：joint 改为 K5 Binary/Graded 各 4,000 条、总数据量与单路线一致后，从零完成 seed0 固定 200 轮和六域 6-cell 增量评估。Binary 末窗 `r=0.005170` 略未过门；六域均未击败最佳 K5 单路线，相对原 8k+8k joint 为五域显著变差、一域改善。该结果是 surrogate seed0 负对照，不支持 joint promotion。详见[EXP-FWD-009/010 汇总](docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md)。
+> 2026-08-26 EXP-FWD-010/011 状态：joint 改为 K5 Binary/Graded 各 4,000 条后完成 seed0 200 轮从零训练、200→300 权重续训和两组六域评估。300 轮时 Binary 收敛通过，Graded 与等权未通过；相对 200 轮为五域显著改善、K20 Graded 退化，只在 K5 Binary 超过最佳单路线。该结果仍是 surrogate seed0 负对照，不支持 joint 全域 promotion。详见[EXP-FWD-009/010/011 汇总](docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md)。
 
 # PROJECT MAP
 
@@ -69,7 +69,7 @@
 ## 当前最重要的未解决问题
 
 - EXP-FWD-009 已完成五个身份的权重热启动续训与六域 510-cell held-out surrogate 评估；54 身份 preflight、10 shards、408/272 数值回归和 102-cell paired bootstrap 均闭合。最终 inventory 仍只有 9/17 满足主收敛门，8 个身份经人工豁免纳入，因此当前需要人工决定是否接受其为探索性 K5 对照；这不构成 real-MPB 或物理验证。详见[EXP-FWD-009 结果](docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md)。
-- EXP-FWD-010 已完成 joint 各 4k 的 seed0 固定 200 轮与六域增量评估；Binary 收敛曲线略未过门，且公平数据量 joint 在六域均未击败最佳 K5 单路线。当前需人工决定是否接受其为负对照；若要 promotion 或数据量因果结论，仍缺多 seed、同优化预算的成对实验。
+- EXP-FWD-010/011 已完成 joint 各 4k 的 seed0 200 轮训练、续训至 300 轮与两组六域增量评估；300 轮时 Graded 与等权收敛曲线未过门，六域只在 K5 Binary 击败最佳单路线。当前需人工决定是否接受其为负对照；若要 promotion 或数据量因果结论，仍缺多 seed、同训练与优化器状态合同的成对实验。
 - N50R5 登录仍被平台 `loginCluster` 权限拒绝；N40 已部署当前 inverse Stage-A runner/orchestrator（`b93cc2d`），但当前正式训练只能以既有三卡分配证据为下限，9/18 卡仍需真实 admission 作业证明。
 - Full-cell 50k forward 计算和自动审计已完成，但 AI 整理的 Draft 报告仍需人工接受；inverse 仍未在全胞、多形态、全 BZ 数据上完成正式 45-run Stage-A 或 soft-surrogate Stage B。
 - Full-Wh 升级 native/cross-lane/resolution 主评估已完成，但 `k_conditioned` 头未被选择，threshold proxy 尚无作业或结果；这些 surrogate 结果尚未进入 full-cell inverse Stage B 或 real-MPB replay。

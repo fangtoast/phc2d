@@ -505,9 +505,8 @@ experiments:
   - id: EXP-FWD-011
     title: Joint 各 4k 权重续训至 300 轮
     task: forward
-    status: authorized_training_pending
-    mapping_status: partial
-    mapping_notes: 已冻结训练与六域评估合同；正式 N40 run 尚待完成。
+    status: completed_with_convergence_not_met
+    mapping_status: complete
     research_question: EXP-FWD-010 的公平 4k+4k joint 从 epoch-200 权重重置 AdamW 并固定续训至总 epoch 300 后，三条 validation 曲线能否同时收敛，并改善六域 held-out 表现？
     spec:
       - experiments/research/EXP-FWD-011-Joint各4k续训至300轮.md
@@ -516,16 +515,17 @@ experiments:
       - configs/research/full_cell_k5_joint_4k_epoch300_six_domain_exp_fwd_011_n40_v1.yaml
     runs:
       local: []
-      referenced_not_local: []
+      referenced_not_local:
+        - runs/20260826/EXP-FWD-011_joint_4k_epoch300_20260826114526
     result:
       - docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md
     report: []
     related_experiments:
       - EXP-FWD-010
     decision:
-      state: training_authorized
-      summary: 用户已明确授权从 EXP-FWD-010 epoch-200 权重继续到总 epoch 300，并复查收敛；optimizer 与数据顺序状态不恢复。
-    tags: [forward, full-cell, k5, joint, fair-total-data, weight-only-warm-start, fixed-epoch300, surrogate-only]
+      state: negative_control_pending_human_review
+      summary: Binary/Graded 均续训至总 epoch 300；Binary 收敛通过，Graded 与等权未通过。六域相对 epoch-200 为五域改善、一域退化，只在 K5 Binary 超过最佳单路线，不支持 joint 全域 promotion。
+    tags: [forward, full-cell, k5, joint, fair-total-data, weight-only-warm-start, fixed-epoch300, convergence-not-met, surrogate-only]
 
   - id: EXP-QRY-001
     title: A1 V2 10k Continuous Query 公平对照

@@ -1,6 +1,6 @@
 ---
 title: EXP-FWD-009：K5 权重热启动与六域验证
-summary: EXP-FWD-009 完成 17 个 K5 身份六域评估；EXP-FWD-010 追加 joint 各 4k 公平数据量对照后，公平 joint 在六域均未超过最佳单路线模型。
+summary: EXP-FWD-009 完成 17 个 K5 身份六域评估；EXP-FWD-010/011 完成 joint 各 4k 的 200 轮与 300 轮公平数据量对照。
 page_type: evidence
 status: draft
 audience: 模型研究者、复现执行者与结果审阅者
@@ -10,16 +10,17 @@ reading_time: 24 minutes
 primary_layer: L3
 evidence_date: 2026-08-26
 evidence_level: surrogate_held_out
-evidence_scope: "EXP-FWD-009 K5 17-checkpoint mixed inventory and 510-cell six-domain evaluation, plus EXP-FWD-010 seed0 joint 4k+4k fixed-200 training and six affected held-out cells"
+evidence_scope: "EXP-FWD-009 K5 17-checkpoint mixed inventory and 510-cell six-domain evaluation, plus EXP-FWD-010/011 seed0 joint 4k+4k epoch-200/300 training and twelve affected held-out cells"
 dataset_scope: full_cell_fourier_k5_k20_f50_wh81x10
 evidence_status: completed
 validation_backend: surrogate_only
-completion_qualification: exp_fwd_009_convergence_waiver_8_of_17_and_exp_fwd_010_binary_curve_not_met
+completion_qualification: exp_fwd_009_convergence_waiver_8_of_17_and_exp_fwd_010_011_convergence_not_met
 source_artifacts:
   - runs/20260825/EXP-FWD-008_K5_20260825083000
   - runs/20260825/EXP-FWD-009_K5_CONT_20260825164000
   - runs/20260825/EXP-FWD-009_six_domain_20260825181500
   - runs/20260826/EXP-FWD-010_joint_4k_20260826094605
+  - runs/20260826/EXP-FWD-011_joint_4k_epoch300_20260826114526
 ---
 
 <!--
@@ -36,6 +37,8 @@ source_artifacts:
 这不是“原合同 17/17 收敛通过”：12 个保留身份中仅 4 个满足原收敛门，加入 5 个续训身份后，最终 inventory 为 **9/17 主收敛通过、8/17 人工豁免纳入评估**。因此本页可以报告模型表现和跨域变化，但不能把 EXP-FWD-008 的收敛验收写成通过。
 
 **公平数据量补充结论：**EXP-FWD-010 将 joint 改为 K5 Binary 4,000 + K5 Graded 4,000，从零固定训练 200 epoch，使总训练样本量与每个单路线模型同为 8,000。该 checkpoint 完成 6/6 held-out cells 后，在六个目标域的 bands 2–10 MRE 均未低于对应最佳 K5 单路线模型；相对原 8k+8k joint，5 域显著变差，仅 K20 Graded 显著改善。原 joint 的领先因此不能作为数据量公平的架构替代证据。
+
+**300 轮续训结论：**EXP-FWD-011 从 EXP-FWD-010 的 epoch-200 权重重置 AdamW，同时续训 Binary 与 Graded 到总 epoch 300。最佳 checkpoint 移至 epoch 291，validation 等权 MRE 从 `0.563943%` 降至 `0.519934%`；但 Graded `r=0.006524` 与等权 `r=0.005028` 未过门，因此仍未完全收敛。相对 epoch-200 公平 joint，六域为 5 域显著改善、K20 Graded 显著变差；它只在 K5 Binary 超过最佳 K5 单路线，仍不支持 joint 全域替代。
 
 ## 证据状态
 
@@ -55,6 +58,8 @@ source_artifacts:
 | EXP-FWD-010 公平 joint 训练 | Binary 4,000 + Graded 4,000，seed0，200/200 epoch | 完成；Binary 收敛曲线 `r=0.005170>0.005` |
 | EXP-FWD-010 子集与 normalizer | 两个 4k 子集均与 val/test 零重叠；checkpoint normalizer 逐 lane 回算一致 | 通过 |
 | EXP-FWD-010 增量六域 | 1 checkpoint、6/6 cells、每域 10,000 次 paired bootstrap | 完整 |
+| EXP-FWD-011 续训 | Binary/Graded 同时从总 epoch 201 训练至 300；37,500 optimizer steps | 完成；Graded 与等权曲线未过门 |
+| EXP-FWD-011 增量六域 | 1 checkpoint、6/6 cells、相对 epoch-200 每域 10,000 次 paired bootstrap | 完整；5 域改善、1 域退化 |
 | 物理证据 | 无 real-MPB replay、无物理验收 | 不在本实验范围 |
 
 原始证据位于 N40：
@@ -63,8 +68,9 @@ source_artifacts:
 - EXP-FWD-009 权重热启动续训：`/HOME/scw6g7a/run/phc2d-exp-fwd-008-dd8faaf/runs/20260825/EXP-FWD-009_K5_CONT_20260825164000`
 - EXP-FWD-009 六域评估：`/HOME/scw6g7a/run/phc2d-exp-fwd-008-dd8faaf/runs/20260825/EXP-FWD-009_six_domain_20260825181500`
 - EXP-FWD-010 公平 joint 训练与六域评估：`/data/run01/scw6g7a/phc2d-exp-fwd-010-136f8e4/runs/20260826/EXP-FWD-010_joint_4k_20260826094605`
+- EXP-FWD-011 续训与六域评估：`/data/run01/scw6g7a/phc2d-exp-fwd-011-269004e/runs/20260826/EXP-FWD-011_joint_4k_epoch300_20260826114526`
 
-EXP-FWD-009 的 510 行结果与 EXP-FWD-010 的 6 行增量结果、逐样本预测、逐 band、逐 k、bootstrap 与资源统计只在对应 run 中保存，本页不复制 raw evidence。
+EXP-FWD-009 的 510 行结果与 EXP-FWD-010/011 的两组 6 行增量结果、逐样本预测、逐 band、逐 k、bootstrap 与资源统计只在对应 run 中保存，本页不复制 raw evidence。
 
 ## 训练合同与协议偏差
 
@@ -169,6 +175,40 @@ EXP-FWD-010 不覆盖上面的 8k+8k joint。它从零训练同一 `dual_lane_ba
 
 公平 joint 在六域均没有超过对应最佳 K5 单路线；相对原 joint，只有 K20 Graded 改善，其余五域均显著变差。这说明原 8k+8k joint 的表观领先不能脱离额外训练数据量来解释，但本补充仍不是“只改变数据量”的因果消融：原 joint 还经历了 EXP-FWD-009 权重热启动续训，而公平 joint 是从零固定 200 轮，且 Binary 末窗收敛门略未通过。
 
+### EXP-FWD-011：Binary/Graded 同时续训至 300 轮
+
+EXP-FWD-011 载入 EXP-FWD-010 的 `epoch200.pt` 模型权重，并用相同 Binary 4,000 + Graded 4,000 子集继续训练。源 checkpoint 不含 AdamW 或数据顺序状态，因此本实验是 `weight_only_warm_start_optimizer_reset` 新轨迹，不是原优化轨迹的无损续接。
+
+| 训练核查 | 结果 |
+|---|---:|
+| 预算 | 总 epoch 300；追加 100 epoch；Binary/Graded 每 batch 各 32 条 |
+| best / stop epoch | 291 / 300 |
+| best validation bands 2–10 MRE | 等权 `0.519934%`；Binary `0.589323%`；Graded `0.450546%` |
+| 末窗 `r` | Binary `0.003892` 通过；Graded `0.006524` **未通过**；等权 `0.005028` **未通过** |
+| 状态 | `training_complete_convergence_not_met`；不得写成完全收敛 |
+| 累计 optimizer steps / sample visits | 37,500 / 2,400,000；两个 lane 均训练到 epoch 300 |
+| 追加训练耗时 / 峰值显存 | `2,177.66 s` / `5,621.47 MiB` |
+| checkpoint | best SHA-256 `2b7df5d1...c4bfbd`；epoch-300 SHA-256 `318a6b91...71172` |
+
+下表仍按 **Band 1 / Bands 2–10 / Bands 1–10 MRE (%)** 报告：
+
+| 模型 | 目标 Binary: K5 | 目标 Graded: K5 | 目标 Binary: K20 | 目标 Graded: K20 | 目标 Binary: F50 | 目标 Graded: F50 |
+|---|---:|---:|---:|---:|---:|---:|
+| Joint 各 4k，epoch 300 | 0.3206 / 0.5852 / 0.5587 | 0.2440 / 0.4493 / 0.4287 | 3.0462 / 2.8557 / 2.8747 | 3.0187 / 3.3781 / 3.3421 | 0.8681 / 1.0615 / 1.0421 | 1.0590 / 1.2471 / 1.2283 |
+
+`Δ` 为“epoch 300 − epoch 200”；负值表示续训改善。区间是 10,000 次逐样本 paired-bootstrap 95% CI。
+
+| 目标域 | epoch 300 | epoch 200 | `Δ` [95% CI] | 最佳 K5 单路线 | 相对最佳单路线 |
+|---|---:|---:|---:|---|---:|
+| 目标 Binary: K5 | 0.5852% | 0.6306% | -0.0454 [-0.0491,-0.0416] | TFNO v3 Binary，0.6012% | **-2.7%** |
+| 目标 Graded: K5 | 0.4493% | 0.4838% | -0.0345 [-0.0372,-0.0318] | TFNO v3 Graded，0.4088% | +9.9% |
+| 目标 Binary: K20 | 2.8557% | 3.2683% | -0.4126 [-0.4729,-0.3532] | MLP Binary，1.9839% | +43.9% |
+| 目标 Graded: K20 | 3.3781% | 3.0400% | +0.3381 [+0.3285,+0.3477] | MLP Graded，1.8845% | +79.3% |
+| 目标 Binary: F50 | 1.0615% | 1.1436% | -0.0822 [-0.0860,-0.0784] | TFNO v3 Binary，0.8344% | +27.2% |
+| 目标 Graded: F50 | 1.2471% | 1.3087% | -0.0616 [-0.0656,-0.0576] | TFNO v3 Graded，0.9273% | +34.5% |
+
+续训使公平 joint 从“0/6 超过最佳单路线”变为“1/6 超过”：只在 K5 Binary 低于 TFNO v3 Binary。K20 Graded 的显著退化说明继续优化 native validation 并不保证跨生成器域同步改善；加上 Graded 与等权收敛门仍未通过，EXP-FWD-011 不能作为 joint promotion 证据。
+
 ## 与 EXP-FWD-007 的 paired bootstrap
 
 下表使用主指标 bands 2–10 MRE。每个单元格依次为 **007→009；绝对变化（相对变化）；变化的 95% paired-bootstrap CI**。负变化表示 EXP-FWD-009 更低。17×6 共 102 个比较中，51 个显著改善、23 个显著变差、24 个 checkpoint 未变且数值完全一致、4 个区间跨零。
@@ -245,7 +285,7 @@ EXP-FWD-010 不覆盖上面的 8k+8k joint。它从零训练同一 `dual_lane_ba
 
 1. **K5 Binary 单路线：**TFNO v3 在 Band 1、bands 2–10 与 bands 1–10 三个口径均最低，分别为 `0.3500%`、`0.6012%`、`0.5761%`。
 2. **K5 Graded 单路线：**Band 1 由 ConvNeXt 最低（`0.3451%`），主指标和全频带由 TFNO v3 最低（`0.4088%`、`0.4029%`）。因此三个频带口径不能合并成一个模型结论。
-3. **Joint native：**原 8k+8k joint 在 K5 Binary 和 K5 Graded 的三个口径都低于对应单路线候选，但数据量不公平；改成各 4k 后，joint 的 K5 主指标为 `0.6306%/0.4838%`，均高于 TFNO v3 单路线的 `0.6012%/0.4088%`，六域也为 0/6 胜出。因此当前没有数据量公平的 joint 替代证据。
+3. **Joint native：**原 8k+8k joint 在 K5 Binary 和 K5 Graded 的三个口径都低于对应单路线候选，但数据量不公平；各 4k 续训到 epoch 300 后，K5 Binary 主指标为 `0.5852%`，低于 TFNO v3 Binary 的 `0.6012%`，K5 Graded 仍为 `0.4493%>0.4088%`。六域只在 K5 Binary 形成 1/6 胜出，且训练未完全收敛，因此仍没有 joint 全域替代证据。
 4. **跨路线：**Binary→Graded 的主指标最低是 Lifted CNN `1.7389%`；Graded→Binary 最低是 FNO v2 `1.5417%`。跨路线最佳模型随方向改变。
 5. **跨生成器/规模：**六个目标域没有一个单路线模型普遍最优。续训改善 native K5 并不保证 K20/F50 同步改善，例如 Binary ConvNeXt 在 K20-B/K20-G 明显变差。
 6. **Band 1：**15/17 最终身份在训练末窗仍明显漂移；Band 1 被纳入正式评估是必要的，但该事实不应反向改变原 checkpoint 选择与历史主排名口径。
@@ -262,8 +302,8 @@ EXP-FWD-010 不覆盖上面的 8k+8k joint。它从零训练同一 `dual_lane_ba
 
 - 本页只属于 frozen held-out surrogate evidence；不代表 real-MPB replay、物理验证、paired-K 因果效应或 inverse 成功。
 - EXP-FWD-009 只证明五个指定身份在重置优化器后的新轨迹达到收敛门；不能归因于“多训练 epoch”这一单一因素。
-- EXP-FWD-010 只完成 seed0、各 4k、固定 200 轮的数据量公平补充；Binary 末窗 `r=0.005170` 略未过门，且它与原 joint 的优化轨迹不同，不能写成数据量的单因素因果效应。
+- EXP-FWD-010/011 只完成 seed0、各 4k 的 200 轮从零训练与 200→300 权重续训；300 轮时 Graded 和等权曲线仍未过门，且两段之间重置 AdamW，不能写成原优化轨迹的连续收敛或数据量单因素因果效应。
 - 最终 8 个被豁免身份仍应保留 `training_complete_convergence_not_met`，不得在后续索引或论文中写成收敛通过。
-- 下一人工决策是：是否接受 EXP-FWD-010 为 seed0 公平数据量负对照。若要做 promotion 或数据量因果主张，应另立多 seed、同训练预算的成对实验；不得用当前结果补写未执行的重复训练。
+- 下一人工决策是：是否接受 EXP-FWD-010/011 为 seed0 公平数据量负对照。若要做 promotion 或数据量因果主张，应另立多 seed、同训练与优化器状态合同的成对实验；不得把当前 1/6 胜出扩大为全域 joint 优势。
 
-相关入口：[EXP-FWD-010 公平数据量协议](../../../experiments/research/EXP-FWD-010-Joint各4k公平训练与六域验证.md) · [EXP-FWD-009 实验协议](../../../experiments/research/EXP-FWD-009-K5权重热启动收敛续训.md) · [EXP-FWD-007 原结果](EXP-FWD-007-K5训练与六域验证.md) · [EXP-FWD-008 固定 200 轮协议](EXP-FWD-008-K5固定200轮训练与六域验证.md)
+相关入口：[EXP-FWD-011 续训协议](../../../experiments/research/EXP-FWD-011-Joint各4k续训至300轮.md) · [EXP-FWD-010 公平数据量协议](../../../experiments/research/EXP-FWD-010-Joint各4k公平训练与六域验证.md) · [EXP-FWD-009 实验协议](../../../experiments/research/EXP-FWD-009-K5权重热启动收敛续训.md) · [EXP-FWD-007 原结果](EXP-FWD-007-K5训练与六域验证.md) · [EXP-FWD-008 固定 200 轮协议](EXP-FWD-008-K5固定200轮训练与六域验证.md)

@@ -2,7 +2,7 @@
 title: "EXP-FWD-011：Joint 各 4k 续训至 300 轮"
 summary: "从 EXP-FWD-010 的 epoch-200 权重状态重置 AdamW，固定续训至总 epoch 300，并复查收敛与六域 held-out 表现。"
 page_type: experiment
-plan_state: active
+plan_state: completed
 status: draft
 audience: "模型研究者、复现执行者与结果审阅者"
 owner: "研究生维护，导师审阅研究主张"
@@ -34,3 +34,11 @@ primary_layer: L3
 | 证据边界 | `surrogate_held_out_cross_domain`；无 real-MPB、Meep 或物理验收 |
 
 本实验是一条新的权重热启动优化轨迹，不得写成 EXP-FWD-010 原 AdamW 状态的无损延长。若第 300 轮仍有任一曲线未过门，状态继续保持 `training_complete_convergence_not_met`。若通过，也只说明该 seed0 续训轨迹达到预登记曲线门，不自动支持 joint promotion。
+
+## 执行结果
+
+Binary 与 Graded 均从总 epoch 201 训练至 300，作业 `5431312` 以 `COMPLETED 0:0` 结束。最佳 checkpoint 为 epoch 291；Binary、Graded、等权 validation bands 2–10 MRE 分别为 `0.589323%`、`0.450546%`、`0.519934%`。
+
+最终窗口中 Binary `r=0.003892` 通过，Graded `r=0.006524` 与等权 `r=0.005028` 未通过，因此状态为 `training_complete_convergence_not_met`。六域 6-cell 评估作业 `5431340` 完成；相对 epoch-200 checkpoint 为五域显著改善、K20 Graded 显著变差，只在 K5 Binary 超过对应最佳 K5 单路线。该结果不支持 joint 全域 promotion。
+
+[阅读汇总结果](../../docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md)。
