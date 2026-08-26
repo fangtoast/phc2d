@@ -9,11 +9,13 @@ set -euo pipefail
 mode="${1:-}"
 authorization_id="${2:-}"
 PHC2D_ROOT="${PHC2D_ROOT:-$HOME/run/phc2d}"
+PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu118}"
 : "${PHC2D_FWD011_TRAIN_DIR:?PHC2D_FWD011_TRAIN_DIR is required}"
 : "${PHC2D_FWD011_EVAL_DIR:?PHC2D_FWD011_EVAL_DIR is required}"
 cd "$PHC2D_ROOT"
 if [[ "$mode" == "freeze" ]]; then
-  PYTHONPATH="$PHC2D_ROOT/src" python -m phc2d.forward.full_cell_joint_fair_evaluation freeze \
+  [[ -x "$PHC2D_ENV/bin/python" ]] || { echo "N40 Python runtime missing" >&2; exit 3; }
+  PYTHONPATH="$PHC2D_ROOT/src" "$PHC2D_ENV/bin/python" -m phc2d.forward.full_cell_joint_fair_evaluation freeze \
     --config configs/research/full_cell_k5_joint_4k_epoch300_six_domain_exp_fwd_011_n40_v1.yaml \
     --checkpoint "$PHC2D_FWD011_TRAIN_DIR/model.pt" --campaign-dir "$PHC2D_FWD011_EVAL_DIR" \
     --repository-root "$PHC2D_ROOT"

@@ -65,8 +65,10 @@ def test_exp_fwd_011_evaluation_and_submit_contracts() -> None:
     assert config["statistics"]["paired_bootstrap_replicates"] == 10_000
     submitter = (ROOT / "jobs/paracloud_submit_exp_fwd_011_joint_4k_epoch300.sh").read_text(encoding="utf-8")
     worker = (ROOT / "jobs/paracloud_exp_fwd_011_joint_4k_epoch300_train.sh").read_text(encoding="utf-8")
+    eval_submitter = (ROOT / "jobs/paracloud_submit_exp_fwd_011_joint_4k_epoch300_eval.sh").read_text(encoding="utf-8")
     assert "PHC2D_AUTHORIZE_EXP_FWD_011" in submitter
     assert "no automatic retry" in submitter
     assert "--array" not in submitter
     assert "--warm-start-run" in worker
     assert "full_cell_k5_forward_011_dual_lane_4k_epoch300_seed0_v1.yaml" in worker
+    assert '"$PHC2D_ENV/bin/python"' in eval_submitter
