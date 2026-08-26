@@ -4,7 +4,6 @@
   Email: fangtoast@foxmail.com
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
-
 # phc2d
 
 **二维光子晶体数据生成、神经代理、逆向设计与 MPB 复核工具链。**
@@ -23,13 +22,17 @@
 - 使用 real-MPB replay 复核逆向设计候选，区分代理指标与物理求解结果。
 - 通过统一 CLI、研究配置和实验 profiles 组织数据、训练、评估、绘图与报告。
 
+
+
 ## 环境要求
 
-| 用途 | 要求 |
-|---|---|
-| 基础接口与轻量工具 | Python 3.10+ |
-| 数据处理与模型训练 | `train` 可选依赖，包括 PyTorch、h5py 等 |
+
+| 用途                   | 要求                              |
+| -------------------- | ------------------------------- |
+| 基础接口与轻量工具            | Python 3.10+                    |
+| 数据处理与模型训练            | `train` 可选依赖，包括 PyTorch、h5py 等  |
 | MPB / Meep 数据生成与物理复核 | WSL `Ubuntu` + conda `meep_env` |
+
 
 基础命令不会强制导入 PyTorch、MPB 或 Meep。Windows、Linux/WSL 和完整求解器环境说明见[快速上手](docs/getting-started.md)。
 
@@ -47,6 +50,8 @@ python -m pip install -e .
 python -m pip install -e ".[train]"
 ```
 
+
+
 ## Quick Start
 
 检查 CLI 和已注册模型：
@@ -56,6 +61,8 @@ python -m phc2d.cli --version
 python -m phc2d.cli --help
 python -m phc2d.cli models list
 ```
+
+
 
 ### Smoke example
 
@@ -67,6 +74,8 @@ python -m phc2d.cli forward train --config configs/smoke/forward_synthetic_res_m
 ```
 
 > 该示例使用非物理合成数据，不代表论文复现、代理模型有效性或 MPB 物理验证。正式复现所需的数据、环境和证据等级见[复现指南](docs/reproducibility.md)。
+
+
 
 ## 项目组成
 
@@ -91,7 +100,9 @@ tests/        单元测试与合约测试
 - [项目地图](PROJECT_MAP.md)：当前主线、结论、阻塞项与下一步。
 - [完整文档目录](docs/README.md)：理论、架构、公式、实验和结果索引。
 - [复现指南](docs/reproducibility.md)：从接口检查到 real-MPB 验证的分级流程。
-- [实验与配置](experiments/README.md)：实验 profiles；配置入口见 [`configs/`](configs/README.md)。
+- [实验与配置](experiments/README.md)：实验 profiles；配置入口见 [configs/](configs/README.md)。
+
+
 
 ## 验证与协作
 
