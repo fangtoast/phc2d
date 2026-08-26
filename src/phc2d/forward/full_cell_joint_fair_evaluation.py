@@ -64,9 +64,9 @@ def _baseline_rows(config: Mapping[str, Any]) -> tuple[Path, dict[str, dict[str,
         if all(str(row[key]) == value for key, value in identity.items())
     ]
     by_domain = {row["target_domain"]: row for row in selected}
-    if len(selected) != len(DOMAINS) or tuple(by_domain) != DOMAINS:
+    if len(selected) != len(DOMAINS) or set(by_domain) != set(DOMAINS):
         raise RuntimeError("baseline joint identity does not cover the six frozen domains exactly")
-    return campaign, by_domain
+    return campaign, {domain: by_domain[domain] for domain in DOMAINS}
 
 
 def freeze_evaluation(

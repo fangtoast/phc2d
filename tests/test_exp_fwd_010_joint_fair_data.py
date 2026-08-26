@@ -86,7 +86,7 @@ def test_exp_fwd_010_freeze_reuses_baseline_cache_and_plans_only_six_cells(tmp_p
             ],
         )
         writer.writeheader()
-        for index, domain in enumerate(domains):
+        for index, domain in enumerate(reversed(domains)):
             writer.writerow(
                 {
                     "source_family": "K5",
