@@ -133,7 +133,6 @@ $$
 
 配置使用 Fourier cutoff 8。对每个非零半平面频率 $(m_x,m_y)$，独立抽样正弦和余弦
 系数，其标准差为：
-
 $$
 \sigma_{\mathbf m}=\exp\left[-\left(
 \frac{\lVert\mathbf m\rVert}{k_c}
@@ -178,7 +177,6 @@ $$
 
 背景 Fourier 场使用 cutoff 3。每个实模态的正弦和余弦系数独立服从零均值高斯分布，
 标准差为：
-
 $$
 \sigma_{\mathbf m}=(1+\lVert\mathbf m\rVert^2)^{-1.25}.
 $$

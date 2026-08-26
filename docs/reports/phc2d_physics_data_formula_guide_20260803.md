@@ -1003,7 +1003,6 @@ $$
 
 当前 dual-lane loader 每个 batch 各取 32 个 B/G 样本并拼接后使用同一 MSE，因此在等 batch
 大小下等价于
-
 $$
 \mathcal L_{\rm joint}=\frac12\mathcal L_{\rm full}^{(B)}
 +\frac12\mathcal L_{\rm full}^{(G)}.

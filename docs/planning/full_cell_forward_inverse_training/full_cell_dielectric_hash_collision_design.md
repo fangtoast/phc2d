@@ -37,7 +37,6 @@ primary_layer: L3
 
 当前生成器把 master seed、sample ID 和生成器类型经 SHA-256 映射到 32 位随机种子。
 独立样本数为 $n$、种子空间为 $M=2^{32}$ 时，至少发生一次碰撞的概率近似为：
-
 $$
 P(\mathrm{collision})\approx
 1-\exp\left(-\frac{n(n-1)}{2M}\right).
