@@ -527,6 +527,31 @@ experiments:
       summary: Binary/Graded 均续训至总 epoch 300；Binary 收敛通过，Graded 与等权未通过。六域相对 epoch-200 为五域改善、一域退化，只在 K5 Binary 超过最佳单路线，不支持 joint 全域 promotion。
     tags: [forward, full-cell, k5, joint, fair-total-data, weight-only-warm-start, fixed-epoch300, convergence-not-met, surrogate-only]
 
+  - id: EXP-FWD-012
+    title: 工作频率先验覆盖审计
+    task: forward
+    status: completed_negative_gate
+    mapping_status: complete
+    research_question: 公平 4k+4k K5 train/validation 上，由输入材料场计算的 X 方向 Bragg 频率窗口是否比同宽 train-only 固定中心更能覆盖真实频率坐标与最大 gap center？
+    spec:
+      - experiments/research/EXP-FWD-012-工作频率先验覆盖审计.md
+    config:
+      - configs/research/full_cell_k5_work_frequency_prior_audit_exp_fwd_012_v1.yaml
+    runs:
+      local:
+        - runs/20260827/EXP-FWD-012_202608271707
+      referenced_not_local: []
+    result:
+      - docs/results/forward/EXP-FWD-012-工作频率先验覆盖审计.md
+    report: []
+    related_experiments:
+      - EXP-FWD-010
+      - EXP-FWD-011
+    decision:
+      state: negative_gate_stop_loss_training
+      summary: Binary/Graded validation 的 X 窗口谱坐标覆盖率通过，但 X/M 最大 gap-center 命中均为 0；相对固定中心改善门失败，EXP-FWD-013 不准入。
+    tags: [forward, full-cell, k5, joint, fair-total-data, work-frequency, prior-audit, no-test, no-training]
+
   - id: EXP-QRY-001
     title: A1 V2 10k Continuous Query 公平对照
     task: query

@@ -172,6 +172,7 @@ nav:
           - EXP-FWD-007 K5 训练与六域验证: results/forward/EXP-FWD-007-K5训练与六域验证.md
           - EXP-FWD-008 K5 固定 200 轮训练: results/forward/EXP-FWD-008-K5固定200轮训练与六域验证.md
           - EXP-FWD-009 K5 权重热启动与六域验证: results/forward/EXP-FWD-009-K5权重热启动与六域验证.md
+          - EXP-FWD-012 工作频率先验覆盖审计: results/forward/EXP-FWD-012-工作频率先验覆盖审计.md
           - Meep 近远场: results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md
           - K5 代理选频与真实响应差异: results/field-physics/代理选频与真实响应差异_20260825.md
           - 全胞综合报告: reports/全胞双路线正向与逆向模型报告_20260810.md

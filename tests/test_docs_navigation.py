@@ -76,7 +76,7 @@ def test_navigation_preserves_accessibility_and_motion_preferences() -> None:
 def test_formal_results_navigation_is_an_explicit_whitelist() -> None:
     nav = _load_mkdocs_config()["nav"]
     assert isinstance(nav, list)
-    formal_results = set(_flatten_nav_paths(_find_nav_group(nav, "正式研究结果")))
+    formal_results = set(_flatten_nav_paths(_find_nav_group(nav, "实验与证据库")))
 
     assert formal_results == {
         "results/README.md",
@@ -97,9 +97,14 @@ def test_formal_results_navigation_is_an_explicit_whitelist() -> None:
         "results/forward/full_cell_dual_lane_50000_forward_training_20260808.md",
             "results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md",
             "results/forward/full_cell_k20_b_g_seed0_cross_eval_20260820.md",
-            "results/forward/全胞K20与50K跨数据域正向验证_20260820.md",
-            "results/forward/全胞前向50K模型R方补充评估_20260819.md",
+        "results/forward/全胞K20与50K跨数据域正向验证_20260820.md",
+        "results/forward/全胞前向50K模型R方补充评估_20260819.md",
+        "results/forward/EXP-FWD-007-K5训练与六域验证.md",
+        "results/forward/EXP-FWD-008-K5固定200轮训练与六域验证.md",
+        "results/forward/EXP-FWD-009-K5权重热启动与六域验证.md",
+        "results/forward/EXP-FWD-012-工作频率先验覆盖审计.md",
         "results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md",
+        "results/field-physics/代理选频与真实响应差异_20260825.md",
         "reports/全胞双路线正向与逆向模型报告_20260810.md",
     }
 

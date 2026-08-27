@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_exp_dat_005_is_registered_with_a_reachable_protocol_and_configs() -> None:
     registry = yaml.safe_load((ROOT / "experiments/registry.yaml").read_text(encoding="utf-8"))
     entry = next(item for item in registry["experiments"] if item["id"] == "EXP-DAT-005")
-    assert entry["status"] == "planned"
+    assert entry["status"] == "completed"
     assert entry["spec"] == ["experiments/research/full_cell_k5_dual_lane_xingyi.md"]
     assert entry["config"] == [
         "configs/research/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.yaml",
