@@ -7,6 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Mapping
 
 import numpy as np
@@ -17,6 +18,63 @@ BAND_GROUPS: Mapping[str, slice] = {
     "bands2_10": slice(1, 10),
     "bands1_10": slice(0, 10),
 }
+
+
+@dataclass(frozen=True)
+class GapEdgeSelection:
+    """One complete- or pseudo-gap upper-edge mode selected from a full BZ."""
+
+    lower_band_one_based: int
+    upper_band_one_based: int
+    gap: float
+    status: str
+    k_index: int
+    frequency: float
+
+
+def select_largest_gap_edge(
+    Wh: np.ndarray,
+    *,
+    lower_band_min_one_based: int = 2,
+    lower_band_max_one_based: int | None = None,
+) -> GapEdgeSelection:
+    """Select the upper edge of the largest configured full-BZ adjacent-band gap."""
+
+    bands = np.asarray(Wh, dtype=np.float64)
+    if bands.ndim != 2 or bands.shape[1] < 2 or bands.shape[0] < 1:
+        raise ValueError(f"Wh must have shape [n_k_points, n_bands>=2], got {bands.shape}")
+    if np.any(~np.isfinite(bands)):
+        raise ValueError("Wh contains non-finite frequencies")
+    lower_min = int(lower_band_min_one_based)
+    lower_limit = bands.shape[1] - 1
+    lower_max = (
+        int(lower_band_max_one_based)
+        if lower_band_max_one_based is not None
+        else lower_limit
+    )
+    if lower_min < 1 or lower_max < lower_min or lower_max > lower_limit:
+        raise ValueError(
+            f"invalid lower-band range {lower_min}..{lower_max} for {bands.shape[1]} retained bands"
+        )
+    candidates: list[GapEdgeSelection] = []
+    for lower_band in range(lower_min, lower_max + 1):
+        lower_index = lower_band - 1
+        upper_index = lower_index + 1
+        lower_edge = float(np.max(bands[:, lower_index]))
+        k_index = int(np.argmin(bands[:, upper_index]))
+        upper_edge = float(bands[k_index, upper_index])
+        gap = upper_edge - lower_edge
+        candidates.append(
+            GapEdgeSelection(
+                lower_band_one_based=lower_band,
+                upper_band_one_based=lower_band + 1,
+                gap=gap,
+                status="complete_gap" if gap > 0.0 else "pseudo_gap",
+                k_index=k_index,
+                frequency=upper_edge,
+            )
+        )
+    return max(candidates, key=lambda row: (row.gap, -row.lower_band_one_based))
 
 
 def _validate_arrays(prediction: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -166,4 +224,10 @@ def paired_bootstrap_mre(
     return result
 
 
-__all__ = ["BAND_GROUPS", "compute_band_metrics", "paired_bootstrap_mre"]
+__all__ = [
+    "BAND_GROUPS",
+    "GapEdgeSelection",
+    "compute_band_metrics",
+    "paired_bootstrap_mre",
+    "select_largest_gap_edge",
+]
