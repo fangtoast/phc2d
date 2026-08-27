@@ -10,6 +10,12 @@ reading_time: 3 minutes
 primary_layer: L3
 evidence_date: 2026-08-27
 evidence_scope: "EXP-FWD-012 K5 Binary/Graded fair 4k+4k train and 1k+1k validation prior audit; no test targets, training, MPB, or Meep"
+dataset_scope: "EXP-DAT-005 K5 Binary/Graded Wh[10000,81,10] frozen train/validation subsets"
+evidence_level: data_acceptance
+evidence_status: completed
+validation_backend: not_applicable
+source_artifacts:
+  - runs/20260827/EXP-FWD-012_202608271707
 ---
 
 <!--
