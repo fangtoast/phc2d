@@ -188,6 +188,7 @@ nav:
           - A2 单 seed 协议: planning/a2_inverse_single_seed_protocol_20260726.md
       - 全胞数据与正向:
           - 专题索引: planning/full_cell_forward_inverse_training/README.md
+          - 工作频率加权与自适应联合算子: planning/工作频率加权与自适应联合算子计划.md
           - 数据分布与统一 Fourier 建议: planning/full_cell_forward_inverse_training/full_cell_dataset_distribution_coverage_analysis.md
           - 内容哈希与碰撞设计: planning/full_cell_forward_inverse_training/full_cell_dielectric_hash_collision_design.md
           - 双路线混合算力: planning/full_cell_forward_inverse_training/full_cell_dual_lane_hybrid_compute_plan.md

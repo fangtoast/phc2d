@@ -5,7 +5,7 @@ page_type: landing
 status: draft
 audience: 研究用户、复现执行者与项目维护者
 owner: 研究生维护
-last_reviewed: 2026-08-21
+last_reviewed: 2026-08-27
 reading_time: 4 minutes
 primary_layer: L4
 ---
@@ -26,6 +26,7 @@ primary_layer: L4
 | 范围 | 入口 | 使用边界 |
 |---|---|---|
 | 研究阶段主线 | [FNO 与生成式网络研究计划](fno_generative_network_adjustment_plan_20260617.md) | 只约束其覆盖的任务族、gate 与 replay 边界；不自动覆盖后续 full-cell 任务 |
+| Full-cell forward 新假设 | [工作频率加权与自适应联合算子计划](工作频率加权与自适应联合算子计划.md) | 先做 loss-only 与现有三支路归因；未通过前置 gate 不准入自适应门控或正式训练 promotion |
 | Full-cell inverse | [全胞逆向索引](全胞逆向索引.md) | codec、Stage-A、候选筛选与 replay 的现行协议入口 |
 | 架构治理 | [项目代码结构重构](项目代码结构重构/README.md) | 作为待复核的长期架构记录；不能据此断言重构已完成 |
 | 历史演进 | [时间线](时间线.md) | 用于查日期、取代关系和结果入口，不作为执行日志继续扩张 |
