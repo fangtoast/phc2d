@@ -106,6 +106,16 @@ def test_dual_lane_cpu_admission_writes_lane_specific_contract(tmp_path: Path) -
             "weight_decay": 1.0e-5,
             "micro_batch_size": 4,
             "effective_batch_size": 4,
+            "loss": {
+                "name": "equal_lane_gap_aware_v1",
+                "lower_band_min_one_based": 1,
+                "lower_band_max_one_based": 1,
+                "full_spectrum_weight": 1.0,
+                "gap_profile_weight": 0.25,
+                "selected_edge_weight": 0.25,
+                "selected_width_weight": 0.25,
+                "selected_center_weight": 0.25,
+            },
         },
         "runtime": {
             "device": "cpu",
@@ -134,5 +144,10 @@ def test_dual_lane_cpu_admission_writes_lane_specific_contract(tmp_path: Path) -
     assert results["test_executed"] is False
     assert metrics["binary_n_train"] == 6
     assert metrics["graded_n_train"] == 6
+    assert metrics["loss_contract"]["name"] == "equal_lane_gap_aware_v1"
+    assert set(metrics["gap_validation"]) == {"binary", "graded"}
+    assert "joint_band_k_accuracy" in metrics["gap_validation"]["binary"]
+    history = (run_dir / "history.csv").read_text(encoding="utf-8")
+    assert "train_gap_profile_loss" in history
     assert set(meta["dataset_sha256"]) == {"binary", "graded"}
     assert meta["k_points_sha256"]

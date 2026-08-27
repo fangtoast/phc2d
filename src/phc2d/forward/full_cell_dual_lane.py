@@ -35,6 +35,11 @@ from phc2d.forward.dual_lane_contracts import (
     validate_and_resolve_dual_lane as _validate_and_resolve,
 )
 from phc2d.forward.dual_lane_recovery import recover_fixed_200_finalizer as _recover_fixed_200_finalizer
+from phc2d.forward.gap_aware_loss import (
+    GapAwareLossConfig,
+    gap_aware_spectrum_loss,
+    resolve_gap_aware_loss_config,
+)
 from phc2d.models import build_model, describe_model_identity, get_model_spec
 from phc2d.runs import (
     RUN_LOG_NAME,
@@ -42,7 +47,6 @@ from phc2d.runs import (
     make_run_dir,
     setup_logging,
     validate_run_artifacts,
-    write_json,
     write_metrics,
     write_resolved_config,
     write_results,
@@ -78,6 +82,7 @@ class _DualLaneTrainingContext:
     config_file: Path
     head_kind: str
     seed: int
+    loss_config: GapAwareLossConfig | None
 
 
 def recover_fixed_200_finalizer(
@@ -92,6 +97,54 @@ def recover_fixed_200_finalizer(
         source_slurm_job_id=source_slurm_job_id,
         contract_reader=_lane_contracts,
     )
+
+
+def _dual_lane_training_loss(
+    context: _DualLaneTrainingContext,
+    prediction: Any,
+    target: Any,
+    *,
+    binary_batch_size: int,
+) -> tuple[Any, dict[str, Any]]:
+    """Compute the legacy base loss or equal-lane gap-aware components."""
+
+    if context.loss_config is None:
+        base = context.torch.nn.functional.mse_loss(prediction, target)
+        return base, {"full_spectrum": base}
+    if binary_batch_size <= 0 or binary_batch_size >= int(target.shape[0]):
+        raise ValueError("dual-lane gap-aware loss requires non-empty binary and graded batches")
+    lane_terms = {}
+    start = 0
+    for lane, count in (("binary", binary_batch_size), ("graded", target.shape[0] - binary_batch_size)):
+        stop = start + int(count)
+        lane_terms[lane] = gap_aware_spectrum_loss(
+            prediction[start:stop],
+            target[start:stop],
+            target_mean=context.means[lane],
+            target_std=context.stds[lane],
+            config=context.loss_config,
+            torch_module=context.torch,
+        )
+        start = stop
+    names = tuple(lane_terms["binary"].as_dict())
+    averaged = {
+        name: 0.5 * (
+            lane_terms["binary"].as_dict()[name] + lane_terms["graded"].as_dict()[name]
+        )
+        for name in names
+    }
+    return averaged["total"], {name: value for name, value in averaged.items() if name != "total"}
+
+
+def _gap_evaluation_kwargs(context: _DualLaneTrainingContext) -> dict[str, int | None]:
+    """Expose the configured gap range only for gap-aware runs."""
+
+    if context.loss_config is None:
+        return {}
+    return {
+        "gap_lower_band_min_one_based": context.loss_config.lower_band_min_one_based,
+        "gap_lower_band_max_one_based": context.loss_config.lower_band_max_one_based,
+    }
 
 
 
@@ -121,6 +174,7 @@ def _run_dual_lane_epochs(context: _DualLaneTrainingContext) -> dict[str, Any]:
         context.model.train()
         train_sum = 0.0
         train_count = 0
+        component_sums: dict[str, float] = {}
         for batch_index, ((xb, yb), (xg, yg)) in enumerate(
             zip(context.train_loaders["binary"], context.train_loaders["graded"], strict=True),
             start=1,
@@ -135,7 +189,12 @@ def _run_dual_lane_epochs(context: _DualLaneTrainingContext) -> dict[str, Any]:
             ).to(context.device, non_blocking=True)
             context.optimizer.zero_grad(set_to_none=True)
             prediction = context.model(inputs, k_points=context.k_points, lane_id=lane_id)
-            loss = context.torch.nn.functional.mse_loss(prediction, targets)
+            loss, loss_components = _dual_lane_training_loss(
+                context,
+                prediction,
+                targets,
+                binary_batch_size=int(xb.shape[0]),
+            )
             if not bool(context.torch.isfinite(loss).item()):
                 raise RuntimeError(f"non-finite dual-lane loss at epoch {epoch}, batch {batch_index}")
             loss.backward()
@@ -148,6 +207,10 @@ def _run_dual_lane_epochs(context: _DualLaneTrainingContext) -> dict[str, Any]:
             optimizer_steps += 1
             batch_count = int(inputs.shape[0])
             train_sum += float(loss.detach().cpu()) * batch_count
+            for name, value in loss_components.items():
+                component_sums[name] = component_sums.get(name, 0.0) + float(
+                    value.detach().cpu()
+                ) * batch_count
             train_count += batch_count
             samples_seen += batch_count
             if resolved["training"].get("max_train_batches") is not None:
@@ -163,6 +226,7 @@ def _run_dual_lane_epochs(context: _DualLaneTrainingContext) -> dict[str, Any]:
                 k_points=context.k_points,
                 lane_index=lane_index,
                 torch=context.torch,
+                **_gap_evaluation_kwargs(context),
             )
             for lane_index, lane in enumerate(LANES)
         }
@@ -182,6 +246,26 @@ def _run_dual_lane_epochs(context: _DualLaneTrainingContext) -> dict[str, Any]:
             "optimizer_steps": optimizer_steps,
             "samples_seen": samples_seen,
         }
+        if context.loss_config is not None:
+            row.update(
+                {
+                    f"train_{name}_loss": total / max(train_count, 1)
+                    for name, total in component_sums.items()
+                }
+            )
+            for metric in (
+                "band_accuracy",
+                "upper_edge_k_accuracy",
+                "joint_band_k_accuracy",
+                "selected_frequency_mre_pct",
+                "gap_width_mae",
+                "gap_center_mae",
+            ):
+                row[f"val_gap_{metric}"] = float(
+                    np.mean([evaluations[lane][metric] for lane in LANES])
+                )
+                for lane in LANES:
+                    row[f"{lane}_val_gap_{metric}"] = evaluations[lane][metric]
         history.append(row)
         if score < best_score:
             best_score = score
@@ -364,6 +448,7 @@ def _finalize_dual_lane_run(
             k_points=context.k_points,
             lane_index=lane_index,
             torch=context.torch,
+            **_gap_evaluation_kwargs(context),
         )
         for lane_index, lane in enumerate(LANES)
     }
@@ -398,7 +483,31 @@ def _finalize_dual_lane_run(
         "terminal_checkpoint_sha256": _sha256_checkpoint(terminal_checkpoint) if terminal_checkpoint else None,
         "history_epoch_count": len(outcome["history"]),
         "warm_start": warm_start_public,
+        "loss_contract": (
+            context.loss_config.as_dict()
+            if context.loss_config is not None
+            else {"name": "equal_lane_normalized_full_matrix_mse"}
+        ),
     }
+    if context.loss_config is not None:
+        metrics["gap_validation"] = {
+            lane: {
+                key: value
+                for key, value in evaluations[lane].items()
+                if key
+                not in {
+                    "mse",
+                    "normalized_mse",
+                    "mae",
+                    "rmse",
+                    "bands_2_10_mre_pct",
+                    "band1_mre_pct",
+                    "bands_1_10_mre_pct",
+                    "eval_time_s",
+                }
+            }
+            for lane in LANES
+        }
     _plot_history(context.out, outcome["history"], monitor_label="equal-lane validation")
     write_metrics(context.out, metrics)
     (context.out / "model_summary.json").write_text(
@@ -441,6 +550,7 @@ def _finalize_dual_lane_run(
             "convergence": convergence,
             "history_epoch_count": len(outcome["history"]),
             "warm_start": warm_start_public,
+            "loss_contract": metrics["loss_contract"],
             "best_epoch": int(checkpoint_payload["epoch"]),
             "stop_epoch": int(outcome["stop_epoch"]),
             "epoch_100_continue_gate": outcome["gate_record"],
@@ -449,7 +559,15 @@ def _finalize_dual_lane_run(
             "actual_stop_checkpoint_path": str(outcome["stop_snapshot"]) if outcome["stop_snapshot"] else None,
             "actual_stop_checkpoint_sha256": _sha256_checkpoint(outcome["stop_snapshot"]) if outcome["stop_snapshot"] else None,
             "selection_metric": "equal_lane_validation_bands_2_10_mre_pct",
-            "next_gate": "dual_lane_admission_decision" if context.admission_probe else "continuation_checkpoint_freeze" if context.warm_start is not None else "10k_head_selection",
+            "next_gate": (
+                "gap_aware_loss_formal_experiment_authorization"
+                if context.admission_probe and context.loss_config is not None
+                else "dual_lane_admission_decision"
+                if context.admission_probe
+                else "continuation_checkpoint_freeze"
+                if context.warm_start is not None
+                else "10k_head_selection"
+            ),
         },
     )
     write_run_meta(
@@ -599,6 +717,7 @@ def run_full_cell_dual_lane(
         for lane in LANES
     }
     k_points = torch.as_tensor(reference["k_points"], dtype=torch.float32, device=device)
+    loss_config = resolve_gap_aware_loss_config(resolved["training"].get("loss"))
 
     context = _DualLaneTrainingContext(
         resolved=resolved,
@@ -624,6 +743,7 @@ def run_full_cell_dual_lane(
         config_file=config_file,
         head_kind=head_kind,
         seed=int(seed),
+        loss_config=loss_config,
     )
     outcome = _run_dual_lane_epochs(context)
     return _finalize_dual_lane_run(context, outcome)

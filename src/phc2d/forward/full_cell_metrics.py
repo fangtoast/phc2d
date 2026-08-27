@@ -77,6 +77,102 @@ def select_largest_gap_edge(
     return max(candidates, key=lambda row: (row.gap, -row.lower_band_one_based))
 
 
+def compute_gap_decision_metrics(
+    prediction: np.ndarray,
+    target: np.ndarray,
+    *,
+    lower_band_min_one_based: int = 2,
+    lower_band_max_one_based: int | None = None,
+) -> dict[str, Any]:
+    """Compare predicted and target largest-gap decisions on one frozen split."""
+
+    predicted = np.asarray(prediction, dtype=np.float64)
+    truth = np.asarray(target, dtype=np.float64)
+    if predicted.shape != truth.shape or predicted.ndim != 3:
+        raise ValueError(
+            f"expected matching [sample, k, band] arrays, got {predicted.shape} and {truth.shape}"
+        )
+    if predicted.shape[0] < 1:
+        raise ValueError("gap decision metrics require at least one sample")
+    if not np.isfinite(predicted).all() or not np.isfinite(truth).all():
+        raise ValueError("gap decision inputs must be finite")
+    rows: list[dict[str, Any]] = []
+    for predicted_sample, target_sample in zip(predicted, truth, strict=True):
+        predicted_gap = select_largest_gap_edge(
+            predicted_sample,
+            lower_band_min_one_based=lower_band_min_one_based,
+            lower_band_max_one_based=lower_band_max_one_based,
+        )
+        target_gap = select_largest_gap_edge(
+            target_sample,
+            lower_band_min_one_based=lower_band_min_one_based,
+            lower_band_max_one_based=lower_band_max_one_based,
+        )
+        predicted_center = predicted_gap.frequency - 0.5 * predicted_gap.gap
+        target_center = target_gap.frequency - 0.5 * target_gap.gap
+        band_match = predicted_gap.lower_band_one_based == target_gap.lower_band_one_based
+        k_match = predicted_gap.k_index == target_gap.k_index
+        rows.append(
+            {
+                "target_status": target_gap.status,
+                "band_match": band_match,
+                "upper_k_match": k_match,
+                "joint_band_k_match": band_match and k_match,
+                "status_match": predicted_gap.status == target_gap.status,
+                "selected_frequency_relative_error": abs(
+                    predicted_gap.frequency - target_gap.frequency
+                )
+                / max(abs(target_gap.frequency), 1.0e-8),
+                "gap_width_absolute_error": abs(predicted_gap.gap - target_gap.gap),
+                "gap_center_absolute_error": abs(predicted_center - target_center),
+            }
+        )
+
+    def aggregate(selected_rows: list[dict[str, Any]], prefix: str) -> dict[str, Any]:
+        count = len(selected_rows)
+        if count == 0:
+            return {
+                f"{prefix}sample_count": 0,
+                f"{prefix}band_accuracy": None,
+                f"{prefix}upper_edge_k_accuracy": None,
+                f"{prefix}joint_band_k_accuracy": None,
+                f"{prefix}status_accuracy": None,
+                f"{prefix}selected_frequency_mre_pct": None,
+                f"{prefix}gap_width_mae": None,
+                f"{prefix}gap_center_mae": None,
+            }
+        return {
+            f"{prefix}sample_count": count,
+            f"{prefix}band_accuracy": float(np.mean([row["band_match"] for row in selected_rows])),
+            f"{prefix}upper_edge_k_accuracy": float(
+                np.mean([row["upper_k_match"] for row in selected_rows])
+            ),
+            f"{prefix}joint_band_k_accuracy": float(
+                np.mean([row["joint_band_k_match"] for row in selected_rows])
+            ),
+            f"{prefix}status_accuracy": float(
+                np.mean([row["status_match"] for row in selected_rows])
+            ),
+            f"{prefix}selected_frequency_mre_pct": 100.0
+            * float(np.mean([row["selected_frequency_relative_error"] for row in selected_rows])),
+            f"{prefix}gap_width_mae": float(
+                np.mean([row["gap_width_absolute_error"] for row in selected_rows])
+            ),
+            f"{prefix}gap_center_mae": float(
+                np.mean([row["gap_center_absolute_error"] for row in selected_rows])
+            ),
+        }
+
+    complete = [row for row in rows if row["target_status"] == "complete_gap"]
+    pseudo = [row for row in rows if row["target_status"] == "pseudo_gap"]
+    return {
+        **aggregate(rows, ""),
+        "target_complete_gap_rate": len(complete) / len(rows),
+        **aggregate(complete, "complete_gap_"),
+        **aggregate(pseudo, "pseudo_gap_"),
+    }
+
+
 def _validate_arrays(prediction: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     prediction = np.asarray(prediction, dtype=np.float64)
     target = np.asarray(target, dtype=np.float64)
@@ -228,6 +324,7 @@ __all__ = [
     "BAND_GROUPS",
     "GapEdgeSelection",
     "compute_band_metrics",
+    "compute_gap_decision_metrics",
     "paired_bootstrap_mre",
     "select_largest_gap_edge",
 ]

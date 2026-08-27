@@ -14,6 +14,7 @@ from phc2d.forward.full_cell import (
     _convergence_record,
     _read_contract,
 )
+from phc2d.forward.gap_aware_loss import resolve_gap_aware_loss_config
 from phc2d.models import get_model_spec
 
 
@@ -96,6 +97,7 @@ def validate_and_resolve_dual_lane(
         raise ValueError("dual-lane training requires FP32")
     if bool(runtime.get("amp_enabled")) or bool(runtime.get("tf32_enabled")):
         raise ValueError("dual-lane training forbids AMP and TF32")
+    resolve_gap_aware_loss_config(training.get("loss"))
     max_epochs = int(training.get("max_epochs", 100))
     evidence_status = str(experiment.get("evidence_status", ""))
     short_screen = evidence_status == "single_seed_short_budget_screen"
