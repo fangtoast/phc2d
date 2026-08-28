@@ -34,6 +34,7 @@ primary_layer: L3
 | [EXP-FWD-009/010/011：K5 权重热启动、joint 公平数据量与六域验证](EXP-FWD-009-K5权重热启动与六域验证.md) | 009 完成 510-cell；010/011 的 joint 各 4k 完成 200/300 轮与两组 6-cell 评估。300 轮 Graded/等权未收敛，六域相对 200 轮五升一降，只在 K5 Binary 击败最佳单路线，Draft |
 | [EXP-FWD-012：工作频率先验覆盖审计](EXP-FWD-012-工作频率先验覆盖审计.md) | 公平 4k+4k train 与 validation 的无训练审计；X/M Bragg 先验最大 gap-center 命中均为 0，停止 loss-only 训练路线，Draft |
 | [EXP-FWD-014：gap 决策损失短预算筛选](EXP-FWD-014-gap决策损失短预算筛选.md) | N40 seed0 配对训练；k 点与多数 gap 指标改善，但全谱 MRE 安全门失败，停止自动三 seed 扩展，Draft |
+| [EXP-FWD-015：gap 决策近简并审计](EXP-FWD-015-gap决策近简并审计.md) | 近简并只带来最多 3.0 个百分点容差收益；低命中主要是模型排序与 complete-gap 召回问题，Draft |
 | [超参数灵敏度分析（历史单 seed）](灵敏度分析.md) | 局部搜索的解释性记录；残差 MLP 加深是待多 seed 确认的假设，不作正式排名或 promotion |
 
 [返回研究结果与报告](../README.md)

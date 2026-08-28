@@ -103,6 +103,8 @@ def test_formal_results_navigation_is_an_explicit_whitelist() -> None:
         "results/forward/EXP-FWD-008-K5固定200轮训练与六域验证.md",
         "results/forward/EXP-FWD-009-K5权重热启动与六域验证.md",
         "results/forward/EXP-FWD-012-工作频率先验覆盖审计.md",
+        "results/forward/EXP-FWD-014-gap决策损失短预算筛选.md",
+        "results/forward/EXP-FWD-015-gap决策近简并审计.md",
         "results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md",
         "results/field-physics/代理选频与真实响应差异_20260825.md",
         "reports/全胞双路线正向与逆向模型报告_20260810.md",

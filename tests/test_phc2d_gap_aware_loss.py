@@ -14,10 +14,15 @@ import pytest
 from phc2d.forward.gap_aware_loss import (
     BASE_LOSS_NAME,
     GAP_AWARE_LOSS_NAME,
+    RANKED_GAP_LOSS_NAME,
     gap_aware_spectrum_loss,
     resolve_gap_aware_loss_config,
 )
-from phc2d.forward.full_cell_metrics import compute_gap_decision_metrics
+from phc2d.forward.full_cell_metrics import (
+    compute_gap_decision_metrics,
+    compute_gap_margin_audit_metrics,
+    derive_gap_decision_tolerances,
+)
 
 
 def _config(**overrides: float | int) -> object:
@@ -36,6 +41,19 @@ def _config(**overrides: float | int) -> object:
     return resolve_gap_aware_loss_config(raw)
 
 
+def _ranked_config(**overrides: float | int) -> object:
+    raw = {
+        **_config().as_dict(),
+        "name": RANKED_GAP_LOSS_NAME,
+        "candidate_ranking_weight": 0.25,
+        "complete_gap_recall_weight": 0.25,
+        **overrides,
+    }
+    raw.pop("frequency_scale")
+    raw.pop("selection_source")
+    return resolve_gap_aware_loss_config(raw)
+
+
 def test_gap_aware_config_preserves_legacy_and_rejects_unsafe_contracts() -> None:
     assert resolve_gap_aware_loss_config(BASE_LOSS_NAME) is None
     with pytest.raises(ValueError, match="positive full-spectrum"):
@@ -50,6 +68,8 @@ def test_gap_aware_config_preserves_legacy_and_rejects_unsafe_contracts() -> Non
         )
     with pytest.raises(ValueError, match="unknown gap-aware"):
         resolve_gap_aware_loss_config({"name": GAP_AWARE_LOSS_NAME, "test_center": 0.5})
+    with pytest.raises(ValueError, match="positive candidate-ranking"):
+        _ranked_config(candidate_ranking_weight=0.0)
 
 
 def test_gap_aware_loss_is_zero_for_exact_spectrum() -> None:
@@ -122,6 +142,31 @@ def test_selected_upper_profile_penalizes_wrong_work_frequency_k_point() -> None
     assert float(terms.selected_upper_profile) > 0.0
 
 
+def test_ranked_gap_loss_penalizes_wrong_candidate_order_and_complete_gap_shortfall() -> None:
+    if importlib.util.find_spec("torch") is None:
+        pytest.skip("torch is optional")
+    import torch
+
+    target = torch.tensor(
+        [[[0.10, 0.20, 0.50], [0.11, 0.21, 0.51], [0.12, 0.22, 0.52]]]
+    )
+    prediction = target.clone()
+    prediction[:, :, 1] += 0.20
+    prediction.requires_grad_(True)
+    terms = gap_aware_spectrum_loss(
+        prediction,
+        target,
+        target_mean=torch.zeros((3, 3)),
+        target_std=torch.ones((3, 3)),
+        config=_ranked_config(lower_band_max_one_based=2),
+        torch_module=torch,
+    )
+    assert float(terms.candidate_ranking.detach()) > 0.0
+    assert float(terms.complete_gap_recall.detach()) > 0.0
+    terms.total.backward()
+    assert bool(torch.isfinite(prediction.grad).all())
+
+
 def test_gap_aware_loss_uses_metadata_driven_band_count() -> None:
     if importlib.util.find_spec("torch") is None:
         pytest.skip("torch is optional")
@@ -162,3 +207,31 @@ def test_gap_decision_metrics_separate_complete_and_pseudo_targets() -> None:
     assert metrics["selected_frequency_mre_pct"] == pytest.approx(0.0)
     assert metrics["complete_gap_sample_count"] == 1
     assert metrics["pseudo_gap_sample_count"] == 1
+
+
+def test_gap_margin_audit_uses_train_only_tolerances_and_keeps_non_tie_gate() -> None:
+    import numpy as np
+
+    train = np.asarray(
+        [
+            [[0.10, 0.20, 0.50, 0.80], [0.11, 0.21, 0.51, 0.81]],
+            [[0.10, 0.25, 0.45, 0.75], [0.11, 0.26, 0.46, 0.76]],
+        ]
+    )
+    tolerances = derive_gap_decision_tolerances(
+        train,
+        quantile=0.5,
+        lower_band_min_one_based=1,
+        lower_band_max_one_based=3,
+    )
+    metrics = compute_gap_margin_audit_metrics(
+        train.copy(),
+        train,
+        gap_margin_tolerance=tolerances["gap_margin_tolerance"],
+        upper_k_margin_tolerance=tolerances["upper_k_margin_tolerance"],
+        lower_band_min_one_based=1,
+        lower_band_max_one_based=3,
+    )
+    assert metrics["exact_joint_accuracy"] == pytest.approx(1.0)
+    assert metrics["tolerant_joint_accuracy"] == pytest.approx(1.0)
+    assert metrics["complete_gap_recall"] == pytest.approx(1.0)

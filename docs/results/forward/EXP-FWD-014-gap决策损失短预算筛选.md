@@ -2,13 +2,20 @@
 title: "EXP-FWD-014：gap 决策损失短预算筛选"
 summary: "N40 seed0 配对训练表明新损失显著改善对应 k 点与多数 gap 指标，但全谱误差超出安全门，停止自动扩展。"
 page_type: evidence
-evidence_level: surrogate_train_validation
+evidence_level: surrogate_held_out
 status: draft
 audience: "正向代理研究者、实验执行者与结果审阅者"
 owner: "研究生维护，导师审阅后决定是否重构损失"
 last_reviewed: 2026-08-28
+reading_time: 4 minutes
 evidence_date: 2026-08-28
 primary_layer: L3
+evidence_scope: "EXP-FWD-014 K5 Binary/Graded fair 4k+4k seed0 20-epoch paired training and 1k+1k validation-only gap screen; no test, MPB, or Meep"
+dataset_scope: "K5 Binary/Graded Wh[10000,81,10] frozen train and validation subsets"
+evidence_status: completed
+validation_backend: surrogate_only
+source_artifacts:
+  - runs/20260828/EXP-FWD-014_gap_screen_20260828101706
 ---
 
 <!--

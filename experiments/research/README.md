@@ -26,6 +26,8 @@
 - [`full_cell_k20_forward_seed0.md`](full_cell_k20_forward_seed0.md)：K=20 B/G 单 seed 正向训练、34-cell native/cross-lane 评估与 N40 分波提交合同。
 - [`EXP-FWD-007-K5训练与六域验证.md`](EXP-FWD-007-K5训练与六域验证.md)：K5 全模型训练、K5/K20/F50 六域 510-cell 评估与 N40 授权门。
 - [`EXP-FWD-014-gap决策损失短预算筛选.md`](EXP-FWD-014-gap决策损失短预算筛选.md)：公平 K5 4k+4k 的 baseline/gap-aware seed0、20 epoch N40 配对筛选；只读 validation，不访问 test。
+- [`EXP-FWD-015-gap决策近简并审计.md`](EXP-FWD-015-gap决策近简并审计.md)：复用 EXP-FWD-014 冻结检查点，区分近简并评价效应与模型决策能力。
+- [`EXP-FWD-016-gap排序与完整带隙短预算筛选.md`](EXP-FWD-016-gap排序与完整带隙短预算筛选.md)：一个待授权的 N40 ranked-v2 seed0 短筛任务；通过前不进入多 seed 或 test。
 - [`full_cell_forward_upgrade_10k.md`](full_cell_forward_upgrade_10k.md)：五个 Full-Wh 升级模型在 N40 的 admission 与 10k 七波训练合同。
 - [`field_eigen_te.md`](field_eigen_te.md)：TE Bloch eigenfield、Field FNO 与 adapted PINO。
 - [`near_field_surrogate.md`](near_field_surrogate.md)：near-field、NeurOLight 与 Maxwell residual 可行性边界。

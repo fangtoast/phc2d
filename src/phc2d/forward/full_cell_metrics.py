@@ -32,6 +32,180 @@ class GapEdgeSelection:
     frequency: float
 
 
+@dataclass(frozen=True)
+class GapCandidateFeatures:
+    """Vectorized adjacent-band gap candidates for a batch of full spectra."""
+
+    gaps: np.ndarray
+    upper_profiles: np.ndarray
+    upper_k_indices: np.ndarray
+    selected_candidate_indices: np.ndarray
+    selected_gap_margins: np.ndarray
+    selected_upper_k_margins: np.ndarray
+
+
+def compute_gap_candidate_features(
+    values: np.ndarray,
+    *,
+    lower_band_min_one_based: int = 2,
+    lower_band_max_one_based: int | None = None,
+) -> GapCandidateFeatures:
+    """Return candidate gaps and top-two decision margins for ``[N,K,B]`` data."""
+
+    spectra = np.asarray(values, dtype=np.float64)
+    if spectra.ndim != 3 or spectra.shape[0] < 1 or spectra.shape[1] < 1:
+        raise ValueError(f"values must have shape [N,K,B], got {spectra.shape}")
+    if not np.isfinite(spectra).all():
+        raise ValueError("gap candidate values must be finite")
+    lower_min = int(lower_band_min_one_based)
+    lower_limit = spectra.shape[2] - 1
+    lower_max = lower_limit if lower_band_max_one_based is None else int(
+        lower_band_max_one_based
+    )
+    if lower_min < 1 or lower_max <= lower_min or lower_max > lower_limit:
+        raise ValueError(
+            "gap margin audit requires at least two adjacent-band candidates; "
+            f"got {lower_min}..{lower_max} for {spectra.shape[2]} bands"
+        )
+    lower_slice = slice(lower_min - 1, lower_max)
+    upper_slice = slice(lower_min, lower_max + 1)
+    lower_edges = spectra[:, :, lower_slice].max(axis=1)
+    upper_profiles = spectra[:, :, upper_slice]
+    upper_edges = upper_profiles.min(axis=1)
+    gaps = upper_edges - lower_edges
+    order = np.argsort(-gaps, axis=1, kind="stable")
+    selected = order[:, 0]
+    rows = np.arange(spectra.shape[0])
+    gap_margins = gaps[rows, selected] - gaps[rows, order[:, 1]]
+    upper_k_indices = upper_profiles.argmin(axis=1)
+    selected_profiles = upper_profiles[rows, :, selected]
+    sorted_selected_profiles = np.sort(selected_profiles, axis=1)
+    upper_k_margins = sorted_selected_profiles[:, 1] - sorted_selected_profiles[:, 0]
+    return GapCandidateFeatures(
+        gaps=gaps,
+        upper_profiles=upper_profiles,
+        upper_k_indices=upper_k_indices,
+        selected_candidate_indices=selected,
+        selected_gap_margins=gap_margins,
+        selected_upper_k_margins=upper_k_margins,
+    )
+
+
+def derive_gap_decision_tolerances(
+    train_target: np.ndarray,
+    *,
+    quantile: float = 0.10,
+    lower_band_min_one_based: int = 2,
+    lower_band_max_one_based: int | None = None,
+) -> dict[str, float]:
+    """Freeze near-degeneracy tolerances from train targets only."""
+
+    if not 0.0 < float(quantile) < 1.0:
+        raise ValueError("gap decision tolerance quantile must be between zero and one")
+    features = compute_gap_candidate_features(
+        train_target,
+        lower_band_min_one_based=lower_band_min_one_based,
+        lower_band_max_one_based=lower_band_max_one_based,
+    )
+
+    def positive_quantile(values: np.ndarray, name: str) -> float:
+        positive = values[values > 0.0]
+        if not len(positive):
+            raise ValueError(f"cannot derive {name}: train targets have no positive margins")
+        return float(np.quantile(positive, quantile))
+
+    return {
+        "quantile": float(quantile),
+        "gap_margin_tolerance": positive_quantile(
+            features.selected_gap_margins, "gap tolerance"
+        ),
+        "upper_k_margin_tolerance": positive_quantile(
+            features.selected_upper_k_margins, "upper-k tolerance"
+        ),
+    }
+
+
+def compute_gap_margin_audit_metrics(
+    prediction: np.ndarray,
+    target: np.ndarray,
+    *,
+    gap_margin_tolerance: float,
+    upper_k_margin_tolerance: float,
+    lower_band_min_one_based: int = 2,
+    lower_band_max_one_based: int | None = None,
+) -> dict[str, Any]:
+    """Audit exact and tolerance-aware gap decisions without hiding non-tie errors."""
+
+    predicted = compute_gap_candidate_features(
+        prediction,
+        lower_band_min_one_based=lower_band_min_one_based,
+        lower_band_max_one_based=lower_band_max_one_based,
+    )
+    truth = compute_gap_candidate_features(
+        target,
+        lower_band_min_one_based=lower_band_min_one_based,
+        lower_band_max_one_based=lower_band_max_one_based,
+    )
+    if predicted.gaps.shape != truth.gaps.shape:
+        raise ValueError("prediction and target gap candidate shapes do not match")
+    rows = np.arange(predicted.gaps.shape[0])
+    predicted_band = predicted.selected_candidate_indices
+    target_band = truth.selected_candidate_indices
+    predicted_k = predicted.upper_k_indices[rows, predicted_band]
+    target_k = truth.upper_k_indices[rows, target_band]
+    exact_band = predicted_band == target_band
+    exact_k = predicted_k == target_k
+    tolerant_band = (
+        truth.gaps[rows, predicted_band]
+        >= truth.gaps[rows, target_band] - float(gap_margin_tolerance)
+    )
+    predicted_band_target_profiles = truth.upper_profiles[rows, :, predicted_band]
+    predicted_band_minimum = predicted_band_target_profiles.min(axis=1)
+    tolerant_k = (
+        predicted_band_target_profiles[rows, predicted_k]
+        <= predicted_band_minimum + float(upper_k_margin_tolerance)
+    )
+    non_tie = (
+        (truth.selected_gap_margins > float(gap_margin_tolerance))
+        & (truth.selected_upper_k_margins > float(upper_k_margin_tolerance))
+    )
+    target_complete = truth.gaps[rows, target_band] > 0.0
+    predicted_complete = predicted.gaps[rows, predicted_band] > 0.0
+
+    def rate(values: np.ndarray, mask: np.ndarray | None = None) -> float | None:
+        selected_values = values if mask is None else values[mask]
+        return float(np.mean(selected_values)) if len(selected_values) else None
+
+    return {
+        "sample_count": int(len(rows)),
+        "near_gap_tie_rate": rate(
+            truth.selected_gap_margins <= float(gap_margin_tolerance)
+        ),
+        "near_upper_k_tie_rate": rate(
+            truth.selected_upper_k_margins <= float(upper_k_margin_tolerance)
+        ),
+        "exact_band_accuracy": rate(exact_band),
+        "exact_upper_k_accuracy": rate(exact_k),
+        "exact_joint_accuracy": rate(exact_band & exact_k),
+        "tolerant_band_accuracy": rate(tolerant_band),
+        "tolerant_upper_k_accuracy": rate(tolerant_k),
+        "tolerant_joint_accuracy": rate(tolerant_band & tolerant_k),
+        "non_tie_sample_count": int(np.sum(non_tie)),
+        "non_tie_exact_joint_accuracy": rate(exact_band & exact_k, non_tie),
+        "target_complete_gap_rate": rate(target_complete),
+        "predicted_complete_gap_rate": rate(predicted_complete),
+        "complete_gap_recall": rate(predicted_complete, target_complete),
+        "gap_margin_quantiles": {
+            str(value): float(np.quantile(truth.selected_gap_margins, value))
+            for value in (0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0)
+        },
+        "upper_k_margin_quantiles": {
+            str(value): float(np.quantile(truth.selected_upper_k_margins, value))
+            for value in (0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0)
+        },
+    }
+
+
 def select_largest_gap_edge(
     Wh: np.ndarray,
     *,
@@ -322,9 +496,13 @@ def paired_bootstrap_mre(
 
 __all__ = [
     "BAND_GROUPS",
+    "GapCandidateFeatures",
     "GapEdgeSelection",
     "compute_band_metrics",
+    "compute_gap_candidate_features",
     "compute_gap_decision_metrics",
+    "compute_gap_margin_audit_metrics",
+    "derive_gap_decision_tolerances",
     "paired_bootstrap_mre",
     "select_largest_gap_edge",
 ]

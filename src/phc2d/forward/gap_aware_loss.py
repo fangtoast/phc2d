@@ -13,12 +13,14 @@ from typing import Any, Mapping
 
 BASE_LOSS_NAME = "equal_lane_normalized_full_matrix_mse"
 GAP_AWARE_LOSS_NAME = "equal_lane_gap_aware_v1"
+RANKED_GAP_LOSS_NAME = "equal_lane_gap_ranked_v2"
 
 
 @dataclass(frozen=True)
 class GapAwareLossConfig:
     """Validated weights and band range for one gap-aware loss contract."""
 
+    name: str
     lower_band_min_one_based: int
     lower_band_max_one_based: int | None
     full_spectrum_weight: float
@@ -27,12 +29,14 @@ class GapAwareLossConfig:
     selected_width_weight: float
     selected_center_weight: float
     selected_upper_profile_weight: float
+    candidate_ranking_weight: float
+    complete_gap_recall_weight: float
 
     def as_dict(self) -> dict[str, Any]:
         """Return a serializable contract for run evidence."""
 
         return {
-            "name": GAP_AWARE_LOSS_NAME,
+            "name": self.name,
             "lower_band_min_one_based": self.lower_band_min_one_based,
             "lower_band_max_one_based": self.lower_band_max_one_based,
             "full_spectrum_weight": self.full_spectrum_weight,
@@ -41,6 +45,8 @@ class GapAwareLossConfig:
             "selected_width_weight": self.selected_width_weight,
             "selected_center_weight": self.selected_center_weight,
             "selected_upper_profile_weight": self.selected_upper_profile_weight,
+            "candidate_ranking_weight": self.candidate_ranking_weight,
+            "complete_gap_recall_weight": self.complete_gap_recall_weight,
             "frequency_scale": "train_normalizer_mean_std",
             "selection_source": "train_target_largest_gap_complete_or_pseudo",
         }
@@ -57,6 +63,8 @@ class GapAwareLossTerms:
     selected_width: Any
     selected_center: Any
     selected_upper_profile: Any
+    candidate_ranking: Any
+    complete_gap_recall: Any
 
     def as_dict(self) -> dict[str, Any]:
         """Expose stable component names for training history."""
@@ -69,6 +77,8 @@ class GapAwareLossTerms:
             "selected_width": self.selected_width,
             "selected_center": self.selected_center,
             "selected_upper_profile": self.selected_upper_profile,
+            "candidate_ranking": self.candidate_ranking,
+            "complete_gap_recall": self.complete_gap_recall,
         }
 
 
@@ -89,7 +99,7 @@ def resolve_gap_aware_loss_config(raw: Any) -> GapAwareLossConfig | None:
         if extra:
             raise ValueError(f"base dual-lane loss does not accept parameters: {sorted(extra)}")
         return None
-    if name != GAP_AWARE_LOSS_NAME:
+    if name not in {GAP_AWARE_LOSS_NAME, RANKED_GAP_LOSS_NAME}:
         raise ValueError(f"unsupported dual-lane loss {name!r}")
     allowed = {
         "name",
@@ -102,6 +112,8 @@ def resolve_gap_aware_loss_config(raw: Any) -> GapAwareLossConfig | None:
         "selected_center_weight",
         "selected_upper_profile_weight",
     }
+    if name == RANKED_GAP_LOSS_NAME:
+        allowed |= {"candidate_ranking_weight", "complete_gap_recall_weight"}
     unknown = set(raw) - allowed
     if unknown:
         raise ValueError(f"unknown gap-aware loss fields: {sorted(unknown)}")
@@ -119,6 +131,10 @@ def resolve_gap_aware_loss_config(raw: Any) -> GapAwareLossConfig | None:
         "selected_upper_profile_weight": float(
             raw.get("selected_upper_profile_weight", 0.0)
         ),
+        "candidate_ranking_weight": float(raw.get("candidate_ranking_weight", 0.0)),
+        "complete_gap_recall_weight": float(
+            raw.get("complete_gap_recall_weight", 0.0)
+        ),
     }
     if any(value < 0.0 for value in weights.values()):
         raise ValueError("gap-aware loss weights must be non-negative")
@@ -126,7 +142,15 @@ def resolve_gap_aware_loss_config(raw: Any) -> GapAwareLossConfig | None:
         raise ValueError("gap-aware loss must retain positive full-spectrum supervision")
     if not any(value > 0.0 for key, value in weights.items() if key != "full_spectrum_weight"):
         raise ValueError("gap-aware loss requires at least one positive auxiliary weight")
+    if name == RANKED_GAP_LOSS_NAME and (
+        weights["candidate_ranking_weight"] <= 0.0
+        or weights["complete_gap_recall_weight"] <= 0.0
+    ):
+        raise ValueError(
+            "ranked gap loss requires positive candidate-ranking and complete-gap-recall weights"
+        )
     return GapAwareLossConfig(
+        name=name,
         lower_band_min_one_based=lower_min,
         lower_band_max_one_based=lower_max,
         **weights,
@@ -246,6 +270,25 @@ def gap_aware_spectrum_loss(
     selected_upper_profile = torch_module.mean(
         ((pred_relative_profile - true_relative_profile) / scale) ** 2
     )
+    true_selected_gaps = selected_value(true_gaps).unsqueeze(1)
+    pred_selected_gaps = selected_value(pred_gaps).unsqueeze(1)
+    true_ranking_margins = true_selected_gaps - true_gaps
+    pred_ranking_margins = pred_selected_gaps - pred_gaps
+    candidate_ranking = torch_module.mean(
+        (
+            torch_module.nn.functional.relu(
+                (true_ranking_margins - pred_ranking_margins) / scale
+            )
+        )
+        ** 2
+    )
+    complete_mask = true_selected_width > 0.0
+    complete_shortfall = torch_module.nn.functional.relu(
+        (true_selected_width - pred_selected_width) / scale
+    ) ** 2
+    complete_gap_recall = torch_module.sum(
+        complete_shortfall * complete_mask.to(dtype=prediction.dtype)
+    ) / complete_mask.sum().clamp_min(1)
     total = (
         config.full_spectrum_weight * full_spectrum
         + config.gap_profile_weight * gap_profile
@@ -253,6 +296,8 @@ def gap_aware_spectrum_loss(
         + config.selected_width_weight * selected_width
         + config.selected_center_weight * selected_center
         + config.selected_upper_profile_weight * selected_upper_profile
+        + config.candidate_ranking_weight * candidate_ranking
+        + config.complete_gap_recall_weight * complete_gap_recall
     )
     return GapAwareLossTerms(
         total=total,
@@ -262,12 +307,15 @@ def gap_aware_spectrum_loss(
         selected_width=selected_width,
         selected_center=selected_center,
         selected_upper_profile=selected_upper_profile,
+        candidate_ranking=candidate_ranking,
+        complete_gap_recall=complete_gap_recall,
     )
 
 
 __all__ = [
     "BASE_LOSS_NAME",
     "GAP_AWARE_LOSS_NAME",
+    "RANKED_GAP_LOSS_NAME",
     "GapAwareLossConfig",
     "GapAwareLossTerms",
     "gap_aware_spectrum_loss",
