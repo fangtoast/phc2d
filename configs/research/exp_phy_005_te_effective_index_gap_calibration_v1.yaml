@@ -63,11 +63,12 @@ gates:
   bootstrap_seed: 20260828
 
 execution:
-  mode: real_mpb
+  mode: preflight
   required_platform: WSL Ubuntu
   required_conda_environment: meep_env
-  formal_solver_authorized: true
+  formal_solver_authorized: false
   authorization_basis: user_requested_formal_solution_2026_08_28
+  authorization_consumed_by_run: runs/20260828/EXP-PHY-005_202608281751
 
 output:
   runs_dir: runs

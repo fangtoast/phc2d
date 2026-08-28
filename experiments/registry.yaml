@@ -907,7 +907,7 @@ experiments:
   - id: EXP-PHY-005
     title: K5 TE 有效折射率与折叠频率校准
     task: physical_validation
-    status: active
+    status: completed
     mapping_status: complete
     research_question: 偏振相关 TE 有效折射率能否通过 near-Gamma real-MPB 斜率校准，并使预注册折叠频率稳定对应 Bands 1-10 中的真实相邻 gap？
     spec:
@@ -919,15 +919,17 @@ experiments:
       local:
         - runs/20260828/EXP-PHY-005_202608281714
         - runs/20260828/EXP-PHY-005_202608281716
+        - runs/20260828/EXP-PHY-005_202608281751
       referenced_not_local: []
-    result: []
+    result:
+      - docs/results/field-physics/EXP-PHY-005-TE有效折射率与折叠频率校准.md
     report: []
     related_experiments:
       - EXP-DAT-005
       - EXP-FWD-012
     decision:
-      state: pending
-      summary: 192 样本无求解 preflight 与 WSL 2+2 real-MPB 工程 smoke 已通过；用户已授权 192 结构正式 real-MPB，终态形成前 EXP-FWD-017 保持锁定。
+      state: stop
+      summary: 192 结构正式 real-MPB 终态为 scalar_anisotropy_fail，且 TE 调和候选在两条 lane 均显著劣于旧公式；EXP-FWD-017 不解锁。
     tags: [physical-validation, effective-index, near-gamma, bandgap, te, full-cell]
 
 deferred_history:

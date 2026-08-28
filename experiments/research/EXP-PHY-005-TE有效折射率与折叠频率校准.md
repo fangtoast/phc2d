@@ -7,13 +7,13 @@
 
 # EXP-PHY-005：TE 有效折射率与折叠频率校准
 
-结论先行：本实验目前处于 `active / formal-run-authorized`。接口、preflight 与 2+2 smoke 已通过，用户于 2026-08-28 授权 192 个结构的正式 real-MPB 求解；在正式 run 形成终态前，仍不能判断 TE 调和候选是否成立，也不能解锁 EXP-FWD-017。
+结论先行：本实验已完成，正式终态为 `scalar_anisotropy_fail`，且 `estimator_pass=false`。单一标量 TE 调和候选不能作为 resonance-prior loss 中心，EXP-FWD-017 不解锁。结果见[正式结果页](../../docs/results/field-physics/EXP-PHY-005-TE有效折射率与折叠频率校准.md)。
 
 | 元数据 | 冻结值 |
 |---|---|
 | 范围 | 当前 K5 TE 全胞 Binary / Graded 数据 |
 | Owner | 研究生执行，导师接受物理结论 |
-| 状态 | `active` |
+| 状态 | `completed` |
 | 生效日期 | 2026-08-28 |
 | 主层级 | L3 实验/证据；本轮实现为 L4 支撑 |
 | 关联计划 | [工作频率加权与自适应联合算子计划](../../docs/planning/工作频率加权与自适应联合算子计划.md) |
@@ -44,7 +44,7 @@ n_{\mathrm{eff}}=\frac{1}{\sqrt{\langle1/\epsilon\rangle}}
 
 ## 配置、命令与制品
 
-正式配置为 [`exp_phy_005_te_effective_index_gap_calibration_v1.yaml`](../../configs/research/exp_phy_005_te_effective_index_gap_calibration_v1.yaml)，当前冻结为 `real_mpb` 且 `formal_solver_authorized=true`。工程 smoke 配置为 [`exp_phy_005_te_effective_index_smoke_v1.yaml`](../../configs/smoke/exp_phy_005_te_effective_index_smoke_v1.yaml)。
+正式配置为 [`exp_phy_005_te_effective_index_gap_calibration_v1.yaml`](../../configs/research/exp_phy_005_te_effective_index_gap_calibration_v1.yaml)。一次性正式授权已由 `EXP-PHY-005_202608281751` 消耗，规范配置恢复为 `preflight` 且 `formal_solver_authorized=false`；该 run 内的 `config.resolved.yaml` 保留实际正式输入。工程 smoke 配置为 [`exp_phy_005_te_effective_index_smoke_v1.yaml`](../../configs/smoke/exp_phy_005_te_effective_index_smoke_v1.yaml)。
 
 ```bash
 PYTHONPATH=src python -m phc2d.cli replay effective-index \
@@ -62,4 +62,4 @@ PYTHONPATH=src python -m phc2d.cli replay effective-index \
 
 ## 当前证据边界
 
-代码、配置、测试、preflight 与 2+2 real-MPB smoke 都属于工程证据。它们不构成 192 结构的物理统计结论，也不证明某个候选频率能找到工作 gap。
+192 结构正式 real-MPB 已完成；结果证明当前标量合同未通过，但不否定所有方向相关均匀化或能带折叠理论，也不产生 surrogate 训练结论。
