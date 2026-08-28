@@ -23,6 +23,8 @@
 
 > 2026-08-28 EXP-FWD-015 状态：对 EXP-FWD-014 两个冻结检查点完成 K5 validation-only 近简并审计。train-only 容差最多只提高 joint accuracy `3.0` 个百分点，排除近简并后 v1 仍只有 Binary/Graded `27.7%/24.8%`；结论为模型决策受限，而非指标近简并主导。`equal_lane_gap_ranked_v2` 已实现并通过 WSL CPU admission smoke，但 EXP-FWD-016 的一个 N40 短筛任务尚未授权或提交。详见[EXP-FWD-015 结果](docs/results/forward/EXP-FWD-015-gap决策近简并审计.md)。
 
+> 2026-08-28 EXP-PHY-005 状态：TE 有效折射率、折叠频率、全相邻 gap 枚举和 near-Γ slope 审计已登记并通过 192 样本无求解 preflight；WSL `meep_env` 的 2+2 real-MPB 工程 smoke 通过，三个均匀介质 sentinel 通过。该 smoke 不构成有效介质或 gap 对齐结论；192 结构正式求解尚未授权，EXP-FWD-017 保持锁定。详见[实验合同](experiments/research/EXP-PHY-005-TE有效折射率与折叠频率校准.md)。
+
 # PROJECT MAP
 
 | Metadata | Value |
@@ -30,7 +32,7 @@
 | Status | Current state snapshot |
 | Audience | 导师、研究生与项目负责人 |
 | Owner | 研究生维护，导师审阅科学主张 |
-| Last reviewed | 2026-08-27 |
+| Last reviewed | 2026-08-28 |
 | Reading time | 8 minutes |
 
 [项目封面](README.md) · [书籍式文档目录](docs/README.md) · [当前实验进展](docs/results/README.md) · [协作治理](docs/collaboration.md)

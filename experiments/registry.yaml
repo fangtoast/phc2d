@@ -904,6 +904,32 @@ experiments:
       summary: 物理 sensitivity 已完成；建议把最大带隙选择一致率与 real-solver 选频响应差异设为 forward 进入 inverse 前的独立 gate，待负责人接受。
     tags: [physical-validation, surrogate, bandgap-selection, meep, near-field, far-field, full-cell]
 
+  - id: EXP-PHY-005
+    title: K5 TE 有效折射率与折叠频率校准
+    task: physical_validation
+    status: active
+    mapping_status: complete
+    research_question: 偏振相关 TE 有效折射率能否通过 near-Gamma real-MPB 斜率校准，并使预注册折叠频率稳定对应 Bands 1-10 中的真实相邻 gap？
+    spec:
+      - experiments/research/EXP-PHY-005-TE有效折射率与折叠频率校准.md
+    config:
+      - configs/research/exp_phy_005_te_effective_index_gap_calibration_v1.yaml
+      - configs/smoke/exp_phy_005_te_effective_index_smoke_v1.yaml
+    runs:
+      local:
+        - runs/20260828/EXP-PHY-005_202608281714
+        - runs/20260828/EXP-PHY-005_202608281716
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments:
+      - EXP-DAT-005
+      - EXP-FWD-012
+    decision:
+      state: pending
+      summary: 192 样本无求解 preflight 与 WSL 2+2 real-MPB 工程 smoke 已通过；它们不是正式物理统计，192 结构 real-MPB 尚未授权，EXP-FWD-017 保持锁定。
+    tags: [physical-validation, effective-index, near-gamma, bandgap, te, full-cell]
+
 deferred_history:
   - scope: 2026-05 至 2026-06 初期的 legacy reproduction、FEM/MPB 与 smoke runs
     reason: 历史价值存在，但不属于当前活跃或论文核心实验，暂不批量登记。

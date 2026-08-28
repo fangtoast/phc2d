@@ -23,6 +23,19 @@ def configure(sub: Any) -> None:
     )
     replay_mpb.add_argument("--config", type=Path, default=None)
     replay_mpb.set_defaults(command="replay mpb")
+    effective_index = replay_sub.add_parser(
+        "effective-index",
+        help="Audit TE effective index and folded-frequency gap alignment.",
+        description="Run the registered EXP-PHY-005 preflight or physical audit.",
+    )
+    effective_index.add_argument("--config", type=Path, required=True)
+    effective_index.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Validate identities and sampling without importing or running MPB.",
+    )
+    effective_index.add_argument("--run-dir", type=Path, default=None)
+    effective_index.set_defaults(command="replay effective-index")
 
 
 def run(ns: Any) -> bool:
@@ -34,5 +47,16 @@ def run(ns: Any) -> bool:
         if ns.config is None:
             raise SystemExit("`phc2d replay mpb` requires --config <yaml-path>.")
         print(run_replay_mpb(ns.config))
+        return True
+    if ns.command == "replay effective-index":
+        from phc2d.replay.effective_index import run_effective_index_audit
+
+        print(
+            run_effective_index_audit(
+                ns.config,
+                run_dir=ns.run_dir,
+                preflight=bool(ns.preflight),
+            )
+        )
         return True
     return False

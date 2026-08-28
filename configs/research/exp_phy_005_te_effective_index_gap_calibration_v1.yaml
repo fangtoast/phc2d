@@ -1,0 +1,72 @@
+# Frozen preflight contract for TE effective-index and folded-gap calibration.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: EXP-PHY-005
+  family: research
+  stage: effective_index_gap_calibration
+  primary_layer: L3
+
+datasets:
+  binary:
+    path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5
+    expected_dataset_sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6
+    raster_field: material_binary_grid_256
+    content_hash_field: content_hash_r256
+  graded:
+    path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5
+    expected_dataset_sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20
+    raster_field: material_weight_grid_256
+    content_hash_field: content_hash_r256
+
+sampling:
+  slope_train_per_lane: 64
+  slope_validation_per_lane: 32
+  stratification: family_id_x_material_kind
+  order_key: geometry_hash
+
+mpb:
+  polarization: TE
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 64
+  mesh_size: 3
+  eigensolver_tolerance: 1.0e-7
+  num_bands: 2
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+  kappa: [0.0, 0.00390625, 0.0078125, 0.015625, 0.03125]
+
+audit:
+  gap_train_size_per_lane: 4000
+  gap_validation_size_per_lane: 1000
+  train_subset_salt: exp-fwd-010-k5-joint-fair-4k-v1
+  lower_band_min_one_based: 1
+
+gates:
+  sentinel_relative_error_max: 0.005
+  sentinel_direction_difference_max: 0.005
+  slope_r2_min: 0.999
+  slope_r2_pass_rate_min: 0.95
+  slope_window_drift_max: 0.02
+  slope_window_drift_pass_rate_min: 0.90
+  anisotropy_median_max: 0.02
+  anisotropy_p90_max: 0.05
+  oracle_pair_agreement_min: 0.80
+  candidate_out_of_range_rate_max: 0.05
+  train_validation_tv_max: 0.10
+  complete_subset_min: 30
+  complete_pair_agreement_min: 0.75
+  bootstrap_replicates: 10000
+  bootstrap_seed: 20260828
+
+execution:
+  mode: preflight
+  required_platform: WSL Ubuntu
+  required_conda_environment: meep_env
+  formal_solver_authorized: false
+
+output:
+  runs_dir: runs

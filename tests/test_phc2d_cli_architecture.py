@@ -52,6 +52,7 @@ EXPECTED_COMMANDS = {
     "query benchmark",
     "query data-scaling",
     "query preflight",
+    "replay effective-index",
     "replay mpb",
     "report",
     "report build",

@@ -21,6 +21,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 import yaml
 
+from phc2d.data.sampling import select_nested_sample_indices
 from phc2d.forward.full_cell_evaluation import evaluate_full_cell
 
 from phc2d.models import ModelSpec, build_model, describe_model_identity, get_model_spec
@@ -59,21 +60,12 @@ def _nested_train_indices(
 ) -> np.ndarray:
     """Select a deterministic nested subset using stable sample-ID hashes."""
 
-    indices = np.asarray(idx_train, dtype=np.int64)
-    ids = [str(value) for value in sample_ids]
-    if len(ids) != int(indices.size):
-        raise ValueError("sample_ids must align one-to-one with idx_train")
-    size = int(train_size)
-    if size <= 0 or size > int(indices.size):
-        raise ValueError(f"train_size must be in [1, {indices.size}], got {size}")
-    ranked = sorted(
-        zip(indices.tolist(), ids, strict=True),
-        key=lambda item: (
-            hashlib.sha256(f"{salt}|{item[1]}".encode("utf-8")).digest(),
-            int(item[0]),
-        ),
+    return select_nested_sample_indices(
+        idx_train,
+        sample_ids,
+        size=train_size,
+        salt=salt,
     )
-    return np.sort(np.asarray([item[0] for item in ranked[:size]], dtype=np.int64))
 
 
 def _sha256_checkpoint(path: Path) -> str:

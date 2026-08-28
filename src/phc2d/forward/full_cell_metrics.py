@@ -33,6 +33,21 @@ class GapEdgeSelection:
 
 
 @dataclass(frozen=True)
+class AdjacentBandGap:
+    """One adjacent-band complete or pseudo gap over the supplied BZ grid."""
+
+    lower_band_one_based: int
+    upper_band_one_based: int
+    lower_edge_k_index: int
+    upper_edge_k_index: int
+    lower_edge_frequency: float
+    upper_edge_frequency: float
+    center: float
+    signed_width: float
+    status: str
+
+
+@dataclass(frozen=True)
 class GapCandidateFeatures:
     """Vectorized adjacent-band gap candidates for a batch of full spectra."""
 
@@ -42,6 +57,53 @@ class GapCandidateFeatures:
     selected_candidate_indices: np.ndarray
     selected_gap_margins: np.ndarray
     selected_upper_k_margins: np.ndarray
+
+
+def enumerate_adjacent_gaps(
+    Wh: np.ndarray,
+    *,
+    lower_band_min_one_based: int = 1,
+    lower_band_max_one_based: int | None = None,
+) -> tuple[AdjacentBandGap, ...]:
+    """Enumerate every configured adjacent-band gap without selecting a winner."""
+
+    bands = np.asarray(Wh, dtype=np.float64)
+    if bands.ndim != 2 or bands.shape[0] < 1 or bands.shape[1] < 2:
+        raise ValueError(f"Wh must have shape [n_k_points, n_bands>=2], got {bands.shape}")
+    if not np.isfinite(bands).all():
+        raise ValueError("Wh contains non-finite frequencies")
+    lower_min = int(lower_band_min_one_based)
+    lower_limit = int(bands.shape[1] - 1)
+    lower_max = lower_limit if lower_band_max_one_based is None else int(
+        lower_band_max_one_based
+    )
+    if lower_min < 1 or lower_max < lower_min or lower_max > lower_limit:
+        raise ValueError(
+            f"invalid lower-band range {lower_min}..{lower_max} for {bands.shape[1]} bands"
+        )
+    rows: list[AdjacentBandGap] = []
+    for lower_band in range(lower_min, lower_max + 1):
+        lower_index = lower_band - 1
+        upper_index = lower_index + 1
+        lower_k = int(np.argmax(bands[:, lower_index]))
+        upper_k = int(np.argmin(bands[:, upper_index]))
+        lower_edge = float(bands[lower_k, lower_index])
+        upper_edge = float(bands[upper_k, upper_index])
+        width = upper_edge - lower_edge
+        rows.append(
+            AdjacentBandGap(
+                lower_band_one_based=lower_band,
+                upper_band_one_based=lower_band + 1,
+                lower_edge_k_index=lower_k,
+                upper_edge_k_index=upper_k,
+                lower_edge_frequency=lower_edge,
+                upper_edge_frequency=upper_edge,
+                center=0.5 * (lower_edge + upper_edge),
+                signed_width=width,
+                status="complete_gap" if width > 0.0 else "pseudo_gap",
+            )
+        )
+    return tuple(rows)
 
 
 def compute_gap_candidate_features(
@@ -495,6 +557,7 @@ def paired_bootstrap_mre(
 
 
 __all__ = [
+    "AdjacentBandGap",
     "BAND_GROUPS",
     "GapCandidateFeatures",
     "GapEdgeSelection",
@@ -503,6 +566,7 @@ __all__ = [
     "compute_gap_decision_metrics",
     "compute_gap_margin_audit_metrics",
     "derive_gap_decision_tolerances",
+    "enumerate_adjacent_gaps",
     "paired_bootstrap_mre",
     "select_largest_gap_edge",
 ]

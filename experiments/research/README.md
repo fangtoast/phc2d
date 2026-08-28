@@ -32,6 +32,7 @@
 - [`field_eigen_te.md`](field_eigen_te.md)：TE Bloch eigenfield、Field FNO 与 adapted PINO。
 - [`near_field_surrogate.md`](near_field_surrogate.md)：near-field、NeurOLight 与 Maxwell residual 可行性边界。
 - [`EXP-PHY-004-代理选频响应差异.md`](EXP-PHY-004-代理选频响应差异.md)：K5 Full-Wh 全量频谱误差、最大带隙选频稳定性与代表样本 real-MPB/Meep 响应差异。
+- [`EXP-PHY-005-TE有效折射率与折叠频率校准.md`](EXP-PHY-005-TE有效折射率与折叠频率校准.md)：在不访问 test、不训练的合同下，用 near-Γ real-MPB 斜率校准 TE 有效折射率并审计全部相邻 gap。
 
 ## Inverse 与 replay
 
