@@ -61,6 +61,7 @@ training:
     selected_edge_weight: 0.05
     selected_width_weight: 0.05
     selected_center_weight: 0.05
+    selected_upper_profile_weight: 0.10
   checkpoint_selection: equal_lane_validation_bands_2_10_mre
 runtime:
   device: cpu

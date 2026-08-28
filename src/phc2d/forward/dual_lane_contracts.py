@@ -75,6 +75,7 @@ def validate_and_resolve_dual_lane(
     training = dict(config.get("training") or {})
     continuation = dict(config.get("continuation") or {})
     runtime = dict(config.get("runtime") or {})
+    evaluation = dict(config.get("evaluation") or {})
     output = dict(config.get("output") or {})
     if set(datasets) != set(LANES):
         raise ValueError("datasets must contain exactly binary and graded")
@@ -98,6 +99,12 @@ def validate_and_resolve_dual_lane(
     if bool(runtime.get("amp_enabled")) or bool(runtime.get("tf32_enabled")):
         raise ValueError("dual-lane training forbids AMP and TF32")
     resolve_gap_aware_loss_config(training.get("loss"))
+    gap_evaluation = dict(evaluation.get("gap_decision") or {})
+    if gap_evaluation:
+        lower_min = int(gap_evaluation.get("lower_band_min_one_based", 0))
+        lower_max = int(gap_evaluation.get("lower_band_max_one_based", 0))
+        if lower_min < 1 or lower_max < lower_min:
+            raise ValueError("evaluation.gap_decision band range is invalid")
     max_epochs = int(training.get("max_epochs", 100))
     evidence_status = str(experiment.get("evidence_status", ""))
     short_screen = evidence_status == "single_seed_short_budget_screen"
@@ -190,6 +197,7 @@ def validate_and_resolve_dual_lane(
             "max_train_batches": 1 if admission_probe else None,
         },
         "runtime": runtime,
+        "evaluation": evaluation,
         "output": output,
         "continuation": continuation,
     }

@@ -137,8 +137,19 @@ def _dual_lane_training_loss(
 
 
 def _gap_evaluation_kwargs(context: _DualLaneTrainingContext) -> dict[str, int | None]:
-    """Expose the configured gap range only for gap-aware runs."""
+    """Expose an explicit evaluation range without coupling metrics to the loss."""
 
+    evaluation = dict(context.resolved.get("evaluation") or {})
+    gap_decision = dict(evaluation.get("gap_decision") or {})
+    if gap_decision:
+        return {
+            "gap_lower_band_min_one_based": int(
+                gap_decision["lower_band_min_one_based"]
+            ),
+            "gap_lower_band_max_one_based": int(
+                gap_decision["lower_band_max_one_based"]
+            ),
+        }
     if context.loss_config is None:
         return {}
     return {
@@ -246,7 +257,7 @@ def _run_dual_lane_epochs(context: _DualLaneTrainingContext) -> dict[str, Any]:
             "optimizer_steps": optimizer_steps,
             "samples_seen": samples_seen,
         }
-        if context.loss_config is not None:
+        if _gap_evaluation_kwargs(context):
             row.update(
                 {
                     f"train_{name}_loss": total / max(train_count, 1)
@@ -489,7 +500,7 @@ def _finalize_dual_lane_run(
             else {"name": "equal_lane_normalized_full_matrix_mse"}
         ),
     }
-    if context.loss_config is not None:
+    if _gap_evaluation_kwargs(context):
         metrics["gap_validation"] = {
             lane: {
                 key: value

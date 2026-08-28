@@ -30,6 +30,7 @@ def _config(**overrides: float | int) -> object:
         "selected_edge_weight": 0.25,
         "selected_width_weight": 0.25,
         "selected_center_weight": 0.25,
+        "selected_upper_profile_weight": 0.25,
         **overrides,
     }
     return resolve_gap_aware_loss_config(raw)
@@ -45,6 +46,7 @@ def test_gap_aware_config_preserves_legacy_and_rejects_unsafe_contracts() -> Non
             selected_edge_weight=0.0,
             selected_width_weight=0.0,
             selected_center_weight=0.0,
+            selected_upper_profile_weight=0.0,
         )
     with pytest.raises(ValueError, match="unknown gap-aware"):
         resolve_gap_aware_loss_config({"name": GAP_AWARE_LOSS_NAME, "test_center": 0.5})
@@ -92,10 +94,32 @@ def test_gap_aware_loss_penalizes_gap_edges_and_has_finite_gradients() -> None:
     assert float(terms.selected_edge.detach()) > 0.0
     assert float(terms.selected_width.detach()) > 0.0
     assert float(terms.selected_center.detach()) > 0.0
+    assert float(terms.selected_upper_profile.detach()) > 0.0
     terms.total.backward()
     assert prediction.grad is not None
     assert bool(torch.isfinite(prediction.grad).all())
     assert float(prediction.grad.abs().sum()) > 0.0
+
+
+def test_selected_upper_profile_penalizes_wrong_work_frequency_k_point() -> None:
+    if importlib.util.find_spec("torch") is None:
+        pytest.skip("torch is optional")
+    import torch
+
+    target = torch.tensor(
+        [[[0.10, 0.20, 0.50], [0.11, 0.21, 0.40], [0.12, 0.22, 0.45]]]
+    )
+    prediction = target.clone()
+    prediction[0, 0, 2] = 0.39
+    terms = gap_aware_spectrum_loss(
+        prediction,
+        target,
+        target_mean=torch.zeros((3, 3)),
+        target_std=torch.ones((3, 3)),
+        config=_config(lower_band_max_one_based=2),
+        torch_module=torch,
+    )
+    assert float(terms.selected_upper_profile) > 0.0
 
 
 def test_gap_aware_loss_uses_metadata_driven_band_count() -> None:

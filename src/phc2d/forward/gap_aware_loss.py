@@ -26,6 +26,7 @@ class GapAwareLossConfig:
     selected_edge_weight: float
     selected_width_weight: float
     selected_center_weight: float
+    selected_upper_profile_weight: float
 
     def as_dict(self) -> dict[str, Any]:
         """Return a serializable contract for run evidence."""
@@ -39,6 +40,7 @@ class GapAwareLossConfig:
             "selected_edge_weight": self.selected_edge_weight,
             "selected_width_weight": self.selected_width_weight,
             "selected_center_weight": self.selected_center_weight,
+            "selected_upper_profile_weight": self.selected_upper_profile_weight,
             "frequency_scale": "train_normalizer_mean_std",
             "selection_source": "train_target_largest_gap_complete_or_pseudo",
         }
@@ -54,6 +56,7 @@ class GapAwareLossTerms:
     selected_edge: Any
     selected_width: Any
     selected_center: Any
+    selected_upper_profile: Any
 
     def as_dict(self) -> dict[str, Any]:
         """Expose stable component names for training history."""
@@ -65,6 +68,7 @@ class GapAwareLossTerms:
             "selected_edge": self.selected_edge,
             "selected_width": self.selected_width,
             "selected_center": self.selected_center,
+            "selected_upper_profile": self.selected_upper_profile,
         }
 
 
@@ -96,6 +100,7 @@ def resolve_gap_aware_loss_config(raw: Any) -> GapAwareLossConfig | None:
         "selected_edge_weight",
         "selected_width_weight",
         "selected_center_weight",
+        "selected_upper_profile_weight",
     }
     unknown = set(raw) - allowed
     if unknown:
@@ -111,6 +116,9 @@ def resolve_gap_aware_loss_config(raw: Any) -> GapAwareLossConfig | None:
         "selected_edge_weight": float(raw.get("selected_edge_weight", 0.0)),
         "selected_width_weight": float(raw.get("selected_width_weight", 0.0)),
         "selected_center_weight": float(raw.get("selected_center_weight", 0.0)),
+        "selected_upper_profile_weight": float(
+            raw.get("selected_upper_profile_weight", 0.0)
+        ),
     }
     if any(value < 0.0 for value in weights.values()):
         raise ValueError("gap-aware loss weights must be non-negative")
@@ -208,6 +216,20 @@ def gap_aware_spectrum_loss(
     true_selected_width = true_selected_upper - true_selected_lower
     pred_selected_center = 0.5 * (pred_selected_upper + pred_selected_lower)
     true_selected_center = 0.5 * (true_selected_upper + true_selected_lower)
+    lower_indices = torch_module.arange(
+        config.lower_band_min_one_based - 1,
+        (config.lower_band_max_one_based or prediction.shape[-1] - 1),
+        device=prediction.device,
+    )
+    selected_upper_bands = (lower_indices[selected.squeeze(1)] + 1).to(
+        dtype=torch_module.long
+    )
+    batch_indices = torch_module.arange(prediction.shape[0], device=prediction.device)
+    pred_upper_profile = physical_prediction[batch_indices, :, selected_upper_bands]
+    true_upper_profile = physical_target[batch_indices, :, selected_upper_bands]
+    true_upper_k = true_upper_profile.argmin(dim=1, keepdim=True)
+    pred_relative_profile = pred_upper_profile - pred_upper_profile.gather(1, true_upper_k)
+    true_relative_profile = true_upper_profile - true_upper_profile.gather(1, true_upper_k)
 
     full_spectrum = torch_module.nn.functional.mse_loss(prediction, target)
     gap_profile = torch_module.mean(((pred_gaps - true_gaps) / scale) ** 2)
@@ -221,12 +243,16 @@ def gap_aware_spectrum_loss(
     selected_center = torch_module.mean(
         ((pred_selected_center - true_selected_center) / scale) ** 2
     )
+    selected_upper_profile = torch_module.mean(
+        ((pred_relative_profile - true_relative_profile) / scale) ** 2
+    )
     total = (
         config.full_spectrum_weight * full_spectrum
         + config.gap_profile_weight * gap_profile
         + config.selected_edge_weight * selected_edge
         + config.selected_width_weight * selected_width
         + config.selected_center_weight * selected_center
+        + config.selected_upper_profile_weight * selected_upper_profile
     )
     return GapAwareLossTerms(
         total=total,
@@ -235,6 +261,7 @@ def gap_aware_spectrum_loss(
         selected_edge=selected_edge,
         selected_width=selected_width,
         selected_center=selected_center,
+        selected_upper_profile=selected_upper_profile,
     )
 
 
