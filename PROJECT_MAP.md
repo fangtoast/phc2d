@@ -19,7 +19,7 @@
 
 > 2026-08-27 EXP-FWD-012 状态：公平 4k+4k K5 train/validation 的工作频率先验审计完成。$X/M$ 一阶 Bragg 尺度对两条 lane 的最大 gap-center 命中均为 0，未通过相对 train-only 固定中心改善门；EXP-FWD-013 的四个 loss-only 训练任务未启动。后续 L4 已实现不依赖 Bragg 中心的可选 `equal_lane_gap_aware_v1`，并通过真实 K5 CPU admission smoke；该状态仅为 `implemented + smoke_pass`，尚未登记或执行正式性能实验。详见[工作频率先验负结果](docs/results/forward/EXP-FWD-012-工作频率先验覆盖审计.md)。
 
-> 2026-08-28 EXP-FWD-014 状态：本地损失级配对回放发现原 gap-aware 项能改善工作频率、gap 宽度和中心，但没有直接约束对应 k 点；实现已增加目标上边带相对 k-profile 项。公平 K5 4k+4k、seed0、20 epoch 的 baseline/gap-aware 两任务已冻结，计划在 N40 运行，且只使用 validation 作筛选；运行完成前不宣称代理性能改善。
+> 2026-08-28 EXP-FWD-014 状态：两个 N40 seed0、20 epoch 配对任务正常完成。新损失把 Binary/Graded joint band-k accuracy 分别提高 `10.9/15.1` 个百分点，并改善多数 gap 指标；但 Bands 2–10 MRE 分别恶化 `13.44%/12.65%`，且 complete-gap 子集状态命中仍为 `0`，因此 `gap_screen_fail`，停止自动三 seed 扩展。详见[EXP-FWD-014 结果](docs/results/forward/EXP-FWD-014-gap决策损失短预算筛选.md)。
 
 # PROJECT MAP
 
@@ -75,7 +75,7 @@
 - EXP-FWD-009 已完成五个身份的权重热启动续训与六域 510-cell held-out surrogate 评估；54 身份 preflight、10 shards、408/272 数值回归和 102-cell paired bootstrap 均闭合。最终 inventory 仍只有 9/17 满足主收敛门，8 个身份经人工豁免纳入，因此当前需要人工决定是否接受其为探索性 K5 对照；这不构成 real-MPB 或物理验证。详见[EXP-FWD-009 结果](docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md)。
 - EXP-FWD-010/011 已完成 joint 各 4k 的 seed0 200 轮训练、续训至 300 轮与两组六域增量评估；300 轮时 Graded 与等权收敛曲线未过门，六域只在 K5 Binary 击败最佳单路线。当前需人工决定是否接受其为负对照；若要 promotion 或数据量因果结论，仍缺多 seed、同训练与优化器状态合同的成对实验。
 - EXP-FWD-012 已否定当前 $X/M$ 一阶 Bragg 工作频率先验对最大 gap-center 的准入价值；不得扩大窗口或读取 test 追调。该负结果不否定 EXP-FWD-014 直接监督真实 gap 决策的独立假设。
-- EXP-FWD-014 已冻结两个 N40 seed0 短预算任务和 validation gate；该 screen 只决定是否值得进入三 seed 正式训练，不能替代正式训练、held-out test 或物理验证。
+- EXP-FWD-014 已完成两个 N40 seed0 短预算任务并触发负 gate：k-profile 对应 k 点方向有效，但当前辅助权重和 complete-gap 状态约束不合格；不得自动调参重跑或进入三 seed/test。
 - N50R5 登录仍被平台 `loginCluster` 权限拒绝；N40 已部署当前 inverse Stage-A runner/orchestrator（`b93cc2d`），但当前正式训练只能以既有三卡分配证据为下限，9/18 卡仍需真实 admission 作业证明。
 - Full-cell 50k forward 计算和自动审计已完成，但 AI 整理的 Draft 报告仍需人工接受；inverse 仍未在全胞、多形态、全 BZ 数据上完成正式 45-run Stage-A 或 soft-surrogate Stage B。
 - Full-Wh 升级 native/cross-lane/resolution 主评估已完成，但 `k_conditioned` 头未被选择，threshold proxy 尚无作业或结果；这些 surrogate 结果尚未进入 full-cell inverse Stage B 或 real-MPB replay。

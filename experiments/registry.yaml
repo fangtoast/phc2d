@@ -555,7 +555,7 @@ experiments:
   - id: EXP-FWD-014
     title: gap 决策损失短预算筛选
     task: forward
-    status: active
+    status: completed
     mapping_status: complete
     research_question: 在公平 K5 4k+4k、seed0、20 epoch 配对训练下，含上边带相对 k-profile 的新损失能否同时改善工作频率、gap 与对应 k 点，且不显著牺牲全谱精度？
     spec:
@@ -565,15 +565,17 @@ experiments:
       - configs/research/full_cell_k5_gap_screen_exp_fwd_014_gap_aware_seed0_v1.yaml
     runs:
       local: []
-      referenced_not_local: []
-    result: []
+      referenced_not_local:
+        - runs/20260828/EXP-FWD-014_gap_screen_20260828101706
+    result:
+      - docs/results/forward/EXP-FWD-014-gap决策损失短预算筛选.md
     report: []
     related_experiments:
       - EXP-FWD-010
       - EXP-FWD-012
     decision:
-      state: pending
-      summary: 两个 N40 seed0 短预算任务已冻结，待 validation-only 配对结果决定是否申请三 seed 正式训练。
+      state: blocked
+      summary: 新损失显著改善对应 k 点与多数 gap 指标，但两条 lane 的全谱 MRE 安全门失败，且 complete-gap 状态命中仍为 0；停止自动三 seed 扩展。
     tags: [forward, full-cell, k5, joint, fair-total-data, gap-aware, work-frequency, short-screen, no-test]
 
   - id: EXP-QRY-001

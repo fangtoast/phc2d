@@ -2,7 +2,7 @@
 title: "EXP-FWD-014：gap 决策损失短预算筛选"
 summary: "在 N40 上以公平 K5 4k+4k、seed0、20 epoch 配对训练检验新损失能否改善工作频率、gap 与对应 k 点。"
 page_type: experiment
-plan_state: active
+plan_state: completed
 status: draft
 audience: "正向代理研究者、实验执行者与结果审阅者"
 owner: "研究生维护，导师审阅正式扩展"
@@ -61,3 +61,7 @@ Binary 与 Graded validation 分别比较新损失和基线。在新损失的 Ba
 训练任务共 `2` 个：baseline seed0 与 gap-aware seed0。每个 run 保存标准配置、日志、历史、指标和 checkpoint；比较只读取两个 run 的 validation 指标。远端失败不自动重试、取消或改参。
 
 相关计划：[工作频率加权与自适应联合算子计划](../../docs/planning/工作频率加权与自适应联合算子计划.md)。
+
+## 执行结论
+
+2026-08-28 的两个 N40 任务均正常完成，但比较状态为 `gap_screen_fail`。新损失显著提高两条 lane 的 joint band-k accuracy，并改善多数 gap 指标；两条 lane 的 Bands 2–10 MRE 均恶化超过 `12%`，且 complete-gap 子集状态命中仍为 `0`，因此停止自动三 seed 扩展。详见[结果页](../../docs/results/forward/EXP-FWD-014-gap决策损失短预算筛选.md)。
