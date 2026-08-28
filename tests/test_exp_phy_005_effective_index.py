@@ -249,6 +249,15 @@ def test_solver_failures_are_recorded_per_structure(tmp_path: Path) -> None:
     assert validate_run_artifacts(run) == []
 
 
+def test_formal_solver_execution_requires_explicit_authorization(tmp_path: Path) -> None:
+    config_path = _smoke_config(tmp_path)
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config["execution"] = {"mode": "real_mpb", "formal_solver_authorized": False}
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    with pytest.raises(ValueError, match="formal_solver_authorized=true"):
+        run_effective_index_audit(config_path, run_dir=tmp_path / "unauthorized")
+
+
 def test_effective_index_cli_help_is_lazy() -> None:
     code = """
 import sys

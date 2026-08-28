@@ -7,7 +7,7 @@
 
 # EXP-PHY-005：TE 有效折射率与折叠频率校准
 
-结论先行：本实验目前处于 `active / preflight-only`。它只登记并工程化验证合同；192 个结构的正式 real-MPB 求解尚未授权，因此当前不能判断 TE 调和候选是否成立，也不能解锁 EXP-FWD-017。
+结论先行：本实验目前处于 `active / formal-run-authorized`。接口、preflight 与 2+2 smoke 已通过，用户于 2026-08-28 授权 192 个结构的正式 real-MPB 求解；在正式 run 形成终态前，仍不能判断 TE 调和候选是否成立，也不能解锁 EXP-FWD-017。
 
 | 元数据 | 冻结值 |
 |---|---|
@@ -44,19 +44,18 @@ n_{\mathrm{eff}}=\frac{1}{\sqrt{\langle1/\epsilon\rangle}}
 
 ## 配置、命令与制品
 
-正式配置为 [`exp_phy_005_te_effective_index_gap_calibration_v1.yaml`](../../configs/research/exp_phy_005_te_effective_index_gap_calibration_v1.yaml)，当前冻结为 `preflight` 且 `formal_solver_authorized=false`。工程 smoke 配置为 [`exp_phy_005_te_effective_index_smoke_v1.yaml`](../../configs/smoke/exp_phy_005_te_effective_index_smoke_v1.yaml)。
+正式配置为 [`exp_phy_005_te_effective_index_gap_calibration_v1.yaml`](../../configs/research/exp_phy_005_te_effective_index_gap_calibration_v1.yaml)，当前冻结为 `real_mpb` 且 `formal_solver_authorized=true`。工程 smoke 配置为 [`exp_phy_005_te_effective_index_smoke_v1.yaml`](../../configs/smoke/exp_phy_005_te_effective_index_smoke_v1.yaml)。
 
 ```bash
 PYTHONPATH=src python -m phc2d.cli replay effective-index \
-  --config configs/research/exp_phy_005_te_effective_index_gap_calibration_v1.yaml \
-  --preflight
+  --config configs/research/exp_phy_005_te_effective_index_gap_calibration_v1.yaml
 ```
 
 标准 run 除通用制品外保存 `sample_manifest.jsonl`、`near_gamma_bands.npz`、`effective_index_samples.csv`、`slope_metrics.json`、`gap_alignment_metrics.json` 和分层图件。原始数值留在 `runs/`，本页不复制 raw evidence。
 
 ## Gate 与停止条件
 
-- `preflight_pass` 只允许申请单独的 192 结构 WSL real-MPB 执行授权。
+- `preflight_pass` 已用于取得单独的 192 结构 WSL real-MPB 执行授权；授权不等于物理 gate 通过。
 - 只有正式 run 的全部数值门、有效介质门与至少一个预注册 gap 候选门同时通过，才可形成 `prior_physical_gate_pass`。
 - `effective_medium_fail`、`folding_hypothesis_fail`、`scalar_anisotropy_fail` 均停止 resonance-prior 训练路线；`blocked` 要求补齐环境、身份或 solver 制品。
 - 人工负责人接受正式结论后，才允许登记 EXP-FWD-017；届时仅比较原 normalized full-matrix MSE 与一个冻结 resonance-prior loss，不混入 ranked gap 或 adaptive gate。

@@ -927,7 +927,7 @@ experiments:
       - EXP-FWD-012
     decision:
       state: pending
-      summary: 192 样本无求解 preflight 与 WSL 2+2 real-MPB 工程 smoke 已通过；它们不是正式物理统计，192 结构 real-MPB 尚未授权，EXP-FWD-017 保持锁定。
+      summary: 192 样本无求解 preflight 与 WSL 2+2 real-MPB 工程 smoke 已通过；用户已授权 192 结构正式 real-MPB，终态形成前 EXP-FWD-017 保持锁定。
     tags: [physical-validation, effective-index, near-gamma, bandgap, te, full-cell]
 
 deferred_history:

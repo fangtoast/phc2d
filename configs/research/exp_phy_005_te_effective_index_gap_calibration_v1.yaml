@@ -1,4 +1,4 @@
-# Frozen preflight contract for TE effective-index and folded-gap calibration.
+# Frozen formal contract for TE effective-index and folded-gap calibration.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com
 # Copyright (c) 2026 fangtoast. All rights reserved.
@@ -63,10 +63,11 @@ gates:
   bootstrap_seed: 20260828
 
 execution:
-  mode: preflight
+  mode: real_mpb
   required_platform: WSL Ubuntu
   required_conda_environment: meep_env
-  formal_solver_authorized: false
+  formal_solver_authorized: true
+  authorization_basis: user_requested_formal_solution_2026_08_28
 
 output:
   runs_dir: runs

@@ -166,6 +166,8 @@ def _validate_config(payload: Mapping[str, Any]) -> dict[str, Any]:
     mode = str(execution.get("mode", "preflight"))
     if mode not in {"preflight", "engineering_smoke", "real_mpb"}:
         raise ValueError("execution.mode must be preflight, engineering_smoke, or real_mpb")
+    if mode == "real_mpb" and execution.get("formal_solver_authorized") is not True:
+        raise ValueError("formal real-MPB execution requires formal_solver_authorized=true")
     expected_counts = (64, 32) if mode in {"preflight", "real_mpb"} else None
     counts = (
         int(sampling.get("slope_train_per_lane", 0)),
