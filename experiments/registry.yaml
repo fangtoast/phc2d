@@ -4,7 +4,7 @@
 # Copyright (c) 2026 fangtoast. All rights reserved.
 
 schema_version: 1
-last_reviewed: 2026-08-25
+last_reviewed: 2026-08-29
 
 registry_scope:
   policy: >-
@@ -935,7 +935,7 @@ experiments:
   - id: EXP-PHY-006
     title: K5 全 BZ 带隙边缘加密试点
     task: physical_validation
-    status: active
+    status: completed
     mapping_status: complete
     research_question: 现有 9x9 full-BZ 标签是否因局部 k 离散误差而高估 Bands 1-10 的相邻 gap 或改变 complete/pseudo 状态？
     spec:
@@ -943,17 +943,19 @@ experiments:
     config:
       - configs/research/exp_phy_006_full_bz_gap_refinement_pilot_v1.yaml
     runs:
-      local: []
+      local:
+        - runs/20260829/EXP-PHY-006_202608291923
       referenced_not_local: []
-    result: []
+    result:
+      - docs/results/field-physics/EXP-PHY-006-全BZ带隙边缘加密试点.md
     report: []
     related_experiments:
       - EXP-DAT-005
       - EXP-PHY-005
       - EXP-FWD-016
     decision:
-      state: authorized_pilot_pending
-      summary: 只授权四个 validation 结构的 WSL real-MPB 局部边缘加密；不训练、不读取 test，且 pilot 不构成全局 BZ 认证。
+      state: blocked
+      summary: 四结构 pilot 证实 9x9 标签存在实质 gap 高估和 complete-to-pseudo 翻转风险；现有粗网格 gap 标签不得直接解锁训练，下一步需人工决定是否授权扩大验证。
     tags: [physical-validation, adaptive-k, bandgap, te, full-cell, validation-only, pilot]
 
 deferred_history:

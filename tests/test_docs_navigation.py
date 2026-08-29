@@ -108,6 +108,7 @@ def test_formal_results_navigation_is_an_explicit_whitelist() -> None:
         "results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md",
         "results/field-physics/代理选频与真实响应差异_20260825.md",
         "results/field-physics/EXP-PHY-005-TE有效折射率与折叠频率校准.md",
+        "results/field-physics/EXP-PHY-006-全BZ带隙边缘加密试点.md",
         "reports/全胞双路线正向与逆向模型报告_20260810.md",
     }
 

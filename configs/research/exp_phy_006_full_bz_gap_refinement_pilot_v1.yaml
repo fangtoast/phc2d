@@ -56,11 +56,12 @@ gates:
   coarse_gap_change_material: 0.0005
 
 execution:
-  mode: pilot_real_mpb
+  mode: preflight
   required_platform: WSL Ubuntu
   required_conda_environment: meep_env
-  formal_solver_authorized: true
+  formal_solver_authorized: false
   authorization_basis: user_requested_verification_2026_08_29
+  authorization_consumed_by_run: runs/20260829/EXP-PHY-006_202608291923
 
 output:
   runs_dir: runs

@@ -178,6 +178,7 @@ nav:
           - Meep 近远场: results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md
           - K5 代理选频与真实响应差异: results/field-physics/代理选频与真实响应差异_20260825.md
           - EXP-PHY-005 TE 有效折射率校准: results/field-physics/EXP-PHY-005-TE有效折射率与折叠频率校准.md
+          - EXP-PHY-006 全 BZ 带隙边缘加密: results/field-physics/EXP-PHY-006-全BZ带隙边缘加密试点.md
           - 全胞综合报告: reports/全胞双路线正向与逆向模型报告_20260810.md
   - 计划与治理:
       - 规划索引: planning/README.md

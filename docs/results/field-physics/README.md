@@ -5,7 +5,7 @@ page_type: landing
 status: draft
 audience: 物理建模研究者、复现执行者与证据审阅者
 owner: 研究生维护
-last_reviewed: 2026-08-28
+last_reviewed: 2026-08-29
 reading_time: 4 minutes
 primary_layer: L3
 ---
@@ -26,6 +26,7 @@ primary_layer: L3
 
 | 结果页面 | 状态与边界 |
 |---|---|
+| [全 BZ 带隙边缘加密试点](EXP-PHY-006-全BZ带隙边缘加密试点.md) | EXP-PHY-006；4 个 validation 结构 real-MPB pilot，发现 $9\times9$ gap 高估与一次 complete→pseudo 翻转，不等同于全局 BZ 认证 |
 | [TE 有效折射率与折叠频率校准](EXP-PHY-005-TE有效折射率与折叠频率校准.md) | EXP-PHY-005；192 结构 near-Γ real-MPB 正式负结果，单一标量中心未通过 |
 | [K5 代理选频与真实响应差异](代理选频与真实响应差异_20260825.md) | EXP-PHY-004；1000 条 test 频谱审计 + 6 条代表结构 real-MPB/Meep sensitivity |
 | [双路线有限阵列 Meep 近远场](full_cell_dual_lane_meep_scattering_20260806.md) | EXP-PHY-002；冻结 32 结构的真实受激响应 |

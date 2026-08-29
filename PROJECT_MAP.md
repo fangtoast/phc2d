@@ -25,6 +25,8 @@
 
 > 2026-08-28 EXP-PHY-005 状态：192 结构 near-Γ TE real-MPB 正式验证完成，数值门通过，但 Binary 方向差异 P90 `5.36%` 超过 `5%`，终态为 `scalar_anisotropy_fail`；TE 调和候选在 Binary/Graded 的 median slope 误差为 `24.81%/20.71%`，显著劣于旧公式 `7.77%/5.83%`。`x` 虽稳定选择 B1–B2，却未落入 complete gap，不能视为已找到工作频率。EXP-FWD-017 不解锁。详见[正式结果](docs/results/field-physics/EXP-PHY-005-TE有效折射率与折叠频率校准.md)。
 
+> 2026-08-29 EXP-PHY-006 状态：4 个冻结 validation 结构的 WSL real-MPB 局部 band-edge 加密 pilot 已完成。现有 $9\times9$ 标签在 32/36 个相邻 pair 上高估 gap 超过预注册阈值，并出现 1 次 complete→pseudo 翻转；4/4 的 B1–B2 均为局部认证 pseudo-gap。该证据证明粗网格风险，但不是连续全 BZ 的全局认证；相关训练继续锁定。详见[试点结果](docs/results/field-physics/EXP-PHY-006-全BZ带隙边缘加密试点.md)。
+
 # PROJECT MAP
 
 | Metadata | Value |
