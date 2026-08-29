@@ -53,6 +53,7 @@ EXPECTED_COMMANDS = {
     "query data-scaling",
     "query preflight",
     "replay effective-index",
+    "replay gap-refinement",
     "replay mpb",
     "report",
     "report build",

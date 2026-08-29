@@ -932,6 +932,30 @@ experiments:
       summary: 192 结构正式 real-MPB 终态为 scalar_anisotropy_fail，且 TE 调和候选在两条 lane 均显著劣于旧公式；EXP-FWD-017 不解锁。
     tags: [physical-validation, effective-index, near-gamma, bandgap, te, full-cell]
 
+  - id: EXP-PHY-006
+    title: K5 全 BZ 带隙边缘加密试点
+    task: physical_validation
+    status: active
+    mapping_status: complete
+    research_question: 现有 9x9 full-BZ 标签是否因局部 k 离散误差而高估 Bands 1-10 的相邻 gap 或改变 complete/pseudo 状态？
+    spec:
+      - experiments/research/EXP-PHY-006-全BZ带隙边缘加密试点.md
+    config:
+      - configs/research/exp_phy_006_full_bz_gap_refinement_pilot_v1.yaml
+    runs:
+      local: []
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments:
+      - EXP-DAT-005
+      - EXP-PHY-005
+      - EXP-FWD-016
+    decision:
+      state: authorized_pilot_pending
+      summary: 只授权四个 validation 结构的 WSL real-MPB 局部边缘加密；不训练、不读取 test，且 pilot 不构成全局 BZ 认证。
+    tags: [physical-validation, adaptive-k, bandgap, te, full-cell, validation-only, pilot]
+
 deferred_history:
   - scope: 2026-05 至 2026-06 初期的 legacy reproduction、FEM/MPB 与 smoke runs
     reason: 历史价值存在，但不属于当前活跃或论文核心实验，暂不批量登记。

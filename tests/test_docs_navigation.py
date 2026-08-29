@@ -95,8 +95,8 @@ def test_formal_results_navigation_is_an_explicit_whitelist() -> None:
         "results/data-provenance/全胞Fourier高频截断配对试验_20260817.md",
         "results/forward/full_cell_dual_lane_forward_training_20260806.md",
         "results/forward/full_cell_dual_lane_50000_forward_training_20260808.md",
-            "results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md",
-            "results/forward/full_cell_k20_b_g_seed0_cross_eval_20260820.md",
+        "results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md",
+        "results/forward/full_cell_k20_b_g_seed0_cross_eval_20260820.md",
         "results/forward/全胞K20与50K跨数据域正向验证_20260820.md",
         "results/forward/全胞前向50K模型R方补充评估_20260819.md",
         "results/forward/EXP-FWD-007-K5训练与六域验证.md",
@@ -107,6 +107,7 @@ def test_formal_results_navigation_is_an_explicit_whitelist() -> None:
         "results/forward/EXP-FWD-015-gap决策近简并审计.md",
         "results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md",
         "results/field-physics/代理选频与真实响应差异_20260825.md",
+        "results/field-physics/EXP-PHY-005-TE有效折射率与折叠频率校准.md",
         "reports/全胞双路线正向与逆向模型报告_20260810.md",
     }
 

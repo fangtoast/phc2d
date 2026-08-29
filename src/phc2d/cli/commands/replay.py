@@ -36,6 +36,19 @@ def configure(sub: Any) -> None:
     )
     effective_index.add_argument("--run-dir", type=Path, default=None)
     effective_index.set_defaults(command="replay effective-index")
+    gap_refinement = replay_sub.add_parser(
+        "gap-refinement",
+        help="Refine full-BZ adjacent-band edges with validation-only real MPB.",
+        description="Run the registered EXP-PHY-006 preflight or local-refinement pilot.",
+    )
+    gap_refinement.add_argument("--config", type=Path, required=True)
+    gap_refinement.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Validate frozen validation identities without importing or running MPB.",
+    )
+    gap_refinement.add_argument("--run-dir", type=Path, default=None)
+    gap_refinement.set_defaults(command="replay gap-refinement")
 
 
 def run(ns: Any) -> bool:
@@ -53,6 +66,17 @@ def run(ns: Any) -> bool:
 
         print(
             run_effective_index_audit(
+                ns.config,
+                run_dir=ns.run_dir,
+                preflight=bool(ns.preflight),
+            )
+        )
+        return True
+    if ns.command == "replay gap-refinement":
+        from phc2d.replay.gap_refinement import run_gap_refinement_pilot
+
+        print(
+            run_gap_refinement_pilot(
                 ns.config,
                 run_dir=ns.run_dir,
                 preflight=bool(ns.preflight),
