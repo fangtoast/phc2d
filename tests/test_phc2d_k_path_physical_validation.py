@@ -373,6 +373,30 @@ def test_mpb_frequency_normalization_canonicalizes_band_order() -> None:
     assert normalized.tolist() == [[0.1, 0.2, 0.3], [0.35, 0.4, 0.5]]
 
 
+def test_mpb_frequency_normalization_keeps_square_k_by_band_orientation() -> None:
+    frequencies = np.asarray(
+        [
+            [0.30, 0.10, 0.20],
+            [0.60, 0.40, 0.50],
+            [0.90, 0.70, 0.80],
+        ],
+        dtype=np.float64,
+    )
+
+    normalized = _normalize_freqs(
+        frequencies,
+        n_k=3,
+        n_bands=3,
+        band_order_policy="frequency_ascending",
+    )
+
+    assert normalized.tolist() == [
+        [0.10, 0.20, 0.30],
+        [0.40, 0.50, 0.60],
+        [0.70, 0.80, 0.90],
+    ]
+
+
 def test_v2_validation_blocks_when_tolerance_missing_before_solver(tmp_path: Path) -> None:
     calls = {"count": 0}
 
