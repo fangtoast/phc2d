@@ -154,11 +154,11 @@ K20/F50 的既有 68 个 checkpoint 对应其余 408 个 cells；逐 checkpoint�
 
 ## 图形化阅读
 
-![EXP-FWD-007 K5 81 点 full-BZ TE 能带与二维介质图](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_full_bz_81_with_dielectric_te.png)
+![EXP-FWD-007 K5 81 点网格路径 TE 能带与二维介质图](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_grid_path_81_interpolated_te.png)
 
-图 1 使用全部 `9×9=81` 个 full-BZ 点，并在每个能带谱左侧放置同一测试样本的二维介质分布。两套数据的冻结 MPB 元数据均明确标记为 `TE`；介质图由模型实际输入的 64×64 material grid 按 `ε_r=1+7.9w` 换算，白色对应 `ε_r=1.0`，蓝色对应 `ε_r=8.9`。横轴将 81 点分成 9 个固定 `k_x` 的 `k_y` 扫描段，段与段之间不连线，因此不会把二维 full-BZ 网格伪装成连续高对称路径。
+图 1 是重新绘制的传统能带图，并在每个能带谱左侧放置同一测试样本的二维介质分布。两套数据的冻结 MPB 元数据均明确标记为 `TE`；介质图由模型实际输入的 64×64 material grid 按 `ε_r=1+7.9w` 换算，白色对应 `ε_r=1.0`，蓝色对应 `ε_r=8.9`。横轴为 Γ→X₄⁄₉→M₄⁄₉→Γ；`X₄⁄₉=(4/9,0)`、`M₄⁄₉=(4/9,4/9)`，不冒充标准的 `1/2` BZ 边界。
 
-蓝点/蓝线是真实 TE 能带，红色虚线是 ConvNeXt 预测，红色实线是 joint 预测；阴影仍使用全部 81 点判定的真实 complete gap。该图是查看 full-BZ 拟合与结构对应关系的主图。
+该路径只有 13 个直接 full-BZ 网格节点；图中的 81 个横轴位置是对这 13 个真实/预测节点进行分段线性重采样得到的显示点，不是 81 次新 MPB 或新模型查询。蓝线是真实 TE 标签重采样，红色虚线是 ConvNeXt 重采样，红色实线是 joint 重采样；阴影仍由原始 `9×9=81` 个 full-BZ 真实值判定。因此这张图可以用于观察路径形状，但不能把 81 个显示点当作新增独立物理证据。
 
 ![EXP-FWD-007 K5 真实值与预测值能带图](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_gap_sample_band_diagrams.png)
 
@@ -180,8 +180,8 @@ K20/F50 的既有 68 个 checkpoint 对应其余 408 个 cells；逐 checkpoint�
 - [K5 模型图谱 SVG](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_model_landscape.svg)
 - [K5 真实值与预测值能带图 SVG](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_gap_sample_band_diagrams.svg)
 - [K5 能带图逐点源数据](assets/exp_fwd_007_six_domain_20260831/source_data_exp_fwd_007_band_diagrams.csv)
-- [K5 81 点 full-BZ TE 能带与介质图 SVG](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_full_bz_81_with_dielectric_te.svg)
-- [K5 81 点 full-BZ 能带源数据](assets/exp_fwd_007_six_domain_20260831/source_data_exp_fwd_007_full_bz_81_band_diagrams.csv)
+- [K5 81 点网格路径 TE 能带与介质图 SVG](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_grid_path_81_interpolated_te.svg)
+- [K5 81 点网格路径重采样源数据](assets/exp_fwd_007_six_domain_20260831/source_data_exp_fwd_007_grid_path_81_interpolated.csv)
 - [6 个二维介质图源数据](assets/exp_fwd_007_six_domain_20260831/source_data_exp_fwd_007_selected_dielectric_maps.csv)
 - [六域 source→target 汇总](assets/exp_fwd_007_six_domain_20260831/source_data_six_domain_matrix.csv)
 - [K5 来源模型逐 cell 数据](assets/exp_fwd_007_six_domain_20260831/source_data_k5_source_models.csv)

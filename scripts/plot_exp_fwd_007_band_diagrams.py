@@ -69,8 +69,8 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--view",
-        choices=("all", "path", "full-bz"),
-        default="all",
+        choices=("all", "path", "path-81", "full-bz"),
+        default="path-81",
         help="Render both views or only one view (default: all).",
     )
     return parser.parse_args()
@@ -137,6 +137,29 @@ def _full_bz_row_slices(k_points: np.ndarray) -> list[slice]:
     if any(len(np.unique(k_points[row, 0])) != 1 for row in slices):
         raise ValueError("Full-BZ point order is not grouped by fixed k_x rows.")
     return slices
+
+
+def _resample_grid_path_81(
+    values: np.ndarray, path_indices: np.ndarray, ticks: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    path_values = np.asarray(values)[path_indices]
+    counts = (28, 28, 27)
+    pieces: list[np.ndarray] = []
+    for segment, count in enumerate(counts):
+        start = int(ticks[segment])
+        stop = int(ticks[segment + 1])
+        source_x = np.arange(stop - start + 1, dtype=float)
+        target_x = np.linspace(0.0, float(stop - start), count)
+        flat = path_values[start : stop + 1].reshape(len(source_x), -1)
+        interpolated = np.column_stack(
+            [np.interp(target_x, source_x, flat[:, column]) for column in range(flat.shape[1])]
+        ).reshape((count,) + path_values.shape[1:])
+        pieces.append(interpolated if segment == 0 else interpolated[1:])
+    resampled = np.concatenate(pieces, axis=0)
+    output_ticks = np.asarray([0, 27, 54, 80], dtype=np.int64)
+    if resampled.shape[0] != 81:
+        raise ValueError(f"Expected 81 resampled path positions, found {resampled.shape[0]}.")
+    return resampled, output_ticks
 
 
 def _load_lane(root: Path, lane: str) -> dict[str, object]:
@@ -291,6 +314,54 @@ def _write_structure_source_data(
                         }
                     )
     path = output_dir / "source_data_exp_fwd_007_selected_dielectric_maps.csv"
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _write_path_81_source_data(
+    output_dir: Path, lane_data: dict[str, dict[str, object]]
+) -> None:
+    rows: list[dict[str, object]] = []
+    for lane, payload in lane_data.items():
+        coordinates, _ = _resample_grid_path_81(
+            payload["k_points"], payload["path_indices"], payload["ticks"]
+        )
+        for selection, position in zip(SELECTION_LABELS, payload["selected"]):
+            truth, _ = _resample_grid_path_81(
+                payload["joint"]["target"][position], payload["path_indices"], payload["ticks"]
+            )
+            single, _ = _resample_grid_path_81(
+                payload["single"]["prediction"][position], payload["path_indices"], payload["ticks"]
+            )
+            joint, _ = _resample_grid_path_81(
+                payload["joint"]["prediction"][position], payload["path_indices"], payload["ticks"]
+            )
+            gaps = _complete_gaps(payload["joint"]["target"][position])
+            gap_text = ";".join(
+                f"B{pair}-B{pair + 1}:{upper - lower:.12g}" for pair, lower, upper in gaps
+            )
+            for path_position, (k_x, k_y) in enumerate(coordinates):
+                for band in range(truth.shape[1]):
+                    rows.append(
+                        {
+                            "lane": lane,
+                            "polarization": payload["polarization"],
+                            "selection": selection,
+                            "dataset_index": int(payload["idx_test"][position]),
+                            "path_position": path_position,
+                            "k_x": f"{k_x:.12g}",
+                            "k_y": f"{k_y:.12g}",
+                            "band": band + 1,
+                            "truth_interpolated": f"{truth[path_position, band]:.12g}",
+                            "convnext_interpolated": f"{single[path_position, band]:.12g}",
+                            "joint_interpolated": f"{joint[path_position, band]:.12g}",
+                            "source_direct_path_node_count": 13,
+                            "true_complete_gaps_from_full_bz": gap_text,
+                        }
+                    )
+    path = output_dir / "source_data_exp_fwd_007_grid_path_81_interpolated.csv"
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()
@@ -557,6 +628,142 @@ def _plot_full_bz(lane_data: dict[str, dict[str, object]], output_dir: Path) -> 
     plt.close(fig)
 
 
+def _plot_path_81(lane_data: dict[str, dict[str, object]], output_dir: Path) -> None:
+    fig = plt.figure(figsize=(10.4, 5.5))
+    grid = fig.add_gridspec(
+        2,
+        6,
+        width_ratios=(0.46, 1.35, 0.46, 1.35, 0.46, 1.35),
+        hspace=0.42,
+        wspace=0.22,
+    )
+    dielectric_cmap = LinearSegmentedColormap.from_list(
+        "dielectric_blue_path", ["#FFFFFF", "#3679B8"]
+    )
+    band_axes: list[plt.Axes] = []
+    panel_index = 0
+    for row, (lane, payload) in enumerate(lane_data.items()):
+        for column, (selection, position) in enumerate(zip(SELECTION_LABELS, payload["selected"])):
+            structure_ax = fig.add_subplot(grid[row, 2 * column])
+            share_axis = band_axes[0] if band_axes else None
+            ax = fig.add_subplot(grid[row, 2 * column + 1], sharey=share_axis)
+            band_axes.append(ax)
+            structure_ax.imshow(
+                payload["epsilon_grid"][position].T,
+                cmap=dielectric_cmap,
+                vmin=payload["epsilon_air"],
+                vmax=payload["epsilon_material"],
+                origin="lower",
+                interpolation="nearest",
+            )
+            structure_ax.set_xticks([])
+            structure_ax.set_yticks([])
+            structure_ax.set_title(
+                f"{lane} | {payload['polarization']}\n"
+                + rf"$\varepsilon_r$: {payload['epsilon_air']:.0f}→{payload['epsilon_material']:.1f}",
+                fontsize=5.8,
+                pad=3,
+            )
+            for spine in structure_ax.spines.values():
+                spine.set_color("#606060")
+                spine.set_linewidth(0.55)
+            structure_ax.text(
+                -0.18,
+                1.08,
+                chr(ord("a") + panel_index),
+                transform=structure_ax.transAxes,
+                fontsize=8,
+                fontweight="bold",
+                ha="left",
+                va="bottom",
+            )
+            truth, path_ticks = _resample_grid_path_81(
+                payload["joint"]["target"][position], payload["path_indices"], payload["ticks"]
+            )
+            single, _ = _resample_grid_path_81(
+                payload["single"]["prediction"][position], payload["path_indices"], payload["ticks"]
+            )
+            joint, _ = _resample_grid_path_81(
+                payload["joint"]["prediction"][position], payload["path_indices"], payload["ticks"]
+            )
+            x = np.arange(81)
+            for band in range(truth.shape[1]):
+                ax.plot(x, truth[:, band], color=COLORS["truth"], linewidth=0.92, alpha=0.90)
+                ax.plot(
+                    x,
+                    single[:, band],
+                    color=COLORS["prediction"],
+                    linewidth=0.62,
+                    linestyle=(0, (3, 2)),
+                    alpha=0.48,
+                )
+                ax.plot(x, joint[:, band], color=COLORS["prediction"], linewidth=0.72, alpha=0.92)
+            for pair, lower, upper in _complete_gaps(payload["joint"]["target"][position]):
+                ax.axhspan(lower, upper, color=COLORS["gap"], alpha=0.82, zorder=0)
+                ax.text(
+                    79.5,
+                    (lower + upper) / 2,
+                    f"B{pair}–B{pair + 1}",
+                    ha="right",
+                    va="center",
+                    fontsize=4.7,
+                    color=COLORS["text"],
+                    bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.72, "pad": 0.5},
+                )
+            single_mre = float(payload["single"]["sample_mre"][position])
+            joint_mre = float(payload["joint"]["sample_mre"][position])
+            ax.set_title(
+                f"{selection} | test {int(payload['idx_test'][position])}\n"
+                f"ConvNeXt {single_mre:.2f}%  joint {joint_mre:.2f}%  "
+                f"Δ {joint_mre - single_mre:+.2f} pp",
+                fontsize=6.3,
+                color=COLORS["text"],
+            )
+            ax.set_xticks(
+                path_ticks,
+                [r"$\Gamma$", r"$X_{4/9}$", r"$M_{4/9}$", r"$\Gamma$"],
+            )
+            ax.set_xlim(0, 80)
+            ax.grid(color=COLORS["grid"], linewidth=0.45, alpha=0.55)
+            ax.tick_params(labelsize=5.8, length=2)
+            ax.spines[["top", "right"]].set_visible(False)
+            if column > 0:
+                ax.tick_params(labelleft=False)
+            panel_index += 1
+        band_axes[row * 3].set_ylabel(r"$\omega a/(2\pi c)$", fontsize=7, labelpad=2)
+    for ax in band_axes[3:]:
+        ax.set_xlabel("grid-supported k path (81 display points)", fontsize=6.3)
+    handles = [
+        Line2D([], [], color=COLORS["truth"], lw=1.1, label="True labels, interpolated"),
+        Line2D([], [], color=COLORS["prediction"], lw=0.8, linestyle=(0, (3, 2)), alpha=0.55, label="ConvNeXt, interpolated"),
+        Line2D([], [], color=COLORS["prediction"], lw=0.9, label="Joint, interpolated"),
+        Patch(facecolor=COLORS["gap"], edgecolor="none", alpha=0.82, label="True complete gap (81-point full BZ)"),
+    ]
+    fig.legend(handles=handles, loc="lower center", ncol=4, frameon=False, fontsize=6.1)
+    fig.suptitle(
+        "EXP-FWD-007: TE band diagrams resampled to 81 points on the grid-supported path",
+        fontsize=9.0,
+        fontweight="bold",
+        y=0.985,
+    )
+    fig.text(
+        0.5,
+        0.935,
+        "Piecewise-linear display from 13 direct grid nodes; "
+        + r"$X_{4/9}$ and $M_{4/9}$ are not the canonical 1/2 BZ boundary",
+        ha="center",
+        va="center",
+        fontsize=6.2,
+        color=COLORS["text"],
+    )
+    fig.subplots_adjust(left=0.055, right=0.985, bottom=0.15, top=0.88)
+    stem = output_dir / "exp_fwd_007_k5_grid_path_81_interpolated_te"
+    fig.savefig(stem.with_suffix(".svg"), bbox_inches="tight")
+    fig.savefig(stem.with_suffix(".pdf"), bbox_inches="tight")
+    fig.savefig(stem.with_suffix(".png"), dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main() -> None:
     args = _parse_args()
     root = args.root.resolve()
@@ -566,8 +773,11 @@ def main() -> None:
     _write_source_data(output_dir, lane_data)
     _write_full_bz_source_data(output_dir, lane_data)
     _write_structure_source_data(output_dir, lane_data)
+    _write_path_81_source_data(output_dir, lane_data)
     if args.view in {"all", "path"}:
         _plot(lane_data, output_dir)
+    if args.view in {"all", "path-81"}:
+        _plot_path_81(lane_data, output_dir)
     if args.view in {"all", "full-bz"}:
         _plot_full_bz(lane_data, output_dir)
     print(f"Created EXP-FWD-007 band diagrams in {output_dir}")
