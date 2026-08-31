@@ -39,3 +39,22 @@ def test_gap_sample_selection_returns_low_median_and_high_error() -> None:
     selected = plotter._select_gap_samples(target, sample_mre)
 
     assert selected == [2, 0, 4]
+
+
+def test_full_bz_rows_keep_each_fixed_kx_group_separate() -> None:
+    values = np.linspace(-4 / 9, 4 / 9, 9)
+    k_points = np.asarray([(k_x, k_y) for k_x in values for k_y in values])
+
+    rows = plotter._full_bz_row_slices(k_points)
+
+    assert [(row.start, row.stop) for row in rows] == [
+        (0, 9),
+        (9, 18),
+        (18, 27),
+        (27, 36),
+        (36, 45),
+        (45, 54),
+        (54, 63),
+        (63, 72),
+        (72, 81),
+    ]

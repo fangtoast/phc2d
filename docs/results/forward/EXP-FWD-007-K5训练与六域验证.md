@@ -154,19 +154,25 @@ K20/F50 的既有 68 个 checkpoint 对应其余 408 个 cells；逐 checkpoint�
 
 ## 图形化阅读
 
+![EXP-FWD-007 K5 81 点 full-BZ TE 能带与二维介质图](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_full_bz_81_with_dielectric_te.png)
+
+图 1 使用全部 `9×9=81` 个 full-BZ 点，并在每个能带谱左侧放置同一测试样本的二维介质分布。两套数据的冻结 MPB 元数据均明确标记为 `TE`；介质图由模型实际输入的 64×64 material grid 按 `ε_r=1+7.9w` 换算，白色对应 `ε_r=1.0`，蓝色对应 `ε_r=8.9`。横轴将 81 点分成 9 个固定 `k_x` 的 `k_y` 扫描段，段与段之间不连线，因此不会把二维 full-BZ 网格伪装成连续高对称路径。
+
+蓝点/蓝线是真实 TE 能带，红色虚线是 ConvNeXt 预测，红色实线是 joint 预测；阴影仍使用全部 81 点判定的真实 complete gap。该图是查看 full-BZ 拟合与结构对应关系的主图。
+
 ![EXP-FWD-007 K5 真实值与预测值能带图](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_gap_sample_band_diagrams.png)
 
-图 1 是真实逐样本能带预测，而不是由汇总 MRE 合成的示意图。每行分别从 Binary 与 Graded 的“真实存在 full-BZ complete gap”测试子集中，按 joint sample MRE 选择低误差、中位误差和高误差样本；Binary 子集为 `213/1000`，Graded 子集为 `55/1000`。蓝线是真实能带，红色虚线是该路线最佳单模型 ConvNeXt，红色实线是 joint 模型；阴影由完整 81 点 BZ 的真实上下边界计算，曲线只显示 Γ–X–M–Γ 路径。负 `Δ` 表示 joint 相对 ConvNeXt 改善。
+图 2 使用相同 6 个样本，只抽取其中的 Γ–X–M–Γ 高对称路径，便于阅读传统能带走向。每行分别从 Binary 与 Graded 的“真实存在 full-BZ complete gap”测试子集中，按 joint sample MRE 选择低误差、中位误差和高误差样本；Binary 子集为 `213/1000`，Graded 子集为 `55/1000`。负 `Δ` 表示 joint 相对 ConvNeXt 改善。
 
 在 6 个代表样本中，joint 改善了 5 个，但 Graded 高误差样本从 `0.88%` 退化到 `0.94%`，说明联合方案不是逐样本单调占优。更关键的是，这些真实完整带隙分别位于 B4–B5、B7–B8 或 B9–B10，没有一个位于 B1–B2；因此，能指示第一阶 Bragg 区域的 B1–B2 弱先验不能替代 Bands 1–10 最大完整带隙搜索。
 
 ![EXP-FWD-007 六域迁移图谱](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_six_domain_transfer_atlas.png)
 
-图 2 将 seed-0 共同来源集合压缩为三层证据。左上是每个 source→target 组合上 8 个单路线模型的平均 MRE；右上是每格可达到的最低 MRE 及对应模型；下方保留全部单路线 evaluation cells。颜色使用对数标尺，但格内数字仍是原始百分比。对角线 native 均值为 `0.40%–1.39%`，而同时改变生成器与路线的总体均值上升到 `6.92%`，且分布明显变宽。右上模型名随 source/target 组合变化，直接说明不存在一个在全部迁移方向上都占优的模型。
+图 3 将 seed-0 共同来源集合压缩为三层证据。左上是每个 source→target 组合上 8 个单路线模型的平均 MRE；右上是每格可达到的最低 MRE 及对应模型；下方保留全部单路线 evaluation cells。颜色使用对数标尺，但格内数字仍是原始百分比。对角线 native 均值为 `0.40%–1.39%`，而同时改变生成器与路线的总体均值上升到 `6.92%`，且分布明显变宽。右上模型名随 source/target 组合变化，直接说明不存在一个在全部迁移方向上都占优的模型。
 
 ![EXP-FWD-007 K5 来源模型六域表现](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_model_landscape.png)
 
-图 3 只放大本页的 K5 来源 checkpoint。蓝框标出各路线的 native 目标域；joint 模型单列，不参与 8 个单路线模型的排名。Binary-source 与 Graded-source 的 native 最低值都来自 ConvNeXt，分别为 `0.7789%` 与 `0.5169%`，但跨路线最低模型分别变为 MLP（Binary→Graded，`2.0544%`）与 FNO2D（Graded→Binary，`1.5178%`）。这组图支持“native 强、迁移退化明显、最佳架构依赖迁移方向”，不支持“ConvNeXt 是六域通用最优”。
+图 4 只放大本页的 K5 来源 checkpoint。蓝框标出各路线的 native 目标域；joint 模型单列，不参与 8 个单路线模型的排名。Binary-source 与 Graded-source 的 native 最低值都来自 ConvNeXt，分别为 `0.7789%` 与 `0.5169%`，但跨路线最低模型分别变为 MLP（Binary→Graded，`2.0544%`）与 FNO2D（Graded→Binary，`1.5178%`）。这组图支持“native 强、迁移退化明显、最佳架构依赖迁移方向”，不支持“ConvNeXt 是六域通用最优”。
 
 可编辑矢量图与绘图源数据：
 
@@ -174,6 +180,9 @@ K20/F50 的既有 68 个 checkpoint 对应其余 408 个 cells；逐 checkpoint�
 - [K5 模型图谱 SVG](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_model_landscape.svg)
 - [K5 真实值与预测值能带图 SVG](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_gap_sample_band_diagrams.svg)
 - [K5 能带图逐点源数据](assets/exp_fwd_007_six_domain_20260831/source_data_exp_fwd_007_band_diagrams.csv)
+- [K5 81 点 full-BZ TE 能带与介质图 SVG](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_full_bz_81_with_dielectric_te.svg)
+- [K5 81 点 full-BZ 能带源数据](assets/exp_fwd_007_six_domain_20260831/source_data_exp_fwd_007_full_bz_81_band_diagrams.csv)
+- [6 个二维介质图源数据](assets/exp_fwd_007_six_domain_20260831/source_data_exp_fwd_007_selected_dielectric_maps.csv)
 - [六域 source→target 汇总](assets/exp_fwd_007_six_domain_20260831/source_data_six_domain_matrix.csv)
 - [K5 来源模型逐 cell 数据](assets/exp_fwd_007_six_domain_20260831/source_data_k5_source_models.csv)
 - [seed-0 域偏移逐 cell 数据](assets/exp_fwd_007_six_domain_20260831/source_data_seed0_shift_cells.csv)
