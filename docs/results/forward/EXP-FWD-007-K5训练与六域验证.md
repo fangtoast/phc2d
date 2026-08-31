@@ -152,6 +152,24 @@ K20/F50 的既有 68 个 checkpoint 对应其余 408 个 cells；逐 checkpoint�
 
 这组均值与具体模型排名不同：它只说明在本次 source/target 组合上，native 最低，而同时改变生成器与路线的平均迁移负担最大。F50 的 seed 1/2 共 204 cells 保留为补充；不伪装为与 K5/K20 配对的 seed-matched 比较。
 
+## 图形化阅读
+
+![EXP-FWD-007 六域迁移图谱](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_six_domain_transfer_atlas.png)
+
+图 1 将 seed-0 共同来源集合压缩为三层证据。左上是每个 source→target 组合上 8 个单路线模型的平均 MRE；右上是每格可达到的最低 MRE 及对应模型；下方保留全部单路线 evaluation cells。颜色使用对数标尺，但格内数字仍是原始百分比。对角线 native 均值为 `0.40%–1.39%`，而同时改变生成器与路线的总体均值上升到 `6.92%`，且分布明显变宽。右上模型名随 source/target 组合变化，直接说明不存在一个在全部迁移方向上都占优的模型。
+
+![EXP-FWD-007 K5 来源模型六域表现](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_model_landscape.png)
+
+图 2 只放大本页的 K5 来源 checkpoint。蓝框标出各路线的 native 目标域；joint 模型单列，不参与 8 个单路线模型的排名。Binary-source 与 Graded-source 的 native 最低值都来自 ConvNeXt，分别为 `0.7789%` 与 `0.5169%`，但跨路线最低模型分别变为 MLP（Binary→Graded，`2.0544%`）与 FNO2D（Graded→Binary，`1.5178%`）。这组图支持“native 强、迁移退化明显、最佳架构依赖迁移方向”，不支持“ConvNeXt 是六域通用最优”。
+
+可编辑矢量图与绘图源数据：
+
+- [六域迁移图谱 SVG](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_six_domain_transfer_atlas.svg)
+- [K5 模型图谱 SVG](assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_model_landscape.svg)
+- [六域 source→target 汇总](assets/exp_fwd_007_six_domain_20260831/source_data_six_domain_matrix.csv)
+- [K5 来源模型逐 cell 数据](assets/exp_fwd_007_six_domain_20260831/source_data_k5_source_models.csv)
+- [seed-0 域偏移逐 cell 数据](assets/exp_fwd_007_six_domain_20260831/source_data_seed0_shift_cells.csv)
+
 ## 限制与下一决策
 
 1. 本页是 held-out surrogate 证据，不是 WSL real-MPB replay、物理验证或 inverse 成功。
