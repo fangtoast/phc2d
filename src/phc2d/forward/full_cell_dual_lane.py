@@ -8,6 +8,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 import random
@@ -40,6 +41,13 @@ from phc2d.forward.gap_aware_loss import (
     gap_aware_spectrum_loss,
     resolve_gap_aware_loss_config,
 )
+from phc2d.forward.frequency_weighted_loss import (
+    FrequencyWeightedLossConfig,
+    bounded_inverse_frequency_loss,
+    precompute_frequency_centers,
+    resolve_frequency_weighted_loss_config,
+)
+from phc2d.forward.frequency_weighted_metrics import evaluate_frequency_weighted_predictions
 from phc2d.models import build_model, describe_model_identity, get_model_spec
 from phc2d.runs import (
     RUN_LOG_NAME,
@@ -82,7 +90,27 @@ class _DualLaneTrainingContext:
     config_file: Path
     head_kind: str
     seed: int
-    loss_config: GapAwareLossConfig | None
+    loss_config: GapAwareLossConfig | FrequencyWeightedLossConfig | None
+    frequency_config: FrequencyWeightedLossConfig | None
+    train_frequency_centers: Mapping[str, Any] | None
+    val_frequency_centers: Mapping[str, Any] | None
+
+
+class _FrequencyCenterDataset:
+    """Attach start-of-run precomputed centers without changing HDF5 adapters."""
+
+    def __init__(self, base: Any, centers: Any) -> None:
+        self.base = base
+        self.centers = centers
+        if len(base) != len(centers):
+            raise ValueError("frequency-center count does not match dataset length")
+
+    def __len__(self) -> int:
+        return len(self.base)
+
+    def __getitem__(self, index: int) -> tuple[Any, Any, Any]:
+        inputs, target = self.base[index]
+        return inputs, target, self.centers[index]
 
 
 def recover_fixed_200_finalizer(
@@ -105,6 +133,7 @@ def _dual_lane_training_loss(
     target: Any,
     *,
     binary_batch_size: int,
+    frequency_centers: Any | None = None,
 ) -> tuple[Any, dict[str, Any]]:
     """Compute the legacy base loss or equal-lane gap-aware components."""
 
@@ -113,17 +142,32 @@ def _dual_lane_training_loss(
         return base, {"full_spectrum": base}
     if binary_batch_size <= 0 or binary_batch_size >= int(target.shape[0]):
         raise ValueError("dual-lane gap-aware loss requires non-empty binary and graded batches")
+    if isinstance(context.loss_config, FrequencyWeightedLossConfig):
+        if frequency_centers is None:
+            raise ValueError("frequency-weighted loss requires one center per training sample")
+        lane_terms = {}
+        start = 0
+        for lane, count in (("binary", binary_batch_size), ("graded", target.shape[0] - binary_batch_size)):
+            stop = start + int(count)
+            lane_terms[lane] = bounded_inverse_frequency_loss(
+                prediction[start:stop], target[start:stop], target_mean=context.means[lane],
+                target_std=context.stds[lane], frequency_center=frequency_centers[start:stop],
+                config=context.loss_config, torch_module=context.torch,
+            )
+            start = stop
+        names = tuple(lane_terms["binary"].as_dict())
+        averaged = {
+            name: 0.5 * (lane_terms["binary"].as_dict()[name] + lane_terms["graded"].as_dict()[name])
+            for name in names
+        }
+        return averaged["total"], {name: value for name, value in averaged.items() if name != "total"}
     lane_terms = {}
     start = 0
     for lane, count in (("binary", binary_batch_size), ("graded", target.shape[0] - binary_batch_size)):
         stop = start + int(count)
         lane_terms[lane] = gap_aware_spectrum_loss(
-            prediction[start:stop],
-            target[start:stop],
-            target_mean=context.means[lane],
-            target_std=context.stds[lane],
-            config=context.loss_config,
-            torch_module=context.torch,
+            prediction[start:stop], target[start:stop], target_mean=context.means[lane],
+            target_std=context.stds[lane], config=context.loss_config, torch_module=context.torch,
         )
         start = stop
     names = tuple(lane_terms["binary"].as_dict())
@@ -150,7 +194,7 @@ def _gap_evaluation_kwargs(context: _DualLaneTrainingContext) -> dict[str, int |
                 gap_decision["lower_band_max_one_based"]
             ),
         }
-    if context.loss_config is None:
+    if context.loss_config is None or isinstance(context.loss_config, FrequencyWeightedLossConfig):
         return {}
     return {
         "gap_lower_band_min_one_based": context.loss_config.lower_band_min_one_based,
@@ -186,10 +230,20 @@ def _run_dual_lane_epochs(context: _DualLaneTrainingContext) -> dict[str, Any]:
         train_sum = 0.0
         train_count = 0
         component_sums: dict[str, float] = {}
-        for batch_index, ((xb, yb), (xg, yg)) in enumerate(
+        for batch_index, (binary_batch, graded_batch) in enumerate(
             zip(context.train_loaders["binary"], context.train_loaders["graded"], strict=True),
             start=1,
         ):
+            if isinstance(context.loss_config, FrequencyWeightedLossConfig):
+                xb, yb, cb = binary_batch
+                xg, yg, cg = graded_batch
+                frequency_centers = context.torch.cat((cb, cg), dim=0).to(
+                    context.device, non_blocking=True
+                )
+            else:
+                xb, yb = binary_batch
+                xg, yg = graded_batch
+                frequency_centers = None
             inputs = context.torch.cat((xb, xg), dim=0).to(context.device, non_blocking=True)
             targets = context.torch.cat((yb, yg), dim=0).to(context.device, non_blocking=True)
             lane_id = context.torch.cat(
@@ -205,6 +259,7 @@ def _run_dual_lane_epochs(context: _DualLaneTrainingContext) -> dict[str, Any]:
                 prediction,
                 targets,
                 binary_batch_size=int(xb.shape[0]),
+                frequency_centers=frequency_centers,
             )
             if not bool(context.torch.isfinite(loss).item()):
                 raise RuntimeError(f"non-finite dual-lane loss at epoch {epoch}, batch {batch_index}")
@@ -433,6 +488,84 @@ def _write_terminal_checkpoint(
     return convergence, required_stop_epoch, terminal_checkpoint
 
 
+def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
+    """Write stable CSV evidence without introducing a report-only dependency."""
+
+    fields: list[str] = []
+    for row in rows:
+        for field in row:
+            if field not in fields:
+                fields.append(str(field))
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _write_frequency_validation_artifacts(context: _DualLaneTrainingContext) -> dict[str, Any]:
+    """Evaluate validation only and emit the EXP-FWD-018 diagnostic artifact set."""
+
+    if context.frequency_config is None:
+        return {}
+    if context.val_frequency_centers is None:
+        raise RuntimeError("frequency-weighted validation centers are unavailable")
+    all_band: list[dict[str, Any]] = []
+    all_k: list[dict[str, Any]] = []
+    all_pairs: list[dict[str, Any]] = []
+    lane_metrics: dict[str, Any] = {}
+    context.model.eval()
+    for lane_index, lane in enumerate(LANES):
+        predictions: list[np.ndarray] = []
+        targets: list[np.ndarray] = []
+        with context.torch.no_grad():
+            for inputs, normalized_target in context.val_loaders[lane]:
+                inputs = inputs.to(context.device, non_blocking=True)
+                normalized_target = normalized_target.to(context.device, non_blocking=True)
+                lane_id = context.torch.full((inputs.shape[0],), lane_index, dtype=context.torch.long, device=context.device)
+                prediction = context.model(inputs, k_points=context.k_points, lane_id=lane_id)
+                predictions.append((prediction * context.stds[lane] + context.means[lane]).detach().cpu().numpy())
+                targets.append((normalized_target * context.stds[lane] + context.means[lane]).detach().cpu().numpy())
+        prediction_array = np.concatenate(predictions)
+        target_array = np.concatenate(targets)
+        center_array = context.val_frequency_centers[lane].detach().cpu().numpy()
+        metrics, per_band, per_k, pair_rows = evaluate_frequency_weighted_predictions(
+            prediction_array, target_array,
+            frequency_center=center_array,
+            target_std=context.stds[lane].detach().cpu().numpy(), config=context.frequency_config,
+        )
+        np.savez_compressed(
+            context.out / f"validation_predictions_{lane}.npz",
+            prediction_Wh=prediction_array, target_Wh=target_array, frequency_center=center_array,
+            target_std=context.stds[lane].detach().cpu().numpy(),
+        )
+        lane_metrics[lane] = metrics
+        all_band.extend({"lane": lane, **row} for row in per_band)
+        all_k.extend({"lane": lane, **row} for row in per_k)
+        all_pairs.extend({"lane": lane, **row} for row in pair_rows)
+    _write_csv(context.out / "per_band_metrics.csv", all_band)
+    _write_csv(context.out / "per_k_metrics.csv", all_k)
+    _write_csv(context.out / "frequency_pair_diagnostics.csv", all_pairs)
+    (context.out / "window_metrics.json").write_text(json.dumps(lane_metrics, indent=2) + "\n", encoding="utf-8")
+    (context.out / "weight_statistics.json").write_text(
+        json.dumps({lane: metrics["weight_statistics"] for lane, metrics in lane_metrics.items()}, indent=2) + "\n", encoding="utf-8"
+    )
+    import matplotlib.pyplot as plt
+
+    figure, axis = plt.subplots(figsize=(7, 4))
+    for lane in LANES:
+        axis.plot([row["band_one_based"] for row in all_band if row["lane"] == lane],
+                  [row["mre_pct"] for row in all_band if row["lane"] == lane], marker="o", label=lane)
+    axis.set_xlabel("band")
+    axis.set_ylabel("validation MRE (%)")
+    axis.set_title("frequency-weighted validation spectrum")
+    axis.legend()
+    figure.tight_layout()
+    for suffix in ("png", "pdf"):
+        figure.savefig(context.out / "figures" / f"frequency_window_validation.{suffix}", dpi=180)
+    plt.close(figure)
+    return lane_metrics
+
+
 def _finalize_dual_lane_run(
     context: _DualLaneTrainingContext,
     outcome: Mapping[str, Any],
@@ -464,6 +597,7 @@ def _finalize_dual_lane_run(
         for lane_index, lane in enumerate(LANES)
     }
     final_score = float(np.mean([evaluations[lane]["bands_2_10_mre_pct"] for lane in LANES]))
+    frequency_validation = _write_frequency_validation_artifacts(context)
     peak_mb = float(context.torch.cuda.max_memory_allocated(context.device) / (1024**2)) if context.device_info.is_cuda else 0.0
     warm_start_public = None
     if context.warm_start is not None:
@@ -499,6 +633,7 @@ def _finalize_dual_lane_run(
             if context.loss_config is not None
             else {"name": "equal_lane_normalized_full_matrix_mse"}
         ),
+        "frequency_window_validation": frequency_validation or None,
     }
     if _gap_evaluation_kwargs(context):
         metrics["gap_validation"] = {
@@ -540,7 +675,11 @@ def _finalize_dual_lane_run(
     )
     status = "dual_lane_admission_probe_pass" if context.admission_probe else "continuation_training_success" if context.warm_start is not None else "dual_lane_training_success"
     if not context.admission_probe and convergence is not None and not all(bool(item["passed"]) for item in convergence["curves"].values()):
-        status = "training_complete_convergence_not_met"
+        status = (
+            "inconclusive_nonconverged"
+            if isinstance(context.loss_config, FrequencyWeightedLossConfig)
+            else "training_complete_convergence_not_met"
+        )
     write_results(
         context.out,
         {
@@ -702,12 +841,50 @@ def run_full_cell_dual_lane(
         "num_workers": int(device_info.num_workers),
         "pin_memory": bool(device_info.pin_memory),
     }
+    loss_config = resolve_frequency_weighted_loss_config(resolved["training"].get("loss"))
+    if loss_config is None:
+        loss_config = resolve_gap_aware_loss_config(resolved["training"].get("loss"))
+    frequency_config = (
+        loss_config if isinstance(loss_config, FrequencyWeightedLossConfig)
+        else resolve_frequency_weighted_loss_config(
+            dict(resolved.get("evaluation") or {}).get("frequency_weighted_diagnostics")
+        )
+    )
+    train_frequency_centers: dict[str, Any] | None = None
+    val_frequency_centers: dict[str, Any] | None = None
+    if frequency_config is not None:
+        train_frequency_centers = {}
+        val_frequency_centers = {}
+        manifest_rows: list[dict[str, Any]] = []
+        for lane in LANES:
+            train_centers, train_ids = precompute_frequency_centers(
+                contracts[lane]["path"], grid_field=contracts[lane]["grid_field"],
+                indices=contracts[lane]["selected_train"], config=frequency_config,
+            )
+            val_centers, val_ids = precompute_frequency_centers(
+                contracts[lane]["path"], grid_field=contracts[lane]["grid_field"],
+                indices=contracts[lane]["idx_val"], config=frequency_config,
+            )
+            train_frequency_centers[lane] = torch.as_tensor(train_centers, dtype=torch.float32)
+            val_frequency_centers[lane] = torch.as_tensor(val_centers, dtype=torch.float32)
+            manifest_rows.extend(
+                {"lane": lane, "split": split, "dataset_index": int(index), "sample_id": str(sample_id),
+                 "frequency_center": float(center), "center_kind": frequency_config.center_kind}
+                for split, indices, sample_ids, centers in (
+                    ("train", contracts[lane]["selected_train"], train_ids, train_centers),
+                    ("validation", contracts[lane]["idx_val"], val_ids, val_centers),
+                )
+                for index, sample_id, center in zip(indices, sample_ids, centers, strict=True)
+            )
+        with (out / "frequency_center_manifest.jsonl").open("w", encoding="utf-8") as handle:
+            for row in manifest_rows:
+                handle.write(json.dumps(row, sort_keys=True) + "\n")
     train_loaders = {
         lane: DataLoader(
-            _dataset(contracts[lane], resolved, contracts[lane]["selected_train"]),
-            shuffle=True,
-            generator=torch.Generator().manual_seed(seed + lane_index),
-            **loader_kwargs,
+            _FrequencyCenterDataset(_dataset(contracts[lane], resolved, contracts[lane]["selected_train"]), train_frequency_centers[lane])
+            if train_frequency_centers is not None
+            else _dataset(contracts[lane], resolved, contracts[lane]["selected_train"]),
+            shuffle=True, generator=torch.Generator().manual_seed(seed + lane_index), **loader_kwargs,
         )
         for lane_index, lane in enumerate(LANES)
     }
@@ -728,8 +905,6 @@ def run_full_cell_dual_lane(
         for lane in LANES
     }
     k_points = torch.as_tensor(reference["k_points"], dtype=torch.float32, device=device)
-    loss_config = resolve_gap_aware_loss_config(resolved["training"].get("loss"))
-
     context = _DualLaneTrainingContext(
         resolved=resolved,
         out=out,
@@ -755,6 +930,9 @@ def run_full_cell_dual_lane(
         head_kind=head_kind,
         seed=int(seed),
         loss_config=loss_config,
+        frequency_config=frequency_config,
+        train_frequency_centers=train_frequency_centers,
+        val_frequency_centers=val_frequency_centers,
     )
     outcome = _run_dual_lane_epochs(context)
     return _finalize_dual_lane_run(context, outcome)

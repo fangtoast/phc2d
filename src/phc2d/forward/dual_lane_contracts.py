@@ -15,6 +15,7 @@ from phc2d.forward.full_cell import (
     _read_contract,
 )
 from phc2d.forward.gap_aware_loss import resolve_gap_aware_loss_config
+from phc2d.forward.frequency_weighted_loss import resolve_frequency_weighted_loss_config
 from phc2d.models import get_model_spec
 
 
@@ -98,7 +99,13 @@ def validate_and_resolve_dual_lane(
         raise ValueError("dual-lane training requires FP32")
     if bool(runtime.get("amp_enabled")) or bool(runtime.get("tf32_enabled")):
         raise ValueError("dual-lane training forbids AMP and TF32")
-    resolve_gap_aware_loss_config(training.get("loss"))
+    loss_raw = training.get("loss")
+    frequency_loss = resolve_frequency_weighted_loss_config(loss_raw)
+    gap_loss = None if frequency_loss is not None else resolve_gap_aware_loss_config(loss_raw)
+    if gap_loss is not None and frequency_loss is not None:
+        raise ValueError("dual-lane loss cannot resolve as both gap-aware and frequency-weighted")
+    if gap_loss is None and frequency_loss is None and isinstance(loss_raw, Mapping):
+        raise ValueError("unsupported dual-lane loss mapping")
     gap_evaluation = dict(evaluation.get("gap_decision") or {})
     if gap_evaluation:
         lower_min = int(gap_evaluation.get("lower_band_min_one_based", 0))

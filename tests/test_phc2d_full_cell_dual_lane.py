@@ -151,3 +151,45 @@ def test_dual_lane_cpu_admission_writes_lane_specific_contract(tmp_path: Path) -
     assert "train_gap_profile_loss" in history
     assert set(meta["dataset_sha256"]) == {"binary", "graded"}
     assert meta["k_points_sha256"]
+
+
+def test_frequency_weighted_admission_does_not_read_test_targets(tmp_path: Path) -> None:
+    if importlib.util.find_spec("torch") is None:
+        pytest.skip("torch is optional")
+    h5py = pytest.importorskip("h5py")
+    binary = tmp_path / "binary.h5"
+    graded = tmp_path / "graded.h5"
+    binary_hashes = _write_lane(binary, seed=31)
+    graded_hashes = _write_lane(graded, seed=32)
+    for path in (binary, graded):
+        with h5py.File(path, "r+") as handle:
+            handle["Wh"][8:10] = np.nan
+    config = {
+        "experiment": {"experiment_id": "EXP-FWD-018", "lane": "joint"},
+        "datasets": {
+            "binary": {"path": str(binary), "grid_field": "material_weight_grid_8", **binary_hashes},
+            "graded": {"path": str(graded), "grid_field": "material_weight_grid_8", **graded_hashes},
+        },
+        "representation": {"sampling": "continuous", "threshold": None, "resolution": 8, "physical_equivalence": True},
+        "model": {"name": "dual_lane_band_operator_v1", "params": {
+            "width": 8, "depth": 1, "modes": [2, 2], "factorization_rank": 0.5,
+            "norm_groups": 2, "head_hidden_dim": 8, "band_embedding_dim": 4, "fourier_frequencies": [1, 2],
+        }},
+        "training": {
+            "max_epochs": 100, "early_stopping_patience": 15, "optimizer": "adamw", "learning_rate": 5.0e-4,
+            "weight_decay": 1.0e-5, "micro_batch_size": 4, "effective_batch_size": 4,
+            "loss": {"name": "equal_lane_bounded_inverse_frequency_v1", "epsilon_air": 1.0,
+                     "epsilon_material": 8.9, "epsilon_f": 0.01, "rho": 4.0, "alpha": 0.25},
+        },
+        "runtime": {"device": "cpu", "require_accelerator": False, "precision": "fp32", "amp_enabled": False,
+                    "tf32_enabled": False, "num_workers": 0},
+        "output": {"runs_dir": str(tmp_path / "runs")},
+    }
+    config_path = tmp_path / "frequency.yaml"
+    config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    run_dir = run_full_cell_dual_lane(config_path, seed=0, head_kind="dense", run_dir=tmp_path / "probe", admission_probe=True)
+    assert validate_run_artifacts(run_dir) == []
+    results = json.loads((run_dir / "results.json").read_text(encoding="utf-8"))
+    assert results["test_executed"] is False
+    assert (run_dir / "frequency_center_manifest.jsonl").is_file()
+    assert (run_dir / "window_metrics.json").is_file()
