@@ -245,6 +245,7 @@ nav:
           - 表征 smoke: results/representation_benchmark_20260803.md
       - 历史综合材料:
           - 报告索引: reports/README.md
+          - 工作频率与带隙探索总结: reports/工作频率与带隙探索总结_20260831.md
           - 2026-07 项目完整报告: reports/phc2d_project_full_introduction_20260724.md
           - 2026-08 公式总手册: reports/phc2d_physics_data_formula_guide_20260803.md
           - 旁支研究索引: reports/side_project/README.md

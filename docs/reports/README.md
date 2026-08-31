@@ -1,11 +1,11 @@
 ---
-title: 综合报告与快照（冻结）
-summary: 历史综合报告、解释性快照与精选图件的兼容入口。
+title: 综合报告与快照
+summary: 当前跨实验专题总结、历史综合报告、解释性快照与精选图件的兼容入口。
 page_type: landing
 status: draft
 audience: 研究用户、结果审阅者与项目维护者
 owner: 研究生维护
-last_reviewed: 2026-08-21
+last_reviewed: 2026-08-31
 reading_time: 3 minutes
 primary_layer: L4
 ---
@@ -17,9 +17,17 @@ primary_layer: L4
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
-# 综合报告与快照（冻结）
+# 综合报告与快照
 
-本目录保留历史长报告、解释性快照、模型清单和精选图件。它不再接收普通实验结果；面向人的当前结论进入[当前结果](../结果/README.md)，明细证据进入[实验与证据库](../results/README.md)。旧路径继续有效，本轮不逐篇改写或搬迁。
+本目录保存跨多个 Experiment ID 的专题综合解释，并保留历史长报告、解释性快照、模型清单和精选图件。普通实验结果仍进入[当前结果](../结果/README.md)和[实验与证据库](../results/README.md)；综合报告不能替代源 run 或独立结果页。
+
+## 当前专题综合
+
+| 报告 | 范围与边界 |
+|---|---|
+| [工作频率与带隙探索总结](工作频率与带隙探索总结_20260831.md) | 汇总 EXP-FWD-012/014/015 与 EXP-PHY-005/006；区分理论频率、gap 标签、surrogate loss 和 real-MPB 证据 |
+
+## 历史综合材料
 
 | 现有内容 | 当前角色 | 长期去向 |
 |---|---|---|
