@@ -26,7 +26,8 @@ primary_layer: L4
 | 范围 | 入口 | 使用边界 |
 |---|---|---|
 | 研究阶段主线 | [FNO 与生成式网络研究计划](fno_generative_network_adjustment_plan_20260617.md) | 只约束其覆盖的任务族、gate 与 replay 边界；不自动覆盖后续 full-cell 任务 |
-| Full-cell forward 新假设 | [工作频率加权与自适应联合算子计划](工作频率加权与自适应联合算子计划.md) | 先做 loss-only 与现有三支路归因；未通过前置 gate 不准入自适应门控或正式训练 promotion |
+| Full-cell forward loss | [工作频率与带隙损失探索计划](工作频率与带隙损失探索计划.md) | 先通过加密 band-edge 标签门；固定 backbone，只比较一个新 loss 候选 |
+| Full-cell forward 组件 | [FNO、TFNO 与 ConvNeXt 组件归因计划](FNO-TFNO-ConvNeXt组件归因计划.md) | 固定原 loss；先做冻结诊断，再做同家族最小消融和跨家族桥接 |
 | Full-cell inverse | [全胞逆向索引](全胞逆向索引.md) | codec、Stage-A、候选筛选与 replay 的现行协议入口 |
 | 架构治理 | [项目代码结构重构](项目代码结构重构/README.md) | 作为待复核的长期架构记录；不能据此断言重构已完成 |
 | 历史演进 | [时间线](时间线.md) | 用于查日期、取代关系和结果入口，不作为执行日志继续扩张 |

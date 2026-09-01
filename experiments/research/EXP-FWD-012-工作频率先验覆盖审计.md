@@ -46,7 +46,7 @@ Binary、Graded validation 必须分别同时满足：
 
 标准 run 产物外，必须保存 `work_frequency_prior.json` 与 `work_frequency_metrics.json`，并在 `run.meta.json` 明确 `test_targets_loaded=false`。原始数组和逐样本记录留在 run，不复制进结果文档。
 
-相关计划：[工作频率加权与自适应联合算子计划](../../docs/planning/工作频率加权与自适应联合算子计划.md)。
+相关计划：[工作频率与带隙损失探索计划](../../docs/planning/工作频率与带隙损失探索计划.md)。
 
 ## 执行结论
 

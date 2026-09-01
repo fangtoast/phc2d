@@ -60,7 +60,7 @@ Binary 与 Graded validation 分别比较新损失和基线。在新损失的 Ba
 
 训练任务共 `2` 个：baseline seed0 与 gap-aware seed0。每个 run 保存标准配置、日志、历史、指标和 checkpoint；比较只读取两个 run 的 validation 指标。远端失败不自动重试、取消或改参。
 
-相关计划：[工作频率加权与自适应联合算子计划](../../docs/planning/工作频率加权与自适应联合算子计划.md)。
+相关计划：[工作频率与带隙损失探索计划](../../docs/planning/工作频率与带隙损失探索计划.md)。
 
 ## 执行结论
 
