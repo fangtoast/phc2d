@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import csv
 import json
+import os
+import subprocess
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -78,6 +80,19 @@ def _write_jsonl(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
             handle.write(json.dumps(dict(row), ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def _execution_git_commit() -> str | None:
+    """Capture code identity before a potentially long solver run starts."""
+
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return os.environ.get("PHC2D_DEPLOYED_GIT_COMMIT") or None
 
 
 def _validate_config(raw: Mapping[str, Any]) -> dict[str, Any]:
@@ -429,6 +444,7 @@ def run_gap_refinement_study(
     resolved = _validate_config(raw)
     experiment_id = str(resolved["experiment"]["experiment_id"])
     mode = "preflight" if preflight else str(resolved["execution"]["mode"])
+    execution_start_git_commit = _execution_git_commit()
     out = make_run_dir(experiment_id, runs_dir=resolved["output"].get("runs_dir", "runs"), run_dir=run_dir)
     logger = setup_logging(log_file=out / RUN_LOG_NAME, run_meta={"script": "phc2d replay gap-refinement", "execution_mode": mode})
     started = time.perf_counter()
@@ -445,6 +461,7 @@ def run_gap_refinement_study(
         "n40_used": False,
         "sample_count": len(samples),
         "sample_manifest_sha256": sha256_file(out / "sample_manifest.jsonl"),
+        "execution_start_git_commit": execution_start_git_commit,
     }
     if mode == "preflight":
         _write_csv(out / "history.csv", [{"stage": "preflight", "status": "pass"}])

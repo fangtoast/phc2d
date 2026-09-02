@@ -236,7 +236,10 @@ def test_adaptive_study_selects_frozen_validation_manifest_and_unlocks_on_stabil
     )
     results = json.loads((run / "results.json").read_text(encoding="utf-8"))
     metrics = json.loads((run / "metrics.json").read_text(encoding="utf-8"))
+    meta = json.loads((run / "run.meta.json").read_text(encoding="utf-8"))
     assert results["status"] == "adaptive_label_gate_pass"
     assert results["loss_screen_unlocked"] is True
     assert results["formal_physical_validation_completed"] is True
     assert metrics["sample_count"] == 4
+    assert isinstance(meta["execution_start_git_commit"], str)
+    assert len(meta["execution_start_git_commit"]) == 40
