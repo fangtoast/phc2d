@@ -123,6 +123,14 @@ def compare_gap_records(
                 "refined_center": float(right["center"]),
                 "refined_signed_width": refined_width,
                 "refined_status": str(right["status"]),
+                "lower_edge_absolute_change": abs(
+                    float(right["lower_edge_frequency"])
+                    - float(left["lower_edge_frequency"])
+                ),
+                "upper_edge_absolute_change": abs(
+                    float(right["upper_edge_frequency"])
+                    - float(left["upper_edge_frequency"])
+                ),
                 "gap_width_change": refined_width - coarse_width,
                 "coarse_gap_overestimate": coarse_width - refined_width,
                 "center_absolute_change": abs(float(right["center"]) - float(left["center"])),

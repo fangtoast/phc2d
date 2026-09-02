@@ -24,7 +24,10 @@ from phc2d.physics.bz_gap_refinement import (
     propose_gap_extrema_refinement_points,
     wrap_reduced_k_points,
 )
-from phc2d.replay.gap_refinement import run_gap_refinement_pilot
+from phc2d.replay.gap_refinement import (
+    run_gap_refinement_pilot,
+    run_gap_refinement_study,
+)
 from phc2d.runs import validate_run_artifacts
 
 
@@ -177,3 +180,63 @@ print(sorted(set(sys.modules) & {'h5py', 'meep', 'torch'}))
         text=True,
     )
     assert completed.stdout.rstrip().endswith("[]")
+
+
+def test_adaptive_study_selects_frozen_validation_manifest_and_unlocks_on_stability(
+    tmp_path: Path,
+) -> None:
+    config = _config(tmp_path)
+    payload = yaml.safe_load(config.read_text(encoding="utf-8"))
+    manifest_rows = []
+    for lane in ("binary", "graded"):
+        for identity in payload["datasets"][lane].pop("samples"):
+            manifest_rows.append({"lane": lane, "split": "validation", **identity})
+    manifest = tmp_path / "source_manifest.jsonl"
+    manifest.write_text(
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in manifest_rows),
+        encoding="utf-8",
+    )
+    payload["experiment"]["experiment_id"] = "EXP-PHY-007"
+    payload["sampling"].update(
+        {
+            "source_manifest": str(manifest),
+            "expected_source_manifest_sha256": hashlib.sha256(
+                manifest.read_bytes()
+            ).hexdigest(),
+            "sample_count_per_lane": 2,
+        }
+    )
+    payload["refinement"] = {
+        "initial_spacing": 1.0 / 3.0,
+        "min_levels": 1,
+        "max_levels": 2,
+        "required_consecutive_stable_levels": 1,
+        "lower_band_min_one_based": 1,
+        "lower_band_max_one_based": 2,
+    }
+    payload["gates"].update(
+        {
+            "last_refinement_edge_change_max": 1.0,
+            "resolution_edge_change_max": 1.0,
+        }
+    )
+    payload["execution"] = {
+        "mode": "adaptive_real_mpb",
+        "formal_solver_authorized": True,
+    }
+    config.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+    def solver(structure: object, *, k_points: np.ndarray, config: object):
+        return _bands(k_points), {"backend": "synthetic", "resolution": config.resolution}
+
+    run = run_gap_refinement_study(
+        config,
+        run_dir=tmp_path / "adaptive",
+        solver=solver,
+    )
+    results = json.loads((run / "results.json").read_text(encoding="utf-8"))
+    metrics = json.loads((run / "metrics.json").read_text(encoding="utf-8"))
+    assert results["status"] == "adaptive_label_gate_pass"
+    assert results["loss_screen_unlocked"] is True
+    assert results["formal_physical_validation_completed"] is True
+    assert metrics["sample_count"] == 4

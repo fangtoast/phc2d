@@ -1,4 +1,4 @@
-"""EXP-PHY-006 local full-BZ band-edge refinement pilot.
+"""Validation-only adaptive full-BZ band-edge refinement studies.
 
 Author: fangtoast
 Email: fangtoast@foxmail.com
@@ -41,6 +41,7 @@ from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
 LANES = ("binary", "graded")
+SUPPORTED_EXPERIMENT_IDS = {"EXP-PHY-006", "EXP-PHY-007"}
 BandSolver = Callable[..., tuple[np.ndarray, dict[str, Any]]]
 
 
@@ -83,8 +84,12 @@ def _validate_config(raw: Mapping[str, Any]) -> dict[str, Any]:
     resolved = {key: dict(raw.get(key) or {}) for key in (
         "experiment", "datasets", "sampling", "mpb", "refinement", "gates", "execution", "output"
     )}
-    if resolved["experiment"].get("experiment_id") != "EXP-PHY-006":
-        raise ValueError("gap refinement requires experiment_id=EXP-PHY-006")
+    experiment_id = str(resolved["experiment"].get("experiment_id", ""))
+    if experiment_id not in SUPPORTED_EXPERIMENT_IDS:
+        raise ValueError(
+            f"gap refinement requires one of {sorted(SUPPORTED_EXPERIMENT_IDS)}, "
+            f"got {experiment_id!r}"
+        )
     if set(resolved["datasets"]) != set(LANES):
         raise ValueError("datasets must contain exactly binary and graded")
     if str(resolved["mpb"].get("polarization", "")).upper() != "TE":
@@ -92,17 +97,49 @@ def _validate_config(raw: Mapping[str, Any]) -> dict[str, Any]:
     if int(resolved["refinement"].get("lower_band_min_one_based", 0)) != 1:
         raise ValueError("EXP-PHY-006 must include the B1-B2 gap")
     levels = int(resolved["refinement"].get("levels", 0))
-    if levels < 1 or float(resolved["refinement"].get("initial_spacing", 0.0)) <= 0.0:
-        raise ValueError("refinement requires positive levels and initial_spacing")
+    min_levels = int(resolved["refinement"].get("min_levels", levels))
+    max_levels = int(resolved["refinement"].get("max_levels", levels))
+    stable_levels = int(
+        resolved["refinement"].get("required_consecutive_stable_levels", 1)
+    )
+    if (
+        min_levels < 1
+        or max_levels < min_levels
+        or stable_levels < 1
+        or float(resolved["refinement"].get("initial_spacing", 0.0)) <= 0.0
+    ):
+        raise ValueError(
+            "refinement requires positive initial_spacing and "
+            "1 <= min_levels <= max_levels with a positive stable-level count"
+        )
+    resolved["refinement"].update(
+        {
+            "min_levels": min_levels,
+            "max_levels": max_levels,
+            "required_consecutive_stable_levels": stable_levels,
+        }
+    )
     mode = str(resolved["execution"].get("mode", "preflight"))
-    if mode not in {"preflight", "pilot_real_mpb"}:
-        raise ValueError("execution.mode must be preflight or pilot_real_mpb")
-    if mode == "pilot_real_mpb" and resolved["execution"].get("formal_solver_authorized") is not True:
-        raise ValueError("pilot real-MPB execution requires formal_solver_authorized=true")
+    if mode not in {"preflight", "pilot_real_mpb", "adaptive_real_mpb"}:
+        raise ValueError(
+            "execution.mode must be preflight, pilot_real_mpb, or adaptive_real_mpb"
+        )
+    if mode != "preflight" and resolved["execution"].get("formal_solver_authorized") is not True:
+        raise ValueError("real-MPB execution requires formal_solver_authorized=true")
+    source_manifest = resolved["sampling"].get("source_manifest")
+    manifest_selection = bool(source_manifest)
+    if manifest_selection:
+        expected_manifest_sha = str(
+            resolved["sampling"].get("expected_source_manifest_sha256", "")
+        )
+        if not expected_manifest_sha:
+            raise ValueError("manifest selection requires expected_source_manifest_sha256")
+        if int(resolved["sampling"].get("sample_count_per_lane", 0)) < 1:
+            raise ValueError("manifest selection requires positive sample_count_per_lane")
     for lane in LANES:
         dataset = dict(resolved["datasets"][lane])
         samples = list(dataset.get("samples") or [])
-        if not samples:
+        if not samples and not manifest_selection:
             raise ValueError(f"{lane} requires explicit validation samples")
         for sample in samples:
             if int(sample.get("dataset_index", -1)) < 0 or not sample.get("geometry_hash"):
@@ -113,6 +150,33 @@ def _validate_config(raw: Mapping[str, Any]) -> dict[str, Any]:
 
 def _load_samples(resolved: Mapping[str, Any]) -> tuple[list[RefinementSample], list[dict[str, Any]]]:
     import h5py
+
+    sampling = dict(resolved["sampling"])
+    selected_by_lane: dict[str, list[dict[str, Any]]] = {}
+    source_manifest = sampling.get("source_manifest")
+    if source_manifest:
+        manifest_path = Path(str(source_manifest))
+        actual_manifest_sha = sha256_file(manifest_path)
+        if actual_manifest_sha != str(sampling["expected_source_manifest_sha256"]):
+            raise ValueError("source sample manifest SHA-256 mismatch")
+        manifest_rows = [
+            json.loads(line)
+            for line in manifest_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        per_lane = int(sampling["sample_count_per_lane"])
+        for lane in LANES:
+            selected = [
+                row
+                for row in manifest_rows
+                if str(row.get("lane")) == lane
+                and str(row.get("split")) == str(sampling.get("split", "validation"))
+            ]
+            if len(selected) != per_lane:
+                raise ValueError(
+                    f"{lane} manifest selection expected {per_lane} rows, got {len(selected)}"
+                )
+            selected_by_lane[lane] = selected
 
     samples: list[RefinementSample] = []
     manifest: list[dict[str, Any]] = []
@@ -130,7 +194,8 @@ def _load_samples(resolved: Mapping[str, Any]) -> tuple[list[RefinementSample], 
             validation = set(int(value) for value in np.asarray(handle["idx_val"], dtype=np.int64))
             test = set(int(value) for value in np.asarray(handle["idx_test"], dtype=np.int64))
             k_points = np.asarray(handle["k_points"], dtype=np.float64)
-            for identity in dataset["samples"]:
+            identities = selected_by_lane.get(lane, list(dataset.get("samples") or []))
+            for identity in identities:
                 index = int(identity["dataset_index"])
                 if index not in validation or index in test:
                     raise ValueError(f"{lane} index {index} is not validation-only")
@@ -198,8 +263,10 @@ def _refine_one(
     previous = coarse
     history: list[dict[str, Any]] = []
     last_comparison: list[dict[str, Any]] = []
+    stable_streak = 0
+    converged = False
     primary_config = _solver_config(mpb, resolution=int(mpb["resolution"]), band_count=bands.shape[1])
-    for level in range(1, int(refinement["levels"]) + 1):
+    for level in range(1, int(refinement["max_levels"]) + 1):
         step = float(refinement["initial_spacing"]) / (2.0**level)
         proposed = propose_gap_extrema_refinement_points(
             points,
@@ -218,6 +285,23 @@ def _refine_one(
             lower_band_max_one_based=lower_max,
         )
         last_comparison = compare_gap_records(previous, current)
+        max_edge_change = max(
+            max(
+                float(row["lower_edge_absolute_change"]),
+                float(row["upper_edge_absolute_change"]),
+            )
+            for row in last_comparison
+        )
+        edge_threshold = float(
+            resolved["gates"].get(
+                "last_refinement_edge_change_max",
+                resolved["gates"]["last_refinement_gap_change_max"],
+            )
+        )
+        if max_edge_change <= edge_threshold:
+            stable_streak += 1
+        else:
+            stable_streak = 0
         history.append(
             {
                 "lane": sample.lane,
@@ -228,9 +312,18 @@ def _refine_one(
                 "step": step,
                 "max_gap_width_change": max(abs(float(row["gap_width_change"])) for row in last_comparison),
                 "max_center_change": max(float(row["center_absolute_change"]) for row in last_comparison),
+                "max_edge_frequency_change": max_edge_change,
+                "stable_streak": stable_streak,
             }
         )
         previous = current
+        if (
+            level >= int(refinement["min_levels"])
+            and stable_streak
+            >= int(refinement["required_consecutive_stable_levels"])
+        ):
+            converged = True
+            break
     refined = previous
     edge_indices = sorted(
         {
@@ -289,14 +382,26 @@ def _refine_one(
                 **comparison,
                 "last_level_gap_width_change": float(last["gap_width_change"]),
                 "last_level_center_change": float(last["center_absolute_change"]),
+                "last_level_lower_edge_change": float(last["lower_edge_absolute_change"]),
+                "last_level_upper_edge_change": float(last["upper_edge_absolute_change"]),
                 "lower_resolution_change": lower_resolution_change,
                 "upper_resolution_change": upper_resolution_change,
                 "estimated_local_uncertainty": uncertainty,
                 "local_certification_status": local_status,
-                "last_refinement_stable": abs(float(last["gap_width_change"]))
-                <= float(gates["last_refinement_gap_change_max"]),
+                "last_refinement_stable": max(
+                    float(last["lower_edge_absolute_change"]),
+                    float(last["upper_edge_absolute_change"]),
+                )
+                <= float(
+                    gates.get(
+                        "last_refinement_edge_change_max",
+                        gates["last_refinement_gap_change_max"],
+                    )
+                ),
                 "resolution_stable": max(lower_resolution_change, upper_resolution_change)
                 <= float(gates["resolution_edge_change_max"]),
+                "adaptive_refinement_converged": converged,
+                "refinement_levels_executed": len(history),
             }
         )
     arrays = {"k_points": points, "bands": bands, "verification_k_points": edge_points, "verification_bands": verification_bands}
@@ -308,22 +413,23 @@ def _refine_one(
     return output_rows, arrays, history, provenance
 
 
-def run_gap_refinement_pilot(
+def run_gap_refinement_study(
     config_path: str | Path,
     *,
     run_dir: str | Path | None = None,
     preflight: bool = False,
     solver: BandSolver | None = None,
 ) -> Path:
-    """Run EXP-PHY-006 validation-only preflight or local-refinement pilot."""
+    """Run a registered validation-only gap-refinement preflight or study."""
 
     config_file = Path(config_path)
     raw = yaml.safe_load(config_file.read_text(encoding="utf-8"))
     if not isinstance(raw, Mapping):
-        raise ValueError("EXP-PHY-006 config root must be a mapping")
+        raise ValueError("gap-refinement config root must be a mapping")
     resolved = _validate_config(raw)
+    experiment_id = str(resolved["experiment"]["experiment_id"])
     mode = "preflight" if preflight else str(resolved["execution"]["mode"])
-    out = make_run_dir("EXP-PHY-006", runs_dir=resolved["output"].get("runs_dir", "runs"), run_dir=run_dir)
+    out = make_run_dir(experiment_id, runs_dir=resolved["output"].get("runs_dir", "runs"), run_dir=run_dir)
     logger = setup_logging(log_file=out / RUN_LOG_NAME, run_meta={"script": "phc2d replay gap-refinement", "execution_mode": mode})
     started = time.perf_counter()
     write_resolved_config(out, yaml.safe_dump(resolved, sort_keys=False, allow_unicode=True))
@@ -397,8 +503,17 @@ def run_gap_refinement_pilot(
         bool(row["last_refinement_stable"]) and bool(row["resolution_stable"])
         for row in rows
     )
+    adaptive = mode == "adaptive_real_mpb"
+    if adaptive:
+        stable = stable and all(
+            bool(row["adaptive_refinement_converged"]) for row in rows
+        )
     if failures:
         status = "blocked"
+    elif adaptive and stable:
+        status = "adaptive_label_gate_pass"
+    elif adaptive:
+        status = "adaptive_label_gate_fail"
     elif status_changes or large_gap_changes:
         status = "coarse_grid_risk_detected"
     elif stable:
@@ -413,9 +528,10 @@ def run_gap_refinement_pilot(
         "status_change_count": status_changes,
         "material_gap_change_count": large_gap_changes,
         "max_coarse_gap_overestimate": max((float(row["coarse_gap_overestimate"]) for row in rows), default=None),
-        "max_center_absolute_change": max((float(row["center_absolute_change"]) for row in rows), default=None),
-        "last_refinement_all_stable": stable,
-        "wall_time_total_s": elapsed,
+            "max_center_absolute_change": max((float(row["center_absolute_change"]) for row in rows), default=None),
+            "last_refinement_all_stable": stable,
+            "adaptive_refinement": adaptive,
+            "wall_time_total_s": elapsed,
     }
     write_json(out / "refinement_metrics.json", metrics)
     write_metrics(out, metrics)
@@ -423,20 +539,48 @@ def run_gap_refinement_pilot(
         out,
         {
             "status": status,
-            "formal_physical_validation_completed": False,
-            "pilot_real_mpb_completed": not failures,
-            "evidence_boundary": "validation_only_local_extrema_refinement_not_global_BZ_certification",
+            "formal_physical_validation_completed": adaptive and stable and not failures,
+            "pilot_real_mpb_completed": not adaptive and not failures,
+            "adaptive_real_mpb_completed": adaptive and not failures,
+            "evidence_boundary": (
+                "validation_only_adaptive_periodic_BZ_edge_refinement_not_continuous_global_proof"
+                if adaptive
+                else "validation_only_local_extrema_refinement_not_global_BZ_certification"
+            ),
             "training_started": False,
             "test_targets_loaded": False,
             "n40_used": False,
-            "next_gate": "human_review_before_64_structure_global_adaptive_BZ_study",
+            "loss_screen_unlocked": adaptive and stable and not failures,
+            "next_gate": (
+                "freeze_one_seed0_loss_screen" if adaptive and stable and not failures
+                else "stop_training_and_review_refinement_stability"
+                if adaptive
+                else "human_review_before_64_structure_global_adaptive_BZ_study"
+            ),
         },
     )
     write_run_meta(out, {**base_meta, "solver_provenance": provenance})
     missing = validate_run_artifacts(out)
     if missing:
-        raise RuntimeError(f"incomplete EXP-PHY-006 artifacts: {missing}")
+        raise RuntimeError(f"incomplete {experiment_id} artifacts: {missing}")
     return out
 
 
-__all__ = ["BandSolver", "run_gap_refinement_pilot"]
+def run_gap_refinement_pilot(
+    config_path: str | Path,
+    *,
+    run_dir: str | Path | None = None,
+    preflight: bool = False,
+    solver: BandSolver | None = None,
+) -> Path:
+    """Compatibility facade for the original EXP-PHY-006 entry point."""
+
+    return run_gap_refinement_study(
+        config_path,
+        run_dir=run_dir,
+        preflight=preflight,
+        solver=solver,
+    )
+
+
+__all__ = ["BandSolver", "run_gap_refinement_pilot", "run_gap_refinement_study"]

@@ -39,7 +39,7 @@ def configure(sub: Any) -> None:
     gap_refinement = replay_sub.add_parser(
         "gap-refinement",
         help="Refine full-BZ adjacent-band edges with validation-only real MPB.",
-        description="Run the registered EXP-PHY-006 preflight or local-refinement pilot.",
+        description="Run a registered validation-only local or adaptive gap-refinement study.",
     )
     gap_refinement.add_argument("--config", type=Path, required=True)
     gap_refinement.add_argument(
@@ -73,10 +73,10 @@ def run(ns: Any) -> bool:
         )
         return True
     if ns.command == "replay gap-refinement":
-        from phc2d.replay.gap_refinement import run_gap_refinement_pilot
+        from phc2d.replay.gap_refinement import run_gap_refinement_study
 
         print(
-            run_gap_refinement_pilot(
+            run_gap_refinement_study(
                 ns.config,
                 run_dir=ns.run_dir,
                 preflight=bool(ns.preflight),
