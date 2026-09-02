@@ -129,11 +129,15 @@ def test_seed0_freezer_selects_two_candidates_and_writes_21_tasks(tmp_path: Path
 def test_seed0_submitter_uses_three_way_n40_concurrency() -> None:
     submitter = (ROOT / "jobs/paracloud_submit_exp_fwd_019_seed0.sh").read_text(encoding="utf-8")
     worker = (ROOT / "jobs/paracloud_exp_fwd_019_seed0_train.sh").read_text(encoding="utf-8")
-    assert "--array=0-20%3" in submitter
-    assert "--gres=gpu:1" in submitter and "-c 6" in submitter
-    assert "--mem=" not in submitter
+    chunk_lib = (ROOT / "jobs/paracloud_exp_fwd_019_chunk_lib.sh").read_text(encoding="utf-8")
+    assert 'end - start + 1 <= 16' in chunk_lib
+    assert '--array="${start}-${end}%3"' in chunk_lib
+    assert "prior chunk" in chunk_lib and 'states" == "COMPLETED"' in chunk_lib
+    assert "submission_chunk_" in chunk_lib
+    assert "--gres=gpu:1" in chunk_lib and "-c 6" in chunk_lib
+    assert "--mem=" not in chunk_lib
     assert "PHC2D_AUTHORIZE_EXP_FWD_019" in submitter
     assert "full_cell_dual_lane" in worker and "full_cell --config" in worker
     confirmation = (ROOT / "jobs/paracloud_submit_exp_fwd_019_confirmation.sh").read_text(encoding="utf-8")
-    assert '"0-${last}%3"' in confirmation
+    assert 'phc2d_fwd019_submit_chunk "$campaign" "$start" "$end" 42' in confirmation
     assert "three_seed_validation_only_no_test" in confirmation

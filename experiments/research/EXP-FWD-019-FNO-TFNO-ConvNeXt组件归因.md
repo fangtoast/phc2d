@@ -35,7 +35,7 @@ primary_layer: L3
 | 优化 | AdamW、FP32、AMP/TF32 off、effective batch 64、原模型学习率 |
 | seed0 筛选 | 20 epochs，同 family、同 lane、同 seed、从零训练 |
 | 三 seed 确认 | 200 epochs，seeds 0/1/2；必须同时训练 matched baseline |
-| 平台 | N40 `gpu_4090`，每任务 1 GPU、6 CPU、60 GB；最多 3 个并发任务 |
+| 平台 | N40 `gpu_4090`，每任务 1 GPU、6 CPU、60 GB；最多 3 个并发任务；受账户 `MaxSubmitJobs=16` 限制，每批数组不超过 16 项，前批全部成功后才能续投下一批 |
 
 数据哈希固定为 Binary `e2d99e0c...13f00`、Graded `172786bc...38a46`；完整值由配置和 `submission.env` 保存。
 
