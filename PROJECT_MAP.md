@@ -27,6 +27,8 @@
 
 > 2026-08-29 EXP-PHY-006 状态：4 个冻结 validation 结构的 WSL real-MPB 局部 band-edge 加密 pilot 已完成。现有 $9\times9$ 标签在 32/36 个相邻 pair 上高估 gap 超过预注册阈值，并出现 1 次 complete→pseudo 翻转；4/4 的 B1–B2 均为局部认证 pseudo-gap。该证据证明粗网格风险，但不是连续全 BZ 的全局认证；相关训练继续锁定。详见[试点结果](docs/results/field-physics/EXP-PHY-006-全BZ带隙边缘加密试点.md)。
 
+> 2026-09-02 EXP-PHY-007 状态：K5 Binary/Graded 全部 64 个冻结 validation 结构完成 WSL real-MPB 自适应 band-edge 加密，0 solver failure；但仅 18/64 个结构同时满足全部九个 pair 的连续 edge 收敛与 resolution 64→96 稳定，终态为 `adaptive_label_gate_fail`。EXP-FWD-016 未提交，loss 路线按计划停在 L0。详见[标签门结果](docs/results/field-physics/EXP-PHY-007-validation带隙标签门.md)。
+
 # PROJECT MAP
 
 | Metadata | Value |

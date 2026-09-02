@@ -955,17 +955,19 @@ experiments:
   - id: EXP-PHY-007
     title: K5 validation 带隙标签门
     task: physical_validation
-    status: active
-    mapping_status: registered
+    status: completed
+    mapping_status: complete
     research_question: 冻结 K5 Binary/Graded 64 个 validation 结构的相邻带隙边缘能否在自适应 k 加密与 resolution 复核下同时稳定？
     spec:
       - experiments/research/EXP-PHY-007-validation带隙标签门.md
     config:
       - configs/research/exp_phy_007_validation_gap_refinement_v1.yaml
     runs:
-      local: []
+      local:
+        - runs/20260902/EXP-PHY-007_202609021705
       referenced_not_local: []
-    result: []
+    result:
+      - docs/results/field-physics/EXP-PHY-007-validation带隙标签门.md
     report: []
     related_experiments:
       - EXP-PHY-006

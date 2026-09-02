@@ -26,6 +26,7 @@ primary_layer: L3
 
 | 结果页面 | 状态与边界 |
 |---|---|
+| [validation 带隙标签门](EXP-PHY-007-validation带隙标签门.md) | EXP-PHY-007；64 个 validation 结构全部完成，但仅 18 个结构同时满足 edge 与 resolution 稳定，标签门失败并停止 loss 训练 |
 | [全 BZ 带隙边缘加密试点](EXP-PHY-006-全BZ带隙边缘加密试点.md) | EXP-PHY-006；4 个 validation 结构 real-MPB pilot，发现 $9\times9$ gap 高估与一次 complete→pseudo 翻转，不等同于全局 BZ 认证 |
 | [TE 有效折射率与折叠频率校准](EXP-PHY-005-TE有效折射率与折叠频率校准.md) | EXP-PHY-005；192 结构 near-Γ real-MPB 正式负结果，单一标量中心未通过 |
 | [K5 代理选频与真实响应差异](代理选频与真实响应差异_20260825.md) | EXP-PHY-004；1000 条 test 频谱审计 + 6 条代表结构 real-MPB/Meep sensitivity |

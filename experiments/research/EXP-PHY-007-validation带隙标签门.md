@@ -2,7 +2,7 @@
 title: "EXP-PHY-007：validation 带隙标签门"
 summary: "对 K5 Binary/Graded 全部 64 个冻结 validation 结构执行自适应全 BZ band-edge 加密，决定是否解锁一个 seed0 loss 短筛。"
 page_type: experiment
-plan_state: active
+plan_state: completed
 status: draft
 audience: "光子晶体物理建模研究者、正向代理研究者与结果审阅者"
 owner: "研究生维护，导师审阅标签门与训练准入"
@@ -20,6 +20,8 @@ primary_layer: L3
 # EXP-PHY-007：validation 带隙标签门
 
 **本实验只判断精细带隙标签能否在冻结 validation 集上稳定生成。** 它不读取 test、不训练模型，并且不把有限层局部自适应搜索表述为连续 BZ 的数学全局证明。
+
+实验已完成，终态为 `adaptive_label_gate_fail`；EXP-FWD-016 未解锁。详见[正式结果](../../docs/results/field-physics/EXP-PHY-007-validation带隙标签门.md)。
 
 ## 冻结合同
 
