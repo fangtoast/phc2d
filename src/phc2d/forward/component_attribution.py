@@ -98,6 +98,54 @@ def _quartile_rows(features: Mapping[str, np.ndarray], errors: np.ndarray) -> li
     return rows
 
 
+def _diagnose_lane(
+    *, model: Any, model_name: str, spec: Any, grids: np.ndarray, targets: np.ndarray,
+    mean: np.ndarray, std: np.ndarray, k_points: Any, lane_index: int | None,
+    batch_size: int, torch: Any,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    predictions: dict[str, list[np.ndarray]] = {
+        "baseline": [], "shift_1_0": [], "shift_0_1": [], "shift_4_4": [],
+        "low_fourier": [], "high_fourier": [],
+    }
+    for disabled in _mask_names(model_name)[1:]:
+        predictions[f"mask_{disabled[0]}"] = []
+    with torch.no_grad():
+        for start in range(0, len(grids), int(batch_size)):
+            xb = torch.as_tensor(grids[start:start + int(batch_size)], dtype=torch.float32, device=next(model.parameters()).device).unsqueeze(1)
+            variants = {
+                "baseline": xb,
+                "shift_1_0": torch.roll(xb, shifts=(1, 0), dims=(-2, -1)),
+                "shift_0_1": torch.roll(xb, shifts=(0, 1), dims=(-2, -1)),
+                "shift_4_4": torch.roll(xb, shifts=(4, 4), dims=(-2, -1)),
+                "low_fourier": _fourier_filter(xb, keep_low=True, cutoff=0.25, torch=torch),
+                "high_fourier": _fourier_filter(xb, keep_low=False, cutoff=0.25, torch=torch),
+            }
+            for name, value in variants.items():
+                prediction = _forward_model(model, value, model_spec=spec, k_points=k_points, lane_index=lane_index, torch=torch)
+                predictions[name].append((prediction.cpu().numpy() * std + mean).astype(np.float32))
+            for disabled in _mask_names(model_name)[1:]:
+                model.set_component_mask(disabled)
+                prediction = _forward_model(model, xb, model_spec=spec, k_points=k_points, lane_index=lane_index, torch=torch)
+                predictions[f"mask_{disabled[0]}"].append((prediction.cpu().numpy() * std + mean).astype(np.float32))
+                model.set_component_mask(())
+    joined = {name: np.concatenate(parts, axis=0) for name, parts in predictions.items()}
+    baseline = joined["baseline"]
+    denom = np.maximum(np.abs(targets[:, :, 1:]), 1.0e-8)
+    sample_error = (np.abs(baseline[:, :, 1:] - targets[:, :, 1:]) / denom).mean(axis=(1, 2)) * 100.0
+    perturbations = {
+        name: {
+            "prediction_delta_mae": float(np.abs(values - baseline).mean()),
+            "prediction_delta_relative_pct": float((np.abs(values - baseline) / np.maximum(np.abs(baseline), 1.0e-8)).mean() * 100.0),
+        }
+        for name, values in joined.items() if name != "baseline"
+    }
+    return {
+        "validation_samples": int(len(grids)),
+        "baseline_bands_2_10_mre_pct": float(sample_error.mean()),
+        "perturbations": perturbations,
+    }, _quartile_rows(_sample_features(grids), sample_error)
+
+
 def run_component_diagnostic(
     resolved_config: str | Path,
     checkpoint: str | Path,
@@ -126,7 +174,12 @@ def run_component_diagnostic(
     runtime["require_accelerator"] = True
     device_info = resolve_device(DeviceConfig.from_mapping(runtime), torch_module=torch)
     device = device_info.torch_device
-    contract = _read_contract(config)
+    if model_name == "dual_lane_band_operator_v1":
+        from phc2d.forward.dual_lane_contracts import read_dual_lane_contracts
+        contracts = read_dual_lane_contracts(config)
+    else:
+        contracts = {str(experiment.get("lane")): _read_contract(config)}
+    contract = next(iter(contracts.values()))
     payload = _load_checkpoint(checkpoint_path, torch)
     spec = get_model_spec(model_name)
     params = dict(model_cfg.get("params") or {})
@@ -135,59 +188,42 @@ def run_component_diagnostic(
     model = build_model(model_name, input_shape=contract["grid_shape"], output_shape=contract["target_shape"], **params)
     model.load_state_dict(payload["state_dict"], strict=True)
     model.to(device).eval()
-    mean = np.asarray(payload["target_mean"], dtype=np.float32)
-    std = np.asarray(payload["target_std"], dtype=np.float32)
     k_points = torch.as_tensor(contract["k_points"], dtype=torch.float32, device=device) if spec.accepts_k_points else None
-    lane_index = _lane_index(experiment.get("lane")) if spec.accepts_lane_id else None
-    with h5py.File(contract["path"], "r") as handle:
-        indices = np.asarray(handle["idx_val"], dtype=np.int64)
-        grids = np.asarray(handle[contract["grid_field"]][indices], dtype=np.float32)
-        targets = np.asarray(handle["Wh"][indices], dtype=np.float32)
-    predictions: dict[str, list[np.ndarray]] = {"baseline": [], "shift_1_0": [], "shift_0_1": [], "shift_4_4": [], "low_fourier": [], "high_fourier": []}
-    for disabled in _mask_names(model_name)[1:]:
-        predictions[f"mask_{disabled[0]}"] = []
-    with torch.no_grad():
-        for start in range(0, len(indices), int(batch_size)):
-            xb = torch.as_tensor(grids[start:start + int(batch_size)], dtype=torch.float32, device=device).unsqueeze(1)
-            variants = {
-                "baseline": xb,
-                "shift_1_0": torch.roll(xb, shifts=(1, 0), dims=(-2, -1)),
-                "shift_0_1": torch.roll(xb, shifts=(0, 1), dims=(-2, -1)),
-                "shift_4_4": torch.roll(xb, shifts=(4, 4), dims=(-2, -1)),
-                "low_fourier": _fourier_filter(xb, keep_low=True, cutoff=0.25, torch=torch),
-                "high_fourier": _fourier_filter(xb, keep_low=False, cutoff=0.25, torch=torch),
-            }
-            for name, value in variants.items():
-                prediction = _forward_model(model, value, model_spec=spec, k_points=k_points, lane_index=lane_index, torch=torch)
-                predictions[name].append((prediction.cpu().numpy() * std + mean).astype(np.float32))
-            for disabled in _mask_names(model_name)[1:]:
-                model.set_component_mask(disabled)
-                prediction = _forward_model(model, xb, model_spec=spec, k_points=k_points, lane_index=lane_index, torch=torch)
-                predictions[f"mask_{disabled[0]}"].append((prediction.cpu().numpy() * std + mean).astype(np.float32))
-                model.set_component_mask(())
-    joined = {name: np.concatenate(parts, axis=0) for name, parts in predictions.items()}
-    baseline = joined["baseline"]
-    denom = np.maximum(np.abs(targets[:, :, 1:]), 1.0e-8)
-    sample_error = (np.abs(baseline[:, :, 1:] - targets[:, :, 1:]) / denom).mean(axis=(1, 2)) * 100.0
-    perturbations = {}
-    for name, values in joined.items():
-        if name == "baseline":
-            continue
-        perturbations[name] = {
-            "prediction_delta_mae": float(np.abs(values - baseline).mean()),
-            "prediction_delta_relative_pct": float((np.abs(values - baseline) / np.maximum(np.abs(baseline), 1.0e-8)).mean() * 100.0),
-        }
-    strata = _quartile_rows(_sample_features(grids), sample_error)
+    lane_metrics: dict[str, Any] = {}
+    strata: list[dict[str, Any]] = []
+    index_hashes: dict[str, str] = {}
+    for lane, lane_contract in contracts.items():
+        with h5py.File(lane_contract["path"], "r") as handle:
+            indices = np.asarray(handle["idx_val"], dtype=np.int64)
+            grids = np.asarray(handle[lane_contract["grid_field"]][indices], dtype=np.float32)
+            targets = np.asarray(handle["Wh"][indices], dtype=np.float32)
+        if spec.accepts_lane_id:
+            normalizer = payload["target_normalizers"][lane]
+            mean = np.asarray(normalizer["mean"], dtype=np.float32)
+            std = np.asarray(normalizer["std"], dtype=np.float32)
+            lane_index = _lane_index(lane)
+        else:
+            mean = np.asarray(payload["target_mean"], dtype=np.float32)
+            std = np.asarray(payload["target_std"], dtype=np.float32)
+            lane_index = None
+        lane_metric, lane_strata = _diagnose_lane(
+            model=model, model_name=model_name, spec=spec, grids=grids, targets=targets,
+            mean=mean, std=std, k_points=k_points, lane_index=lane_index,
+            batch_size=batch_size, torch=torch,
+        )
+        lane_metrics[lane] = lane_metric
+        strata.extend({"lane": lane, **row} for row in lane_strata)
+        index_hashes[lane] = hashlib.sha256(indices.tobytes()).hexdigest()
     with (out / "stratified_validation.csv").open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(strata[0]))
         writer.writeheader(); writer.writerows(strata)
     resolved_snapshot = dict(config)
     resolved_snapshot["diagnostic"] = {"experiment_id": "EXP-FWD-019", "split": "validation", "test_targets_loaded": False, "fourier_cutoff": 0.25}
     (out / "config.resolved.yaml").write_text(yaml.safe_dump(resolved_snapshot, sort_keys=False, allow_unicode=True), encoding="utf-8")
-    metrics = {"validation_samples": int(len(indices)), "baseline_bands_2_10_mre_pct": float(sample_error.mean()), "perturbations": perturbations}
+    metrics = {"lanes": lane_metrics, "validation_samples": sum(value["validation_samples"] for value in lane_metrics.values())}
     results = {"status": "frozen_validation_diagnostic_success", "experiment_id": "EXP-FWD-019", "stage": "C0", "model": model_name, "lane": experiment.get("lane"), "training_started": False, "test_targets_loaded": False, "mpb_meep_used": False, "elapsed_s": time.perf_counter() - started}
     write_metrics(out, metrics); write_results(out, results)
-    write_run_meta(out, {"deployed_git_commit": os.environ.get("PHC2D_DEPLOYED_GIT_COMMIT"), "checkpoint": str(checkpoint_path), "checkpoint_sha256": _sha256(checkpoint_path), "config": str(config_path), "model_identity": describe_model_identity(model, model_name, model_kwargs=params), "resolved_device": str(device), "validation_indices_sha256": hashlib.sha256(indices.tobytes()).hexdigest()})
+    write_run_meta(out, {"deployed_git_commit": os.environ.get("PHC2D_DEPLOYED_GIT_COMMIT"), "checkpoint": str(checkpoint_path), "checkpoint_sha256": _sha256(checkpoint_path), "config": str(config_path), "model_identity": describe_model_identity(model, model_name, model_kwargs=model_cfg.get("params") or {}), "resolved_device": str(device), "validation_indices_sha256": index_hashes})
     return out
 
 

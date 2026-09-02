@@ -11,6 +11,7 @@ import pytest
 import yaml
 
 from phc2d.models import build_model, get_model_spec
+from phc2d.forward.component_campaign import freeze_seed0_screen
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,3 +72,42 @@ def test_c0_submitter_is_authorization_hash_and_concurrency_gated() -> None:
     assert "--gres=gpu:1" in submitter and "-c 6" in submitter
     assert "component_attribution" in worker
     assert "SLURM_ARRAY_TASK_ID" in worker
+
+
+def test_seed0_freezer_selects_two_candidates_and_writes_21_tasks(tmp_path: Path) -> None:
+    c0 = tmp_path / "c0"; c0.mkdir()
+    (c0 / "c0_manifest.csv").write_text("task_index\n0\n", encoding="utf-8")
+    masks = {
+        "fno_b": ("primary_spectral", "band_spectral", "band_gate", "low_rank"),
+        "fno_g": ("primary_spectral", "band_spectral", "band_gate", "low_rank"),
+        "tfno_b": ("spectral", "local", "channel"),
+        "tfno_g": ("spectral", "local", "channel"),
+        "joint": ("spectral", "local", "channel"),
+    }
+    for case in ("fno_b", "fno_g", "tfno_b", "tfno_g", "convnext_b", "convnext_g", "joint"):
+        case_dir = c0 / case; case_dir.mkdir()
+        (case_dir / "results.json").write_text('{"status":"frozen_validation_diagnostic_success","test_targets_loaded":false}', encoding="utf-8")
+        lane_name = "binary" if case.endswith("_b") else ("graded" if case.endswith("_g") else "joint")
+        perturbations = {
+            f"mask_{mask}": {"prediction_delta_relative_pct": float(index + 1)}
+            for index, mask in enumerate(masks.get(case, ()))
+        }
+        (case_dir / "metrics.json").write_text(
+            __import__("json").dumps({"lanes": {lane_name: {"perturbations": perturbations}}}),
+            encoding="utf-8",
+        )
+    output = freeze_seed0_screen(c0, tmp_path / "screen", repository_root=ROOT)
+    rows = (output / "task_manifest.csv").read_text(encoding="utf-8").splitlines()
+    assert len(rows) == 22
+    selection = yaml.safe_load((output / "selection.json").read_text(encoding="utf-8"))
+    assert all(len(values) == 2 for values in selection["selected_candidates"].values())
+    assert selection["test_targets_loaded"] is False
+
+
+def test_seed0_submitter_uses_three_way_n40_concurrency() -> None:
+    submitter = (ROOT / "jobs/paracloud_submit_exp_fwd_019_seed0.sh").read_text(encoding="utf-8")
+    worker = (ROOT / "jobs/paracloud_exp_fwd_019_seed0_train.sh").read_text(encoding="utf-8")
+    assert "--array=0-20%3" in submitter
+    assert "--gres=gpu:1" in submitter and "--mem=60000" in submitter
+    assert "PHC2D_AUTHORIZE_EXP_FWD_019" in submitter
+    assert "full_cell_dual_lane" in worker and "full_cell --config" in worker
