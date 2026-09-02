@@ -6,13 +6,14 @@
 
 set -euo pipefail
 PHC2D_ROOT="${PHC2D_ROOT:-$HOME/run/phc2d}"; cd "$PHC2D_ROOT"
+export PYTHONPATH="$PHC2D_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 : "${PHC2D_EXPECTED_COMMIT:?Set PHC2D_EXPECTED_COMMIT.}"
 : "${PHC2D_EXPECTED_FWD019_AUTHORIZATION_ID:?Set authorization identity.}"
 [[ "${PHC2D_AUTHORIZE_EXP_FWD_019:-}" == "YES" ]] || { echo "authorization missing" >&2; exit 4; }
 [[ "$(tr -d '[:space:]' < DEPLOYED_GIT_COMMIT)" == "$PHC2D_EXPECTED_COMMIT" ]] || { echo "deployment mismatch" >&2; exit 3; }
 c0_dir="${1:?usage: $0 C0_DIR}"
 screen="runs/$(date +%Y%m%d)/EXP-FWD-019_seed0_$(date +%Y%m%d%H%M%S)"
-python -m phc2d.forward.component_campaign --c0-dir "$c0_dir" --output-dir "$screen" --repository-root "$PHC2D_ROOT"
+"${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu118}/bin/python" -m phc2d.forward.component_campaign --c0-dir "$c0_dir" --output-dir "$screen" --repository-root "$PHC2D_ROOT"
 manifest="$screen/task_manifest.csv"; count="$(($(wc -l < "$manifest") - 1))"
 [[ "$count" == 21 ]] || { echo "unexpected seed0 task count: $count" >&2; exit 5; }
 job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t 08:00:00 --array=0-20%3 \

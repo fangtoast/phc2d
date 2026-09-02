@@ -6,13 +6,14 @@
 
 set -euo pipefail
 PHC2D_ROOT="${PHC2D_ROOT:-$HOME/run/phc2d}"; cd "$PHC2D_ROOT"
+export PYTHONPATH="$PHC2D_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 : "${PHC2D_EXPECTED_COMMIT:?Set PHC2D_EXPECTED_COMMIT.}"
 : "${PHC2D_EXPECTED_FWD019_AUTHORIZATION_ID:?Set authorization identity.}"
 [[ "${PHC2D_AUTHORIZE_EXP_FWD_019:-}" == "YES" ]] || { echo "authorization missing" >&2; exit 4; }
 [[ "$(tr -d '[:space:]' < DEPLOYED_GIT_COMMIT)" == "$PHC2D_EXPECTED_COMMIT" ]] || { echo "deployment mismatch" >&2; exit 3; }
 screen_dir="${1:?usage: $0 SEED0_SCREEN_DIR}"
 campaign="runs/$(date +%Y%m%d)/EXP-FWD-019_confirmation_$(date +%Y%m%d%H%M%S)"
-python -m phc2d.forward.component_campaign --screen-dir "$screen_dir" --output-dir "$campaign" --repository-root "$PHC2D_ROOT"
+"${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu118}/bin/python" -m phc2d.forward.component_campaign --screen-dir "$screen_dir" --output-dir "$campaign" --repository-root "$PHC2D_ROOT"
 manifest="$campaign/task_manifest.csv"; count="$(($(wc -l < "$manifest") - 1))"
 if (( count == 0 )); then echo "$campaign"; exit 0; fi
 last=$((count - 1))
