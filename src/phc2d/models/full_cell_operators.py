@@ -43,6 +43,7 @@ def _build_factorized_band_operator(
     lane_conditioned: bool,
     num_lanes: int,
     lane_embedding_dim: int,
+    enabled_branches: Any,
 ) -> Any:
     torch, nn, functional = require_torch(model_name, need_functional=True)
     in_shape, in_channels = image_contract(input_shape, model_name=model_name)
@@ -59,6 +60,12 @@ def _build_factorized_band_operator(
     kernel = int(local_kernel)
     lane_count = int(num_lanes)
     lane_dim = int(lane_embedding_dim)
+    branch_order = ("spectral", "local", "channel")
+    active_branches = tuple(str(value) for value in enabled_branches)
+    if not active_branches or len(set(active_branches)) != len(active_branches):
+        raise ValueError("enabled_branches must contain unique branch names")
+    if any(value not in branch_order for value in active_branches):
+        raise ValueError(f"enabled_branches must be a subset of {branch_order}")
     if min(model_width, n_blocks, groups, expansion_value, kernel) <= 0:
         raise ValueError("operator dimensions must be positive")
     if model_width % groups:
@@ -161,7 +168,9 @@ def _build_factorized_band_operator(
             super().__init__()
             self.norm = nn.GroupNorm(groups, model_width)
             self.film = nn.Linear(lane_dim, 2 * model_width) if lane_conditioned else None
-            self.spectral = TuckerSpectralConv2d()
+            self.active_branches = active_branches
+            self.runtime_disabled_branches: set[str] = set()
+            self.spectral = TuckerSpectralConv2d() if "spectral" in active_branches else None
             padding = kernel // 2
             self.local = nn.Conv2d(
                 model_width,
@@ -169,13 +178,13 @@ def _build_factorized_band_operator(
                 kernel_size=kernel,
                 padding=padding,
                 padding_mode="circular",
-            )
+            ) if "local" in active_branches else None
             self.channel = nn.Sequential(
                 nn.Conv2d(model_width, model_width * expansion_value, kernel_size=1),
                 nn.GELU(),
                 nn.Conv2d(model_width * expansion_value, model_width, kernel_size=1),
-            )
-            self.gates = nn.Parameter(torch.zeros(3))
+            ) if "channel" in active_branches else None
+            self.gates = nn.Parameter(torch.zeros(len(active_branches)))
             self.drop_path = DropPath(probability)
 
         def forward(self, x: Any, lane_features: Any | None) -> Any:
@@ -185,10 +194,20 @@ def _build_factorized_band_operator(
                     raise ValueError("lane-conditioned operator block requires lane features")
                 gamma, beta = self.film(lane_features).chunk(2, dim=-1)
                 normalized = normalized * (1.0 + gamma[:, :, None, None]) + beta[:, :, None, None]
-            branches = (self.spectral(normalized), self.local(normalized), self.channel(normalized))
-            weights = torch.sigmoid(self.gates)
-            update = sum(weight * branch for weight, branch in zip(weights, branches, strict=True))
-            update = update / torch.clamp(weights.sum(), min=1.0e-6)
+            branches = []
+            weights = []
+            for gate_index, branch_name in enumerate(self.active_branches):
+                if branch_name in self.runtime_disabled_branches:
+                    continue
+                branch_module = getattr(self, branch_name)
+                branches.append(branch_module(normalized))
+                weights.append(torch.sigmoid(self.gates[gate_index]))
+            if not branches:
+                update = torch.zeros_like(x)
+            else:
+                weight_sum = torch.stack(weights).sum()
+                update = sum(weight * branch for weight, branch in zip(weights, branches, strict=True))
+                update = update / torch.clamp(weight_sum, min=1.0e-6)
             return functional.gelu(x + self.drop_path(update))
 
     class FactorizedBandOperator(nn.Module):
@@ -219,6 +238,15 @@ def _build_factorized_band_operator(
                 fourier_frequencies=fourier_frequencies,
                 dropout=float(dropout),
             )
+
+        def set_component_mask(self, disabled_branches: Any = ()) -> None:
+            """Apply a frozen diagnostic branch mask without changing parameters."""
+
+            disabled = {str(value) for value in disabled_branches}
+            if any(value not in branch_order for value in disabled):
+                raise ValueError(f"disabled branches must be a subset of {branch_order}")
+            for block in self.blocks:
+                block.runtime_disabled_branches = disabled.intersection(block.active_branches)
 
         def _lane_features(self, lane_id: Any | None, *, batch: int, device: Any) -> Any | None:
             if not self.lane_conditioned:
@@ -278,6 +306,7 @@ def build_tfno2d_band_v3(
     band_embedding_dim: int = 32,
     fourier_frequencies: Any = (1, 2, 4, 8),
     dropout: float = 0.05,
+    enabled_branches: Any = ("spectral", "local", "channel"),
 ) -> Any:
     """Build the Tucker-factorized two-sided FNO-style Full-Wh upgrade."""
 
@@ -302,6 +331,7 @@ def build_tfno2d_band_v3(
         lane_conditioned=False,
         num_lanes=2,
         lane_embedding_dim=16,
+        enabled_branches=enabled_branches,
     )
 
 
@@ -325,6 +355,7 @@ def build_dual_lane_band_operator_v1(
     band_embedding_dim: int = 32,
     fourier_frequencies: Any = (1, 2, 4, 8),
     dropout: float = 0.05,
+    enabled_branches: Any = ("spectral", "local", "channel"),
 ) -> Any:
     """Build the binary/graded FiLM-conditioned shared band operator."""
 
@@ -349,4 +380,5 @@ def build_dual_lane_band_operator_v1(
         lane_conditioned=True,
         num_lanes=num_lanes,
         lane_embedding_dim=lane_embedding_dim,
+        enabled_branches=enabled_branches,
     )

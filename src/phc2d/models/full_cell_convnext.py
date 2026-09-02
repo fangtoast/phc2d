@@ -38,6 +38,8 @@ def build_convnext_band_v1(
     band_embedding_dim: int = 32,
     fourier_frequencies: Any = (1, 2, 4, 8),
     dropout: float = 0.05,
+    padding_mode: str = "circular",
+    hierarchical_downsample: bool = True,
 ) -> Any:
     """Build the periodic ConvNeXt-style Full-Wh upgrade."""
 
@@ -51,6 +53,9 @@ def build_convnext_band_v1(
     stride = int(stem_stride)
     kernel = int(kernel_size)
     expansion_value = int(channel_expansion)
+    block_padding = str(padding_mode).strip().lower()
+    if block_padding not in {"circular", "zeros"}:
+        raise ValueError("padding_mode must be 'circular' or 'zeros'")
     if stride <= 0 or kernel <= 0 or kernel % 2 == 0 or expansion_value <= 0:
         raise ValueError("invalid ConvNeXt stem/kernel/expansion")
     total_depth = sum(depths)
@@ -79,7 +84,8 @@ def build_convnext_band_v1(
 
         def forward(self, x: Any) -> Any:
             padding = kernel // 2
-            update = self.depthwise(circular_pad2d(x, padding))
+            padded = circular_pad2d(x, padding) if block_padding == "circular" else functional.pad(x, (padding,) * 4)
+            update = self.depthwise(padded)
             update = update.permute(0, 2, 3, 1)
             update = self.project(functional.gelu(self.expand(self.norm(update))))
             update = (self.scale * update).permute(0, 3, 1, 2)
@@ -92,7 +98,10 @@ def build_convnext_band_v1(
             self.projection = nn.Conv2d(in_width, out_width, kernel_size=1)
 
         def forward(self, x: Any) -> Any:
-            return self.projection(functional.avg_pool2d(self.norm(x), kernel_size=2, stride=2))
+            normalized = self.norm(x)
+            if bool(hierarchical_downsample):
+                normalized = functional.avg_pool2d(normalized, kernel_size=2, stride=2)
+            return self.projection(normalized)
 
     class ConvNeXtBandV1(nn.Module):
         def __init__(self) -> None:
@@ -136,7 +145,7 @@ def build_convnext_band_v1(
                 x = x.unsqueeze(1)
             if x.ndim != 4 or int(x.shape[1]) != in_channels:
                 raise ValueError(f"expected image input with {in_channels} channels")
-            required_divisor = stride * (2 ** (len(dims) - 1))
+            required_divisor = stride * ((2 ** (len(dims) - 1)) if hierarchical_downsample else 1)
             if int(x.shape[-2]) % required_divisor or int(x.shape[-1]) % required_divisor:
                 raise ValueError(
                     f"input height/width must be divisible by {required_divisor}, got {tuple(x.shape[-2:])}"

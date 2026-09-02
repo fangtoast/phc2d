@@ -1,0 +1,21 @@
+# EXP-FWD-019 component-attribution campaign controller contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: phc2d.component_attribution.v1
+experiment: {experiment_id: EXP-FWD-019, family: full_cell_component_attribution, evidence_status: authorized_funnel}
+representation: {input_field: material_weight_grid_64, target_field: Wh, target_shape: [81, 10]}
+split: {per_lane: {train: 40000, validation: 5000, held_out_test: 5000}, selection_split: validation}
+datasets:
+  binary: {path: data/full_cell_binary_bz9_50000_xingyi_v1.h5, sha256: e2d99e0c59c3bf5dfebc507e756dbcd18c8623f331ad6193832d774df5213f00}
+  graded: {path: data/full_cell_graded_bz9_50000_xingyi_v1.h5, sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46}
+protocol:
+  c0: {training_started: false, test_targets_loaded: false, fourier_cutoff: 0.25, max_concurrent_jobs: 3}
+  seed0_screen: {seed: 0, max_epochs: 20, max_candidates_per_family: 2, selection_metric: validation_bands_2_10_mre}
+  confirmation: {seeds: [0, 1, 2], max_epochs: 200, matched_baseline_required: true}
+  runtime: {partition: gpu_4090, gpus_per_task: 1, cpus_per_task: 6, memory_mb: 60000, precision: fp32, amp_enabled: false, tf32_enabled: false, max_concurrent_jobs: 3}
+authorization:
+  granted_on: 2026-09-02
+  scope: C0_C1_C2_C3_N40_submission_and_gate_conditioned_seed_expansion
+  excludes: [parameter_change_after_failure, automatic_retry, resource_change, EXP-FWD-018, real_MPB, real_Meep]
