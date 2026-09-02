@@ -5,13 +5,15 @@ Email: fangtoast@foxmail.com
 Copyright (c) 2026 fangtoast. All rights reserved.
 """
 
+import csv
+import json
 from pathlib import Path
 
 import pytest
 import yaml
 
 from phc2d.models import build_model, get_model_spec
-from phc2d.forward.component_campaign import freeze_seed0_screen
+from phc2d.forward.component_campaign import freeze_confirmation, freeze_seed0_screen
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -102,6 +104,26 @@ def test_seed0_freezer_selects_two_candidates_and_writes_21_tasks(tmp_path: Path
     selection = yaml.safe_load((output / "selection.json").read_text(encoding="utf-8"))
     assert all(len(values) == 2 for values in selection["selected_candidates"].values())
     assert selection["test_targets_loaded"] is False
+    with (output / "task_manifest.csv").open(encoding="utf-8", newline="") as handle:
+        manifest = list(csv.DictReader(handle))
+    for row in manifest:
+        run_dir = Path(row["run_dir"])
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "results.json").write_text(
+            json.dumps({"status": "dual_lane_training_success" if row["lane"] == "joint" else "formal_training_success", "test_executed": False}),
+            encoding="utf-8",
+        )
+        value = 1.0 if row["variant"] == "baseline" else 1.1
+        metrics = (
+            {"binary_validation_bands_2_10_mre_pct": value, "graded_validation_bands_2_10_mre_pct": value}
+            if row["lane"] == "joint" else {"bands_2_10_mre_pct": value}
+        )
+        (run_dir / "metrics.json").write_text(json.dumps(metrics), encoding="utf-8")
+    confirmation = freeze_confirmation(output, tmp_path / "confirmation", repository_root=ROOT)
+    assert len((confirmation / "task_manifest.csv").read_text(encoding="utf-8").splitlines()) == 43
+    gate = json.loads((confirmation / "candidate_gate.json").read_text(encoding="utf-8"))
+    assert gate["task_count"] == 42
+    assert set(gate["selected_variants"]) == {"fno", "tfno", "convnext", "joint"}
 
 
 def test_seed0_submitter_uses_three_way_n40_concurrency() -> None:
@@ -112,3 +134,6 @@ def test_seed0_submitter_uses_three_way_n40_concurrency() -> None:
     assert "--mem=" not in submitter
     assert "PHC2D_AUTHORIZE_EXP_FWD_019" in submitter
     assert "full_cell_dual_lane" in worker and "full_cell --config" in worker
+    confirmation = (ROOT / "jobs/paracloud_submit_exp_fwd_019_confirmation.sh").read_text(encoding="utf-8")
+    assert '"0-${last}%3"' in confirmation
+    assert "three_seed_validation_only_no_test" in confirmation

@@ -136,6 +136,19 @@ def _derived_config(source: Mapping[str, Any], *, family: str, lane: str, varian
     return config
 
 
+def _confirmation_config(source: Mapping[str, Any], *, family: str, lane: str, variant: str, seed: int) -> dict[str, Any]:
+    config = _derived_config(source, family=family, lane=lane, variant=variant)
+    config["experiment"].update({"evidence_status": "authorized_formal_component_confirmation", "held_out_test_authorized": False})
+    config["training"].update({
+        "seed": int(seed), "max_epochs": 200, "early_stopping_patience": 0,
+        "epoch_100_continue_gate": False, "required_stop_epoch": 200,
+        "require_terminal_checkpoint": True, "convergence_window": [181, 200],
+        "convergence_metric": "validation_bands_2_10_mre",
+        "convergence_relative_threshold": 0.005,
+    })
+    return config
+
+
 def freeze_seed0_screen(c0_dir: str | Path, output_dir: str | Path, *, repository_root: str | Path = ".") -> Path:
     root = Path(repository_root).resolve()
     c0 = Path(c0_dir)
@@ -166,16 +179,89 @@ def freeze_seed0_screen(c0_dir: str | Path, output_dir: str | Path, *, repositor
     return out
 
 
+def _training_metric(run_dir: Path, lane: str) -> dict[str, float]:
+    result = _read_json(run_dir / "results.json")
+    metrics = _read_json(run_dir / "metrics.json")
+    if result.get("test_executed") is not False or result.get("status") not in {"formal_training_success", "dual_lane_training_success"}:
+        raise RuntimeError(f"seed0 run is not successful validation-only evidence: {run_dir}")
+    if lane == "joint":
+        return {
+            "binary": float(metrics["binary_validation_bands_2_10_mre_pct"]),
+            "graded": float(metrics["graded_validation_bands_2_10_mre_pct"]),
+        }
+    return {lane: float(metrics["bands_2_10_mre_pct"])}
+
+
+def freeze_confirmation(screen_dir: str | Path, output_dir: str | Path, *, repository_root: str | Path = ".") -> Path:
+    root = Path(repository_root).resolve()
+    screen = Path(screen_dir); screen = screen if screen.is_absolute() else root / screen
+    out = Path(output_dir); out = out if out.is_absolute() else root / out
+    out.mkdir(parents=True, exist_ok=False)
+    selection = _read_json(screen / "selection.json")
+    with (screen / "task_manifest.csv").open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    by_key = {(row["family"], row["lane"], row["variant"]): row for row in rows}
+    decisions: dict[str, Any] = {}
+    selected_variants: dict[str, str] = {}
+    for family, candidates in selection["selected_candidates"].items():
+        lanes = ("joint",) if family == "joint" else ("binary", "graded")
+        baseline_values: dict[str, float] = {}
+        for lane in lanes:
+            row = by_key[(family, lane, "baseline")]
+            baseline_values.update(_training_metric(root / row["run_dir"], lane))
+        candidate_records = []
+        for candidate in candidates:
+            values: dict[str, float] = {}
+            for lane in lanes:
+                row = by_key[(family, lane, candidate)]
+                values.update(_training_metric(root / row["run_dir"], lane))
+            deltas = {lane: (values[lane] - baseline_values[lane]) / baseline_values[lane] for lane in ("binary", "graded")}
+            passed = (deltas["binary"] >= 0.02 and deltas["graded"] >= 0.02) or (
+                max(deltas.values()) >= 0.05 and min(deltas.values()) >= -0.01
+            )
+            candidate_records.append({"variant": candidate, "metrics": values, "relative_degradation": deltas, "passed": passed, "mean_relative_degradation": sum(deltas.values()) / 2.0})
+        passed_records = [record for record in candidate_records if record["passed"]]
+        if passed_records:
+            winner = max(passed_records, key=lambda record: (record["mean_relative_degradation"], record["variant"]))
+            selected_variants[family] = str(winner["variant"])
+        decisions[family] = {"baseline": baseline_values, "candidates": candidate_records, "selected": selected_variants.get(family), "status": "admitted" if family in selected_variants else "stopped_at_seed0"}
+    derived = out / "derived_configs"; derived.mkdir()
+    confirmation_rows: list[dict[str, Any]] = []
+    index = 0
+    for family, variant in selected_variants.items():
+        lanes = ("joint",) if family == "joint" else ("binary", "graded")
+        for lane in lanes:
+            source_rel = SOURCES[(family, lane)]
+            source = yaml.safe_load((root / source_rel).read_text(encoding="utf-8"))
+            for arm in ("baseline", variant):
+                for seed in (0, 1, 2):
+                    case_id = f"{family}_{lane}_{arm}_s{seed}_e200"
+                    config_path = derived / f"{case_id}.yaml"
+                    config_path.write_text(yaml.safe_dump(_confirmation_config(source, family=family, lane=lane, variant=arm, seed=seed), sort_keys=False), encoding="utf-8")
+                    confirmation_rows.append({"task_index": index, "case_id": case_id, "family": family, "lane": lane, "variant": arm, "model": FAMILIES[family][0], "seed": seed, "config": _portable_path(config_path, root), "run_dir": _portable_path(out / "runs" / case_id, root)})
+                    index += 1
+    if confirmation_rows:
+        with (out / "task_manifest.csv").open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(confirmation_rows[0])); writer.writeheader(); writer.writerows(confirmation_rows)
+    else:
+        (out / "task_manifest.csv").write_text("task_index,case_id,family,lane,variant,model,seed,config,run_dir\n", encoding="utf-8")
+    (out / "candidate_gate.json").write_text(json.dumps({"status": "confirmation_matrix_frozen" if confirmation_rows else "all_families_stopped_at_seed0", "experiment_id": "EXP-FWD-019", "test_targets_loaded": False, "screen_dir": _portable_path(screen, root), "screen_manifest_sha256": _sha256(screen / "task_manifest.csv"), "decisions": decisions, "selected_variants": selected_variants, "task_count": len(confirmation_rows)}, indent=2) + "\n", encoding="utf-8")
+    return out
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--c0-dir", required=True); parser.add_argument("--output-dir", required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--c0-dir"); source.add_argument("--screen-dir")
+    parser.add_argument("--output-dir", required=True)
     parser.add_argument("--repository-root", default=".")
     args = parser.parse_args(argv)
-    print(freeze_seed0_screen(args.c0_dir, args.output_dir, repository_root=args.repository_root))
+    operation = freeze_seed0_screen if args.c0_dir else freeze_confirmation
+    print(operation(args.c0_dir or args.screen_dir, args.output_dir, repository_root=args.repository_root))
 
 
 if __name__ == "__main__":
     main()
 
 
-__all__ = ["freeze_seed0_screen"]
+__all__ = ["freeze_confirmation", "freeze_seed0_screen"]
