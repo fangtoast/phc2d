@@ -108,6 +108,7 @@ def test_seed0_submitter_uses_three_way_n40_concurrency() -> None:
     submitter = (ROOT / "jobs/paracloud_submit_exp_fwd_019_seed0.sh").read_text(encoding="utf-8")
     worker = (ROOT / "jobs/paracloud_exp_fwd_019_seed0_train.sh").read_text(encoding="utf-8")
     assert "--array=0-20%3" in submitter
-    assert "--gres=gpu:1" in submitter and "--mem=60000" in submitter
+    assert "--gres=gpu:1" in submitter and "-c 6" in submitter
+    assert "--mem=" not in submitter
     assert "PHC2D_AUTHORIZE_EXP_FWD_019" in submitter
     assert "full_cell_dual_lane" in worker and "full_cell --config" in worker

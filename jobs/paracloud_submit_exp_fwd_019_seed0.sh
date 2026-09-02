@@ -15,7 +15,7 @@ screen="runs/$(date +%Y%m%d)/EXP-FWD-019_seed0_$(date +%Y%m%d%H%M%S)"
 python -m phc2d.forward.component_campaign --c0-dir "$c0_dir" --output-dir "$screen" --repository-root "$PHC2D_ROOT"
 manifest="$screen/task_manifest.csv"; count="$(($(wc -l < "$manifest") - 1))"
 [[ "$count" == 21 ]] || { echo "unexpected seed0 task count: $count" >&2; exit 5; }
-job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 --mem=60000 -t 08:00:00 --array=0-20%3 \
+job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t 08:00:00 --array=0-20%3 \
   -J fwd019_s0 -o "$screen/slurm_%A_%a.out" -e "$screen/slurm_%A_%a.err" \
   --export="ALL,PHC2D_FWD019_SCREEN_MANIFEST=$manifest" jobs/paracloud_exp_fwd_019_seed0_train.sh)"
 printf 'authorization_id=%s\ndeployed_git_commit=%s\nc0_dir=%s\nmanifest=%s\nmanifest_sha256=%s\njob_id=%s\nsubmission_scope=seed0_validation_only_no_test\n' \
