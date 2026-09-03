@@ -171,3 +171,7 @@ def test_seed0_submitter_uses_three_way_n40_concurrency() -> None:
     assert "--recovery-screen-dir" in recovery and "--task-indices" in recovery
     assert "source_task_indices" in recovery and "seed0_validation_only_no_test_correction" in recovery
     assert "PHC2D_EXPECTED_SOURCE_JOB_ID" in recovery and 'state" == "FAILED"' in recovery
+    continuation = (ROOT / "jobs/paracloud_submit_exp_fwd_019_unattempted.sh").read_text(encoding="utf-8")
+    assert "source_index > source_end" in continuation
+    assert '! -e "$source_run_dir"' in continuation
+    assert "seed0_validation_only_no_test_unattempted" in continuation
