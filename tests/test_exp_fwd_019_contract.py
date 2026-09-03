@@ -13,7 +13,7 @@ import pytest
 import yaml
 
 from phc2d.models import build_model, get_model_spec
-from phc2d.forward.component_campaign import freeze_confirmation, freeze_seed0_screen
+from phc2d.forward.component_campaign import freeze_confirmation, freeze_recovery, freeze_seed0_screen
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,6 +47,8 @@ def test_component_identities_build_with_distinct_state_schema(name: str, params
     spec = get_model_spec(name)
     model = build_model(name, input_shape=(64, 64), output_shape=(81, 10), **params)
     kwargs = {"lane_id": torch.tensor([0, 1])} if spec.accepts_lane_id else {}
+    if spec.accepts_k_points:
+        kwargs["k_points"] = torch.rand(81, 2)
     assert model(torch.randn(2, 64, 64), **kwargs).shape == (2, 81, 10)
     assert sum(parameter.numel() for parameter in model.parameters()) > 0
 
@@ -62,6 +64,30 @@ def test_frozen_masks_preserve_existing_checkpoint_schema() -> None:
         before = tuple(model.state_dict())
         model.set_component_mask(disabled)
         assert tuple(model.state_dict()) == before
+
+
+def test_recovery_freezer_preserves_config_hashes_and_uses_new_run_paths(tmp_path: Path) -> None:
+    screen = tmp_path / "screen"; configs = screen / "derived_configs"; configs.mkdir(parents=True)
+    rows = []
+    for index in range(3):
+        config = configs / f"case_{index}.yaml"
+        config.write_text(f"seed: {index}\n", encoding="utf-8")
+        rows.append({
+            "task_index": index, "case_id": f"case_{index}", "family": "fno",
+            "lane": "binary", "variant": "baseline", "model": "fno2d_band_component_v1",
+            "seed": 0, "config": str(config), "run_dir": str(screen / "runs" / f"case_{index}"),
+        })
+    with (screen / "task_manifest.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0])); writer.writeheader(); writer.writerows(rows)
+    recovery = freeze_recovery(screen, tmp_path / "recovery", task_indices=(0, 2), repository_root=ROOT)
+    with (recovery / "task_manifest.csv").open(encoding="utf-8", newline="") as handle:
+        recovered = list(csv.DictReader(handle))
+    with (recovery / "source_to_replacement_manifest.csv").open(encoding="utf-8", newline="") as handle:
+        lineage = list(csv.DictReader(handle))
+    assert [row["task_index"] for row in recovered] == ["0", "1"]
+    assert [row["source_task_index"] for row in lineage] == ["0", "2"]
+    assert all(row["source_config_sha256"] == row["replacement_config_sha256"] for row in lineage)
+    assert all("recovery/runs" in row["run_dir"].replace("\\", "/") for row in recovered)
 
 
 def test_c0_submitter_is_authorization_hash_and_concurrency_gated() -> None:
@@ -141,3 +167,7 @@ def test_seed0_submitter_uses_three_way_n40_concurrency() -> None:
     confirmation = (ROOT / "jobs/paracloud_submit_exp_fwd_019_confirmation.sh").read_text(encoding="utf-8")
     assert 'phc2d_fwd019_submit_chunk "$campaign" "$start" "$end" 42' in confirmation
     assert "three_seed_validation_only_no_test" in confirmation
+    recovery = (ROOT / "jobs/paracloud_submit_exp_fwd_019_recovery.sh").read_text(encoding="utf-8")
+    assert "--recovery-screen-dir" in recovery and "--task-indices" in recovery
+    assert "source_task_indices" in recovery and "seed0_validation_only_no_test_correction" in recovery
+    assert "PHC2D_EXPECTED_SOURCE_JOB_ID" in recovery and 'state" == "FAILED"' in recovery

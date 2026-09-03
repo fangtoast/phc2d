@@ -268,7 +268,7 @@ def build_fno2d_band(
                 block.runtime_disabled_components = disabled
                 block.spectral.runtime_disabled_components = disabled
 
-        def forward(self, x: Any) -> Any:
+        def forward(self, x: Any, *, k_points: Any | None = None) -> Any:
             if x.ndim == 3:
                 x = x.unsqueeze(1)
             y = self.blocks(self.lift(x))

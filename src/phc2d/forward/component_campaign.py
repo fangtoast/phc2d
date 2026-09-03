@@ -11,6 +11,7 @@ import argparse
 import csv
 import hashlib
 import json
+import shutil
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -179,6 +180,76 @@ def freeze_seed0_screen(c0_dir: str | Path, output_dir: str | Path, *, repositor
     return out
 
 
+def freeze_recovery(
+    screen_dir: str | Path,
+    output_dir: str | Path,
+    *,
+    task_indices: Sequence[int],
+    repository_root: str | Path = ".",
+) -> Path:
+    """Freeze a non-overwriting correction slice from an existing screen manifest."""
+
+    root = Path(repository_root).resolve()
+    screen = Path(screen_dir); screen = screen if screen.is_absolute() else root / screen
+    out = Path(output_dir); out = out if out.is_absolute() else root / out
+    requested = tuple(int(value) for value in task_indices)
+    if not requested or len(set(requested)) != len(requested) or any(value < 0 for value in requested):
+        raise ValueError("task_indices must be a non-empty sequence of unique non-negative integers")
+    with (screen / "task_manifest.csv").open(encoding="utf-8", newline="") as handle:
+        source_rows = list(csv.DictReader(handle))
+    by_index = {int(row["task_index"]): row for row in source_rows}
+    missing = sorted(set(requested) - set(by_index))
+    if missing:
+        raise ValueError(f"recovery task indices are absent from the source manifest: {missing}")
+
+    out.mkdir(parents=True, exist_ok=False)
+    derived = out / "derived_configs"; derived.mkdir()
+    rows: list[dict[str, Any]] = []
+    lineage: list[dict[str, Any]] = []
+    for recovery_index, source_index in enumerate(requested):
+        source_row = by_index[source_index]
+        source_config = root / source_row["config"]
+        replacement_config = derived / f'{source_row["case_id"]}.yaml'
+        shutil.copyfile(source_config, replacement_config)
+        source_hash = _sha256(source_config)
+        replacement_hash = _sha256(replacement_config)
+        if replacement_hash != source_hash:
+            raise RuntimeError(f"recovery config hash mismatch for task {source_index}")
+        replacement_run = out / "runs" / source_row["case_id"]
+        rows.append({
+            **{key: source_row[key] for key in ("case_id", "family", "lane", "variant", "model", "seed")},
+            "task_index": recovery_index,
+            "config": _portable_path(replacement_config, root),
+            "run_dir": _portable_path(replacement_run, root),
+        })
+        rows[-1] = {key: rows[-1][key] for key in ("task_index", "case_id", "family", "lane", "variant", "model", "seed", "config", "run_dir")}
+        lineage.append({
+            "recovery_task_index": recovery_index,
+            "source_task_index": source_index,
+            "case_id": source_row["case_id"],
+            "source_config": source_row["config"],
+            "source_config_sha256": source_hash,
+            "replacement_config": _portable_path(replacement_config, root),
+            "replacement_config_sha256": replacement_hash,
+            "source_run_dir": source_row["run_dir"],
+            "replacement_run_dir": _portable_path(replacement_run, root),
+        })
+    with (out / "task_manifest.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0])); writer.writeheader(); writer.writerows(rows)
+    with (out / "source_to_replacement_manifest.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(lineage[0])); writer.writeheader(); writer.writerows(lineage)
+    (out / "recovery.json").write_text(json.dumps({
+        "status": "correction_slice_frozen",
+        "experiment_id": "EXP-FWD-019",
+        "test_targets_loaded": False,
+        "source_screen_dir": _portable_path(screen, root),
+        "source_manifest_sha256": _sha256(screen / "task_manifest.csv"),
+        "source_task_indices": list(requested),
+        "task_count": len(rows),
+    }, indent=2) + "\n", encoding="utf-8")
+    return out
+
+
 def _training_metric(run_dir: Path, lane: str) -> dict[str, float]:
     result = _read_json(run_dir / "results.json")
     metrics = _read_json(run_dir / "metrics.json")
@@ -252,16 +323,26 @@ def freeze_confirmation(screen_dir: str | Path, output_dir: str | Path, *, repos
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--c0-dir"); source.add_argument("--screen-dir")
+    source.add_argument("--c0-dir"); source.add_argument("--screen-dir"); source.add_argument("--recovery-screen-dir")
+    parser.add_argument("--task-indices")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--repository-root", default=".")
     args = parser.parse_args(argv)
-    operation = freeze_seed0_screen if args.c0_dir else freeze_confirmation
-    print(operation(args.c0_dir or args.screen_dir, args.output_dir, repository_root=args.repository_root))
+    if args.recovery_screen_dir:
+        if not args.task_indices:
+            parser.error("--task-indices is required with --recovery-screen-dir")
+        indices = tuple(int(value) for value in args.task_indices.split(","))
+        result = freeze_recovery(args.recovery_screen_dir, args.output_dir, task_indices=indices, repository_root=args.repository_root)
+    else:
+        if args.task_indices:
+            parser.error("--task-indices is only valid with --recovery-screen-dir")
+        operation = freeze_seed0_screen if args.c0_dir else freeze_confirmation
+        result = operation(args.c0_dir or args.screen_dir, args.output_dir, repository_root=args.repository_root)
+    print(result)
 
 
 if __name__ == "__main__":
     main()
 
 
-__all__ = ["freeze_confirmation", "freeze_seed0_screen"]
+__all__ = ["freeze_confirmation", "freeze_recovery", "freeze_seed0_screen"]
