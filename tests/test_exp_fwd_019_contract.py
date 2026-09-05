@@ -13,7 +13,7 @@ import pytest
 import yaml
 
 from phc2d.models import build_model, get_model_spec
-from phc2d.forward.component_campaign import freeze_confirmation, freeze_recovery, freeze_seed0_screen
+from phc2d.forward.component_campaign import freeze_accepted_seed0, freeze_confirmation, freeze_recovery, freeze_seed0_screen
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,6 +88,38 @@ def test_recovery_freezer_preserves_config_hashes_and_uses_new_run_paths(tmp_pat
     assert [row["source_task_index"] for row in lineage] == ["0", "2"]
     assert all(row["source_config_sha256"] == row["replacement_config_sha256"] for row in lineage)
     assert all("recovery/runs" in row["run_dir"].replace("\\", "/") for row in recovered)
+
+
+def test_accepted_seed0_derivative_combines_original_and_replacement_without_overwrite(tmp_path: Path) -> None:
+    screen = tmp_path / "screen"; screen.mkdir()
+    replacement = tmp_path / "replacement"; replacement.mkdir()
+    rows = []
+    for index in range(2):
+        config = screen / f"case_{index}.yaml"; config.write_text("frozen: true\n", encoding="utf-8")
+        run_dir = screen / "runs" / f"case_{index}"
+        rows.append({"task_index": index, "case_id": f"case_{index}", "family": "fno", "lane": "binary", "variant": "baseline", "model": "fno2d_band_component_v1", "seed": 0, "config": str(config), "run_dir": str(run_dir)})
+    with (screen / "task_manifest.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0])); writer.writeheader(); writer.writerows(rows)
+    (screen / "selection.json").write_text('{"selected_candidates":{}}', encoding="utf-8")
+    recovery = freeze_recovery(screen, replacement / "slice", task_indices=(0,), repository_root=ROOT)
+    with (recovery / "task_manifest.csv").open(encoding="utf-8", newline="") as handle:
+        recovery_row = next(csv.DictReader(handle))
+    accepted_sources = [recovery_row, rows[1]]
+    for row in accepted_sources:
+        run_dir = Path(row["run_dir"]); run_dir.mkdir(parents=True)
+        identity = {"requested_model_name": row["model"]}
+        (run_dir / "results.json").write_text(json.dumps({"status": "formal_training_success", "formal_training_started": True, "test_executed": False, "model": row["model"], "model_identity": identity}), encoding="utf-8")
+        (run_dir / "metrics.json").write_text(json.dumps({"model_identity": identity}), encoding="utf-8")
+        (run_dir / "run.meta.json").write_text("{}", encoding="utf-8")
+        (run_dir / "config.resolved.yaml").write_text(yaml.safe_dump({"experiment": {"component_family": row["family"], "component_variant": row["variant"], "seed": int(row["seed"])}}), encoding="utf-8")
+        (run_dir / "model.pt").write_bytes(b"checkpoint")
+    accepted = freeze_accepted_seed0(screen, (recovery,), tmp_path / "accepted", repository_root=ROOT)
+    with (accepted / "task_manifest.csv").open(encoding="utf-8", newline="") as handle:
+        accepted_rows = list(csv.DictReader(handle))
+    assert len(accepted_rows) == 2
+    assert accepted_rows[0]["run_dir"] == recovery_row["run_dir"]
+    assert accepted_rows[1]["run_dir"] == rows[1]["run_dir"]
+    assert json.loads((accepted / "acceptance.json").read_text(encoding="utf-8"))["test_targets_loaded"] is False
 
 
 def test_c0_submitter_is_authorization_hash_and_concurrency_gated() -> None:
@@ -165,7 +197,7 @@ def test_seed0_submitter_uses_three_way_n40_concurrency() -> None:
     assert "PHC2D_AUTHORIZE_EXP_FWD_019" in submitter
     assert "full_cell_dual_lane" in worker and "full_cell --config" in worker
     confirmation = (ROOT / "jobs/paracloud_submit_exp_fwd_019_confirmation.sh").read_text(encoding="utf-8")
-    assert 'phc2d_fwd019_submit_chunk "$campaign" "$start" "$end" 42' in confirmation
+    assert 'phc2d_fwd019_submit_chunk "$campaign" "$start" "$end" "$count"' in confirmation
     assert "three_seed_validation_only_no_test" in confirmation
     recovery = (ROOT / "jobs/paracloud_submit_exp_fwd_019_recovery.sh").read_text(encoding="utf-8")
     assert "--recovery-screen-dir" in recovery and "--task-indices" in recovery

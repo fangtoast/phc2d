@@ -23,10 +23,13 @@ else
   campaign="runs/$(date +%Y%m%d)/EXP-FWD-019_confirmation_$(date +%Y%m%d%H%M%S)"
   "${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu118}/bin/python" -m phc2d.forward.component_campaign --screen-dir "$screen_dir" --output-dir "$campaign" --repository-root "$PHC2D_ROOT"
   printf 'screen_dir=%s\ndeployed_git_commit=%s\n' "$screen_dir" "$PHC2D_EXPECTED_COMMIT" > "$campaign/freeze.env"
+  count="$(($(wc -l < "$campaign/task_manifest.csv") - 1))"
+  if (( count == 0 )); then printf 'campaign=%s\nstatus=all_families_stopped_at_seed0\n' "$campaign"; exit 0; fi
   start=0
-  end=15
+  end=$((count < 16 ? count - 1 : 15))
 fi
-phc2d_fwd019_submit_chunk "$campaign" "$start" "$end" 42 24:00:00 fwd019_c3 three_seed_validation_only_no_test
+count="$(($(wc -l < "$campaign/task_manifest.csv") - 1))"
+phc2d_fwd019_submit_chunk "$campaign" "$start" "$end" "$count" 24:00:00 fwd019_c3 three_seed_validation_only_no_test
 printf 'screen_dir=%s\n' "$screen_dir" >> "$PHC2D_FWD019_SUBMISSION_EVIDENCE"
 printf '%s\n' "$campaign" > runs/EXP-FWD-019_active_confirmation.txt
 printf 'campaign=%s\njob_id=%s\narray=%s-%s%%3\n' "$campaign" "$PHC2D_FWD019_SUBMITTED_JOB_ID" "$start" "$end"

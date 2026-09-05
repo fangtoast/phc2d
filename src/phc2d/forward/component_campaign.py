@@ -250,6 +250,116 @@ def freeze_recovery(
     return out
 
 
+def _audit_seed0_run(row: Mapping[str, str], *, root: Path) -> dict[str, str]:
+    run_dir = root / row["run_dir"]
+    required = ("results.json", "metrics.json", "run.meta.json", "config.resolved.yaml", "model.pt")
+    missing = [name for name in required if not (run_dir / name).is_file() or not (run_dir / name).stat().st_size]
+    if missing:
+        raise RuntimeError(f"seed0 run is missing required artifacts {missing}: {run_dir}")
+    result = _read_json(run_dir / "results.json")
+    metrics = _read_json(run_dir / "metrics.json")
+    expected_status = "dual_lane_training_success" if row["lane"] == "joint" else "formal_training_success"
+    if result.get("status") != expected_status or result.get("test_executed") is not False:
+        raise RuntimeError(f"seed0 run is not successful validation-only evidence: {run_dir}")
+    if result.get("formal_training_started") is not True or result.get("model") != row["model"]:
+        raise RuntimeError(f"seed0 run identity mismatch: {run_dir}")
+    result_identity = result.get("model_identity")
+    if not isinstance(result_identity, Mapping) or result_identity.get("requested_model_name") != row["model"]:
+        raise RuntimeError(f"seed0 result model identity mismatch: {run_dir}")
+    if metrics.get("model_identity") != result_identity:
+        raise RuntimeError(f"seed0 metrics/result model identity mismatch: {run_dir}")
+    resolved = yaml.safe_load((run_dir / "config.resolved.yaml").read_text(encoding="utf-8"))
+    experiment = resolved.get("experiment", {})
+    if (
+        experiment.get("component_family") != row["family"]
+        or experiment.get("component_variant") != row["variant"]
+        or int(experiment.get("seed", -1)) != int(row["seed"])
+    ):
+        raise RuntimeError(f"seed0 resolved config identity mismatch: {run_dir}")
+    return {name.replace(".", "_") + "_sha256": _sha256(run_dir / name) for name in required}
+
+
+def freeze_accepted_seed0(
+    screen_dir: str | Path,
+    replacement_dirs: Sequence[str | Path],
+    output_dir: str | Path,
+    *,
+    repository_root: str | Path = ".",
+) -> Path:
+    """Publish an audited seed0 manifest view without rewriting source run evidence."""
+
+    root = Path(repository_root).resolve()
+    screen = Path(screen_dir); screen = screen if screen.is_absolute() else root / screen
+    replacements_paths = [Path(value) if Path(value).is_absolute() else root / value for value in replacement_dirs]
+    out = Path(output_dir); out = out if out.is_absolute() else root / out
+    with (screen / "task_manifest.csv").open(encoding="utf-8", newline="") as handle:
+        source_rows = list(csv.DictReader(handle))
+    source_by_index = {int(row["task_index"]): row for row in source_rows}
+    if len(source_by_index) != len(source_rows):
+        raise RuntimeError("source seed0 manifest contains duplicate task indices")
+    replacements: dict[int, tuple[dict[str, str], Path]] = {}
+    identity_fields = ("case_id", "family", "lane", "variant", "model", "seed")
+    for replacement_dir in replacements_paths:
+        with (replacement_dir / "task_manifest.csv").open(encoding="utf-8", newline="") as handle:
+            replacement_rows = {int(row["task_index"]): row for row in csv.DictReader(handle)}
+        with (replacement_dir / "source_to_replacement_manifest.csv").open(encoding="utf-8", newline="") as handle:
+            lineage_rows = list(csv.DictReader(handle))
+        for lineage in lineage_rows:
+            source_index = int(lineage["source_task_index"])
+            replacement_index = int(lineage["recovery_task_index"])
+            if source_index in replacements or source_index not in source_by_index or replacement_index not in replacement_rows:
+                raise RuntimeError(f"invalid or duplicate replacement lineage for source task {source_index}")
+            source_row = source_by_index[source_index]
+            replacement_row = replacement_rows[replacement_index]
+            if any(source_row[field] != replacement_row[field] for field in identity_fields):
+                raise RuntimeError(f"replacement identity mismatch for source task {source_index}")
+            source_hash = _sha256(root / source_row["config"])
+            replacement_hash = _sha256(root / replacement_row["config"])
+            if source_hash != replacement_hash or source_hash != lineage["source_config_sha256"]:
+                raise RuntimeError(f"replacement config mismatch for source task {source_index}")
+            replacements[source_index] = (replacement_row, replacement_dir)
+
+    accepted_rows: list[dict[str, str]] = []
+    lineage: list[dict[str, Any]] = []
+    run_paths: set[str] = set()
+    for source_index in sorted(source_by_index):
+        source_row = source_by_index[source_index]
+        accepted_row, evidence_dir = replacements.get(source_index, (source_row, screen))
+        if accepted_row["run_dir"] in run_paths:
+            raise RuntimeError(f'duplicate accepted run path: {accepted_row["run_dir"]}')
+        run_paths.add(accepted_row["run_dir"])
+        artifact_hashes = _audit_seed0_run(accepted_row, root=root)
+        accepted_rows.append({**accepted_row, "task_index": str(source_index)})
+        lineage.append({
+            "task_index": source_index,
+            "case_id": source_row["case_id"],
+            "source_kind": "replacement" if source_index in replacements else "original",
+            "evidence_dir": _portable_path(evidence_dir, root),
+            "source_run_dir": source_row["run_dir"],
+            "accepted_run_dir": accepted_row["run_dir"],
+            "source_config_sha256": _sha256(root / source_row["config"]),
+            "accepted_config_sha256": _sha256(root / accepted_row["config"]),
+            **artifact_hashes,
+        })
+    out.mkdir(parents=True, exist_ok=False)
+    with (out / "task_manifest.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(accepted_rows[0])); writer.writeheader(); writer.writerows(accepted_rows)
+    with (out / "source_to_replacement_manifest.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(lineage[0])); writer.writeheader(); writer.writerows(lineage)
+    shutil.copyfile(screen / "selection.json", out / "selection.json")
+    (out / "acceptance.json").write_text(json.dumps({
+        "status": "accepted_seed0_derivative",
+        "experiment_id": "EXP-FWD-019",
+        "test_targets_loaded": False,
+        "source_screen_dir": _portable_path(screen, root),
+        "source_manifest_sha256": _sha256(screen / "task_manifest.csv"),
+        "replacement_dirs": [_portable_path(path, root) for path in replacements_paths],
+        "replacement_task_indices": sorted(replacements),
+        "task_count": len(accepted_rows),
+    }, indent=2) + "\n", encoding="utf-8")
+    return out
+
+
 def _training_metric(run_dir: Path, lane: str) -> dict[str, float]:
     result = _read_json(run_dir / "results.json")
     metrics = _read_json(run_dir / "metrics.json")
@@ -323,12 +433,17 @@ def freeze_confirmation(screen_dir: str | Path, output_dir: str | Path, *, repos
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--c0-dir"); source.add_argument("--screen-dir"); source.add_argument("--recovery-screen-dir")
+    source.add_argument("--c0-dir"); source.add_argument("--screen-dir"); source.add_argument("--recovery-screen-dir"); source.add_argument("--accept-screen-dir")
     parser.add_argument("--task-indices")
+    parser.add_argument("--replacement-dir", action="append", default=[])
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--repository-root", default=".")
     args = parser.parse_args(argv)
-    if args.recovery_screen_dir:
+    if args.accept_screen_dir:
+        if not args.replacement_dir:
+            parser.error("at least one --replacement-dir is required with --accept-screen-dir")
+        result = freeze_accepted_seed0(args.accept_screen_dir, args.replacement_dir, args.output_dir, repository_root=args.repository_root)
+    elif args.recovery_screen_dir:
         if not args.task_indices:
             parser.error("--task-indices is required with --recovery-screen-dir")
         indices = tuple(int(value) for value in args.task_indices.split(","))
@@ -345,4 +460,4 @@ if __name__ == "__main__":
     main()
 
 
-__all__ = ["freeze_confirmation", "freeze_recovery", "freeze_seed0_screen"]
+__all__ = ["freeze_accepted_seed0", "freeze_confirmation", "freeze_recovery", "freeze_seed0_screen"]
