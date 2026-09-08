@@ -29,6 +29,8 @@
 
 > 2026-09-02 EXP-PHY-007 状态：K5 Binary/Graded 全部 64 个冻结 validation 结构完成 WSL real-MPB 自适应 band-edge 加密，0 solver failure；但仅 18/64 个结构同时满足全部九个 pair 的连续 edge 收敛与 resolution 64→96 稳定，终态为 `adaptive_label_gate_fail`。EXP-FWD-016 未提交，loss 路线按计划停在 L0。详见[标签门结果](docs/results/field-physics/EXP-PHY-007-validation带隙标签门.md)。
 
+> 2026-09-08 EXP-FWD-019 状态：C0、21项 seed0 接受谱系和42项 F50 validation-only 三种子确认已完成。ConvNeXt $7\times7\to1\times1$ 在 B/G 两路线、三种子上稳定大幅退化，是当前容量混杂最小的组件信号；FNO/Joint 删除 spectral 也稳定退化，但参数量同时减少约90%/86%；TFNO `no_channel` 未通过 Graded 方向一致性门。23/42项终态未满足收敛门，六域冻结评估、held-out test 和物理验证均未执行。详见[三种子确认结果](docs/results/forward/EXP-FWD-019-组件归因三种子确认.md)。
+
 # PROJECT MAP
 
 | Metadata | Value |
@@ -77,6 +79,7 @@
 7. CNN/FNO 能接受 32/128 输入不等于分辨率不变；相对 64 的 156 个 paired comparisons 中有 151 个 MRE CI 显著变差。该结果不是 MPB 分辨率收敛或物理验证。
 8. Full-Wh 升级 50k held-out test 中，ConvNeXt 的 B/G MRE 为约 `0.321%/0.050%`；Mixer 的 32/128 直接输入诊断总体最稳。Gated ResMLP 负结果和 dual-lane 未通过替代门必须保留。
 9. K5 Full-Wh 的整体 test MRE 不能替代最大带隙选择审计；EXP-PHY-004 的 6 条代表结构中，ConvNeXt 仅 1/6、joint 仅 4/6 同时保持 real-MPB band 与 k 选择，选频差异可显著改变冻结 real-Meep 响应。
+10. EXP-FWD-019在F50 validation上支持ConvNeXt大核的稳定贡献信号，并确认FNO/Joint频谱分支不可无损删除；后两者仍有显著容量混杂，TFNO channel不具备两路线一致证据。
 
 ## 当前最重要的未解决问题
 
@@ -87,6 +90,7 @@
 - EXP-FWD-015 已确认低命中主要来自模型候选排序与 complete-gap 召回，而非近简并评价口径；EXP-FWD-016 只登记了一个 ranked-v2 N40 短筛任务，等待单独远端训练授权。
 - N50R5 登录仍被平台 `loginCluster` 权限拒绝；N40 已部署当前 inverse Stage-A runner/orchestrator（`b93cc2d`），但当前正式训练只能以既有三卡分配证据为下限，9/18 卡仍需真实 admission 作业证明。
 - Full-cell 50k forward 计算和自动审计已完成，但 AI 整理的 Draft 报告仍需人工接受；inverse 仍未在全胞、多形态、全 BZ 数据上完成正式 45-run Stage-A 或 soft-surrogate Stage B。
+- EXP-FWD-019的42项三种子确认已完成，但23项未满足末窗收敛门，FNO/Joint缺parameter-matched control，六域冻结评估尚未执行；当前需人工决定哪些候选可进入下一门，不能直接宣布完整组件因果归因。
 - Full-Wh 升级 native/cross-lane/resolution 主评估已完成，但 `k_conditioned` 头未被选择，threshold proxy 尚无作业或结果；这些 surrogate 结果尚未进入 full-cell inverse Stage B 或 real-MPB replay。
 - inverse 缺 seeds 1/2 和满足 candidate-health/Top-5 coverage 的中立候选池。
 - adapted PINO 尚未通过修正指标、residual–frequency、dense-k 与跨分辨率门。

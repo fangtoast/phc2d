@@ -36,6 +36,7 @@ primary_layer: L3
 | `EXP-FWD-010` | surrogate cross-domain | completed with convergence not met, Draft review | joint 各 4k 从零完成 seed0 固定 200 轮与六域 6-cell；Binary 末窗略未过门，六域均未击败最佳 K5 单路线 | [009/010 汇总](../results/forward/EXP-FWD-009-K5权重热启动与六域验证.md) |
 | `EXP-FWD-011` | surrogate cross-domain | completed with convergence not met, Draft review | Binary/Graded 同时续训至总 epoch 300；Graded 与等权末窗未过门，六域相对 200 轮五升一降，只在 K5 Binary 击败最佳单路线 | [009/010/011 汇总](../results/forward/EXP-FWD-009-K5权重热启动与六域验证.md) |
 | `EXP-FWD-012` | train/validation prior audit | completed negative gate, Draft review | X/M 一阶 Bragg 先验最大 gap-center 命中均为 0；停止 EXP-FWD-013，不启动训练 | [Draft 结果页](../results/forward/EXP-FWD-012-工作频率先验覆盖审计.md) |
+| `EXP-FWD-019` | surrogate validation component attribution | confirmation completed, attribution partial, Draft review | 42项三种子确认完成；ConvNeXt大核稳定贡献信号最强，FNO/Joint仍有容量混杂，TFNO channel未通过Graded方向一致性门；23/42终态未收敛，六域评估与test未执行 | [Draft 结果页](../results/forward/EXP-FWD-019-组件归因三种子确认.md) |
 | `EXP-INV-004` | solver replay | completed, seed 0 | Objective-Bridge 完成 Test625 real-MPB replay，但尚无跨 seed 结论 | [短结果](EXP-INV-004-Objective-Bridge.md) · [详细证据](../results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md) |
 | `EXP-PHY-003` | admission gate | blocked | Field/adapted PINO 三项准入未通过，不进入当前正式 inverse 主线 | [详细证据](../results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md) |
 | `EXP-PHY-004` | physical sensitivity | completed | K5 全量 MRE 较低，但代表样本最大带隙选择失配可显著改变真实 Meep 响应 | [详细证据](../results/field-physics/代理选频与真实响应差异_20260825.md) |
@@ -47,6 +48,7 @@ primary_layer: L3
 3. V2 inverse 的 seed-0 replay 已完成；full-cell inverse 的正式训练、筛选和 replay 仍未完成。
 4. Field/adapted PINO 仍是被阻塞的历史方向，不能与当前全胞正向结果并列宣传。
 5. K5 的整体 held-out MRE 较低，但最大带隙的离散 band/k 选择可能失配；forward 进入 inverse 选频前需要独立的 gap-selection 与 real-solver sensitivity gate。
+6. EXP-FWD-019在F50 validation上确认ConvNeXt大核、FNO primary spectral与Joint spectral的稳定删除敏感性；只有ConvNeXt当前接近低容量混杂证据，且整体组件归因仍受收敛和六域评估缺口限制。
 
 ## 证据路径
 
