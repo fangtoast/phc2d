@@ -7,7 +7,7 @@
 
 # EXP-FWD-020：全局—局部带隙算子桥接
 
-> 状态：`implemented_not_authorized`；主层级：L2 方法架构。模型已实现并通过本地工程测试，但没有训练、validation 性能、held-out test 或 real-MPB/Meep 证据。
+> 状态：`authorized_n56_gated_campaign_pending_preflight`；主层级：L3 实验与证据。已获本轮 N56 环境、数据部署与门控训练提交授权；截至本文更新仍没有训练、validation 性能、held-out test 或 real-MPB/Meep 证据。
 
 ## 结论与问题
 
@@ -48,24 +48,24 @@ EXP-FWD-019 支持两个可进入桥接验证的信号：频谱主分支不可�
 
 ### G1：seed0 短筛
 
-- F50 Binary/Graded 分别做 `kernel_3` 与 `kernel_7` 配对训练；
+- K5、K20、F50 的 Binary/Graded 六条路线分别做 `kernel_3` 与 `kernel_7` 配对训练；
 - seed 固定为 0，最多 20 epochs，只读 validation，不读取 test；
-- 两条 lane 均需满足 candidate MRE 低于 baseline，且相对改善至少 1%；
+- 每条“数据集—lane”独立满足 candidate MRE 低于 baseline，且相对改善至少 1%；
 - candidate/baseline 参数比不得超过 1.05；任一 lane 反向即停止。
 
 ### G2：三种子确认
 
-仅 G1 通过后，按 seeds 0/1/2、200 epochs 复训。两条 lane 均需三种子同向，且 baseline/candidate 满足原收敛门；否则不进入跨域评估。
+G1 共 12 个 seed0、20 epoch validation-only 任务，以 `%8` 数组执行；只有各自通过的路线才进入 G2。G2 每条通过路线的两个 kernel 各做 seeds 0/1/2、200 epochs，从头训练，不修改预算或阈值。每条路线均需三种子同向，且 baseline/candidate 满足原收敛门；否则不进入跨域评估。
 
 ### G3：六域与最终 test
 
-仅 G2 通过后冻结 checkpoint 身份，执行 K5/K20/F50 × Binary/Graded 六域评估。held-out test 在模型、阈值和报告模板全部冻结后至多读取一次。real-MPB/Meep 仍是独立物理验证任务。
+仅 G2 通过后冻结 checkpoint 身份，执行同一材料 lane 的 K5/K20/F50 原生与跨数据集 held-out 评估；满额为 108 个 checkpoint-target 单元。held-out test 在模型、阈值和报告模板全部冻结后至多读取一次。real-MPB/Meep 仍是独立物理验证任务。
 
 ## 证据与非目标
 
 - 上游结果：[EXP-FWD-019 三种子确认](../../docs/results/forward/EXP-FWD-019-组件归因三种子确认.md)
 - 机器合同：[EXP-FWD-020 配置](../../configs/research/full_cell_global_local_bridge_exp_fwd_020_v1.yaml)
 - 实现：`src/phc2d/models/full_cell_operators.py`
-- 非目标：不重跑 EXP-FWD-019，不调整其收敛判据，不访问 test，不提交 N40/N56，不宣称性能提升或物理因果。
+- N56 运行时固定为 `gpu_5090`、CUDA 12.8、PyTorch 2.7.1 的版本化独立环境；提交前必须单卡验证 CUDA、PyTorch、HDF5、目标模型前向/反向与小批量读取。N56 上哈希错误的旧 F50-Graded 严格排除；正确副本从 N40 以 `.partial`、SHA256 校验和原子改名部署。非目标：不重跑 EXP-FWD-019，不调整科学判据，不自动重试、取消、追加训练或更换 GPU，不宣称性能提升或物理因果。
 
 本页是 AI 整理的 Draft，正式远程训练需新的明确授权。
