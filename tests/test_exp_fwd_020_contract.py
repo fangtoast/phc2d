@@ -40,6 +40,7 @@ def test_exp_fwd_020_is_authorized_for_the_gated_n56_campaign() -> None:
     assert config["runtime"]["torch_version"] == "2.7.1"
     assert config["runtime"]["max_concurrent_jobs"] == 8
     assert len(config["datasets"]) == 6
+    assert all("n56_path" in item for item in config["datasets"].values())
 
     spec = get_model_spec("global_local_band_operator_v1")
     assert spec.accepts_k_points is True
@@ -68,3 +69,4 @@ def test_exp_fwd_020_g1_expands_exactly_six_domains_by_two_variants(tmp_path: Pa
     assert {row["seed"] for row in rows} == {"0"}
     resolved = yaml.safe_load((ROOT / rows[0]["config"]).read_text(encoding="utf-8"))
     assert resolved["experiment"]["held_out_test_authorized"] is False
+    assert str(resolved["dataset"]["path"]).startswith("/data/home/scxl892/")
