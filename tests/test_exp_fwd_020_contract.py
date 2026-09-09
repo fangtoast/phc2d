@@ -70,3 +70,11 @@ def test_exp_fwd_020_g1_expands_exactly_six_domains_by_two_variants(tmp_path: Pa
     resolved = yaml.safe_load((ROOT / rows[0]["config"]).read_text(encoding="utf-8"))
     assert resolved["experiment"]["held_out_test_authorized"] is False
     assert str(resolved["dataset"]["path"]).startswith("/data/home/scxl892/")
+
+
+def test_exp_fwd_020_submitter_requires_and_propagates_versioned_environment() -> None:
+    submitter = (ROOT / "jobs/paracloud_submit_exp_fwd_020.sh").read_text(encoding="utf-8")
+    assert ': "${PHC2D_ENV:?Set the versioned runtime environment directory.}"' in submitter
+    assert '"$PHC2D_ENV/bin/python" -m phc2d.forward.global_local_bridge_campaign' in submitter
+    assert 'PHC2D_ENV=$PHC2D_ENV' in submitter
+    assert "$HOME/run/envs/phc2d_gpu_cu128_torch271/bin/python" not in submitter
