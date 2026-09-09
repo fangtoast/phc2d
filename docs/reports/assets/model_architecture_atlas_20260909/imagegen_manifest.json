@@ -1,0 +1,39 @@
+{
+  "schema": "phc2d.model_architecture_imagegen.v1",
+  "generated_on": "2026-09-09",
+  "mode": "built-in_image_generation",
+  "status": "architecture_only_no_performance_claim",
+  "assets": [
+    {
+      "model": "mlp",
+      "path": "imagegen_mlp.png",
+      "sha256": "7db9bd0447ad347dcc075ecb4d58a580566b07e51ef52b81c1db3620500affec"
+    },
+    {
+      "model": "lifted_cnn",
+      "path": "imagegen_lifted_cnn.png",
+      "sha256": "9e21878f8fe726a0c5bc113a7a4265b3b91eaaa7c0ecf706c51140b22f590996"
+    },
+    {
+      "model": "fno2d_band_v2",
+      "path": "imagegen_fno2d_band_v2.png",
+      "sha256": "b94adc3c81aa921b568512f8f5315f076c748b6b4110f3035329aa2303250163"
+    },
+    {
+      "model": "tfno2d_band_v3",
+      "path": "imagegen_tfno2d_band_v3.png",
+      "sha256": "93c45a6b43749ae919a434d4b38224d5bd3b6a77195d2d92719a71ee066856f7"
+    },
+    {
+      "model": "convnext_band_v1",
+      "path": "imagegen_convnext_band_v1.png",
+      "sha256": "3f475a07ab1266bf91a94fd32a971313f24653150a0e19fe4cffad7219ab59b6"
+    },
+    {
+      "model": "global_local_band_operator_v1",
+      "path": "imagegen_global_local_band_operator_v1.png",
+      "sha256": "a5eb36ebc0520721ff2f54985eecab4e903a0a69e76db88d976cc668d0f0fe72"
+    }
+  ],
+  "prompt_set": "imagegen_prompts.txt"
+}

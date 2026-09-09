@@ -1,0 +1,32 @@
+phc2d model architecture image-generation prompt set
+Generated: 2026-09-09
+Mode: built-in image generation with three user-supplied paper figures as visual-style references only
+
+Shared style
+- Publication-ready 16:9 scientific architecture diagram on a clean white background.
+- Pastel vector-like modules, thin navy outlines, isometric tensor slabs, readable labels, clear arrows, and one expanded block inset.
+- Do not copy the reference figures' model content, captions, logos, or wording.
+- Architecture only; no performance claim, watermark, logo, attention layer, or invented module.
+
+MLP baseline
+Feature Vector [B,36] -> Linear Lift 36->256 -> GELU -> Plain MLP Block x6 -> Linear Head 256->310 -> Reshape -> Wh[31,10].
+One Plain MLP Block: Linear 256->256 -> GELU -> Dropout 0.05 -> Linear 256->256 -> GELU. No residual connection.
+
+Lifted CNN baseline
+Lifted Grid [B,1,12,14] -> Conv 3x3 1->12 -> GELU -> Conv 3x3 12->12 -> GELU -> Adaptive Avg Pool 1x1 -> Flatten [B,12] -> Linear Head 12->15 -> Reshape -> Wh[5,3].
+
+FNO2D Band v2
+Material Grid [B,1,64,64] -> 1x1 Lift 1->32 -> BandBlock x4 -> Global Avg Pool -> Linear Head 32->810 -> Reshape -> Wh[81,10].
+One BandBlock: rFFT2 with Primary Modes 8x8 and Band Modes 5x5 plus Pointwise Conv 1x1; first sum splits into Band Gate and Low-Rank Context GAP->32->8->ReLU->32; second sum also receives the residual; GELU output.
+
+TFNO2D Band v3
+Material Grid [B,1,64,64] -> 1x1 Lift 1->64 -> Factorized Operator Block x6 -> GroupNorm + GELU -> Spatial Mean [B,64] -> Dense Band Head -> Wh[81,10].
+One TFNO Block: GroupNorm, then Tucker Spectral (+/- Modes 12x12, rank 0.75), Periodic Conv 3x3, and Channel MLP 64->128->64; learned normalized sigmoid fusion; DropPath; residual add; GELU.
+
+ConvNeXt Band v1
+Material Grid [B,1,64,64] -> Patch Stem Conv 4x4 stride 4 -> Stage 1 (48 channels, 2 blocks, 16x16) -> Downsample -> Stage 2 (96 channels, 3 blocks, 8x8) -> Downsample -> Stage 3 (192 channels, 6 blocks, 4x4) -> Spatial Mean + LayerNorm -> Dense Band Head -> Wh[81,10].
+One block: Circular Pad -> Depthwise Conv 7x7 -> NHWC LayerNorm -> Linear C->4C -> GELU -> Linear 4C->C -> Layer Scale 1e-6 -> DropPath -> residual add.
+
+Global-Local Band Operator v1
+Material Grid [B,1,64,64] -> 1x1 Lift 1->64 -> GlobalLocalBlock x6 -> GroupNorm + GELU -> Spatial Mean [B,64] -> Dense Band Head -> Wh[81,10].
+One block: GroupNorm, then exactly two branches. Global: rFFT2 -> +/- Modes 12x12 -> Tucker rank 0.75 -> irFFT2. Local: Circular Pad -> Depthwise Conv 7x7 -> Channel MLP 64->256->64. Fixed Mean (G+L)/2 -> DropPath -> residual add -> GELU. No learned gate.
