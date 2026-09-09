@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Freeze and submit EXP-FWD-020 stages under the N56 5090 no-retry contract.
+# Freeze and submit EXP-FWD-020 stages under the N40 4090 no-retry contract.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com
 # Copyright (c) 2026 fangtoast. All rights reserved.
@@ -20,7 +20,7 @@ if [[ "$stage" == preflight ]]; then
   "$PHC2D_ENV/bin/python" -m phc2d.forward.global_local_bridge_campaign freeze-g1 --config configs/research/full_cell_global_local_bridge_exp_fwd_020_v1.yaml --output-dir "$campaign" --repository-root "$PHC2D_ROOT"
   config="$(sed -n '2{s/\r$//;s/^[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,[^,]*,\([^,]*\),.*/\1/p}' "$campaign/task_manifest.csv")"
   preflight_run="$PHC2D_RUN_ROOT/$(date +%Y%m%d)/EXP-FWD-020_preflight_$(date +%Y%m%d%H%M%S)"
-  job_id="$(sbatch --parsable -p gpu_5090 --gres=gpu:1 -c 6 -t 01:00:00 -J fwd020_preflight -o "$campaign/slurm_%j.out" -e "$campaign/slurm_%j.err" --export="ALL,PHC2D_PREFLIGHT_CONFIG=$config,PHC2D_PREFLIGHT_RUN_DIR=$preflight_run,PHC2D_ENV=$PHC2D_ENV" jobs/paracloud_exp_fwd_020_preflight.sh)"
+  job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t 01:00:00 -J fwd020_preflight -o "$campaign/slurm_%j.out" -e "$campaign/slurm_%j.err" --export="ALL,PHC2D_PREFLIGHT_CONFIG=$config,PHC2D_PREFLIGHT_RUN_DIR=$preflight_run,PHC2D_ENV=$PHC2D_ENV" jobs/paracloud_exp_fwd_020_preflight.sh)"
   printf 'authorization_id=%s\ndeployed_git_commit=%s\npreflight_config=%s\npreflight_run=%s\njob_id=%s\nstage=preflight\n' "$PHC2D_FWD020_AUTHORIZATION_ID" "$PHC2D_EXPECTED_COMMIT" "$config" "$preflight_run" "$job_id" > "$campaign/submission.env"
   printf 'campaign=%s\njob_id=%s\n' "$campaign" "$job_id"; exit 0
 elif [[ "$stage" == g1 ]]; then
@@ -40,7 +40,7 @@ fi
 manifest="$campaign/task_manifest.csv"; count="$(( $(wc -l < "$manifest") - 1 ))"
 (( count > 0 )) || { echo "no G2 tasks passed G1; no submission"; exit 0; }
 [[ ! -e "$campaign/submission.env" ]] || { echo "campaign already submitted" >&2; exit 5; }
-job_id="$(sbatch --parsable -p gpu_5090 --gres=gpu:1 -c 6 -t 24:00:00 --array="0-$((count - 1))%8" -J "fwd020_${stage}" -o "$campaign/slurm_%A_%a.out" -e "$campaign/slurm_%A_%a.err" --export="ALL,PHC2D_FWD020_MANIFEST=$manifest,PHC2D_ENV=$PHC2D_ENV" jobs/paracloud_exp_fwd_020_train.sh)"
+job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t 24:00:00 --array="0-$((count - 1))%8" -J "fwd020_${stage}" -o "$campaign/slurm_%A_%a.out" -e "$campaign/slurm_%A_%a.err" --export="ALL,PHC2D_FWD020_MANIFEST=$manifest,PHC2D_ENV=$PHC2D_ENV" jobs/paracloud_exp_fwd_020_train.sh)"
 printf 'authorization_id=%s\ndeployed_git_commit=%s\nmanifest=%s\nmanifest_sha256=%s\narray_concurrency=8\njob_id=%s\nstage=%s\n' "$PHC2D_FWD020_AUTHORIZATION_ID" "$PHC2D_EXPECTED_COMMIT" "$manifest" "$(sha256sum "$manifest" | cut -d' ' -f1)" "$job_id" "$stage" > "$campaign/submission.env"
 printf '%s\n' "$campaign" > "$PHC2D_RUN_ROOT/EXP-FWD-020_active.txt"
 printf 'campaign=%s\njob_id=%s\narray=0-%s%%8\n' "$campaign" "$job_id" "$((count - 1))"

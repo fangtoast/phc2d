@@ -7,7 +7,7 @@ schema_version: phc2d.global_local_bridge.v1
 experiment:
   experiment_id: EXP-FWD-020
   family: full_cell_global_local_bridge
-  evidence_status: authorized_n56_gated_campaign_pending_preflight
+  evidence_status: authorized_n40_gated_campaign_pending_preflight
   primary_layer: L3_experiment_evidence
 representation:
   input_field: material_weight_grid_64
@@ -18,12 +18,12 @@ split:
   selection_split: validation
   test_targets_loaded: false
 datasets:
-  k5_binary: {path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, n56_path: /data/home/scxl892/run/phc2d/data/exp_fwd_020/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6}
-  k5_graded: {path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, n56_path: /data/home/scxl892/run/phc2d/data/exp_fwd_020/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20}
-  k20_binary: {path: data/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5, n56_path: /data/home/scxl892/run/phc2d/data/exp_fwd_020/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sha256: 2661eb1e9e3b398a7b69c4083daefa761ea9c26a1081c478b968fd6a951d6b56}
-  k20_graded: {path: data/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5, n56_path: /data/home/scxl892/run/phc2d/data/exp_fwd_020/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: 96b127b43f2c31fb7591e9634317a7ed35332ceae1077b2277de15058902fd72}
-  f50_binary: {path: data/full_cell_binary_bz9_50000_xingyi_v1.h5, n56_path: /data/home/scxl892/run/phc2d/data/exp_fwd_020/full_cell_binary_bz9_50000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: e2d99e0c59c3bf5dfebc507e756dbcd18c8623f331ad6193832d774df5213f00, source: n40_verified_fallback_after_n56_path_absence}
-  f50_graded: {path: data/full_cell_graded_bz9_50000_xingyi_v1.h5, n56_path: /data/home/scxl892/run/phc2d/data/exp_fwd_020/full_cell_graded_bz9_50000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46, source: n40_atomic_partial_sha256_transfer, exclude_wrong_n56_copy: true}
+  k5_binary: {path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, n40_path: /HOME/scw6g7a/run/data/exp_fwd_020/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6}
+  k5_graded: {path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, n40_path: /HOME/scw6g7a/run/data/exp_fwd_020/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20}
+  k20_binary: {path: data/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5, n40_path: /HOME/scw6g7a/run/data/exp_fwd_020/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sha256: 2661eb1e9e3b398a7b69c4083daefa761ea9c26a1081c478b968fd6a951d6b56}
+  k20_graded: {path: data/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5, n40_path: /HOME/scw6g7a/run/data/exp_fwd_020/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: 96b127b43f2c31fb7591e9634317a7ed35332ceae1077b2277de15058902fd72}
+  f50_binary: {path: data/full_cell_binary_bz9_50000_xingyi_v1.h5, n40_path: /HOME/scw6g7a/run/data/exp_fwd_020/full_cell_binary_bz9_50000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: e2d99e0c59c3bf5dfebc507e756dbcd18c8623f331ad6193832d774df5213f00, source: n40_verified_source_copy}
+  f50_graded: {path: data/full_cell_graded_bz9_50000_xingyi_v1.h5, n40_path: /HOME/scw6g7a/run/data/exp_fwd_020/full_cell_graded_bz9_50000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46, source: n40_verified_source_copy}
 model:
   name: global_local_band_operator_v1
   shared_params:
@@ -74,16 +74,16 @@ protocol:
     gated_by: frozen_checkpoint_and_report_template
     maximum_reads: 1
 runtime:
-  target_platform: paracloud-n56
-  partition: gpu_5090
+  target_platform: paracloud-n40
+  partition: gpu_4090
   gpus_per_task: 1
   cpus_per_task: 6
   memory_mb: 60000
   cuda_module: cuda/12.8
   torch_version: 2.7.1
-  environment: $HOME/run/envs/phc2d_gpu_cu128_torch271
+  environment: $HOME/run/envs/phc2d_gpu_cu128_torch271_n40
   max_concurrent_jobs: 8
 authorization:
   granted: true
-  scope: n56_environment_data_deployment_g1_submission_and_gate_conditioned_g2_g3
+  scope: n40_environment_data_deployment_g1_submission_and_gate_conditioned_g2_g3
   prohibited: [automatic_retry, cancellation, additional_training, gpu_type_change, scientific_criterion_change, real_MPB, real_Meep]

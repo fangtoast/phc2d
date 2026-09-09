@@ -7,7 +7,7 @@
 
 # EXP-FWD-020：全局—局部带隙算子桥接
 
-> 状态：`authorized_n56_gated_campaign_pending_preflight`；主层级：L3 实验与证据。已获本轮 N56 环境、数据部署与门控训练提交授权；截至本文更新仍没有训练、validation 性能、held-out test 或 real-MPB/Meep 证据。
+> 状态：`authorized_n40_gated_campaign_pending_preflight`；主层级：L3 实验与证据。已获本轮 N40 RTX 4090 环境、数据部署与门控训练提交授权；截至本文更新仍没有训练、validation 性能、held-out test 或 real-MPB/Meep 证据。
 
 ## 结论与问题
 
@@ -66,6 +66,6 @@ G1 共 12 个 seed0、20 epoch validation-only 任务，以 `%8` 数组执行；
 - 上游结果：[EXP-FWD-019 三种子确认](../../docs/results/forward/EXP-FWD-019-组件归因三种子确认.md)
 - 机器合同：[EXP-FWD-020 配置](../../configs/research/full_cell_global_local_bridge_exp_fwd_020_v1.yaml)
 - 实现：`src/phc2d/models/full_cell_operators.py`
-- N56 运行时固定为 `gpu_5090`、CUDA 12.8、PyTorch 2.7.1 的版本化独立环境；提交前必须单卡验证 CUDA、PyTorch、HDF5、目标模型前向/反向与小批量读取。N56 上哈希错误的旧 F50-Graded 严格排除；正确副本从 N40 以 `.partial`、SHA256 校验和原子改名部署。非目标：不重跑 EXP-FWD-019，不调整科学判据，不自动重试、取消、追加训练或更换 GPU，不宣称性能提升或物理因果。
+- N40 运行时固定为 `gpu_4090`、CUDA 12.8、PyTorch 2.7.1 的版本化独立环境；提交前必须单卡验证 CUDA、PyTorch、HDF5、目标模型前向/反向与小批量读取。六份数据均从已核验的 N40 源副本以 `.partial`、SHA256 校验和原子改名部署到 EXP-FWD-020 专用池。非目标：不重跑 EXP-FWD-019，不调整科学判据，不自动重试、取消、追加训练或再次更换 GPU，不宣称性能提升或物理因果。
 
-本页是 AI 整理的 Draft，正式远程训练需新的明确授权。
+本页是 AI 整理的 Draft；本轮远程训练已获授权，仍须先通过 G0 单卡预检后才可提交 G1。
