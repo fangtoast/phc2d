@@ -22,6 +22,7 @@ UPGRADE_NAMES = (
     "convnext_band_v1",
     "tfno2d_band_v3",
     "dual_lane_band_operator_v1",
+    "global_local_band_operator_v1",
 )
 
 
@@ -79,6 +80,36 @@ def test_upgrade_registry_contracts_are_explicit() -> None:
         for name, spec in specs.items()
         if name != "dual_lane_band_operator_v1"
     )
+
+
+def test_global_local_bridge_has_fixed_spectral_and_periodic_large_kernel_branches() -> None:
+    torch = _require_torch()
+    model = build_model(
+        "global_local_band_operator_v1",
+        input_shape=(17, 19),
+        output_shape=(5, 3),
+        width=8,
+        depth=2,
+        modes=(4, 4),
+        norm_groups=2,
+        channel_expansion=2,
+        local_kernel=7,
+    )
+    block = model.blocks[0]
+    assert block.active_branches == ("spectral", "local")
+    assert block.gates is None
+    assert block.channel is None
+    assert block.local[0].groups == 8
+    assert block.local[0].padding_mode == "circular"
+    assert block.local[0].kernel_size == (7, 7)
+
+    model.eval()
+    x = torch.randn(2, 17, 19)
+    with torch.no_grad():
+        output = model(x)
+        shifted = model(torch.roll(x, shifts=(3, -4), dims=(-2, -1)))
+    assert output.shape == (2, 5, 3)
+    assert torch.allclose(output, shifted, atol=2.0e-5, rtol=2.0e-5)
 
 
 @pytest.mark.parametrize("name", UPGRADE_NAMES)

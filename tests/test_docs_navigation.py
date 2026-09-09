@@ -105,10 +105,12 @@ def test_formal_results_navigation_is_an_explicit_whitelist() -> None:
         "results/forward/EXP-FWD-012-工作频率先验覆盖审计.md",
         "results/forward/EXP-FWD-014-gap决策损失短预算筛选.md",
         "results/forward/EXP-FWD-015-gap决策近简并审计.md",
+        "results/forward/EXP-FWD-019-组件归因三种子确认.md",
         "results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md",
         "results/field-physics/代理选频与真实响应差异_20260825.md",
         "results/field-physics/EXP-PHY-005-TE有效折射率与折叠频率校准.md",
         "results/field-physics/EXP-PHY-006-全BZ带隙边缘加密试点.md",
+        "results/field-physics/EXP-PHY-007-validation带隙标签门.md",
         "reports/全胞双路线正向与逆向模型报告_20260810.md",
     }
 

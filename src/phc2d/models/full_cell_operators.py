@@ -44,6 +44,8 @@ def _build_factorized_band_operator(
     num_lanes: int,
     lane_embedding_dim: int,
     enabled_branches: Any,
+    local_operator_kind: str,
+    branch_fusion: str,
 ) -> Any:
     torch, nn, functional = require_torch(model_name, need_functional=True)
     in_shape, in_channels = image_contract(input_shape, model_name=model_name)
@@ -62,10 +64,16 @@ def _build_factorized_band_operator(
     lane_dim = int(lane_embedding_dim)
     branch_order = ("spectral", "local", "channel")
     active_branches = tuple(str(value) for value in enabled_branches)
+    local_kind = str(local_operator_kind).strip().lower()
+    fusion_kind = str(branch_fusion).strip().lower()
     if not active_branches or len(set(active_branches)) != len(active_branches):
         raise ValueError("enabled_branches must contain unique branch names")
     if any(value not in branch_order for value in active_branches):
         raise ValueError(f"enabled_branches must be a subset of {branch_order}")
+    if local_kind not in {"dense", "convnext"}:
+        raise ValueError("local_operator_kind must be 'dense' or 'convnext'")
+    if fusion_kind not in {"learned_sigmoid", "fixed_mean"}:
+        raise ValueError("branch_fusion must be 'learned_sigmoid' or 'fixed_mean'")
     if min(model_width, n_blocks, groups, expansion_value, kernel) <= 0:
         raise ValueError("operator dimensions must be positive")
     if model_width % groups:
@@ -77,6 +85,30 @@ def _build_factorized_band_operator(
     if lane_conditioned and min(lane_count, lane_dim) <= 0:
         raise ValueError("lane dimensions must be positive")
     DropPath = make_drop_path(nn, torch)
+
+    def make_local_branch() -> Any:
+        padding = kernel // 2
+        if local_kind == "dense":
+            return nn.Conv2d(
+                model_width,
+                model_width,
+                kernel_size=kernel,
+                padding=padding,
+                padding_mode="circular",
+            )
+        return nn.Sequential(
+            nn.Conv2d(
+                model_width,
+                model_width,
+                kernel_size=kernel,
+                padding=padding,
+                padding_mode="circular",
+                groups=model_width,
+            ),
+            nn.Conv2d(model_width, model_width * expansion_value, kernel_size=1),
+            nn.GELU(),
+            nn.Conv2d(model_width * expansion_value, model_width, kernel_size=1),
+        )
 
     rank_channel = max(1, round(model_width * rank_fraction))
     rank_y = max(1, round(modes_y * rank_fraction))
@@ -171,20 +203,17 @@ def _build_factorized_band_operator(
             self.active_branches = active_branches
             self.runtime_disabled_branches: set[str] = set()
             self.spectral = TuckerSpectralConv2d() if "spectral" in active_branches else None
-            padding = kernel // 2
-            self.local = nn.Conv2d(
-                model_width,
-                model_width,
-                kernel_size=kernel,
-                padding=padding,
-                padding_mode="circular",
-            ) if "local" in active_branches else None
+            self.local = make_local_branch() if "local" in active_branches else None
             self.channel = nn.Sequential(
                 nn.Conv2d(model_width, model_width * expansion_value, kernel_size=1),
                 nn.GELU(),
                 nn.Conv2d(model_width * expansion_value, model_width, kernel_size=1),
             ) if "channel" in active_branches else None
-            self.gates = nn.Parameter(torch.zeros(len(active_branches)))
+            self.gates = (
+                nn.Parameter(torch.zeros(len(active_branches)))
+                if fusion_kind == "learned_sigmoid"
+                else None
+            )
             self.drop_path = DropPath(probability)
 
         def forward(self, x: Any, lane_features: Any | None) -> Any:
@@ -201,13 +230,20 @@ def _build_factorized_band_operator(
                     continue
                 branch_module = getattr(self, branch_name)
                 branches.append(branch_module(normalized))
-                weights.append(torch.sigmoid(self.gates[gate_index]))
+                if self.gates is not None:
+                    weights.append(torch.sigmoid(self.gates[gate_index]))
             if not branches:
                 update = torch.zeros_like(x)
             else:
-                weight_sum = torch.stack(weights).sum()
-                update = sum(weight * branch for weight, branch in zip(weights, branches, strict=True))
-                update = update / torch.clamp(weight_sum, min=1.0e-6)
+                if self.gates is None:
+                    update = sum(branches) / len(branches)
+                else:
+                    weight_sum = torch.stack(weights).sum()
+                    update = sum(
+                        weight * branch
+                        for weight, branch in zip(weights, branches, strict=True)
+                    )
+                    update = update / torch.clamp(weight_sum, min=1.0e-6)
             return functional.gelu(x + self.drop_path(update))
 
     class FactorizedBandOperator(nn.Module):
@@ -307,6 +343,8 @@ def build_tfno2d_band_v3(
     fourier_frequencies: Any = (1, 2, 4, 8),
     dropout: float = 0.05,
     enabled_branches: Any = ("spectral", "local", "channel"),
+    local_operator_kind: str = "dense",
+    branch_fusion: str = "learned_sigmoid",
 ) -> Any:
     """Build the Tucker-factorized two-sided FNO-style Full-Wh upgrade."""
 
@@ -332,6 +370,8 @@ def build_tfno2d_band_v3(
         num_lanes=2,
         lane_embedding_dim=16,
         enabled_branches=enabled_branches,
+        local_operator_kind=local_operator_kind,
+        branch_fusion=branch_fusion,
     )
 
 
@@ -356,6 +396,8 @@ def build_dual_lane_band_operator_v1(
     fourier_frequencies: Any = (1, 2, 4, 8),
     dropout: float = 0.05,
     enabled_branches: Any = ("spectral", "local", "channel"),
+    local_operator_kind: str = "dense",
+    branch_fusion: str = "learned_sigmoid",
 ) -> Any:
     """Build the binary/graded FiLM-conditioned shared band operator."""
 
@@ -381,4 +423,54 @@ def build_dual_lane_band_operator_v1(
         num_lanes=num_lanes,
         lane_embedding_dim=lane_embedding_dim,
         enabled_branches=enabled_branches,
+        local_operator_kind=local_operator_kind,
+        branch_fusion=branch_fusion,
+    )
+
+
+def build_global_local_band_operator_v1(
+    *,
+    input_shape: Any,
+    output_shape: Any,
+    width: int = 64,
+    depth: int = 6,
+    modes: Any = (12, 12),
+    factorization_rank: float = 0.75,
+    norm_groups: int = 8,
+    channel_expansion: int = 4,
+    local_kernel: int = 7,
+    drop_path: float = 0.1,
+    head_kind: str = "dense",
+    k_points: Any | None = None,
+    head_hidden_dim: int = 256,
+    band_embedding_dim: int = 32,
+    fourier_frequencies: Any = (1, 2, 4, 8),
+    dropout: float = 0.05,
+) -> Any:
+    """Build the fixed-fusion spectral and periodic large-kernel bridge."""
+
+    return _build_factorized_band_operator(
+        model_name="global_local_band_operator_v1",
+        input_shape=input_shape,
+        output_shape=output_shape,
+        width=width,
+        depth=depth,
+        modes=modes,
+        factorization_rank=factorization_rank,
+        norm_groups=norm_groups,
+        channel_expansion=channel_expansion,
+        local_kernel=local_kernel,
+        drop_path=drop_path,
+        head_kind=head_kind,
+        k_points=k_points,
+        head_hidden_dim=head_hidden_dim,
+        band_embedding_dim=band_embedding_dim,
+        fourier_frequencies=fourier_frequencies,
+        dropout=dropout,
+        lane_conditioned=False,
+        num_lanes=2,
+        lane_embedding_dim=16,
+        enabled_branches=("spectral", "local"),
+        local_operator_kind="convnext",
+        branch_fusion="fixed_mean",
     )

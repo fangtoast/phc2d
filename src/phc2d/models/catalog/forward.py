@@ -48,12 +48,6 @@ def _build_fno2d_band(**kwargs: Any) -> Any:
     return build_fno2d_band(**kwargs)
 
 
-def _build_fno2d_band_component_v1(**kwargs: Any) -> Any:
-    from phc2d.models.band_operators import build_fno2d_band
-
-    return build_fno2d_band(**kwargs)
-
-
 for _factory in (
     _build_res_mlp,
     _build_mlp,
@@ -61,7 +55,6 @@ for _factory in (
     _build_lifted_cnn,
     _build_fno_lite,
     _build_fno2d_band,
-    _build_fno2d_band_component_v1,
 ):
     _factory.__phc2d_factory_identity__ = f"phc2d.models.registry.{_factory.__name__}"
 
@@ -252,30 +245,6 @@ def model_specs() -> tuple[tuple[str, ModelFactory, ModelSpec], ...]:
                     "activation": "gelu",
                 },
                 source="phc2d formal V2 10k band-aware FNO",
-            ),
-        ),
-        (
-            "fno2d_band_component_v1",
-            _build_fno2d_band_component_v1,
-            ModelSpec(
-                name="fno2d_band_component_v1",
-                family="neural_operator_component_ablation",
-                input_repr="material_weight_grid",
-                output_target="Wh",
-                supports_variable_grid=True,
-                accepts_k_points=True,
-                requires=("torch",),
-                defaults={
-                    "input_shape": (1, 64, 64), "output_shape": (81, 10),
-                    "width": 32, "depth": 4, "modes": (8, 8), "band_modes": (5, 5),
-                    "fourier_rank": 8, "activation": "gelu",
-                    "use_primary_spectral": True, "use_band_spectral": True,
-                    "use_band_gate": True, "use_low_rank": True,
-                    "head_kind": "dense", "k_points": None, "head_hidden_dim": 256,
-                    "band_embedding_dim": 32, "fourier_frequencies": (1, 2, 4, 8),
-                    "dropout": 0.05,
-                },
-                source="phc2d component-attribution FNO with shared dense head",
             ),
         ),
     )
