@@ -20,6 +20,10 @@ case "$PHC2D_GPU_PLATFORM" in
     PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu128}"
     PHC2D_CUDA_MODULE="${PHC2D_CUDA_MODULE:-cuda/12.8}"
     ;;
+  n56)
+    PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu128}"
+    PHC2D_CUDA_MODULE="${PHC2D_CUDA_MODULE:-cuda/12.8}"
+    ;;
   *)
     echo "Unsupported PHC2D_GPU_PLATFORM: $PHC2D_GPU_PLATFORM" >&2
     exit 2

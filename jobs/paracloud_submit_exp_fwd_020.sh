@@ -9,6 +9,7 @@ PHC2D_ROOT="${PHC2D_ROOT:-$HOME/run/phc2d-exp-fwd-020}"; cd "$PHC2D_ROOT"
 : "${PHC2D_EXPECTED_COMMIT:?Set the frozen full commit.}"
 : "${PHC2D_FWD020_AUTHORIZATION_ID:?Set authorization identity.}"
 : "${PHC2D_ENV:?Set the versioned runtime environment directory.}"
+export PYTHONPATH="$PHC2D_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 [[ "${PHC2D_AUTHORIZE_EXP_FWD_020:-}" == YES ]] || { echo "authorization missing" >&2; exit 4; }
 [[ "$(tr -d '[:space:]' < DEPLOYED_GIT_COMMIT)" == "$PHC2D_EXPECTED_COMMIT" ]] || { echo "deployment mismatch" >&2; exit 3; }
 stage="${1:?usage: $0 preflight|g1|g2 [G1_CAMPAIGN_DIR]}"; campaign="${2:-}"

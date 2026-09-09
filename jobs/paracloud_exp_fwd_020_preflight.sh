@@ -6,7 +6,7 @@
 
 set -euo pipefail
 PHC2D_ROOT="${PHC2D_ROOT:-$HOME/run/phc2d-exp-fwd-020}"
-export PHC2D_GPU_PLATFORM=n50
+export PHC2D_GPU_PLATFORM=n56
 export PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu128_torch271}"
 export PHC2D_DEFER_CUDA_CHECK_TO_RUNNER=1
 source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"
