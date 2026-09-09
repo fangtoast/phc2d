@@ -23,7 +23,7 @@ elif [[ "$stage" == g1 ]]; then
   preflight_run="${2:?g1 requires the completed preflight run directory}"
   for artifact in run.log run.meta.json config.resolved.yaml metrics.json results.json history.csv model.pt; do test -s "$preflight_run/$artifact" || { echo "preflight evidence missing: $artifact" >&2; exit 5; }; done
   grep -q 'full_cell_forward_admission_probe_pass' "$preflight_run/results.json" || { echo "preflight did not pass" >&2; exit 5; }
-  grep -q '2.7.1' "$preflight_run/run.log" || { echo "required PyTorch 2.7.1 evidence missing" >&2; exit 5; }
+  grep -q '2.7.1' "$preflight_run/run.meta.json" || { echo "required PyTorch 2.7.1 evidence missing" >&2; exit 5; }
   campaign="runs/$(date +%Y%m%d)/EXP-FWD-020_g1_$(date +%Y%m%d%H%M%S)"
   "$HOME/run/envs/phc2d_gpu_cu128_torch271/bin/python" -m phc2d.forward.global_local_bridge_campaign freeze-g1 --config configs/research/full_cell_global_local_bridge_exp_fwd_020_v1.yaml --output-dir "$campaign" --repository-root "$PHC2D_ROOT"
 elif [[ "$stage" == g2 && -n "$campaign" ]]; then
