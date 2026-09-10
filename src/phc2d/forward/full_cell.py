@@ -655,7 +655,10 @@ def run_full_cell_forward(
     ).to(device)
     warm_start: dict[str, Any] | None = None
     if resolved.get("continuation"):
-        from phc2d.forward.full_cell_warm_start import load_weight_only_warm_start
+        from phc2d.forward.full_cell_warm_start import (
+            load_weight_only_warm_start,
+            public_warm_start_metadata,
+        )
 
         source_run = resolved["continuation"].get("source_run")
         if not source_run:
@@ -950,8 +953,6 @@ def run_full_cell_forward(
             raise RuntimeError("continuation ended without a convergence checkpoint")
         terminal_checkpoint = out / f"epoch{stop_epoch}.pt"
         terminal_tmp = terminal_checkpoint.with_suffix(terminal_checkpoint.suffix + ".tmp")
-        from phc2d.forward.full_cell_warm_start import public_warm_start_metadata
-
         torch.save(
             {
                 "state_dict": model.state_dict(),
