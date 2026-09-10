@@ -18,7 +18,7 @@ from phc2d.forward.global_local_bridge_campaign import freeze_g1
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_exp_fwd_020_is_authorized_for_the_gated_n40_campaign() -> None:
+def test_exp_fwd_020_is_authorized_for_the_gated_n56_campaign() -> None:
     config = yaml.safe_load(
         (ROOT / "configs/research/full_cell_global_local_bridge_exp_fwd_020_v1.yaml").read_text(
             encoding="utf-8"
@@ -27,7 +27,7 @@ def test_exp_fwd_020_is_authorized_for_the_gated_n40_campaign() -> None:
     assert config["experiment"] == {
         "experiment_id": "EXP-FWD-020",
         "family": "full_cell_global_local_bridge",
-        "evidence_status": "authorized_n40_gated_campaign_pending_preflight",
+        "evidence_status": "authorized_n56_gated_campaign_pending_preflight",
         "primary_layer": "L3_experiment_evidence",
     }
     assert config["split"]["test_targets_loaded"] is False
@@ -36,11 +36,14 @@ def test_exp_fwd_020_is_authorized_for_the_gated_n40_campaign() -> None:
         "candidate": {"local_kernel": 7},
     }
     assert config["authorization"]["granted"] is True
-    assert config["runtime"]["partition"] == "gpu_4090"
+    assert config["runtime"]["target_platform"] == "paracloud-n56"
+    assert config["runtime"]["partition"] == "gpu_5090"
+    assert config["runtime"]["cuda_module"] == "cuda/12.8"
     assert config["runtime"]["torch_version"] == "2.7.1"
+    assert config["runtime"]["environment"] == "/data/run01/scxl892/envs/phc2d_gpu_cu128_torch271"
     assert config["runtime"]["max_concurrent_jobs"] == 8
     assert len(config["datasets"]) == 6
-    assert all("n40_path" in item for item in config["datasets"].values())
+    assert all("n40_path" in item and "n56_path" in item for item in config["datasets"].values())
 
     spec = get_model_spec("global_local_band_operator_v1")
     assert spec.accepts_k_points is True
@@ -69,14 +72,17 @@ def test_exp_fwd_020_g1_expands_exactly_six_domains_by_two_variants(tmp_path: Pa
     assert {row["seed"] for row in rows} == {"0"}
     resolved = yaml.safe_load((ROOT / rows[0]["config"]).read_text(encoding="utf-8"))
     assert resolved["experiment"]["held_out_test_authorized"] is False
-    assert str(resolved["dataset"]["path"]).startswith("/HOME/scw6g7a/run/data/exp_fwd_020/")
+    assert str(resolved["dataset"]["path"]).startswith("/data/run01/scxl892/data/exp_fwd_020/")
 
 
 def test_exp_fwd_020_submitter_requires_and_propagates_versioned_environment() -> None:
     submitter = (ROOT / "jobs/paracloud_submit_exp_fwd_020.sh").read_text(encoding="utf-8")
+    preflight = (ROOT / "jobs/paracloud_exp_fwd_020_preflight.sh").read_text(encoding="utf-8")
     assert ': "${PHC2D_ENV:?Set the versioned runtime environment directory.}"' in submitter
     assert '"$PHC2D_ENV/bin/python" -m phc2d.forward.global_local_bridge_campaign' in submitter
     assert 'PHC2D_ENV=$PHC2D_ENV' in submitter
-    assert "$HOME/run/envs/phc2d_gpu_cu128_torch271/bin/python" not in submitter
-    assert "-p gpu_4090 --gres=gpu:1 -c 6" in submitter
-    assert "gpu_5090" not in submitter
+    assert "required PyTorch 2.7.1 evidence missing" in submitter
+    assert "-p gpu_5090 --gres=gpu:1 -c 8" in submitter
+    assert "gpu_4090" not in submitter
+    assert "PHC2D_CUDA_MODULE=cuda/12.8" in preflight
+    assert 'torch.__version__.startswith("2.7.1")' in preflight
