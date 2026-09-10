@@ -1,0 +1,38 @@
+# EXP-FWD-020 exploratory held-out cross-domain evaluation contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: phc2d.global_local_bridge.g3.v1
+experiment:
+  experiment_id: EXP-FWD-020
+  primary_layer: L3_experiment_evidence
+  evidence_status: exploratory_held_out_surrogate_only
+  promotion_eligible: false
+  g2_formal_status_preserved: not_passed
+authorization:
+  held_out_test_authorized: true
+  authorization_scope: frozen_g3_only
+  prohibited: [test_driven_retraining, model_promotion, real_MPB, real_Meep, physical_claim]
+runtime:
+  target_platform: paracloud-n56
+  partition: gpu_5090
+  cuda_module: cuda/12.8
+  torch_version: 2.7.1
+  environment: /data/run01/scxl892/envs/phc2d_gpu_cu128_torch271_r1
+  gpus_per_task: 1
+  cpus_per_task: 8
+  max_array_concurrency: 8
+datasets:
+  k5_binary: {path: /data/home/scxl892/run/phc2d/data/exp_fwd_020/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6, test_size: 1000}
+  k5_graded: {path: /data/home/scxl892/run/phc2d/data/exp_fwd_020/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20, test_size: 1000}
+  k20_binary: {path: /data/home/scxl892/run/phc2d/data/exp_fwd_020/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sha256: 2661eb1e9e3b398a7b69c4083daefa761ea9c26a1081c478b968fd6a951d6b56, test_size: 1000}
+  k20_graded: {path: /data/home/scxl892/run/phc2d/data/exp_fwd_020/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: 96b127b43f2c31fb7591e9634317a7ed35332ceae1077b2277de15058902fd72, test_size: 1000}
+  f50_binary: {path: /data/home/scxl892/run/phc2d/data/exp_fwd_020/full_cell_binary_bz9_50000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sha256: e2d99e0c59c3bf5dfebc507e756dbcd18c8623f331ad6193832d774df5213f00, test_size: 5000}
+  f50_graded: {path: /data/home/scxl892/run/phc2d/data/exp_fwd_020/full_cell_graded_bz9_50000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46, test_size: 5000}
+matrix:
+  checkpoint_count: 36
+  target_domain_count: 6
+  cell_count: 216
+  relationship_counts: {native: 36, cross_lane: 36, cross_dataset: 72, cross_dataset_cross_lane: 72}
+  bootstrap_replicates: 10000

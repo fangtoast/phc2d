@@ -1,0 +1,43 @@
+---
+title: 数据实现、部署与历史环境记录
+summary: 汇总数据实现/部署证据，以及已从正式结果导航移出的环境审计与云端预检记录。
+page_type: landing
+status: draft
+audience: 数据生产者、复现执行者与证据审阅者
+owner: 研究生维护
+last_reviewed: 2026-08-14
+reading_time: 3 minutes
+primary_layer: L3
+---
+
+<!--
+  Data provenance result landing page.
+  Author: fangtoast
+  Email: fangtoast@foxmail.com
+  Copyright (c) 2026 fangtoast. All rights reserved.
+-->
+
+# 数据实现、部署与历史环境记录
+
+## 当前实现与部署
+
+| 记录 | 证据角色 |
+|---|---|
+| [全胞 Fourier 数据重构与星仪部署](全胞Fourier数据重构与星仪部署_20260817.md) | L4 接口、配置、测试与固定 commit 部署；未提交 MPB 作业 |
+| [全胞 MPB 分辨率收敛与耗时验证](全胞MPB分辨率收敛验证_20260817.md) | L3 双路线 100 结构、五档 resolution、星仪计算与 WSL 交叉验收；推荐 r64 待负责人冻结 |
+| [全胞 Fourier 64+64 星仪试点](全胞Fourier_64加64星仪试点_20260817.md) | resolution 64 冻结后的 B/G 各 64 条真实 MPB 生成、下载审计、图件与剩余 WSL 交叉复算边界 |
+| [全胞 Fourier 高频截断配对试验](全胞Fourier高频截断配对试验_20260817.md) | K=5–20 的 Binary/Graded 单样本配对结构、real-MPB 频带敏感性与蓝白图件 |
+
+## 历史记录
+
+!!! warning "历史证据"
+    本索引中的 GPU、K 路径和云端预检不属于正式研究结果。全胞数据构建与验收已迁入[新全胞数据正式结果](../全胞数据正式结果.md)。
+
+| 结果页面 | 证据角色 |
+|---|---|
+| [GPU 环境审计](gpu_environment_audit_20260618.md) | GPU 与软件环境审计；不是模型结果 |
+| [K 路径物理验证](k_path_physical_validation_v2_1000_20260621.md) | physical-k 路径验证 |
+| [Paracloud GPU 预检](paracloud_gpu_preflight_20260806.md) | 多卡分配、单卡训练、数据传输与阻塞项 |
+| [M9 数据导入与同步](paracloud_m9_binary_import_and_code_sync_20260806.md) | binary 数据导入、hash 与代码同步；不代表已运行 MPB |
+
+[查看正式全胞数据验收](full_cell_dual_lane_pilot_20260803.md) · [返回历史档案](../../历史档案.md)

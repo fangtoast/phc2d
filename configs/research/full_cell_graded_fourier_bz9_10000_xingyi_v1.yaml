@@ -1,0 +1,81 @@
+# Xingyi 10,000-sample graded unified-Fourier full-cell campaign at K=20.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: full_cell_graded_fourier_bz9_10000_xingyi_v1
+  family: research
+  stage: dataset_generation
+
+dataset:
+  protocol: full_cell_fourier_v2
+  lane: graded_fourier
+  output_path: data/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5
+  sample_count: 10000
+  split: {train: 8000, val: 1000, test: 1000}
+  seed: 2026081704
+  raster_resolutions: [32, 64, 128, 256]
+  raster_contract:
+    method: master_block_mean_v1
+    source_resolution: 256
+    content_hash_algorithm: phc2d.full_cell.content_hash.v1
+    content_hash_quantization_levels: 65536
+    graded_field_prefix: material_weight_grid_
+
+generator:
+  algorithm_version: phc2d.unified_fourier.v1
+  seed_derivation: sha256_u64_be_v1
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  audit_resolution: 256
+  fourier_cutoff: 20
+  graded_target_material_fraction_range: [0.60, 0.78]
+  graded_temperature_range: [0.08, 0.16]
+  target_material_fraction_tolerance: 1.0e-5
+  minimum_gray_fraction: 0.01
+  bias_bisection_iterations: 80
+  material_fraction_strata: 4
+  temperature_strata: 4
+  plan_workers: 8
+
+solver:
+  backend: mpb
+  environment: native_linux_conda_meep_env
+  expected_meep_version: 1.33.0-beta
+  expected_mpb_version: 1.12.0
+  use_proxy: false
+  lattice: square
+  lattice_constant: 1.0
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 64
+  resolution_status: frozen_resolution_64
+  resolution_evidence: docs/results/data-provenance/全胞MPB分辨率收敛验证_20260817.md
+  mesh_size: 3
+  polarization: TE
+  num_bands: 10
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+  eigensolver_tolerance: 1.0e-7
+
+k_grid:
+  family: square_full_bz
+  n_side: 9
+  coordinate_system: mpb_reduced_reciprocal_coordinates
+  endpoint_policy: centered_unique_no_boundary_duplicates
+
+workers:
+  workers: 64
+  min_workers: 1
+  max_workers: 64
+  worker_backend: processpool
+  fail_fast: false
+  suppress_solver_output: true
+  worker_thread_env:
+    OMP_NUM_THREADS: "1"
+    OPENBLAS_NUM_THREADS: "1"
+    MKL_NUM_THREADS: "1"
+
+output:
+  runs_dir: runs

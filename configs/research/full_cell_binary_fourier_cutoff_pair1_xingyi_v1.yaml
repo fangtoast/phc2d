@@ -1,0 +1,67 @@
+# Paired single-sample Binary Fourier-cutoff study template.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: full_cell_binary_fourier_cutoff_pair1_xingyi_v1
+  family: research
+  stage: dataset_generation
+dataset:
+  protocol: full_cell_fourier_v2
+  lane: binary_fourier
+  output_path: data/full_cell_binary_fourier_cutoff_pair1_xingyi_v1.h5
+  sample_count: 1
+  split: {train: 1, val: 0, test: 0}
+  seed: 2026081801
+  raster_resolutions: [32, 64, 128, 256]
+  raster_contract:
+    method: master_block_mean_v1
+    source_resolution: 256
+    content_hash_algorithm: phc2d.full_cell.content_hash.v1
+    content_hash_quantization_levels: 65536
+generator:
+  algorithm_version: phc2d.unified_fourier.v1
+  seed_derivation: sha256_u64_be_v1
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  audit_resolution: 256
+  fourier_cutoff: 20
+  paired_coefficient_seed: 2026081851
+  fixed_target_material_fraction: 0.70
+  binary_target_material_fraction_range: [0.50, 0.90]
+  target_material_fraction_tolerance: 0.01
+  plan_workers: 1
+solver: &solver
+  backend: mpb
+  environment: native_linux_conda_meep_env
+  expected_meep_version: 1.33.0-beta
+  expected_mpb_version: 1.12.0
+  use_proxy: false
+  lattice: square
+  lattice_constant: 1.0
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 64
+  resolution_status: frozen_resolution_64
+  resolution_evidence: docs/results/data-provenance/全胞MPB分辨率收敛验证_20260817.md
+  mesh_size: 3
+  polarization: TE
+  num_bands: 10
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+  eigensolver_tolerance: 1.0e-7
+k_grid:
+  family: square_full_bz
+  n_side: 9
+  coordinate_system: mpb_reduced_reciprocal_coordinates
+  endpoint_policy: centered_unique_no_boundary_duplicates
+workers:
+  workers: 1
+  min_workers: 1
+  max_workers: 1
+  worker_backend: processpool
+  fail_fast: true
+  suppress_solver_output: true
+  worker_thread_env: {OMP_NUM_THREADS: "1", OPENBLAS_NUM_THREADS: "1", MKL_NUM_THREADS: "1"}
+output: {runs_dir: runs}

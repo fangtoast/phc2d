@@ -1,0 +1,40 @@
+# EXP-FWD-015 validation-only near-degeneracy audit.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: EXP-FWD-015
+  family: full_cell_k5_gap_decision_margin_audit
+  evidence_status: validation_only_no_training
+  held_out_test_authorized: false
+datasets:
+  binary:
+    path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5
+    grid_field: material_area_fraction_grid_64
+    expected_dataset_sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6
+  graded:
+    path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5
+    grid_field: material_weight_grid_64
+    expected_dataset_sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20
+representation:
+  source: lane_specific_grid
+  sampling: continuous
+  threshold: null
+  resolution: 64
+training:
+  train_size: 4000
+  train_subset_salt: exp-fwd-010-k5-joint-fair-4k-v1
+audit:
+  source_experiment_id: EXP-FWD-014
+  source_remote_run: runs/20260828/EXP-FWD-014_gap_screen_20260828101706
+  checkpoint_sha256:
+    baseline: 8055bd620f87f736fc6aff0a6e4df09944d045b3c75a9ea041101dd8ddad8d28
+    gap_aware: b8461c173dd0f8aa797d584c35a60399d118ff895714331056d8bb7b89d93c89
+  lower_band_min_one_based: 2
+  lower_band_max_one_based: 9
+  train_margin_quantile: 0.10
+  tie_limited_minimum_joint_gain: 0.05
+  batch_size: 32
+output:
+  runs_dir: runs

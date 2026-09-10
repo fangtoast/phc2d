@@ -1,0 +1,30 @@
+# EXP-FWD-007 campaign control-plane profile.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: phc2d.full_cell_training_campaign.v1
+experiment_id: EXP-FWD-007
+family: K5
+primary_layer: L3
+evidence_status: user_authorized_surrogate_training_pending_wsl_acceptance
+datasets:
+  B: {path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6}
+  G: {path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20}
+configs:
+  B: configs/research/full_cell_k5_forward_binary_seed0_v1.yaml
+  G: configs/research/full_cell_k5_forward_graded_seed0_v1.yaml
+  J: configs/research/full_cell_k5_forward_dual_lane_seed0_v1.yaml
+models:
+  baseline: [mlp, res_mlp_wide, lifted_cnn, fno2d_band_v2]
+  single_lane_upgrade: [mlp_mixer_band_v1, res_mlp_gated_v2, convnext_band_v1, tfno2d_band_v3]
+  joint: dual_lane_band_operator_v1
+training: {seed: 0, head: dense, max_epochs: 100, early_stopping_patience: 15, admission_task_count: 17, max_concurrency: 8}
+# N40 account scw6g7a has MaxSubmitJobs=16.  The retained legacy job 5423636
+# consumes one slot, so the 17 logical admission probes are frozen as two
+# sequential submission units.  This changes scheduler packaging only: all
+# 17 probes must pass before W1 may be submitted.
+submission:
+  account_max_submit_jobs: 16
+  reserved_submitted_jobs: 1
+  admission_submission_units: [15, 2]

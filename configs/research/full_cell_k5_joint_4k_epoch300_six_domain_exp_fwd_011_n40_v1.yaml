@@ -1,0 +1,20 @@
+# EXP-FWD-011 six-domain held-out evaluation against the EXP-FWD-010 epoch-200 fair joint.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: phc2d.full_cell_joint_fair_six_domain.v1
+experiment_id: EXP-FWD-011
+primary_layer: L3
+scientific_boundary: surrogate_held_out_cross_domain
+evidence_status: user_authorized_surrogate_evaluation
+metric_schema: phc2d.full_cell_band_metrics.v1
+domains: [K5-B, K5-G, K20-B, K20-G, F50-B, F50-G]
+baseline_campaign: /data/run01/scw6g7a/phc2d-exp-fwd-010-136f8e4/runs/20260826/EXP-FWD-010_joint_4k_20260826094605/evaluation_six_domain
+baseline_identity: {source_family: K5, source_model: dual_lane_band_operator_v1, source_lane: J, source_seed: 0}
+baseline_label: EXP-FWD-010 fair 4k+4k epoch-200 joint
+checkpoint_id: EXP-FWD-011_dual_lane_band_operator_v1_J_s0
+evaluation_id_prefix: fairjoint_e300
+comparison_kind: joint_fair_total_8k_epoch300_vs_epoch200
+comparison_output: comparison_to_exp_fwd_010_epoch200_joint.csv
+statistics: {primary_metric: bands2_10_mre, paired_bootstrap_replicates: 10000}

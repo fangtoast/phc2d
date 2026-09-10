@@ -1,0 +1,67 @@
+# EXP-PHY-006 validation-only local full-BZ gap-refinement pilot.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: EXP-PHY-006
+  family: research
+  stage: mpb_replay
+  primary_layer: L3
+
+datasets:
+  binary:
+    path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5
+    expected_dataset_sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6
+    samples:
+      - dataset_index: 89
+        geometry_hash: 06aba784fd218a7fc9861e9f7c3a8f105d9ae031463db3db064beb25f3aaf3ef
+      - dataset_index: 96
+        geometry_hash: 02c1cc270ab03fa5952ef4085864c79b12a664f7a89aef13dc7e56034228b9e3
+  graded:
+    path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5
+    expected_dataset_sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20
+    samples:
+      - dataset_index: 62
+        geometry_hash: 0064299fb42d78834f9a0ccc304df2ec91ddf6ca7ca34113c708db4f91077788
+      - dataset_index: 337
+        geometry_hash: 02214ad8f4dbe8015c27b2e330b1d132c9f2f2a3d6c30947790798fc769780aa
+
+sampling:
+  split: validation
+  source_manifest: runs/20260828/EXP-PHY-005_202608281751/sample_manifest.jsonl
+  policy: first_two_per_lane_from_frozen_exp_phy_005_validation_manifest
+
+mpb:
+  polarization: TE
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 64
+  verification_resolution: 96
+  mesh_size: 3
+  eigensolver_tolerance: 1.0e-7
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+
+refinement:
+  initial_spacing: 0.1111111111111111
+  levels: 2
+  stencil: local_3x3_periodic
+  lower_band_min_one_based: 1
+  lower_band_max_one_based: 9
+
+gates:
+  last_refinement_gap_change_max: 0.0005
+  resolution_edge_change_max: 0.0005
+  coarse_gap_change_material: 0.0005
+
+execution:
+  mode: preflight
+  required_platform: WSL Ubuntu
+  required_conda_environment: meep_env
+  formal_solver_authorized: false
+  authorization_basis: user_requested_verification_2026_08_29
+  authorization_consumed_by_run: runs/20260829/EXP-PHY-006_202608291923
+
+output:
+  runs_dir: runs

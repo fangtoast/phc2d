@@ -1,0 +1,1005 @@
+# Unified registry for active and paper-relevant phc2d experiments.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: 1
+last_reviewed: 2026-08-29
+
+registry_scope:
+  policy: >-
+    Register active, scientifically valuable, or paper-relevant formal experiments.
+    Seeds and reruns remain run-level records and do not receive new Experiment IDs.
+  evidence_boundary: >-
+    A registry link records a confirmed repository relationship. It does not promote
+    draft documentation, surrogate-only evidence, or referenced-but-absent runs to
+    formal physical validation.
+  excluded_by_default:
+    - environment audits and deployment notes
+    - ordinary smoke tests, dry runs, and visualization-only runs
+    - superseded exploratory history with no current research or paper value
+
+schema:
+  id_pattern: '^EXP-(FWD|QRY|INV|PHY|DAT)-[0-9]{3}$'
+  required_fields:
+    - id
+    - title
+    - task
+    - status
+    - mapping_status
+    - research_question
+    - spec
+    - config
+    - runs
+    - result
+    - report
+    - related_experiments
+    - decision
+    - tags
+  task_values:
+    - forward
+    - query
+    - inverse
+    - physical_validation
+    - data
+  status_values:
+    - planned
+    - active
+    - pilot
+    - completed
+    - blocked
+    - superseded
+  mapping_status_values:
+    - complete
+    - partial
+  run_availability_values:
+    - local
+    - referenced_not_local
+  decision_state_values:
+    - accepted
+    - continue
+    - pending
+    - blocked
+  field_contracts:
+    spec: Repository-relative experiment-protocol paths; empty when no exact protocol is confirmed.
+    config: Repository-relative formal configuration paths.
+    runs: Run paths grouped by local availability; seeds and reruns belong here.
+    result: Human-readable result first when available, followed by detailed evidence pages; an empty list means no admissible result yet.
+    report: Synthesis pages that cite the experiment; not a substitute for raw evidence.
+    related_experiments: Other registered Experiment IDs with a confirmed scientific dependency.
+    decision: Current research disposition, separated into a controlled state and concise summary.
+
+experiments:
+  - id: EXP-DAT-001
+    title: 全胞双路线 64 样本数据链验收
+    task: data
+    status: completed
+    mapping_status: complete
+    research_question: B/G 双路线全胞生成器、MPB 求解与标准产物合同能否在小规模正式样本上闭环？
+    spec:
+      - experiments/research/full_cell_dual_lane_data.md
+    config:
+      - configs/research/full_cell_solver_preflight_v1.yaml
+      - configs/research/full_cell_binary_holes_bz9_pilot64.yaml
+      - configs/research/full_cell_graded_bz9_pilot64.yaml
+      - configs/research/full_cell_resolution_convergence_v1.yaml
+    runs:
+      local:
+        - runs/20260803/full_cell_solver_preflight_v1_202608031352
+        - runs/20260803/full_cell_binary_final64_202608031822
+        - runs/20260803/full_cell_graded_final64_202608031822
+        - runs/20260803/full_cell_resolution_convergence_v1_202608032339
+      referenced_not_local: []
+    result:
+      - docs/results/data-provenance/full_cell_dual_lane_pilot_20260803.md
+    report: []
+    related_experiments:
+      - EXP-DAT-002
+      - EXP-FWD-002
+    decision:
+      state: accepted
+      summary: 双路线小样本数据合同成立，可作为后续全胞数据 campaign 的前置证据。
+    tags: [full-cell, mpb, binary, graded, provenance]
+
+  - id: EXP-DAT-002
+    title: 统一 Fourier 全胞 B/G 64+64 试点
+    task: data
+    status: pilot
+    mapping_status: partial
+    mapping_notes: 未找到与本次 Fourier 64+64 试点一一对应的独立实验协议。
+    research_question: 统一 Fourier 结构表示能否在 B/G 双路线各 64 样本上通过生成、物理检查与部署前验收？
+    spec: []
+    config:
+      - configs/research/full_cell_binary_fourier_bz9_64_xingyi_pilot_v1.yaml
+      - configs/research/full_cell_graded_fourier_bz9_64_xingyi_pilot_v1.yaml
+    runs:
+      local:
+        - runs/20260817/full_cell_fourier_pilot_xingyi_202608171625
+      referenced_not_local: []
+    result:
+      - docs/results/data-provenance/全胞Fourier_64加64星仪试点_20260817.md
+      - docs/results/data-provenance/全胞Fourier数据重构与星仪部署_20260817.md
+    report: []
+    related_experiments:
+      - EXP-DAT-001
+      - EXP-DAT-003
+      - EXP-DAT-004
+    decision:
+      state: continue
+      summary: 试点支持继续扩展，但结论仅覆盖冻结的 64+64 样本与已记录合同。
+    tags: [full-cell, fourier, binary, graded, xingyi, pilot]
+
+  - id: EXP-DAT-003
+    title: 全胞 Fourier 高频截断配对敏感性
+    task: data
+    status: pilot
+    mapping_status: partial
+    mapping_notes: 配对配置、run 与结果可确认，但没有独立的长期实验协议。
+    research_question: Fourier 高频截断变化对同一冻结结构的能带与表示误差有多大影响？
+    spec: []
+    config:
+      - configs/research/full_cell_binary_fourier_cutoff_pair1_xingyi_v1.yaml
+      - configs/research/full_cell_graded_fourier_cutoff_pair1_xingyi_v1.yaml
+    runs:
+      local:
+        - runs/20260817/full_cell_fourier_cutoff_pair1_xingyi_202608172045
+      referenced_not_local: []
+    result:
+      - docs/results/data-provenance/全胞Fourier高频截断配对试验_20260817.md
+    report: []
+    related_experiments:
+      - EXP-DAT-002
+      - EXP-DAT-004
+    decision:
+      state: pending
+      summary: 保留为截断选择的诊断证据，不单独上升为全局表示结论。
+    tags: [full-cell, fourier, cutoff, sensitivity, paired]
+
+  - id: EXP-DAT-004
+    title: 全胞 Fourier K20 B/G 各 10k 数据生成与验收
+    task: data
+    status: completed
+    mapping_status: partial
+    mapping_notes: 数据 gate 嵌入 K20 正向协议；尚无独立的数据实验协议页面。
+    research_question: K20 Fourier B/G 各 10k 数据能否完成集群生成并通过 WSL real-MPB 跨环境验收？
+    spec:
+      - experiments/research/full_cell_k20_forward_seed0.md
+    config:
+      - configs/research/full_cell_binary_fourier_bz9_10000_xingyi_v1.yaml
+      - configs/research/full_cell_graded_fourier_bz9_10000_xingyi_v1.yaml
+      - configs/research/full_cell_binary_fourier_bz9_10000_wsl_acceptance_v1.yaml
+      - configs/research/full_cell_graded_fourier_bz9_10000_wsl_acceptance_v1.yaml
+    runs:
+      local:
+        - runs/20260820/full_cell_fourier_k20_10000_xingyi_202608201301
+      referenced_not_local: []
+    result:
+      - docs/results/forward/full_cell_k20_b_g_seed0_cross_eval_20260820.md
+    report: []
+    related_experiments:
+      - EXP-DAT-002
+      - EXP-DAT-003
+      - EXP-FWD-005
+    decision:
+      state: accepted
+      summary: 两路线各 10k 数据已通过记录中的跨环境 real-MPB 接受检查，可进入冻结正向训练。
+    tags: [full-cell, fourier, k20, dataset-10k, wsl-acceptance]
+
+  - id: EXP-DAT-005
+    title: 全胞 Fourier K5 B/G 各 10k 数据生产与双端交付
+    task: data
+    status: completed
+    mapping_status: complete
+    research_question: 独立随机的 K5 Fourier binary/graded 全胞数据能否在 Xingyi 完成 8 shard 求解、完整性审计，并以一致 SHA-256 交付本地与 N40？
+    spec:
+      - experiments/research/full_cell_k5_dual_lane_xingyi.md
+    config:
+      - configs/research/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.yaml
+      - configs/research/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.yaml
+    runs:
+      local: []
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments:
+      - EXP-DAT-002
+      - EXP-DAT-003
+      - EXP-DAT-004
+    decision:
+      state: continue
+      summary: 生产与 Xingyi/本地/N40 三端交付已完成；两份数据保持 cluster_generated_pending_wsl_acceptance，用户仅豁免其对 surrogate 训练的阻断，未完成 WSL acceptance 或物理验证。
+    tags: [full-cell, fourier, k5, dataset-10k, xingyi, dual-delivery]
+
+  - id: EXP-FWD-001
+    title: A1 V2 10k Full-Wh 公平对照
+    task: forward
+    status: completed
+    mapping_status: complete
+    research_question: 在冻结 V2 10k 数据与公平预算下，MLP、ResMLP、CNN、FNO 与 DeepONet 的 Full-Wh 正向性能如何比较？
+    spec:
+      - experiments/research/a1_fair_forward_query.md
+    config:
+      - configs/research/a1_forward_fair_v1.yaml
+      - configs/research/a1_forward_mlp_ablation_v1.yaml
+      - configs/research/baseline_protocol_v1.yaml
+    runs:
+      local:
+        - runs/20260724/a1_forward_fair_v1_202607240020
+        - runs/20260726/a1_forward_mlp_ablation_v1_202607261605
+      referenced_not_local: []
+    result:
+      - docs/results/forward/a1_forward_query_fair_v1_20260726.md
+    report:
+      - docs/reports/phc2d_project_full_introduction_20260724.md
+    related_experiments:
+      - EXP-QRY-001
+    decision:
+      state: pending
+      summary: 已形成 V2 10k 正向公平对照证据；未找到独立的长期研究决策记录。
+    tags: [forward, v2-10k, full-wh, fair-comparison, baseline]
+
+  - id: EXP-FWD-002
+    title: 全胞双路线 10k 正向基准
+    task: forward
+    status: completed
+    mapping_status: partial
+    mapping_notes: 配置、campaign 与结果完整，但未找到精确对应的独立实验协议。
+    research_question: B/G 双路线 10k 数据上的 native、continuous 与 threshold 表示如何影响正向精度、跨路线泛化和分辨率稳定性？
+    spec: []
+    config:
+      - configs/research/full_cell_forward_binary_native_v1.yaml
+      - configs/research/full_cell_forward_graded_continuous_v1.yaml
+      - configs/research/full_cell_forward_graded_threshold_v1.yaml
+    runs:
+      local:
+        - runs/20260806/full_cell_forward_main_campaign_20260806
+        - runs/20260806/full_cell_forward_cross_eval_20260806
+        - runs/20260806/full_cell_forward_final_test_20260806
+        - runs/20260806/full_cell_forward_resolution_acceptance_20260806
+      referenced_not_local: []
+    result:
+      - docs/results/forward/full_cell_dual_lane_forward_training_20260806.md
+    report:
+      - docs/reports/全胞双路线正向与逆向模型报告_20260810.md
+    related_experiments:
+      - EXP-DAT-001
+      - EXP-FWD-003
+      - EXP-FWD-004
+    decision:
+      state: pending
+      summary: 已形成全胞 10k 双路线基准；未找到将其升级为论文基准的独立决策记录。
+    tags: [forward, full-cell, dataset-10k, dual-lane, representation]
+
+  - id: EXP-FWD-003
+    title: 全胞双路线 50k 正向基准
+    task: forward
+    status: completed
+    mapping_status: partial
+    mapping_notes: 当前工作区有协议与结果，但报告引用的两个主 campaign run 不在本地 runs 树中。
+    research_question: 数据扩展至 50k 后，全胞双路线模型的精度、跨路线迁移与零样本分辨率迁移是否改善？
+    spec:
+      - experiments/research/full_cell_dual_lane_50000_xingyi.md
+    config:
+      - configs/research/full_cell_forward_binary_native_50000_v1.yaml
+      - configs/research/full_cell_forward_graded_continuous_50000_v1.yaml
+      - configs/research/full_cell_forward_graded_threshold_50000_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+        - runs/20260807/full_cell_forward_50k_17wave_campaign_202608071737
+        - runs/20260808/full_cell_forward_50k_evaluation_campaign_20260808162200
+    result:
+      - docs/results/forward/full_cell_dual_lane_50000_forward_training_20260808.md
+    report:
+      - docs/reports/全胞双路线正向与逆向模型报告_20260810.md
+    related_experiments:
+      - EXP-FWD-002
+      - EXP-FWD-004
+      - EXP-FWD-006
+    decision:
+      state: pending
+      summary: 可作为 50k 正向与迁移比较的论文候选；原始 campaign 复核及论文采用决策尚待记录。
+    tags: [forward, full-cell, dataset-50k, dual-lane, transfer]
+
+  - id: EXP-FWD-004
+    title: 全胞升级模型 10k/50k 评估
+    task: forward
+    status: completed
+    mapping_status: complete
+    research_question: 升级后的 MLP、CNN、FNO 与双路线模型在 10k 选择和 50k 冻结评估中能否优于既有基准？
+    spec:
+      - experiments/research/full_cell_forward_upgrade_10k.md
+    config:
+      - configs/research/full_cell_forward_upgrade_binary_10k_v1.yaml
+      - configs/research/full_cell_forward_upgrade_graded_10k_v1.yaml
+      - configs/research/full_cell_forward_upgrade_dual_lane_10k_v1.yaml
+      - configs/research/full_cell_forward_upgrade_binary_50k_v1.yaml
+      - configs/research/full_cell_forward_upgrade_graded_50k_v1.yaml
+      - configs/research/full_cell_forward_upgrade_dual_lane_50k_v1.yaml
+    runs:
+      local:
+        - runs/20260809/full_cell_upgrade_10k_head_selection_20260809120000
+        - runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944
+        - runs/20260819/full_cell_upgrade_50k_r2_seed0_202608191658
+      referenced_not_local: []
+    result:
+      - docs/结果/EXP-FWD-004-全胞升级模型.md
+      - docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
+      - docs/results/forward/全胞前向50K模型R方补充评估_20260819.md
+    report:
+      - docs/reports/全胞双路线正向与逆向模型报告_20260810.md
+    related_experiments:
+      - EXP-FWD-002
+      - EXP-FWD-003
+    decision:
+      state: pending
+      summary: 已完成冻结评估与 R² 补充；threshold 分支和最终模型采用决策仍需单独记录。
+    tags: [forward, full-cell, model-upgrade, dataset-10k, dataset-50k]
+
+  - id: EXP-FWD-005
+    title: K20 B/G 单 seed 正向与跨路线评估
+    task: forward
+    status: completed
+    mapping_status: complete
+    research_question: 在 K20 Fourier B/G 10k 数据上，冻结 seed0 的单路线与联合模型能否稳定训练并完成跨路线评估？
+    spec:
+      - experiments/research/full_cell_k20_forward_seed0.md
+    config:
+      - configs/research/full_cell_k20_forward_binary_seed0_v1.yaml
+      - configs/research/full_cell_k20_forward_graded_seed0_v1.yaml
+      - configs/research/full_cell_k20_forward_dual_lane_seed0_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+        - runs/20260820/full_cell_k20_forward_seed0_202608201430
+    result:
+      - docs/results/forward/full_cell_k20_b_g_seed0_cross_eval_20260820.md
+    report: []
+    related_experiments:
+      - EXP-DAT-004
+      - EXP-FWD-006
+    decision:
+      state: pending
+      summary: seed0 冻结比较已经完成；是否扩展跨 seed 或作为论文主结果尚未形成独立决策。
+    tags: [forward, full-cell, fourier, k20, seed0, cross-route]
+
+  - id: EXP-FWD-006
+    title: K20 与 50k 四域跨数据域正向验证
+    task: forward
+    status: completed
+    mapping_status: partial
+    mapping_notes: 配置、结果和报告引用的 campaign 可确认，但没有独立实验协议且源 run 当前不在本地。
+    research_question: K20 与 50k、B 与 G 组成的四个域之间，冻结模型在不重训条件下如何迁移？
+    spec: []
+    config:
+      - configs/research/full_cell_cross_domain_n40_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+        - runs/20260820/full_cell_cross_domain_n40_v2_20260820212500
+    result:
+      - docs/results/forward/全胞K20与50K跨数据域正向验证_20260820.md
+    report: []
+    related_experiments:
+      - EXP-FWD-003
+      - EXP-FWD-005
+    decision:
+      state: pending
+      summary: 四域无重训迁移评估已完成；论文采用尚待决定，报告必须保持逐模型、逐方向边界。
+    tags: [forward, cross-domain, k20, dataset-50k, no-retraining]
+
+  - id: EXP-FWD-007
+    title: K5 全模型训练与 K5/K20/F50 六域交叉验证
+    task: forward
+    status: completed
+    mapping_status: complete
+    research_question: K5 双路线 17 个 seed0 模型能否在冻结 held-out 选择后，与 K20 和 F50 的 85 个 checkpoint 一起完成六域 510-cell surrogate 迁移诊断？
+    spec:
+      - experiments/research/EXP-FWD-007-K5训练与六域验证.md
+    config:
+      - configs/research/full_cell_k5_forward_binary_seed0_v1.yaml
+      - configs/research/full_cell_k5_forward_graded_seed0_v1.yaml
+      - configs/research/full_cell_k5_forward_dual_lane_seed0_v1.yaml
+      - configs/research/full_cell_k5_six_domain_n40_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+        - runs/20260824/EXP-FWD-007_K5_20260824080309
+        - runs/20260824/EXP-FWD-007_six_domain_20260824162756
+    result:
+      - docs/results/forward/EXP-FWD-007-K5训练与六域验证.md
+    report: []
+    related_experiments:
+      - EXP-DAT-005
+      - EXP-FWD-005
+      - EXP-FWD-006
+    decision:
+      state: pending_human_review
+      summary: 17 个 K5 checkpoint 与 510-cell held-out surrogate 评估已完成，旧 272-cell 回归通过；paired-bootstrap/resource 汇总缺失，禁止 promotion，且结果不得提升为 real-MPB 或物理验证。
+    tags: [forward, full-cell, k5, k20, dataset-50k, six-domain, surrogate-only]
+
+  - id: EXP-FWD-008
+    title: K5 全模型固定 200 Epoch 训练与六域交叉验证
+    task: forward
+    status: completed_with_convergence_waiver
+    mapping_status: complete
+    research_question: 在不改写 EXP-FWD-007 的前提下，固定 K5 17 个 seed0 任务完整训练 200 epoch 后，收敛门与六域 held-out surrogate 迁移诊断是否闭合？
+    spec:
+      - experiments/research/EXP-FWD-008-K5固定200轮训练与六域验证.md
+    config:
+      - configs/research/full_cell_k5_forward_008_binary_seed0_v1.yaml
+      - configs/research/full_cell_k5_forward_008_graded_seed0_v1.yaml
+      - configs/research/full_cell_k5_forward_008_dual_lane_seed0_v1.yaml
+      - configs/research/exp_fwd_008_k5_campaign_profile_v1.yaml
+      - configs/research/full_cell_k5_six_domain_exp_fwd_008_n40_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+        - runs/20260825/EXP-FWD-008_K5_20260825083000
+    result:
+      - docs/results/forward/EXP-FWD-008-K5固定200轮训练与六域验证.md
+    report: []
+    related_experiments:
+      - EXP-DAT-005
+      - EXP-FWD-007
+    decision:
+      state: superseded_by_exp_fwd_009_evaluation
+      summary: 17 个任务均完成 200 epoch，但仅 5/17 通过原主收敛门；用户豁免阻断后，其中五个指定身份进入 EXP-FWD-009 续训，最终六域评估不得解释为 EXP-FWD-008 的 17/17 收敛通过。
+    tags: [forward, full-cell, k5, fixed-200, six-domain, surrogate-only]
+
+  - id: EXP-FWD-009
+    title: K5 epoch-200 权重热启动收敛续训与六域验证
+    task: forward
+    status: completed_with_convergence_waiver
+    mapping_status: complete
+    research_question: 五个指定身份从 EXP-FWD-008 epoch-200 权重热启动并重置 AdamW 后能否达到滚动收敛门，并与其余 12 个 K5 身份共同完成 EXP-FWD-007 同合同的六域评估？
+    spec:
+      - experiments/research/EXP-FWD-009-K5权重热启动收敛续训.md
+    config:
+      - configs/research/full_cell_k5_forward_009_binary_seed0_v1.yaml
+      - configs/research/full_cell_k5_forward_009_graded_seed0_v1.yaml
+      - configs/research/full_cell_k5_forward_009_dual_lane_seed0_v1.yaml
+      - configs/research/full_cell_k5_six_domain_exp_fwd_009_n40_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+        - runs/20260825/EXP-FWD-009_K5_CONT_20260825164000
+        - runs/20260825/EXP-FWD-009_six_domain_20260825181500
+    result:
+      - docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md
+    report: []
+    related_experiments:
+      - EXP-FWD-007
+      - EXP-FWD-008
+    decision:
+      state: pending_human_review
+      summary: 五个续训任务通过主收敛门，510-cell、408/272 回归与 102-cell bootstrap 完成；最终 17 身份仅 9 个满足主收敛门，另 8 个依据人工豁免纳入，禁止写成 17/17 收敛或物理验证。
+    tags: [forward, full-cell, k5, weight-only-warm-start, six-domain, convergence-waiver, surrogate-only]
+
+  - id: EXP-FWD-010
+    title: Joint 各 4k 公平训练与六域验证
+    task: forward
+    status: completed_with_convergence_not_met
+    mapping_status: complete
+    research_question: dual-lane joint 从零训练时仅使用 Binary 4,000 与 Graded 4,000 条、总训练样本量与单一路线模型一致后，在冻结六域 held-out 测试集上的表现如何？
+    spec:
+      - experiments/research/EXP-FWD-010-Joint各4k公平训练与六域验证.md
+    config:
+      - configs/research/full_cell_k5_forward_010_dual_lane_4k_seed0_v1.yaml
+      - configs/research/full_cell_k5_joint_4k_six_domain_exp_fwd_010_n40_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+        - runs/20260826/EXP-FWD-010_joint_4k_20260826094605
+    result:
+      - docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md
+    report: []
+    related_experiments:
+      - EXP-FWD-008
+      - EXP-FWD-009
+    decision:
+      state: negative_control_pending_human_review
+      summary: seed0 各 lane 4,000 条从零完成 200 epoch 与六域 6-cell 评估；Binary 末窗收敛门略未过，且六域均未击败最佳 K5 单路线，不支持 joint promotion。
+    tags: [forward, full-cell, k5, joint, fair-total-data, six-domain, convergence-not-met, negative-control, surrogate-only]
+
+  - id: EXP-FWD-011
+    title: Joint 各 4k 权重续训至 300 轮
+    task: forward
+    status: completed_with_convergence_not_met
+    mapping_status: complete
+    research_question: EXP-FWD-010 的公平 4k+4k joint 从 epoch-200 权重重置 AdamW 并固定续训至总 epoch 300 后，三条 validation 曲线能否同时收敛，并改善六域 held-out 表现？
+    spec:
+      - experiments/research/EXP-FWD-011-Joint各4k续训至300轮.md
+    config:
+      - configs/research/full_cell_k5_forward_011_dual_lane_4k_epoch300_seed0_v1.yaml
+      - configs/research/full_cell_k5_joint_4k_epoch300_six_domain_exp_fwd_011_n40_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+        - runs/20260826/EXP-FWD-011_joint_4k_epoch300_20260826114526
+    result:
+      - docs/results/forward/EXP-FWD-009-K5权重热启动与六域验证.md
+    report: []
+    related_experiments:
+      - EXP-FWD-010
+    decision:
+      state: negative_control_pending_human_review
+      summary: Binary/Graded 均续训至总 epoch 300；Binary 收敛通过，Graded 与等权未通过。六域相对 epoch-200 为五域改善、一域退化，只在 K5 Binary 超过最佳单路线，不支持 joint 全域 promotion。
+    tags: [forward, full-cell, k5, joint, fair-total-data, weight-only-warm-start, fixed-epoch300, convergence-not-met, surrogate-only]
+
+  - id: EXP-FWD-012
+    title: 工作频率先验覆盖审计
+    task: forward
+    status: completed_negative_gate
+    mapping_status: complete
+    research_question: 公平 4k+4k K5 train/validation 上，由输入材料场计算的 X 方向 Bragg 频率窗口是否比同宽 train-only 固定中心更能覆盖真实频率坐标与最大 gap center？
+    spec:
+      - experiments/research/EXP-FWD-012-工作频率先验覆盖审计.md
+    config:
+      - configs/research/full_cell_k5_work_frequency_prior_audit_exp_fwd_012_v1.yaml
+    runs:
+      local:
+        - runs/20260827/EXP-FWD-012_202608271707
+      referenced_not_local: []
+    result:
+      - docs/results/forward/EXP-FWD-012-工作频率先验覆盖审计.md
+    report: []
+    related_experiments:
+      - EXP-FWD-010
+      - EXP-FWD-011
+    decision:
+      state: negative_gate_stop_loss_training
+      summary: Binary/Graded validation 的 X 窗口谱坐标覆盖率通过，但 X/M 最大 gap-center 命中均为 0；相对固定中心改善门失败，EXP-FWD-013 不准入。
+    tags: [forward, full-cell, k5, joint, fair-total-data, work-frequency, prior-audit, no-test, no-training]
+
+  - id: EXP-FWD-014
+    title: gap 决策损失短预算筛选
+    task: forward
+    status: completed
+    mapping_status: complete
+    research_question: 在公平 K5 4k+4k、seed0、20 epoch 配对训练下，含上边带相对 k-profile 的新损失能否同时改善工作频率、gap 与对应 k 点，且不显著牺牲全谱精度？
+    spec:
+      - experiments/research/EXP-FWD-014-gap决策损失短预算筛选.md
+    config:
+      - configs/research/full_cell_k5_gap_screen_exp_fwd_014_baseline_seed0_v1.yaml
+      - configs/research/full_cell_k5_gap_screen_exp_fwd_014_gap_aware_seed0_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+        - runs/20260828/EXP-FWD-014_gap_screen_20260828101706
+    result:
+      - docs/results/forward/EXP-FWD-014-gap决策损失短预算筛选.md
+    report: []
+    related_experiments:
+      - EXP-FWD-010
+      - EXP-FWD-012
+    decision:
+      state: blocked
+      summary: 新损失显著改善对应 k 点与多数 gap 指标，但两条 lane 的全谱 MRE 安全门失败，且 complete-gap 状态命中仍为 0；停止自动三 seed 扩展。
+    tags: [forward, full-cell, k5, joint, fair-total-data, gap-aware, work-frequency, short-screen, no-test]
+
+  - id: EXP-QRY-001
+    title: A1 V2 10k Continuous Query 公平对照
+    task: query
+    status: completed
+    mapping_status: complete
+    research_question: 在冻结 V2 10k query split 与公平预算下，连续 k 查询模型族的误差和泛化如何比较？
+    spec:
+      - experiments/research/a1_fair_forward_query.md
+    config:
+      - configs/research/a1_query_fair_v1.yaml
+      - configs/research/baseline_protocol_v1.yaml
+    runs:
+      local:
+        - runs/20260724/a1_query_fair_v1_202607240803
+      referenced_not_local: []
+    result:
+      - docs/results/forward/a1_forward_query_fair_v1_20260726.md
+    report:
+      - docs/reports/phc2d_project_full_introduction_20260724.md
+    related_experiments:
+      - EXP-FWD-001
+    decision:
+      state: pending
+      summary: Continuous Query 公平对照已完成；未找到独立的后续采用或停止决策记录。
+    tags: [query, v2-10k, continuous-k, fair-comparison]
+
+  - id: EXP-INV-001
+    title: V2 10k mixture inverse 重训与 Test625 replay
+    task: inverse
+    status: completed
+    mapping_status: complete
+    research_question: mixture conditional generator 经 10k 重训和目标优化后，能否在冻结 Test625 上产生可复验候选？
+    spec:
+      - experiments/research/generative_inverse.md
+    config:
+      - configs/research/generative_inverse_v2_10000.yaml
+      - configs/research/inverse_mixture_generator_v2_10000_pretrain.yaml
+      - configs/research/inverse_mixture_generator_v2_10000_objective.yaml
+      - configs/research/inverse_mixture_generator_v2_10000_test625_sample.yaml
+      - configs/research/inverse_mpb_replay_mixture_v2_10000_40.yaml
+    runs:
+      local:
+        - runs/20260629/generative_inverse_v2_10000_202606291030
+        - runs/20260704/inverse_mixture_generator_v2_10000_pretrain_202607041725
+        - runs/20260704/inverse_mixture_generator_v2_10000_objective_202607041740
+        - runs/20260706/inverse_mixture_generator_v2_10000_test625_sample_202607061921
+        - runs/20260706/inverse_mpb_replay_mixture_v2_10000_40_202607060853
+        - runs/20260706/inverse_mpb_replay_mixture_v2_10000_test625_summary_20260706224424
+      referenced_not_local: []
+    result:
+      - docs/results/inverse/inverse_retrain_v2_10000_20260706.md
+      - docs/results/inverse/inverse_mpb_replay_mixture_v2_10000_test625_20260706.md
+    report:
+      - docs/reports/phc2d_project_full_introduction_20260724.md
+    related_experiments:
+      - EXP-INV-002
+      - EXP-INV-003
+    decision:
+      state: pending
+      summary: 训练、采样与 real-MPB replay 证据链已形成；后续模型采用决策尚未独立记录。
+    tags: [inverse, mixture-generator, v2-10k, test625, mpb-replay]
+
+  - id: EXP-INV-002
+    title: V2 10k 多 surrogate rerank 与 replay pilot
+    task: inverse
+    status: pilot
+    mapping_status: partial
+    mapping_notes: 当前实验协议只覆盖 generative inverse 总体路线，没有对 rerank pilot 单独冻结。
+    research_question: 多 surrogate 排序能否改善 inverse 候选选择，并在小规模 MPB replay 中保持收益？
+    spec:
+      - experiments/research/generative_inverse.md
+    config:
+      - configs/research/inverse_surrogate_rerank_v2_10000.yaml
+      - configs/research/inverse_mpb_replay_v2_10000_strategy_pilot.yaml
+    runs:
+      local:
+        - runs/20260630/inverse_surrogate_rerank_v2_10000_202606301521
+        - runs/20260630/inverse_mpb_replay_v2_10000_strategy_pilot_202606301529
+      referenced_not_local: []
+    result:
+      - docs/results/inverse/inverse_surrogate_rerank_v2_10000_20260630.md
+    report: []
+    related_experiments:
+      - EXP-INV-001
+      - EXP-INV-005
+    decision:
+      state: pending
+      summary: 作为候选排序诊断保留；pilot 不足以证明一般性 replay 改善。
+    tags: [inverse, surrogate-rerank, mpb-replay, pilot]
+
+  - id: EXP-INV-003
+    title: A2 单 seed 逆向公平对照
+    task: inverse
+    status: completed
+    mapping_status: complete
+    research_question: 在冻结 A2 数据、目标与训练预算下，主要逆向生成器和直接逆向基线的单 seed 表现如何比较？
+    spec:
+      - experiments/research/a2_inverse_single_seed.md
+      - experiments/research/generative_inverse.md
+    config:
+      - configs/research/a2_inverse_single_seed_v1.yaml
+    runs:
+      local:
+        - runs/20260726/a2_inverse_single_seed_v1_202607261911
+      referenced_not_local: []
+    result:
+      - docs/results/inverse/a2_inverse_single_seed_formal_20260727.md
+    report:
+      - docs/reports/phc2d_project_full_introduction_20260724.md
+    related_experiments:
+      - EXP-INV-001
+      - EXP-INV-004
+    decision:
+      state: pending
+      summary: A2 单 seed 公平比较已完成；是否扩展跨 seed 尚未形成独立决策。
+    tags: [inverse, a2, single-seed, fair-comparison]
+
+  - id: EXP-INV-004
+    title: A2 Objective-Bridge seed0 100/625 replay
+    task: inverse
+    status: completed
+    mapping_status: complete
+    research_question: Objective-Bridge 在 seed0 上能否把 surrogate 目标改善传递到冻结 100 与 625 目标的物理 replay？
+    spec:
+      - experiments/research/a2_inverse_objective_bridge_seed0_v1.md
+      - experiments/research/a2_inverse_objective_bridge_seed0_test625_v1.md
+    config:
+      - configs/research/a2_inverse_objective_bridge_seed0_v1.yaml
+      - configs/research/a2_inverse_objective_bridge_seed0_test625_v1.yaml
+    runs:
+      local:
+        - runs/20260727/a2_inverse_objective_bridge_seed0_v1_202607271804
+        - runs/20260728/a2_inverse_objective_bridge_seed0_test625_v1_202607280842
+      referenced_not_local: []
+    result:
+      - docs/结果/EXP-INV-004-Objective-Bridge.md
+      - docs/results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md
+    report:
+      - docs/reports/phc2d_project_full_introduction_20260724.md
+    related_experiments:
+      - EXP-INV-003
+      - EXP-INV-005
+    decision:
+      state: pending
+      summary: Objective-Bridge seed0 的 100/625 replay 已完成；后续采用决策尚未独立记录。
+    tags: [inverse, a2, objective-bridge, test625, seed0]
+
+  - id: EXP-INV-005
+    title: A2 多 surrogate post-repair 分层验证
+    task: inverse
+    status: pilot
+    mapping_status: complete
+    research_question: 多 surrogate screen、neutral pretrain、repair 与 post-repair 验证能否减少单 surrogate exploit 并改善候选健康度？
+    spec:
+      - experiments/research/a2_inverse_surrogate_ablation_v1.md
+    config:
+      - configs/research/a2_inverse_surrogate_screen_v1.yaml
+      - configs/research/a2_inverse_surrogate_objective_v1.yaml
+      - configs/research/a2_inverse_surrogate_stabilized_repair_v1.yaml
+      - configs/research/a2_inverse_surrogate_postrepair_validation_v2.yaml
+    runs:
+      local:
+        - runs/20260731/a2_inverse_surrogate_screen_v1_202607311402
+        - runs/20260731/a2_inverse_surrogate_objective_v1_202607311410
+        - runs/20260801/a2_inverse_surrogate_stabilized_repair_v1_202608011630
+        - runs/20260802/a2_inverse_surrogate_postrepair_validation_v2_202608021718
+      referenced_not_local: []
+    result:
+      - docs/results/inverse/a2_inverse_surrogate_postrepair_validation_v2_20260802.md
+    report: []
+    related_experiments:
+      - EXP-INV-002
+      - EXP-INV-004
+    decision:
+      state: continue
+      summary: 分层诊断支持继续研究，但未替代冻结 real-MPB replay 的最终接受门槛。
+    tags: [inverse, a2, multi-surrogate, post-repair, ablation]
+
+  - id: EXP-INV-006
+    title: Full-cell inverse Stage-A 正式训练准备
+    task: inverse
+    status: active
+    mapping_status: partial
+    mapping_notes: 已确认配置、CPU preflight、runner smoke 与 dry run；尚无正式 GPU campaign、独立协议或科学结果。
+    research_question: Full-cell N40 inverse Stage-A 的数据合同、runner 与资源配置是否已具备正式训练条件？
+    spec: []
+    config:
+      - configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml
+      - configs/research/full_cell_inverse_stage_a_train_n40_v1.yaml
+    runs:
+      local:
+        - runs/20260806/full_cell_inverse_stage_a_cpu_v1_202608061701
+        - runs/20260806/inverse_stage_a_r1_dryrun_v2_probe_20260806173951
+      referenced_not_local: []
+    result:
+      - docs/results/inverse/full_cell_inverse_stage_a_cpu_preflight_20260806.md
+      - docs/results/inverse/full_cell_inverse_stage_a_runner_smoke_20260806.md
+      - docs/results/inverse/full_cell_inverse_stage_a_wave_dryrun_20260806.md
+    report:
+      - docs/reports/全胞双路线正向与逆向模型报告_20260810.md
+    related_experiments:
+      - EXP-FWD-003
+      - EXP-FWD-004
+    decision:
+      state: pending
+      summary: 当前仅能声明训练准备链路可运行；不得标记为正式训练完成或逆向科研结果完成。
+    tags: [inverse, full-cell, stage-a, preflight, active]
+
+  - id: EXP-PHY-001
+    title: 全胞 MPB 分辨率收敛与跨环境验收
+    task: physical_validation
+    status: completed
+    mapping_status: complete
+    research_question: B/G 双路线冻结结构在不同 MPB resolution 下何时收敛，r64 结果能否跨集群与 WSL 复现？
+    spec:
+      - experiments/research/full_cell_resolution_convergence_xingyi.md
+    config:
+      - configs/research/full_cell_resolution_convergence_xingyi_stage_a_v1.yaml
+      - configs/research/full_cell_resolution_convergence_xingyi_stage_b_v1.yaml
+    runs:
+      local:
+        - runs/20260817/full_cell_resolution_convergence_xingyi_stage_b_retry1_202608171428
+        - runs/20260817/full_cell_resolution_convergence_wsl_cross_acceptance_v1_202608171505
+      referenced_not_local:
+        - runs/20260817/full_cell_resolution_convergence_xingyi_stage_a_retry1_202608171352
+    result:
+      - docs/结果/EXP-PHY-001-MPB分辨率.md
+      - docs/results/data-provenance/全胞MPB分辨率收敛验证_20260817.md
+    report: []
+    related_experiments:
+      - EXP-DAT-001
+      - EXP-DAT-004
+    decision:
+      state: accepted
+      summary: 保留为全胞 real-MPB resolution 选择与跨环境验收依据，结论只覆盖冻结的双路线 100 结构。
+    tags: [physical-validation, mpb, resolution, convergence, wsl]
+
+  - id: EXP-PHY-002
+    title: 双路线全胞有限阵列 Meep 近远场响应
+    task: physical_validation
+    status: completed
+    mapping_status: complete
+    research_question: 冻结 B/G 全胞结构在有限阵列 Meep 仿真中呈现怎样的近场与远场响应？
+    spec:
+      - experiments/research/full_cell_dual_lane_meep_scattering.md
+    config:
+      - configs/research/full_cell_dual_lane_meep_scattering_v1.yaml
+    runs:
+      local:
+        - runs/20260806/full_cell_dual_lane_meep_scattering_v1_202608061700
+      referenced_not_local: []
+    result:
+      - docs/results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md
+    report:
+      - docs/reports/全胞双路线正向与逆向模型报告_20260810.md
+    related_experiments:
+      - EXP-DAT-001
+      - EXP-PHY-001
+    decision:
+      state: pending
+      summary: 有限阵列 real-Meep 响应证据已形成；未找到将其用于更广物理 claim 的独立决策记录。
+    tags: [physical-validation, meep, near-field, far-field, full-cell]
+
+  - id: EXP-PHY-003
+    title: TE Bloch 本征场与 adapted PINO 准入
+    task: physical_validation
+    status: blocked
+    mapping_status: complete
+    research_question: TE Bloch 本征场监督模型与 adapted PINO 能否通过频率、dense-k、跨分辨率和物理残差准入？
+    spec:
+      - experiments/research/field_eigen_te.md
+    config:
+      - configs/research/field_eigen_te_contract.yaml
+      - configs/research/field_eigen_te_b3_9216.yaml
+      - configs/research/field_eigen_te_pino_9216.yaml
+      - configs/research/field_eigen_te_pino_frequency_guard_9216.yaml
+      - configs/research/field_eigen_te_b4_dense_k_gate.yaml
+      - configs/research/field_eigen_te_b4_resolution_reference_audit.yaml
+      - configs/research/field_eigen_te_b4_dense_k_solver_floor_gate.yaml
+    runs:
+      local:
+        - runs/20260720/field_eigen_te_b3_9216_202607201608
+        - runs/20260721/field_eigen_te_pino_9216_202607210812
+        - runs/20260721/field_eigen_te_pino_frequency_guard_9216_202607211039
+        - runs/20260722/field_eigen_te_b4_dense_k_gate_202607220819
+        - runs/20260722/field_eigen_te_b4_resolution_reference_audit_202607221300
+        - runs/20260722/field_eigen_te_b4_dense_k_solver_floor_gate_202607221440
+      referenced_not_local: []
+    result:
+      - docs/results/field-physics/field_eigen_te_b3_v2_pino_20260720.md
+      - docs/results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md
+    report:
+      - docs/reports/phc2d_project_full_introduction_20260724.md
+    related_experiments: []
+    decision:
+      state: blocked
+      summary: dense-k、跨分辨率与物理残差准入未通过；不得进入 inverse cross-check 或正式物理 claim。
+    tags: [physical-validation, eigenfield, te, adapted-pino, blocked]
+
+  - id: EXP-PHY-004
+    title: K5 Full-Wh 代理选频与真实响应差异
+    task: physical_validation
+    status: completed
+    mapping_status: complete
+    research_question: K5 Full-Wh held-out MRE 较低时，最大带隙 band/k/频率选择是否稳定，残余选频误差是否改变同一结构的真实 Meep 近远场响应？
+    spec:
+      - experiments/research/EXP-PHY-004-代理选频响应差异.md
+    config:
+      - configs/research/exp_phy_004_full_wh_response_sensitivity_v1.yaml
+    runs:
+      local:
+        - runs/20260825/EXP-PHY-004_202608251101
+      referenced_not_local:
+        - runs/20260824/EXP-FWD-007_six_domain_20260824162756
+    result:
+      - docs/results/field-physics/代理选频与真实响应差异_20260825.md
+    report: []
+    related_experiments:
+      - EXP-DAT-005
+      - EXP-FWD-007
+      - EXP-PHY-002
+    decision:
+      state: pending
+      summary: 物理 sensitivity 已完成；建议把最大带隙选择一致率与 real-solver 选频响应差异设为 forward 进入 inverse 前的独立 gate，待负责人接受。
+    tags: [physical-validation, surrogate, bandgap-selection, meep, near-field, far-field, full-cell]
+
+  - id: EXP-PHY-005
+    title: K5 TE 有效折射率与折叠频率校准
+    task: physical_validation
+    status: completed
+    mapping_status: complete
+    research_question: 偏振相关 TE 有效折射率能否通过 near-Gamma real-MPB 斜率校准，并使预注册折叠频率稳定对应 Bands 1-10 中的真实相邻 gap？
+    spec:
+      - experiments/research/EXP-PHY-005-TE有效折射率与折叠频率校准.md
+    config:
+      - configs/research/exp_phy_005_te_effective_index_gap_calibration_v1.yaml
+      - configs/smoke/exp_phy_005_te_effective_index_smoke_v1.yaml
+    runs:
+      local:
+        - runs/20260828/EXP-PHY-005_202608281714
+        - runs/20260828/EXP-PHY-005_202608281716
+        - runs/20260828/EXP-PHY-005_202608281751
+      referenced_not_local: []
+    result:
+      - docs/results/field-physics/EXP-PHY-005-TE有效折射率与折叠频率校准.md
+    report: []
+    related_experiments:
+      - EXP-DAT-005
+      - EXP-FWD-012
+    decision:
+      state: stop
+      summary: 192 结构正式 real-MPB 终态为 scalar_anisotropy_fail，且 TE 调和候选在两条 lane 均显著劣于旧公式；EXP-FWD-017 不解锁。
+    tags: [physical-validation, effective-index, near-gamma, bandgap, te, full-cell]
+
+  - id: EXP-PHY-006
+    title: K5 全 BZ 带隙边缘加密试点
+    task: physical_validation
+    status: completed
+    mapping_status: complete
+    research_question: 现有 9x9 full-BZ 标签是否因局部 k 离散误差而高估 Bands 1-10 的相邻 gap 或改变 complete/pseudo 状态？
+    spec:
+      - experiments/research/EXP-PHY-006-全BZ带隙边缘加密试点.md
+    config:
+      - configs/research/exp_phy_006_full_bz_gap_refinement_pilot_v1.yaml
+    runs:
+      local:
+        - runs/20260829/EXP-PHY-006_202608291923
+      referenced_not_local: []
+    result:
+      - docs/results/field-physics/EXP-PHY-006-全BZ带隙边缘加密试点.md
+    report: []
+    related_experiments:
+      - EXP-DAT-005
+
+  - id: EXP-PHY-007
+    title: K5 validation 带隙标签门
+    task: physical_validation
+    status: completed
+    mapping_status: complete
+    research_question: 冻结 K5 Binary/Graded 64 个 validation 结构的相邻带隙边缘能否在自适应 k 加密与 resolution 复核下同时稳定？
+    spec:
+      - experiments/research/EXP-PHY-007-validation带隙标签门.md
+    config:
+      - configs/research/exp_phy_007_validation_gap_refinement_v1.yaml
+    runs:
+      local:
+        - runs/20260902/EXP-PHY-007_202609021705
+      referenced_not_local: []
+    result:
+      - docs/results/field-physics/EXP-PHY-007-validation带隙标签门.md
+    report: []
+    related_experiments:
+      - EXP-PHY-006
+      - EXP-FWD-016
+      - EXP-PHY-005
+      - EXP-FWD-016
+    decision:
+      state: blocked
+      summary: 四结构 pilot 证实 9x9 标签存在实质 gap 高估和 complete-to-pseudo 翻转风险；现有粗网格 gap 标签不得直接解锁训练，下一步需人工决定是否授权扩大验证。
+    tags: [physical-validation, adaptive-k, bandgap, te, full-cell, validation-only, pilot]
+
+deferred_history:
+  - scope: 2026-05 至 2026-06 初期的 legacy reproduction、FEM/MPB 与 smoke runs
+    reason: 历史价值存在，但不属于当前活跃或论文核心实验，暂不批量登记。
+  - scope: legacy 50k/100k 正向和逆向配置，以及 configured-only cVAE/diffusion 路线
+    reason: 需要先区分正式完成、占位配置与已被新路线替代的状态。
+  - scope: TE eigenfield B1/B2 与个别 P6 阶段记录
+    reason: 当前先由 EXP-PHY-003 汇总核心准入问题，阶段级拆分留待论文叙事稳定后处理。
+  - scope: 环境审计、部署、preflight、dry run、可视化与报告修订 runs
+    reason: 它们是运行或运维证据，不自动构成正式科研实验。
+
+unresolved_mappings:
+  - subject: 全胞 50k B/G 数据生成与最终接受
+    known_evidence:
+      - experiments/research/full_cell_dual_lane_50000_xingyi.md
+      - docs/results/forward/full_cell_dual_lane_50000_forward_training_20260808.md
+    uncertainty: 当前本地 runs 树缺少报告引用的完整数据生成和正式接受根目录，不能从训练成功反推数据验收链完整。
+  - subject: 2026-08-03 之后的 representation benchmark 系列
+    known_evidence:
+      - docs/results/representation_benchmark_20260803.md
+    uncertainty: 工作区另有多份未纳入版本控制的日期化结果草稿；其与参数/表示 runs 的研究问题边界尚未稳定，不能确认应合并为一个实验还是拆分。
+  - subject: 全胞升级模型 threshold 分支
+    known_evidence:
+      - docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
+    uncertainty: 主评估已登记为 EXP-FWD-004，但 threshold submission 被资源门槛阻塞，未确认存在可登记的正式 run。

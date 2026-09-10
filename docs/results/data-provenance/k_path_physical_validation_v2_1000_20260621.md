@@ -1,3 +1,17 @@
+---
+title: "N=1000 Guarded V2 K-Path Physical Validation"
+summary: "日期化实验与验证证据；正文保持原始记录。"
+page_type: archive
+status: historical
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 7 minutes
+primary_layer: L3
+evidence_date: 2026-06-21
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+---
+
 <!--
   N=1000 guarded V2 k-path physical validation result.
   Author: fangtoast
@@ -8,6 +22,9 @@
 <a id="k-path-physical-validation-v2-1000-20260621"></a>
 
 # N=1000 Guarded V2 K-Path Physical Validation
+
+!!! warning "历史证据"
+    本页是 1k 数据阶段的 K 路径检查，不属于正式 V2 10k 或新全胞结果。
 
 ## 摘要
 - **目的**：基于原始记录保留实验链路与指标定义，对文档进行中文化结构化重构。
@@ -32,8 +49,8 @@
 | item | value |
 |---|---|
 | date | 2026-06-21 |
-| generation config | [`../../configs/research/query_dataset_v2_pilot_1000.yaml`](../../../configs/research/query_dataset_v2_pilot_1000.yaml) |
-| validation config | [`../../configs/research/k_path_physical_validation_v2_1000.yaml`](../../../configs/research/k_path_physical_validation_v2_1000.yaml) |
+| generation config | [`../../configs/research/query_dataset_v2_pilot_1000.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/query_dataset_v2_pilot_1000.yaml) |
+| validation config | [`../../configs/research/k_path_physical_validation_v2_1000.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/k_path_physical_validation_v2_1000.yaml) |
 | dataset | `data/query_dataset_v2_pilot_1000_mpb.npz` |
 | manifest | `data/metadata/query_dataset_v2_pilot_1000_mpb.manifest.yaml` |
 | k-path sidecar | `data/metadata/query_dataset_v2_pilot_1000_mpb.kpath.v1.json` |

@@ -1,3 +1,20 @@
+---
+title: "全胞正向模型升级代码实现规格"
+summary: "研究计划或执行协议；实施前需与当前代码和证据重新核对。"
+page_type: plan
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 20 minutes
+primary_layer: L0
+plan_state: completed
+effective_date: 2026-08-08
+superseded_by: null
+related_results:
+  - docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
+---
+
 <!--
   Draft implementation specification for upgraded full-cell forward models.
   Author: fangtoast
@@ -41,7 +58,7 @@
 |---|---|---|
 | [10k 双路线结果](../../results/forward/full_cell_dual_lane_forward_training_20260806.md) | FNO 在七个主波次均为最低三 seed 均值；binary/continuous 冻结 test 分别约为 `0.80394%`、`0.21579%`；跨路线存在明显 domain shift | 不能证明 64 checkpoint 对 32/128 零样本分辨率不变；该报告中的 32/64/128 是独立重训 |
 | [50k 双路线结果](../../results/forward/full_cell_dual_lane_50000_forward_training_20260808.md) | FNO 在 12 个方向×epoch 组均为四模型最低三 seed 均值；binary 100 epoch 约 `0.62965%`，continuous 200 epoch 约 `0.16016%` | 不能把 threshold 或 final-fit monitor 当成无偏物理结论；更多 epoch 没有修复跨路线泛化 |
-| 当前注册表与 [`baselines.py`](../../../src/phc2d/models/baselines.py) | 四个基线均可由 shape 合同动态构建 | 代码中出现模型名不等于已有正式训练结果 |
+| 当前注册表与 [`baselines.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/models/baselines.py) | 四个基线均可由 shape 合同动态构建 | 代码中出现模型名不等于已有正式训练结果 |
 
 按 64×64 输入和 81×10 输出的当前全胞合同动态构建时，实时参数量为：
 
@@ -461,7 +478,7 @@ model:
 
 ### 15.1 2026-08-08 实现与代码验收记录
 
-- 新增实现：[`src/phc2d/models/full_cell_upgrades.py`](../../../src/phc2d/models/full_cell_upgrades.py)，包含五个模型、dense/k-conditioned 输出头、周期 ConvNeXt block、双侧 Tucker 频谱卷积和双 lane FiLM。
+- 新增实现：[`src/phc2d/models/full_cell_upgrades.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/models/full_cell_upgrades.py)，包含五个模型、dense/k-conditioned 输出头、周期 ConvNeXt block、双侧 Tucker 频谱卷积和双 lane FiLM。
 - 注册与 runner：`ModelSpec` 已增加 `input_layout`、`accepts_k_points`、`accepts_lane_id`；Full-Wh runner 从注册规格解析 layout，并从 HDF5 注入动态 `k_points` 和 lane id。
 - 默认参数量（dense / k-conditioned）：Mixer `2,918,186 / 2,921,025`；gated ResMLP `6,508,010 / 6,475,265`；ConvNeXt `2,298,138 / 2,336,561`；TFNO `2,690,652 / 2,800,243`；dual-lane operator `2,703,740 / 2,813,331`。
 - WSL `Ubuntu` + conda `meep_env`：升级模型、registry、runner 与报告审计定向测试 `62 passed`；完整 `tests/` 回归 `431 passed`；`compileall`、基础 CLI 与 22-model registry 检查通过。

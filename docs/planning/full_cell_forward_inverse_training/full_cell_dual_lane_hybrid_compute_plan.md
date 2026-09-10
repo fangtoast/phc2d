@@ -1,3 +1,20 @@
+---
+title: "全胞双路线训练与混合算力计划"
+summary: "研究计划或执行协议；实施前需与当前代码和证据重新核对。"
+page_type: plan
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 20 minutes
+primary_layer: L0
+plan_state: completed
+effective_date: 2026-08-06
+superseded_by: docs/planning/full_cell_forward_inverse_training/full_cell_dual_lane_50000_training_hybrid_compute_plan.md
+related_results:
+  - docs/results/forward/full_cell_dual_lane_forward_training_20260806.md
+---
+
 <!--
   Three-seed full-cell dual-lane forward training and hybrid compute plan.
   Author: fangtoast
@@ -65,11 +82,11 @@
 
 ### 2.1 二值路线
 
-使用 [`data/full_cell_binary_bz9_10000_xingyi_v1.h5`](../../../data/README.md) 对应的本地数据。当前状态为已通过 WSL real-MPB 跨环境验收，可以进入训练准备。
+使用 [`data/full_cell_binary_bz9_10000_xingyi_v1.h5`](https://github.com/fangtoast/phc2d/blob/master/data/README.md) 对应的本地数据。当前状态为已通过 WSL real-MPB 跨环境验收，可以进入训练准备。
 
 ### 2.2 渐进路线
 
-使用 `data/full_cell_graded_bz9_10000_paracloud_m9_v1.h5`。该数据已通过 [固定 WSL acceptance 配置](../../../configs/research/full_cell_graded_paracloud_m9_wsl_acceptance_v1.yaml)，状态为：
+使用 `data/full_cell_graded_bz9_10000_paracloud_m9_v1.h5`。该数据已通过 [固定 WSL acceptance 配置](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_graded_paracloud_m9_wsl_acceptance_v1.yaml)，状态为：
 
 ```text
 wsl_cross_environment_acceptance_pass

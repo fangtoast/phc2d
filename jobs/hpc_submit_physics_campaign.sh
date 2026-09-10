@@ -11,29 +11,35 @@ PHC2D_ROOT="${PHC2D_ROOT:-$PWD}"
 : "${PHC2D_CONFIG:?Set PHC2D_CONFIG.}"
 : "${PHC2D_RUN_DIR:?Set PHC2D_RUN_DIR.}"
 : "${PHC2D_PLATFORM_PROFILE:?Set PHC2D_PLATFORM_PROFILE.}"
-: "${PHC2D_BENCHMARK_EVIDENCE:?Set PHC2D_BENCHMARK_EVIDENCE.}"
 : "${PHC2D_CASE_COUNT:?Set PHC2D_CASE_COUNT.}"
 
 PHC2D_SUBMIT_MODE="${PHC2D_SUBMIT_MODE:-dry-run}"
-selection="$(python -m phc2d.cli hpc benchmark \
-  --platform-profile "$PHC2D_PLATFORM_PROFILE" \
-  --evidence "$PHC2D_BENCHMARK_EVIDENCE" \
-  --case-count "$PHC2D_CASE_COUNT")"
+PHC2D_NODE_TIER="${PHC2D_NODE_TIER:-}"
+if [[ -n "$PHC2D_NODE_TIER" ]]; then
+  selection=""
+else
+  : "${PHC2D_BENCHMARK_EVIDENCE:?Set PHC2D_BENCHMARK_EVIDENCE when PHC2D_NODE_TIER is unset.}"
+  selection="$(python -m phc2d.cli hpc benchmark \
+    --platform-profile "$PHC2D_PLATFORM_PROFILE" \
+    --evidence "$PHC2D_BENCHMARK_EVIDENCE" \
+    --case-count "$PHC2D_CASE_COUNT")"
+fi
 
-readarray -t profile_values < <(python - "$PHC2D_PLATFORM_PROFILE" "$selection" <<'PY'
+readarray -t profile_values < <(python - "$PHC2D_PLATFORM_PROFILE" "$selection" "$PHC2D_NODE_TIER" <<'PY'
 import json
 import sys
 from pathlib import Path
 import yaml
 
 profile = yaml.safe_load(Path(sys.argv[1]).read_text(encoding="utf-8"))
-selection = json.loads(sys.argv[2])
+selection = json.loads(sys.argv[2]) if sys.argv[2] else {}
+node_tier = int(sys.argv[3]) if sys.argv[3] else None
 print(profile["platform_id"])
 print(profile.get("partition", ""))
 print(profile["cores_per_node"])
 print(profile["memory_gb_per_node"])
-print(selection["selected_nodes"])
-print("true" if selection["target_met"] else "false")
+print(node_tier if node_tier is not None else selection["selected_nodes"])
+print("true" if node_tier is not None else ("true" if selection["target_met"] else "false"))
 PY
 )
 platform_id="${profile_values[0]}"
@@ -42,6 +48,20 @@ cores="${profile_values[2]}"
 memory_gb="${profile_values[3]}"
 nodes="${profile_values[4]}"
 target_met="${profile_values[5]}"
+
+if [[ -n "$PHC2D_NODE_TIER" ]]; then
+  python - "$PHC2D_PLATFORM_PROFILE" "$nodes" <<'PY'
+import sys
+from pathlib import Path
+import yaml
+
+profile = yaml.safe_load(Path(sys.argv[1]).read_text(encoding="utf-8"))
+nodes = int(sys.argv[2])
+allowed = [int(item) for item in profile.get("allowed_node_tiers", [])]
+if nodes not in allowed:
+    raise SystemExit(f"PHC2D_NODE_TIER={nodes} is not an allowed node tier: {allowed}")
+PY
+fi
 
 if [[ "$target_met" != "true" ]]; then
   echo "No admitted resource tier meets the target wall time." >&2

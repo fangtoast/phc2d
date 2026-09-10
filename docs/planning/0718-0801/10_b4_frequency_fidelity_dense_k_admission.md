@@ -1,3 +1,20 @@
+---
+title: "B4：PINO 频率保真、密集 k 与 inverse 准入"
+summary: "研究计划或执行协议；实施前需与当前代码和证据重新核对。"
+page_type: plan
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 4 minutes
+primary_layer: L0
+plan_state: completed
+effective_date: 2026-07-18
+superseded_by: null
+related_results:
+  - docs/results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md
+---
+
 <!--
   B4 frequency fidelity, dense-k, and inverse admission plan.
   Author: fangtoast
@@ -15,19 +32,23 @@
 
 ---
 
+<a id="一当前证据"></a>
+
 ## 一、当前证据
 
 | 项目 | 当前状态 | 证据 |
 |---|---|---|
 | B3 data-only FNO v2 | `formal_completed` | `runs/20260720/field_eigen_te_v2_baseline_9216_202607201723` |
 | B3 adapted PINO | `pilot_pass` | `runs/20260721/field_eigen_te_pino_9216_202607210812`；residual median 降低 37.48%，但 frequency MRE 高于 matched FNO |
-| B4 训练/审计实现 | `implemented` | [`field_eigen_v2.py`](../../../src/phc2d/forward/field_eigen_v2.py) |
+| B4 训练/审计实现 | `implemented` | [`field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_v2.py) |
 | B4 validation 消融与冻结三 seed | `formal_completed` | `runs/20260721/field_eigen_te_pino_frequency_guard_9216_202607211039/frozen_candidate_manifest.json` |
 | dense-k 与 resolution transfer | `formal_completed` | `runs/20260722/field_eigen_te_b4_dense_k_gate_202607220819` |
 
 `frozen_candidate_manifest.json` 与 `promotion_decision.json` 已完整落盘；三项 promotion status 均为 `blocked`。因此不能把 B3 residual 改善升级为 frequency cross-check、residual rerank、cross-resolution 或 field inverse 证据。
 
 ---
+
+<a id="二冻结设计"></a>
 
 ## 二、冻结设计
 
@@ -38,6 +59,8 @@
 5. 64×64 在已有 field records 的 k 点才报告 E/H relative L2。96×96、128×128只可报告 frequency truth 对照和 predicted-field residual，禁止声称高分辨率 field accuracy。
 
 ---
+
+<a id="三准入状态"></a>
 
 ## 三、准入状态
 
@@ -50,6 +73,8 @@
 频率 cross-check 通过而 residual rerank 不通过时，后续只允许使用 PINO frequency head 作 cross-check；不允许使用 residual 当 reranking score。跨分辨率失败不改变 64×64 的结论，但禁止跨分辨率 claim。
 
 ---
+
+<a id="四运行边界"></a>
 
 ## 四、运行边界
 

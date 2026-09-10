@@ -1,3 +1,19 @@
+---
+title: "全胞数据生成方法与分布审查底稿"
+summary: "整理现有 B/G 生成分布，并记录统一周期 Fourier 数据生成的待确认简化建议。"
+page_type: plan
+status: draft
+plan_state: active
+effective_date: 2026-08-16
+superseded_by: null
+related_results: []
+audience: "研究用户、数据实现者与导师"
+owner: "导师提出方案，研究生维护与验证"
+last_reviewed: 2026-08-17
+reading_time: 18 minutes
+primary_layer: L3
+---
+
 <!--
   Author: Ming Lyu <caref.lm@gmail.com>
   Copyright (c) 2026 Ming Lyu. All rights reserved.
@@ -13,11 +29,11 @@
 
 相关依据：
 
-- [B 50k 配置](../../../configs/research/full_cell_binary_bz9_50000_xingyi_v1.yaml)
-- [G 50k 配置](../../../configs/research/full_cell_graded_bz9_50000_xingyi_v1.yaml)
-- [随机结构生成](../../../src/phc2d/generators/full_cell.py)
-- [材料场计算](../../../src/phc2d/data/full_cell.py)
-- [样本调度与 split](../../../src/phc2d/data/full_cell_generation.py)
+- [B 50k 配置](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_binary_bz9_50000_xingyi_v1.yaml)
+- [G 50k 配置](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_graded_bz9_50000_xingyi_v1.yaml)
+- [随机结构生成](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/generators/full_cell.py)
+- [材料场计算](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell.py)
+- [样本调度与 split](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell_generation.py)
 - [碰撞与介电常数内容哈希](full_cell_dielectric_hash_collision_design.md)
 
 ## 一、本文边界
@@ -117,7 +133,6 @@ $$
 
 配置使用 Fourier cutoff 8。对每个非零半平面频率 $(m_x,m_y)$，独立抽样正弦和余弦
 系数，其标准差为：
-
 $$
 \sigma_{\mathbf m}=\exp\left[-\left(
 \frac{\lVert\mathbf m\rVert}{k_c}
@@ -162,7 +177,6 @@ $$
 
 背景 Fourier 场使用 cutoff 3。每个实模态的正弦和余弦系数独立服从零均值高斯分布，
 标准差为：
-
 $$
 \sigma_{\mathbf m}=(1+\lVert\mathbf m\rVert^2)^{-1.25}.
 $$

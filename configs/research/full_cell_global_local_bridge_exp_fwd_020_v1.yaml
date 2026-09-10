@@ -1,0 +1,89 @@
+# EXP-FWD-020 global-local band-operator bridge contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: phc2d.global_local_bridge.v1
+experiment:
+  experiment_id: EXP-FWD-020
+  family: full_cell_global_local_bridge
+  evidence_status: authorized_n56_gated_campaign_pending_preflight
+  primary_layer: L3_experiment_evidence
+representation:
+  input_field: material_weight_grid_64
+  target_field: Wh
+  target_shape: [81, 10]
+split:
+  per_lane: {train: 40000, validation: 5000, held_out_test: 5000}
+  selection_split: validation
+  test_targets_loaded: false
+datasets:
+  k5_binary: {path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, n40_path: /HOME/scw6g7a/run/phc2d/data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, n56_path: /data/run01/scxl892/data/exp_fwd_020/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6}
+  k5_graded: {path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, n40_path: /HOME/scw6g7a/run/phc2d/data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, n56_path: /data/run01/scxl892/data/exp_fwd_020/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20}
+  k20_binary: {path: data/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5, n40_path: /HOME/scw6g7a/run/phc2d/data/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5, n56_path: /data/run01/scxl892/data/exp_fwd_020/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sha256: 2661eb1e9e3b398a7b69c4083daefa761ea9c26a1081c478b968fd6a951d6b56}
+  k20_graded: {path: data/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5, n40_path: /HOME/scw6g7a/run/phc2d/data/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5, n56_path: /data/run01/scxl892/data/exp_fwd_020/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: 96b127b43f2c31fb7591e9634317a7ed35332ceae1077b2277de15058902fd72}
+  f50_binary: {path: data/full_cell_binary_bz9_50000_xingyi_v1.h5, n40_path: /HOME/scw6g7a/run/phc2d/data/full_cell_binary_bz9_50000_xingyi_v1.h5, n56_path: /data/run01/scxl892/data/exp_fwd_020/full_cell_binary_bz9_50000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: e2d99e0c59c3bf5dfebc507e756dbcd18c8623f331ad6193832d774df5213f00, source: n40_verified_source_copy}
+  f50_graded: {path: data/full_cell_graded_bz9_50000_xingyi_v1.h5, n40_path: /HOME/scw6g7a/run/phc2d/data/full_cell_graded_bz9_50000_xingyi_v1.h5, n56_path: /data/run01/scxl892/data/exp_fwd_020/full_cell_graded_bz9_50000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46, source: n40_verified_source_copy}
+model:
+  name: global_local_band_operator_v1
+  shared_params:
+    width: 64
+    depth: 6
+    modes: [12, 12]
+    factorization_rank: 0.75
+    norm_groups: 8
+    channel_expansion: 4
+    drop_path: 0.1
+    head_kind: dense
+    head_hidden_dim: 256
+    band_embedding_dim: 32
+    fourier_frequencies: [1, 2, 4, 8]
+    dropout: 0.05
+  paired_variants:
+    baseline: {local_kernel: 3}
+    candidate: {local_kernel: 7}
+training:
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  loss: normalized_full_matrix_mse
+  learning_rate: 5.0e-4
+  micro_batch_size: 64
+  effective_batch_size: 64
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+protocol:
+  seed0_screen:
+    seed: 0
+    max_epochs: 20
+    selection_metric: validation_bands_2_10_mre
+    require_candidate_better_each_lane: true
+    minimum_relative_improvement_pct_each_lane: 1.0
+    maximum_parameter_ratio: 1.05
+    stop_on_lane_reversal: true
+  confirmation:
+    gated_by: seed0_screen_pass
+    seeds: [0, 1, 2]
+    max_epochs: 200
+    require_direction_consistency_each_lane: true
+    require_baseline_and_candidate_convergence: true
+  cross_domain:
+    gated_by: confirmation_pass
+    domains: [k5_binary, k5_graded, k20_binary, k20_graded, f50_binary, f50_graded]
+  final_test:
+    gated_by: frozen_checkpoint_and_report_template
+    maximum_reads: 1
+runtime:
+  target_platform: paracloud-n56
+  partition: gpu_5090
+  gpus_per_task: 1
+  cpus_per_task: 8
+  memory_mb: 60000
+  cuda_module: cuda/12.8
+  torch_version: 2.7.1
+  environment: /data/run01/scxl892/envs/phc2d_gpu_cu128_torch271_r1
+  max_concurrent_jobs: 8
+authorization:
+  granted: true
+  scope: n56_environment_data_deployment_g1_submission_and_gate_conditioned_g2_g3
+  prohibited: [automatic_retry, cancellation, additional_training, gpu_type_change, scientific_criterion_change, real_MPB, real_Meep]

@@ -24,13 +24,22 @@ from typing import Any, Callable
 import numpy as np
 import yaml
 
-from phc2d.data.full_cell import FullCellStructureSpec, build_full_bz_grid, write_full_cell_hdf5
+from phc2d.data.full_cell import (
+    MASTER_BLOCK_MEAN_V1,
+    FullCellStructureSpec,
+    build_full_bz_grid,
+    build_full_cell_raster_pyramid,
+    hash_raster_content,
+    write_full_cell_hdf5,
+)
 from phc2d.generators.full_cell import (
-    _build_spec,
+    build_full_cell_structure_spec,
     full_cell_structure_stats,
     generate_binary_polar_holes,
     generate_binary_spectral_threshold,
     generate_graded_rbf_fourier,
+    generate_unified_fourier_binary,
+    generate_unified_fourier_graded,
 )
 from phc2d.runs import (
     ensure_figures_dir,
@@ -220,15 +229,23 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
     solver = dict(cfg.get("solver") or {})
     k_grid = dict(cfg.get("k_grid") or {})
     stage = str(experiment.get("stage", "dataset_generation"))
+    protocol = str(dataset.get("protocol", ""))
     if not experiment.get("experiment_id"):
         problems.append("experiment.experiment_id is required")
     if stage not in {"solver_preflight", "dataset_generation"}:
         problems.append("experiment.stage must be solver_preflight or dataset_generation")
     if stage == "dataset_generation":
-        if dataset.get("protocol") != "full_cell_v1":
-            problems.append("dataset.protocol must be full_cell_v1")
-        if dataset.get("lane") not in {"graded_medium", "binary_air_holes"}:
-            problems.append("dataset.lane must be graded_medium or binary_air_holes")
+        if protocol not in {"full_cell_v1", "full_cell_fourier_v2"}:
+            problems.append("dataset.protocol must be full_cell_v1 or full_cell_fourier_v2")
+        allowed_lanes = (
+            {"graded_medium", "binary_air_holes"}
+            if protocol == "full_cell_v1"
+            else {"graded_fourier", "binary_fourier"}
+        )
+        if dataset.get("lane") not in allowed_lanes:
+            problems.append(
+                "dataset.lane does not match the selected full-cell protocol"
+            )
         if int(dataset.get("sample_count", 0)) <= 0:
             problems.append("dataset.sample_count must be positive")
         split = dict(dataset.get("split") or {})
@@ -236,8 +253,23 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
             problems.append("dataset split counts must sum to sample_count")
         if not dataset.get("output_path"):
             problems.append("dataset.output_path is required")
-        if [int(value) for value in dataset.get("raster_resolutions", [])] != [32, 64, 128]:
-            problems.append("dataset.raster_resolutions must be exactly [32, 64, 128]")
+        expected_rasters = [32, 64, 128] if protocol == "full_cell_v1" else [32, 64, 128, 256]
+        if [int(value) for value in dataset.get("raster_resolutions", [])] != expected_rasters:
+            problems.append(
+                f"dataset.raster_resolutions must be exactly {expected_rasters}"
+            )
+        if protocol == "full_cell_fourier_v2":
+            raster_contract = dict(dataset.get("raster_contract") or {})
+            if raster_contract.get("method") != MASTER_BLOCK_MEAN_V1:
+                problems.append("full_cell_fourier_v2 requires master_block_mean_v1")
+            if int(raster_contract.get("source_resolution", 0)) != 256:
+                problems.append("full_cell_fourier_v2 raster source_resolution must be 256")
+            if str(solver.get("resolution_status", "")) != "frozen_resolution_64":
+                problems.append(
+                    "full_cell_fourier_v2 requires solver.resolution_status=frozen_resolution_64"
+                )
+            if not str(solver.get("resolution_evidence", "")).strip():
+                problems.append("full_cell_fourier_v2 requires solver.resolution_evidence")
         plan_workers = generator.get("plan_workers", 1)
         if not (isinstance(plan_workers, str) and plan_workers.lower() == "auto"):
             try:
@@ -354,13 +386,138 @@ def _stable_stratified_splits(
     return arrays[0], arrays[1], arrays[2], labels
 
 
-def _structure_schedule(lane: str, count: int) -> list[tuple[str, int | None, str]]:
-    rows: list[tuple[str, int | None, str]] = []
+def build_full_cell_hash_ledger(
+    structures: Sequence[FullCellStructureSpec],
+    cfg: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Build parameter/record/content hash rows and an explicit collision ledger."""
+
+    dataset = dict(cfg["dataset"])
+    protocol = str(dataset["protocol"])
+    rows: list[dict[str, Any]] = [
+        {
+            "sample_index": index,
+            "sample_id": structure.sample_id,
+            "parameter_hash": structure.parameter_hash,
+            "geometry_hash": structure.geometry_hash,
+        }
+        for index, structure in enumerate(structures)
+    ]
+    if protocol == "full_cell_fourier_v2":
+        raster_contract = dict(dataset["raster_contract"])
+        resolutions = tuple(int(value) for value in dataset["raster_resolutions"])
+        source_resolution = int(raster_contract["source_resolution"])
+        levels = int(raster_contract.get("content_hash_quantization_levels", 65536))
+        for row, structure in zip(rows, structures):
+            pyramid = build_full_cell_raster_pyramid(
+                structure,
+                resolutions=resolutions,
+                source_resolution=source_resolution,
+                method=str(raster_contract["method"]),
+            )
+            for resolution, grid in pyramid.grids.items():
+                if structure.material_kind == "binary" and resolution == source_resolution:
+                    kind = "binary"
+                elif structure.material_kind == "binary":
+                    kind = "area_fraction"
+                else:
+                    kind = "continuous"
+                row[f"content_hash_r{resolution}"] = hash_raster_content(
+                    grid,
+                    material_kind=kind,
+                    quantization_levels=levels,
+                )
+
+    collisions: list[dict[str, Any]] = []
+    hash_fields = sorted(
+        {
+            key
+            for row in rows
+            for key in row
+            if key in {"parameter_hash", "geometry_hash"}
+            or key.startswith("content_hash_r")
+        }
+    )
+    for field_name in hash_fields:
+        grouped: dict[str, list[str]] = defaultdict(list)
+        for row in rows:
+            grouped[str(row[field_name])].append(str(row["sample_id"]))
+        for digest, sample_ids in sorted(grouped.items()):
+            if len(sample_ids) > 1:
+                collisions.append(
+                    {
+                        "hash_type": field_name,
+                        "hash": digest,
+                        "count": len(sample_ids),
+                        "sample_ids": sample_ids,
+                    }
+                )
+    return rows, collisions
+
+
+def _write_hash_ledgers(
+    root: Path,
+    hash_rows: Sequence[Mapping[str, Any]],
+    collisions: Sequence[Mapping[str, Any]],
+) -> None:
+    fields = sorted({key for row in hash_rows for key in row})
+    with (root / "hash_ledger.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(dict(row) for row in hash_rows)
+    collision_fields = ["hash_type", "hash", "count", "sample_ids"]
+    with (root / "collision_ledger.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=collision_fields)
+        writer.writeheader()
+        for row in collisions:
+            writer.writerow(
+                {
+                    **dict(row),
+                    "sample_ids": _canonical_json(row.get("sample_ids", [])),
+                }
+            )
+
+
+def _require_unique_full_cell_hashes(
+    collisions: Sequence[Mapping[str, Any]],
+) -> None:
+    if collisions:
+        first = collisions[0]
+        raise RuntimeError(
+            "full-cell hash collision detected; generation is fail-closed: "
+            f"{first['hash_type']} {first['hash']}"
+        )
+
+
+def _structure_schedule(lane: str, count: int) -> list[tuple[str, Any, str]]:
+    rows: list[tuple[str, Any, str]] = []
     if lane == "graded_medium":
         for index in range(count):
             core_count = 1 if index % 2 == 0 else 2
             rows.append(("graded_rbf_fourier", core_count, f"graded_core_{core_count}"))
         return rows
+    if lane == "binary_fourier":
+        return [
+            (
+                "unified_fourier_binary",
+                index % 4,
+                f"binary_material_q{index % 4 + 1}",
+            )
+            for index in range(count)
+        ]
+    if lane == "graded_fourier":
+        cycle = [
+            (
+                "unified_fourier_graded",
+                (material_bin, temperature_bin),
+                f"graded_material_q{material_bin + 1}_temperature_q{temperature_bin + 1}",
+            )
+            for material_bin in range(4)
+            for temperature_bin in range(4)
+        ]
+        return [cycle[index % len(cycle)] for index in range(count)]
+    if lane != "binary_air_holes":
+        raise ValueError(f"unsupported full-cell lane: {lane}")
     cycle = (
         ("binary_polar_holes", 1, "polar_hole_1"),
         ("binary_polar_holes", 2, "polar_hole_2"),
@@ -371,7 +528,7 @@ def _structure_schedule(lane: str, count: int) -> list[tuple[str, int | None, st
 
 
 def _generate_structure_task(
-    task: tuple[int, str, int | None, str, int, str, dict[str, Any]],
+    task: tuple[int, str, Any, str, int, str, dict[str, Any]],
 ) -> tuple[FullCellStructureSpec, str]:
     index, family, variant, stratum, seed, experiment_id, generator_cfg = task
     sample_id = f"{experiment_id}_{index:06d}"
@@ -389,12 +546,30 @@ def _generate_structure_task(
             hole_count=int(variant),
             config=generator_cfg,
         )
-    else:
+    elif family == "binary_spectral_threshold":
         structure = generate_binary_spectral_threshold(
             sample_id,
             master_seed=seed,
             config=generator_cfg,
         )
+    elif family == "unified_fourier_binary":
+        structure = generate_unified_fourier_binary(
+            sample_id,
+            master_seed=seed,
+            material_fraction_bin=int(variant),
+            config=generator_cfg,
+        )
+    elif family == "unified_fourier_graded":
+        material_bin, temperature_bin = variant
+        structure = generate_unified_fourier_graded(
+            sample_id,
+            master_seed=seed,
+            material_fraction_bin=int(material_bin),
+            temperature_bin=int(temperature_bin),
+            config=generator_cfg,
+        )
+    else:
+        raise ValueError(f"unsupported full-cell generator family: {family}")
     return structure, stratum
 
 
@@ -538,14 +713,15 @@ def _load_frozen_sample_plan(
         split = str(row.get("split"))
         if split not in {"train", "val", "test"}:
             raise ValueError(f"Frozen sample plan split mismatch at row {index}")
-        structure = _build_spec(
+        structure = build_full_cell_structure_spec(
             sample_id=sample_id,
             family=family,
-            material_kind="continuous" if family == "graded_rbf_fourier" else "binary",
+            material_kind="continuous" if "graded" in family else "binary",
             payload=dict(row.get("parameters") or {}),
             metadata={"stats": dict(row.get("stats") or {}), "resumed_from_sample_plan": True},
             epsilon_air=epsilon_air,
             epsilon_material=epsilon_material,
+            schema_version=str(row.get("schema_version", "phc2d.full_cell.v1")),
         )
         if structure.geometry_hash != str(row.get("geometry_hash")):
             raise ValueError(f"Frozen sample plan geometry hash mismatch at row {index}")
@@ -646,6 +822,9 @@ def prepare_full_cell_sample_plan(
         )
         sample_ids = [structure.sample_id for structure in structures]
         _, _, _, split_labels = _stable_stratified_splits(sample_ids, strata, split_counts)
+        hash_rows, collisions = build_full_cell_hash_ledger(structures, cfg)
+        _write_hash_ledgers(out, hash_rows, collisions)
+        _require_unique_full_cell_hashes(collisions)
         rows = [
             {
                 "sample_id": structure.sample_id,
@@ -653,13 +832,25 @@ def prepare_full_cell_sample_plan(
                 "split": split_labels[index],
                 "stratum": strata[index],
                 "generator_family": structure.generator_family,
+                "material_kind": structure.material_kind,
+                "schema_version": structure.schema_version,
                 "geometry_hash": structure.geometry_hash,
+                **{
+                    key: value
+                    for key, value in hash_rows[index].items()
+                    if key.endswith("_hash") or key.startswith("content_hash_r")
+                },
                 "parameters": structure.parameters,
                 "stats": structure.metadata.get("stats", {}),
             }
             for index, structure in enumerate(structures)
         ]
         _write_jsonl_atomic(sample_plan_path, rows)
+
+    if reused:
+        hash_rows, collisions = build_full_cell_hash_ledger(structures, cfg)
+        _write_hash_ledgers(out, hash_rows, collisions)
+        _require_unique_full_cell_hashes(collisions)
 
     plan_hash = _file_hash(sample_plan_path)
     manifest = {
@@ -674,6 +865,7 @@ def prepare_full_cell_sample_plan(
         "lane": dataset_cfg["lane"],
         "split": split_counts,
         "strata": dict(Counter(strata)),
+        "hash_collision_count": len(collisions),
         "reused_existing_plan": reused,
         "plan_workers_resolved": plan_workers,
     }
@@ -724,13 +916,30 @@ def _write_preview_figures(
     *,
     n_side: int,
     raster_resolutions: Sequence[int],
+    raster_contract: Mapping[str, Any] | None = None,
 ) -> None:
     import matplotlib.pyplot as plt
 
     count = min(6, len(structures))
+    contract = dict(raster_contract or {})
+    method = str(contract.get("method", "direct_cell_center_v1"))
+    source_resolution = int(contract.get("source_resolution", max(raster_resolutions)))
+
+    def material_grid(structure: FullCellStructureSpec, resolution: int) -> np.ndarray:
+        if method == MASTER_BLOCK_MEAN_V1:
+            return build_full_cell_raster_pyramid(
+                structure,
+                resolutions=[resolution],
+                source_resolution=source_resolution,
+                method=method,
+            ).grids[resolution]
+        return structure.rasterize((resolution, resolution))
+
     fig, axes = plt.subplots(2, 3, figsize=(9, 6), squeeze=False)
     for axis, structure in zip(axes.flat, structures[:count]):
-        image = axis.imshow(structure.epsilon_grid((64, 64)), origin="lower", cmap="Blues", vmin=structure.epsilon_air, vmax=structure.epsilon_material)
+        weight = material_grid(structure, 64)
+        epsilon = structure.epsilon_air + (structure.epsilon_material - structure.epsilon_air) * weight
+        image = axis.imshow(epsilon, origin="lower", cmap="Blues", vmin=structure.epsilon_air, vmax=structure.epsilon_material)
         axis.set_title(f"{structure.generator_family}\n{structure.sample_id}", fontsize=8)
         axis.set_xticks([]); axis.set_yticks([])
     for axis in list(axes.flat)[count:]:
@@ -742,7 +951,7 @@ def _write_preview_figures(
     resolutions = [int(value) for value in raster_resolutions]
     fig, axes = plt.subplots(1, len(resolutions), figsize=(3 * len(resolutions), 3), squeeze=False)
     for axis, resolution in zip(axes.flat, resolutions):
-        axis.imshow(structures[0].epsilon_grid((resolution, resolution)), origin="lower", cmap="Blues")
+        axis.imshow(material_grid(structures[0], resolution), origin="lower", cmap="Blues", vmin=0.0, vmax=1.0)
         axis.set_title(f"{resolution}x{resolution}")
         axis.set_xticks([]); axis.set_yticks([])
     fig.savefig(figures_dir / "resolution_pairing.png", dpi=180, bbox_inches="tight")
@@ -765,6 +974,8 @@ def run_full_cell_generation(
     max_samples: int | None = None,
     workers: int | str | None = None,
     plan_workers: int | str | None = None,
+    fourier_cutoff: int | None = None,
+    dataset_output: str | Path | None = None,
     skip_environment_check: bool = False,
     solver_fn: FullCellSolverFn = solve_bands_for_full_cell_mpb,
 ) -> Path:
@@ -772,6 +983,18 @@ def run_full_cell_generation(
 
     config_path = _repo_path(config_path)
     cfg = load_full_cell_generation_config(config_path)
+    if fourier_cutoff is not None:
+        if int(fourier_cutoff) <= 0:
+            raise ValueError("fourier_cutoff override must be positive")
+        cfg["generator"] = {
+            **dict(cfg.get("generator") or {}),
+            "fourier_cutoff": int(fourier_cutoff),
+        }
+    if dataset_output is not None:
+        cfg["dataset"] = {
+            **dict(cfg.get("dataset") or {}),
+            "output_path": str(Path(dataset_output)),
+        }
     experiment = dict(cfg.get("experiment") or {})
     experiment_id = str(experiment.get("experiment_id", "full_cell_generation"))
     output_cfg = dict(cfg.get("output") or {})
@@ -786,6 +1009,8 @@ def run_full_cell_generation(
             "max_samples": max_samples,
             "workers_override": workers,
             "plan_workers_override": plan_workers,
+            "fourier_cutoff_override": fourier_cutoff,
+            "dataset_output_override": str(dataset_output) if dataset_output is not None else None,
         },
     }
     resolved_yaml = yaml.safe_dump(resolved, sort_keys=False, allow_unicode=True)
@@ -852,6 +1077,9 @@ def run_full_cell_generation(
             }
         )
     structure_plan_time_s = float(time.perf_counter() - structure_plan_started)
+    hash_rows, collisions = build_full_cell_hash_ledger(structures, cfg)
+    _write_hash_ledgers(out, hash_rows, collisions)
+    _require_unique_full_cell_hashes(collisions)
     k_points, k_grid_index = build_full_bz_grid(int(dict(cfg["k_grid"])["n_side"]))
     solver_cfg = _solver_config(dict(cfg["solver"]))
     worker_payload = dict(cfg.get("workers") or {})
@@ -882,7 +1110,14 @@ def run_full_cell_generation(
                     "split": split_labels[index],
                     "stratum": strata[index],
                     "generator_family": structure.generator_family,
+                    "material_kind": structure.material_kind,
+                    "schema_version": structure.schema_version,
                     "geometry_hash": structure.geometry_hash,
+                    **{
+                        key: value
+                        for key, value in hash_rows[index].items()
+                        if key.endswith("_hash") or key.startswith("content_hash_r")
+                    },
                     "parameters": structure.parameters,
                     "stats": structure.metadata.get("stats", {}),
                 }
@@ -940,8 +1175,9 @@ def run_full_cell_generation(
         if real_mpb_generation_eligible
         else "unaccepted_test_only_injected_or_unchecked_solver"
     )
+    raster_contract = dict(dataset_cfg.get("raster_contract") or {})
     metadata = {
-        "protocol": "full_cell_v1",
+        "protocol": dataset_cfg["protocol"],
         "lane": dataset_cfg["lane"],
         "sample_count": effective_count,
         "split": split_counts,
@@ -951,6 +1187,11 @@ def run_full_cell_generation(
         "config_path": _relative(config_path),
         "config_hash": _hash_text(resolved_yaml),
         "validation_boundary": validation_boundary,
+        "raster_contract": raster_contract or {
+            "method": "direct_cell_center_v1",
+            "source_resolution": max(raster_resolutions),
+        },
+        "content_hash_collision_count": len(collisions),
     }
     write_full_cell_hdf5(
         dataset_path,
@@ -963,11 +1204,25 @@ def run_full_cell_generation(
         idx_test=idx_test,
         raster_resolutions=raster_resolutions,
         metadata=metadata,
+        raster_method=str(raster_contract.get("method", "direct_cell_center_v1")),
+        raster_source_resolution=int(
+            raster_contract.get("source_resolution", max(raster_resolutions))
+        ),
+        content_hash_quantization_levels=int(
+            raster_contract.get("content_hash_quantization_levels", 65536)
+        ),
     )
     figures = ensure_figures_dir(out)
-    _write_preview_figures(figures, structures, bands, n_side=int(dict(cfg["k_grid"])["n_side"]), raster_resolutions=raster_resolutions)
+    _write_preview_figures(
+        figures,
+        structures,
+        bands,
+        n_side=int(dict(cfg["k_grid"])["n_side"]),
+        raster_resolutions=raster_resolutions,
+        raster_contract=raster_contract,
+    )
     sample_rows = []
-    for result, structure, stratum in zip(results, structures, strata):
+    for result, structure, stratum, hash_row in zip(results, structures, strata, hash_rows):
         sample_rows.append(
             {
                 "sample_id": structure.sample_id,
@@ -976,6 +1231,12 @@ def run_full_cell_generation(
                 "stratum": stratum,
                 "generator_family": structure.generator_family,
                 "geometry_hash": structure.geometry_hash,
+                "parameter_hash": structure.parameter_hash,
+                **{
+                    key: value
+                    for key, value in hash_row.items()
+                    if key.startswith("content_hash_r")
+                },
                 "Wh_hash": result.Wh_hash,
                 "mpb_solve_time_s": result.solve_time_s,
                 "solver_metadata": result.solve_metadata,
@@ -990,6 +1251,7 @@ def run_full_cell_generation(
         "acceptance_eligible": formal_acceptance_eligible,
         "execution_profile": execution_profile,
         "geometry_convention": "analytic_periodic_full_cell_material_function",
+        "raster_contract": metadata["raster_contract"],
         "solver": dict(cfg["solver"]),
         "k_grid": {**dict(cfg["k_grid"]), "k_points_hash": _hash_text(_canonical_json(k_points))},
         "dataset_file_hash": _file_hash(dataset_path),

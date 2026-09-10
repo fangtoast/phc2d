@@ -1,3 +1,17 @@
+---
+title: "Full-cell inverse Stage-A runner smoke（2026-08-06）"
+summary: "日期化实验与验证证据；正文保持原始记录。"
+page_type: archive
+status: historical
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 5 minutes
+primary_layer: L3
+evidence_date: 2026-08-06
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+---
+
 <!--
   Full-cell inverse Stage-A resumable runner smoke evidence.
   Author: fangtoast
@@ -6,6 +20,9 @@
 -->
 
 # Full-cell inverse Stage-A runner smoke（2026-08-06）
+
+!!! warning "历史证据"
+    本页是 runner smoke，仅证明最小执行链；不属于正式研究结果。
 
 | Metadata | Value |
 |---|---|
@@ -24,9 +41,9 @@ full-cell inverse Stage-A 已有独立的 `(variant, method, seed)` 单任务训
 ## 冻结入口
 
 - CLI：`phc2d inverse full-cell-train --config ... --variant ... --method ... --seed ... --run-dir ...`；
-- CPU smoke config：[`full_cell_inverse_stage_a_train_cpu_v1.yaml`](../../../configs/smoke/full_cell_inverse_stage_a_train_cpu_v1.yaml)；
-- N40 formal config：[`full_cell_inverse_stage_a_train_n40_v1.yaml`](../../../configs/research/full_cell_inverse_stage_a_train_n40_v1.yaml)；
-- N40 单任务 wrapper：[`paracloud_gpu_full_cell_inverse_stage_a_train.sh`](../../../jobs/paracloud_gpu_full_cell_inverse_stage_a_train.sh)。
+- CPU smoke config：[`full_cell_inverse_stage_a_train_cpu_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/smoke/full_cell_inverse_stage_a_train_cpu_v1.yaml)；
+- N40 formal config：[`full_cell_inverse_stage_a_train_n40_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_inverse_stage_a_train_n40_v1.yaml)；
+- N40 单任务 wrapper：[`paracloud_gpu_full_cell_inverse_stage_a_train.sh`](https://github.com/fangtoast/phc2d/blob/master/jobs/paracloud_gpu_full_cell_inverse_stage_a_train.sh)。
 
 正式 N40 配置冻结 200 epochs、`50/100/150/200` checkpoint、patience 20、batch/validation batch 64、FP32、AMP/TF32 off，以及 Direct `3e-4`、Single/Mixture `1e-4`。配置包含 binary/graded 数据集 SHA-256，runner 还把 config、codec、dataset、code revision 和 variant/method/seed 作为 resume identity；任一不一致即拒绝恢复。
 

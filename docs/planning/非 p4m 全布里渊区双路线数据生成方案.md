@@ -1,3 +1,17 @@
+---
+title: "非 p4m 全布里渊区双路线数据生成方案"
+summary: "历史研究记录；正文保持原始时间语境，不代表当前状态。"
+page_type: archive
+status: historical
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 8 minutes
+primary_layer: L3
+evidence_date: 2026-08-03
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+---
+
 <!--
   Historical design snapshot for the non-p4m full-cell dual-lane data protocol.
   Author: fangtoast
@@ -19,7 +33,7 @@
 | Last reviewed | 2026-08-10 |
 | Reading time | 8 minutes |
 
-> 阅读边界：本文保留历史方案正文，不证明当前任务仍停留在 64+64 pilot，也不证明模型训练或 inverse replay 已完成。当前完成状态以 [`PROJECT_MAP.md`](../../PROJECT_MAP.md) 和[全胞双路线 pilot 结果](../results/data-provenance/full_cell_dual_lane_pilot_20260803.md)为准。
+> 阅读边界：本文保留历史方案正文，不证明当前任务仍停留在 64+64 pilot，也不证明模型训练或 inverse replay 已完成。当前完成状态以 [`PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md) 和[全胞双路线 pilot 结果](../results/data-provenance/full_cell_dual_lane_pilot_20260803.md)为准。
 
 ## 总体设计
 

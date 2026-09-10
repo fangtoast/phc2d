@@ -1,3 +1,25 @@
+---
+title: "A1 10k V2 Forward/Query 公平对照正式结果"
+summary: "日期化实验与验证证据；正文保持原始记录。"
+page_type: evidence
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 12 minutes
+primary_layer: L3
+evidence_date: 2026-07-26
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+dataset_scope: v2_10k_wh31x10
+evidence_level: surrogate_held_out
+evidence_status: completed
+validation_backend: surrogate_only
+source_artifacts:
+  - runs/20260724/a1_forward_fair_v1_202607240020
+  - runs/20260724/a1_query_fair_v1_202607240803
+  - runs/20260726/a1_forward_mlp_ablation_v1_202607261605
+---
+
 <!--
   Formal A1 10k V2 forward/query fair-baseline result and audit.
   Author: fangtoast
@@ -22,6 +44,8 @@
 
 ---
 
+<a id="一结论"></a>
+
 ## 一、结论
 
 1. **A1 已完成扩展后的公平验收。** Forward 为 `36 validation / 12 selected-LR test / 4 summary`，Query 为 `81 validation / 27 selected-LR test / 9 summary`；所有汇总严格为 validation 选 LR 后的 test `n=3`。
@@ -32,6 +56,8 @@
 6. **当前 A1 不使用 POD。** Forward 模型直接输出完整 `Wh`，Query 模型直接输出查询点 band vector；`pod_res_mlp` 仍是未实现占位符。
 
 ---
+
+<a id="二协议与完整性"></a>
 
 ## 二、协议与完整性
 
@@ -64,6 +90,8 @@ Query 使用 sidecar `query_dataset_v2_pilot_square_gxm_mpb_reduced_v1`，状态
 三个协议均保持 train/val/test structure ID 隔离。所有 Query validation/test 行均记录 physical coordinate source、`cuda:0`、有限梯度和可读取 checkpoint。
 
 ---
+
+<a id="三forward-结果"></a>
 
 ## 三、Forward 结果
 
@@ -106,6 +134,8 @@ bands 2–10 的平均 per-band 诊断显示：
 
 ---
 
+<a id="四query-结果"></a>
+
 ## 四、Query 结果
 
 ### 4.1 主表
@@ -140,6 +170,8 @@ held-out segment 的共同最差 k index 为 26，且 band 4 对三个模型均�
 
 ---
 
+<a id="五运行成本"></a>
+
 ## 五、运行成本
 
 | 范围 | 累计 validation train time | runner wall time | 说明 |
@@ -152,6 +184,8 @@ held-out segment 的共同最差 k index 为 26，且 band 4 对三个模型均�
 Query 的累计 GPU 训练成本按 81 个 case 的持久化 `train_time_s` 重建；没有把最后一次恢复进程的局部 wall time冒充完整 Query 耗时。
 
 ---
+
+<a id="六模型身份与结论边界"></a>
 
 ## 六、模型身份与结论边界
 
@@ -168,6 +202,8 @@ Query 的累计 GPU 训练成本按 81 个 case 的持久化 `train_time_s` 重�
 `fno2d_*` 与 `deep_onet_query_v2` 不能称为 faithful literature reproduction。A1 的 `formal_completed` 仅表示本地冻结 neural-surrogate 协议完成，不表示通过真实 MPB replay，也不表示 PINO/MaxwellNet 或 inverse gate 已通过。2026-07-02 及更早结果只作为历史诊断，不进入本次 validation-selected 主表。
 
 ---
+
+<a id="七验收结果"></a>
 
 ## 七、验收结果
 

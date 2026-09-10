@@ -1,3 +1,24 @@
+---
+title: "全胞双路线 50k 正向训练与冻结评估完整报告"
+summary: "日期化实验与验证证据；正文保持原始记录。"
+page_type: evidence
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 12 minutes
+primary_layer: L3
+evidence_date: 2026-08-08
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+dataset_scope: full_cell_bz9_wh81x10
+evidence_level: surrogate_held_out
+evidence_status: completed
+validation_backend: surrogate_only
+source_artifacts:
+  - runs/20260807/full_cell_forward_50k_17wave_campaign_202608071737
+  - runs/20260808/full_cell_forward_50k_evaluation_campaign_20260808162200
+---
+
 <!--
   Full-cell dual-lane 50k forward training and frozen-evaluation report.
   Author: fangtoast

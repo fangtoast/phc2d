@@ -1,3 +1,15 @@
+---
+title: "全胞双路线训练与混合算力规划索引"
+summary: "研究计划索引；按任务族路由到现行协议与历史记录。"
+page_type: landing
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 5 minutes
+primary_layer: L0
+---
+
 <!--
   Index for full-cell forward training, hybrid compute, and inverse-design plans.
   Author: fangtoast

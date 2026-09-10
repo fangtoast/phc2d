@@ -1,3 +1,24 @@
+---
+title: "10k Inverse 多正向替代模型 Rerank 与真实 MPB Replay 对比"
+summary: "日期化实验与验证证据；正文保持原始记录。"
+page_type: evidence
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 8 minutes
+primary_layer: L3
+evidence_date: 2026-06-30
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+dataset_scope: v2_10k_wh31x10
+evidence_level: solver_replay
+evidence_status: pilot
+validation_backend: wsl_mpb
+source_artifacts:
+  - runs/20260630/inverse_surrogate_rerank_v2_10000_202606301521
+  - runs/20260630/inverse_mpb_replay_v2_10000_strategy_pilot_202606301529
+---
+
 <!--
   10k inverse multi-surrogate rerank and MPB replay report.
   Author: fangtoast

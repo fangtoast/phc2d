@@ -1,3 +1,17 @@
+---
+title: "B4：dense-k 与跨分辨率准入结果"
+summary: "日期化实验与验证证据；正文保持原始记录。"
+page_type: archive
+status: historical
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 3 minutes
+primary_layer: L3
+evidence_date: 2026-07-22
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+---
+
 <!--
   B4 dense-k admission result report.
   Author: fangtoast
@@ -9,11 +23,16 @@
 
 # B4：dense-k 与跨分辨率准入结果
 
+!!! warning "历史证据"
+    本页记录 dense-k 与跨分辨率准入过程，不属于正式结果白名单；准入结论只在页面声明的合同内有效。
+
 **结论：** B4 的 frequency-guard、冻结三 seed 和 dense-k 正式评估均已完成，但三项准入状态均为 `blocked`。PINO 不能进入 inverse cross-check、residual rerank、跨分辨率 claim、inverse sampling 或 replay。
 
 **目录：** [实验范围](#一实验范围) · [裁决结果](#二裁决结果) · [可追溯产物](#三可追溯产物) · [边界](#四边界)
 
 ---
+
+<a id="一实验范围"></a>
 
 ## 一、实验范围
 
@@ -22,6 +41,8 @@
 - 评估：val/test 各 32 structures，31 path indices、30 个唯一坐标、8 seen-k、22 unseen-k、bands 2–10 和 64/96/128 分辨率；共 321,408 条 case-row，36 个原子 partial 全部完成。
 
 ---
+
+<a id="二裁决结果"></a>
 
 ## 二、裁决结果
 
@@ -35,6 +56,8 @@
 
 ---
 
+<a id="三可追溯产物"></a>
+
 ## 三、可追溯产物
 
 正式 run 位于本地 `runs/20260722/field_eigen_te_b4_dense_k_gate_202607220819`。
@@ -45,6 +68,8 @@
 - `lineage.json`、`history.csv`：输入绑定和 36/36 分片完成记录。
 
 ---
+
+<a id="四边界"></a>
 
 ## 四、边界
 

@@ -1,3 +1,15 @@
+---
+title: "全胞正向与逆向模型报告图件索引"
+summary: "报告图件及来源索引；用于核对资产和证据出处。"
+page_type: asset-index
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 3 minutes
+primary_layer: L3
+---
+
 <!--
 Purpose: Curated figure index for the 2026-08-10 full-cell forward/inverse model report.
 Author: fangtoast
@@ -22,4 +34,4 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 | 50k native 九模型对照 | [PNG](figure_6_1_native_50k_model_comparison.png) | [SVG](figure_6_1_native_50k_model_comparison.svg) | 同一 held-out test 的 surrogate MRE；不是组件消融或 real-MPB replay |
 | Inverse Stage-A 网络 | [PNG](figure_7_1_inverse_stage_a_models.png) | [SVG](figure_7_1_inverse_stage_a_models.svg) | 已实现结构合同；不代表正式 45-run、Stage B 或 replay 完成 |
 
-全部十张图由 [`src/phc2d/plot/full_cell_model_architectures.py`](../../../../src/phc2d/plot/full_cell_model_architectures.py) 生成；图中的数据流、模型名称与参数对应 2026-08-10 的配置、registry 和实现快照。
+全部十张图由 [`src/phc2d/plot/full_cell_model_architectures.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/plot/full_cell_model_architectures.py) 生成；图中的数据流、模型名称与参数对应 2026-08-10 的配置、registry 和实现快照。

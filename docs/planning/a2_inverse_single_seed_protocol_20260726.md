@@ -1,3 +1,21 @@
+---
+title: "A2 单 Seed 逆向设计派生协议"
+summary: "研究计划或执行协议；实施前需与当前代码和证据重新核对。"
+page_type: plan
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 3 minutes
+primary_layer: L0
+plan_state: completed
+effective_date: 2026-07-26
+superseded_by: null
+related_results:
+  - docs/results/inverse/a2_inverse_single_seed_formal_20260727.md
+  - docs/results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md
+---
+
 <!--
   A2 single-seed fair inverse benchmark derivative protocol.
   Author: fangtoast
@@ -10,7 +28,7 @@
 ## 目的与证据边界
 
 本协议记录用户批准的成本压缩：A2 全流程固定 `seed=0`，但不改写
-[`baseline_protocol_v1.yaml`](../../configs/research/baseline_protocol_v1.yaml)
+[`baseline_protocol_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/baseline_protocol_v1.yaml)
 中的原三 seed 历史。完整执行后的唯一正式证据标签为
 `single_seed_formal_replay`。
 
@@ -23,7 +41,7 @@ real-MPB replay。它不支持“跨 seed 稳定”“三 seed 显著”或普�
 |---|---|
 | 数据 | 10k V2，SHA-256 `991cb381…974ad4` |
 | split | `6875/2500/625` |
-| targets | [`inverse_paired_test100_v1.json`](../../configs/research/target_manifests/inverse_paired_test100_v1.json) |
+| targets | [`inverse_paired_test100_v1.json`](https://github.com/fangtoast/phc2d/blob/master/configs/research/target_manifests/inverse_paired_test100_v1.json) |
 | seed | `0` |
 | 方法 | retrieval、direct inverse、single-mode generator、mixture generator |
 | LR | `1e-3 / 3e-4 / 1e-4` |
@@ -33,7 +51,7 @@ real-MPB replay。它不支持“跨 seed 稳定”“三 seed 显著”或普�
 | 诊断器 | A1 validation-selected `fno2d_query_v2` seed 0，仅作 cross-surrogate 诊断 |
 
 所有路径与 hash 的机器可执行定义位于
-[`a2_inverse_single_seed_v1.yaml`](../../configs/research/a2_inverse_single_seed_v1.yaml)。
+[`a2_inverse_single_seed_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/a2_inverse_single_seed_v1.yaml)。
 
 ## 阶段门禁
 

@@ -1,0 +1,5 @@
+lane,dataset_index,dataset,grid_field,shape,minimum,maximum
+binary,89,data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5,material_area_fraction_grid_64,64x64,0,1
+binary,96,data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5,material_area_fraction_grid_64,64x64,0,1
+graded,62,data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5,material_weight_grid_64,64x64,4.20877643847e-09,1
+graded,337,data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5,material_weight_grid_64,64x64,5.43242859551e-13,1

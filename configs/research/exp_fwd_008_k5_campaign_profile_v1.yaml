@@ -1,0 +1,29 @@
+# EXP-FWD-008 fixed-200 campaign control-plane profile.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: phc2d.full_cell_training_campaign.v2
+experiment_id: EXP-FWD-008
+family: K5_fixed_200
+primary_layer: L3
+evidence_status: user_authorized_surrogate_training_pending_wsl_acceptance
+datasets:
+  B: {path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6}
+  G: {path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20}
+configs:
+  B: configs/research/full_cell_k5_forward_008_binary_seed0_v1.yaml
+  G: configs/research/full_cell_k5_forward_008_graded_seed0_v1.yaml
+  J: configs/research/full_cell_k5_forward_008_dual_lane_seed0_v1.yaml
+models:
+  baseline: [mlp, res_mlp_wide, lifted_cnn, fno2d_band_v2]
+  single_lane_upgrade: [mlp_mixer_band_v1, res_mlp_gated_v2, convnext_band_v1, tfno2d_band_v3]
+  joint: dual_lane_band_operator_v1
+training: {seed: 0, head: dense, max_epochs: 200, required_stop_epoch: 200, early_stopping_patience: 0, epoch_100_continue_gate: false, stop_epoch: 200, convergence_window: [181, 200], convergence_relative_threshold: 0.005, convergence_metric: validation_bands_2_10_mre, require_terminal_checkpoint: true, admission_task_count: 17, max_concurrency: 8}
+submission:
+  account_max_submit_jobs: 16
+  reserved_submitted_jobs: 1
+  admission_submission_units: [15, 2]
+  training_waves: [W1, W2, W3]
+  resources: {partition: gpu_4090, gres: gpu:1, cpus_per_task: 6, time_limit: '12:00:00', max_parallel: 8}
+monitoring: {interval_minutes: 30, read_only: true, auto_retry: false, auto_resubmit: false, auto_cancel: false, auto_resource_change: false}

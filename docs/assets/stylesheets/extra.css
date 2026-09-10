@@ -1,0 +1,178 @@
+/* Readability refinements for the phc2d research documentation site.
+ * Author: fangtoast
+ * Email: fangtoast@foxmail.com
+ * Copyright (c) 2026 fangtoast. All rights reserved.
+ */
+
+:root {
+  --phc-ink: #20343f;
+  --phc-muted: #5c6f78;
+  --phc-accent: #137c8b;
+  --phc-soft: #edf7f7;
+  --phc-border: #d6e2e5;
+}
+
+.wy-nav-content {
+  max-width: 1040px;
+}
+
+.rst-content p,
+.rst-content li {
+  color: var(--phc-ink);
+  line-height: 1.75;
+}
+
+.rst-content h1,
+.rst-content h2,
+.rst-content h3 {
+  color: #17313c;
+  letter-spacing: 0.01em;
+}
+
+.rst-content h2 {
+  border-bottom: 1px solid var(--phc-border);
+  padding-bottom: 0.35rem;
+}
+
+.rst-content table.docutils,
+.rst-content table:not(.field-list) {
+  display: table;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.rst-content blockquote {
+  background: var(--phc-soft);
+  border-left: 4px solid var(--phc-accent);
+  margin-left: 0;
+  padding: 0.85rem 1rem;
+}
+
+.doc-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin: 1.5rem 0;
+}
+
+.doc-card {
+  border: 1px solid var(--phc-border);
+  border-radius: 6px;
+  padding: 1rem 1.1rem;
+}
+
+.doc-card h3 {
+  margin-top: 0;
+}
+
+.evidence-boundary {
+  color: var(--phc-muted);
+  font-size: 0.95rem;
+}
+
+.wy-menu-vertical .phc-nav-caption {
+  position: relative;
+}
+
+.wy-menu-vertical .phc-nav-caption .phc-section-link {
+  box-sizing: border-box;
+  color: #55a5d9;
+  display: block;
+  font-size: 85%;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0.4rem 3rem 0.4rem 1.6rem;
+  text-transform: uppercase;
+  width: 100%;
+}
+
+.wy-menu-vertical .phc-nav-caption .phc-section-link:hover {
+  color: #ffffff;
+}
+
+.wy-menu-vertical .phc-nav-group {
+  position: relative;
+}
+
+.wy-menu-vertical .phc-nav-group > .phc-section-link {
+  padding-right: 2.6rem;
+}
+
+.wy-menu-vertical .phc-nav-toggle {
+  background: transparent;
+  border: 0;
+  color: #b3b3b3;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  min-height: 2rem;
+  min-width: 2rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.wy-menu-vertical .phc-nav-chevron {
+  display: inline-block;
+  transform: rotate(0deg);
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.wy-menu-vertical .phc-nav-toggle[aria-expanded="true"] .phc-nav-chevron {
+  transform: rotate(90deg);
+}
+
+.wy-menu-vertical .phc-nav-group > .phc-nav-toggle {
+  position: absolute;
+  right: 0.25rem;
+  top: 0.1rem;
+  z-index: 2;
+}
+
+.wy-menu-vertical .phc-nav-caption > .phc-nav-toggle {
+  position: absolute;
+  right: 0.25rem;
+  top: 0;
+  z-index: 2;
+}
+
+.wy-menu-vertical .phc-nav-toggle:hover,
+.wy-menu-vertical .phc-nav-toggle:focus-visible {
+  color: #ffffff;
+  outline: 2px solid #55a5d9;
+  outline-offset: -2px;
+}
+
+.wy-menu-vertical ul[hidden] {
+  display: none !important;
+}
+
+.wy-menu-vertical ul.phc-nav-animating {
+  display: block !important;
+  overflow: hidden !important;
+  transition:
+    height 180ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 140ms ease-out;
+}
+
+.wy-menu-vertical .phc-nav-caption:not(.phc-nav-collapsed) + ul,
+.wy-menu-vertical .phc-nav-group:not(.phc-nav-collapsed) > ul {
+  display: block !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wy-menu-vertical .phc-nav-chevron,
+  .wy-menu-vertical ul.phc-nav-animating {
+    transition: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .wy-nav-content {
+    padding: 1.25rem;
+  }
+
+  .rst-content table.docutils,
+  .rst-content table:not(.field-list) {
+    display: block;
+    white-space: nowrap;
+  }
+}

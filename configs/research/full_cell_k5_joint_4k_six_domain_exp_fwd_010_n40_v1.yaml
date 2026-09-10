@@ -1,0 +1,15 @@
+# EXP-FWD-010 incremental six-domain held-out evaluation contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: phc2d.full_cell_joint_fair_six_domain.v1
+experiment_id: EXP-FWD-010
+primary_layer: L3
+scientific_boundary: surrogate_held_out_cross_domain
+evidence_status: user_authorized_surrogate_evaluation
+metric_schema: phc2d.full_cell_band_metrics.v1
+domains: [K5-B, K5-G, K20-B, K20-G, F50-B, F50-G]
+baseline_campaign: /data/run01/scw6g7a/phc2d-exp-fwd-008-dd8faaf/runs/20260825/EXP-FWD-009_six_domain_20260825181500
+baseline_identity: {source_family: K5, source_model: dual_lane_band_operator_v1, source_lane: J, source_seed: 0}
+statistics: {primary_metric: bands2_10_mre, paired_bootstrap_replicates: 10000}

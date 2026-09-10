@@ -105,7 +105,9 @@ def _normalize_freqs(freqs: np.ndarray, n_k: int, n_bands: int, *, band_order_po
     arr = np.asarray(freqs, dtype=np.float64)
     if arr.ndim != 2:
         raise RuntimeError(f"Unexpected MPB frequency array shape: {arr.shape}")
-    if arr.shape[0] == int(n_bands) and arr.shape[1] == int(n_k):
+    # MPB returns [k, band]. Accept only an unambiguous transposed adapter
+    # result; a square array must remain in MPB's native orientation.
+    if arr.shape[0] != int(n_k) and arr.shape[1] == int(n_k):
         arr = arr.T
     if arr.shape[0] != int(n_k):
         raise RuntimeError(f"Unexpected MPB frequency array shape after normalization: {arr.shape}")

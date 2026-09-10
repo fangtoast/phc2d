@@ -1,3 +1,15 @@
+---
+title: "旁支研究"
+summary: "研究报告索引；连接稳定主题与完整报告。"
+page_type: landing
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 1 minutes
+primary_layer: L1
+---
+
 <!--
   Side-project research index for the synchronized phc2d workspace.
   Author: fangtoast

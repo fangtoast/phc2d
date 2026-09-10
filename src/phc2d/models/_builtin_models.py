@@ -18,9 +18,18 @@ def _catalog_providers() -> tuple[CatalogProvider, ...]:
     from phc2d.models.catalog.field import model_specs as field_specs
     from phc2d.models.catalog.forward import model_specs as forward_specs
     from phc2d.models.catalog.full_cell import model_specs as full_cell_specs
+    from phc2d.models.catalog.full_cell_experimental import (
+        model_specs as full_cell_experimental_specs,
+    )
     from phc2d.models.catalog.query import model_specs as query_specs
 
-    return field_specs, forward_specs, query_specs, full_cell_specs
+    return (
+        field_specs,
+        forward_specs,
+        query_specs,
+        full_cell_specs,
+        full_cell_experimental_specs,
+    )
 
 
 def register_builtin_models() -> None:

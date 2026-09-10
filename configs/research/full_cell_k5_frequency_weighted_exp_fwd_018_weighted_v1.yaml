@@ -1,0 +1,84 @@
+# EXP-FWD-018 paired bounded inverse-frequency arm; frozen before N40 submission.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: EXP-FWD-018
+  family: full_cell_k5_theory_frequency_weighted_full_spectrum
+  lane: joint
+  arm: bounded_inverse_frequency
+  evidence_status: formal_three_seed_surrogate_validation
+  held_out_test_authorized: false
+datasets:
+  binary:
+    path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5
+    grid_field: material_area_fraction_grid_64
+    expected_dataset_sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6
+  graded:
+    path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5
+    grid_field: material_weight_grid_64
+    expected_dataset_sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20
+representation:
+  source: lane_specific_grid
+  sampling: continuous
+  threshold: null
+  resolution: 64
+  physical_equivalence: true
+  label_semantics: k5_fourier_lane_specific_Wh
+model:
+  name: dual_lane_band_operator_v1
+  params:
+    width: 64
+    depth: 6
+    modes: [12, 12]
+    factorization_rank: 0.75
+    norm_groups: 8
+    channel_expansion: 2
+    local_kernel: 3
+    drop_path: 0.1
+    num_lanes: 2
+    lane_embedding_dim: 16
+    head_hidden_dim: 256
+    band_embedding_dim: 32
+    fourier_frequencies: [1, 2, 4, 8]
+    dropout: 0.05
+training:
+  train_size: 8000
+  max_epochs: 200
+  required_stop_epoch: 200
+  require_terminal_checkpoint: true
+  convergence_window: [181, 200]
+  convergence_metric: validation_bands_2_10_mre
+  convergence_relative_threshold: 0.005
+  early_stopping_patience: 0
+  epoch_100_continue_gate: false
+  optimizer: adamw
+  learning_rate: 0.0005
+  weight_decay: 0.00001
+  micro_batch_size: 64
+  effective_batch_size: 64
+  lane_batch_size: {binary: 32, graded: 32}
+  loss:
+    name: equal_lane_bounded_inverse_frequency_v1
+    epsilon_air: 1.0
+    epsilon_material: 8.9
+    epsilon_f: 0.0008457602483520898
+    rho: 4.0
+    alpha: 0.25
+    center_kind: heuristic_folded_center_x
+    polarization: TE
+  checkpoint_selection: equal_lane_validation_bands_2_10_mre
+evaluation:
+  split: validation
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  num_workers: 4
+  pin_memory: true
+  non_blocking_transfer: true
+output:
+  runs_dir: runs

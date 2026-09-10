@@ -1,0 +1,64 @@
+# Xingyi Stage-A resource pilot for full-cell MPB resolution convergence.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: full_cell_resolution_convergence_xingyi_stage_a_v1
+  family: research
+  stage: resolution_convergence
+  phase: stage_a_resource_pilot
+
+datasets:
+  binary_air_holes: data/full_cell_binary_bz9_10000_xingyi_v1.h5
+  graded_medium: data/full_cell_graded_bz9_10000_paracloud_m9_v1.h5
+
+selection:
+  samples_per_lane: 8
+  policy: deterministic_round_robin_by_generator_stratum
+  k_policy: full_bz_all
+
+resolutions: [32, 48, 64, 96, 128]
+
+solver:
+  backend: mpb
+  environment: native_linux_conda_meep_env
+  use_proxy: false
+  lattice: square
+  lattice_constant: 1.0
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 32
+  mesh_size: 3
+  polarization: TE
+  num_bands: 10
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+  eigensolver_tolerance: 1.0e-7
+  expected_meep_version: 1.33.0-beta
+  expected_mpb_version: 1.12.0
+
+workers:
+  workers: 16
+  min_workers: 16
+  max_workers: 16
+  worker_backend: processpool
+  fail_fast: false
+  suppress_solver_output: true
+  worker_thread_env:
+    OMP_NUM_THREADS: "1"
+    OPENBLAS_NUM_THREADS: "1"
+    MKL_NUM_THREADS: "1"
+    NUMEXPR_NUM_THREADS: "1"
+
+gates:
+  metric_scope: bands_2_to_10
+  reference_resolution: 128
+  combined_median_mre_max: 0.001
+  combined_p95_mre_max: 0.005
+  lane_p95_mre_max: 0.0075
+  recommendation_resolutions: [64, 96]
+  decision_role: provisional_stage_a_only
+
+output:
+  runs_dir: runs

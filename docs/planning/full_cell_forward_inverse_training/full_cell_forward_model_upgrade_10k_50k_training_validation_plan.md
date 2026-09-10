@@ -1,3 +1,20 @@
+---
+title: "全胞正向升级模型 10k/50k 训练与验证方案"
+summary: "研究计划或执行协议；实施前需与当前代码和证据重新核对。"
+page_type: plan
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 22 minutes
+primary_layer: L0
+plan_state: completed
+effective_date: 2026-08-08
+superseded_by: null
+related_results:
+  - docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
+---
+
 <!--
   Draft 10k/50k validation plan for upgraded full-cell forward models on N40.
   Author: fangtoast

@@ -1,3 +1,17 @@
+---
+title: "二值/渐进全胞 Full-Wh 双表征训练计划（历史草案）"
+summary: "历史研究记录；正文保持原始时间语境，不代表当前状态。"
+page_type: archive
+status: historical
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 5 minutes
+primary_layer: L3
+evidence_date: 2026-08-13
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+---
+
 <!--
   Superseded single-seed forward-only full-cell training plan.
   Author: fangtoast

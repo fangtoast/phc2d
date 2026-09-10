@@ -1,0 +1,16 @@
+# K=20 Fourier dual-lane seed-0 Full-Wh joint training contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment: {experiment_id: full_cell_k20_forward_dual_lane_seed0_v1, family: full_cell_k20_forward, lane: joint, evidence_status: seed0_preliminary_candidate}
+datasets:
+  binary: {path: data/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, expected_dataset_sha256: 2661eb1e9e3b398a7b69c4083daefa761ea9c26a1081c478b968fd6a951d6b56}
+  graded: {path: data/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, expected_dataset_sha256: 96b127b43f2c31fb7591e9634317a7ed35332ceae1077b2277de15058902fd72}
+representation: {source: lane_specific_grid, sampling: continuous, threshold: null, resolution: 64, physical_equivalence: true, label_semantics: k20_fourier_lane_specific_Wh}
+model:
+  name: dual_lane_band_operator_v1
+  params: {width: 64, depth: 6, modes: [12, 12], factorization_rank: 0.75, norm_groups: 8, channel_expansion: 2, local_kernel: 3, drop_path: 0.1, num_lanes: 2, lane_embedding_dim: 16, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8], dropout: 0.05}
+training: {max_epochs: 100, early_stopping_patience: 15, optimizer: adamw, learning_rate: 5.0e-4, weight_decay: 1.0e-5, micro_batch_size: 64, effective_batch_size: 64, lane_batch_size: {binary: 32, graded: 32}, loss: equal_lane_normalized_full_matrix_mse, checkpoint_selection: equal_lane_validation_bands_2_10_mre}
+runtime: {device: 'cuda:0', require_accelerator: true, precision: fp32, amp_enabled: false, tf32_enabled: false, num_workers: 4, pin_memory: true, non_blocking_transfer: true}
+output: {runs_dir: runs}

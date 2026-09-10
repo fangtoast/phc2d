@@ -114,6 +114,24 @@ def run_plot(argv: Sequence[str]) -> None:
     full_cell_scattering.add_argument("--config", type=Path, required=True)
     full_cell_scattering.add_argument("--run-dir", type=Path, default=None)
     full_cell_scattering.add_argument("--max-samples-per-dataset", type=int, default=None)
+    surrogate_physics = sub.add_parser(
+        "full-cell-surrogate-physics",
+        help="Compare frozen Full-Wh surrogate spectra and real-solver response sensitivity.",
+    )
+    surrogate_physics.add_argument("--config", type=Path, required=True)
+    surrogate_physics.add_argument("--run-dir", type=Path, default=None)
+    surrogate_physics.add_argument(
+        "--stage",
+        choices=["spectral", "physics", "render", "all"],
+        default="spectral",
+    )
+    surrogate_physics.add_argument(
+        "--physics-quantiles",
+        type=float,
+        nargs="+",
+        default=None,
+        help="Optional quantiles to solve, for example 0.5 for the p50 preflight.",
+    )
 
     ns = parser.parse_args(list(argv))
     if ns.kind == "medium":
@@ -169,6 +187,17 @@ def run_plot(argv: Sequence[str]) -> None:
             ns.config,
             run_dir=ns.run_dir,
             max_samples_per_dataset=ns.max_samples_per_dataset,
+        )
+        print(result)
+        return
+    elif ns.kind == "full-cell-surrogate-physics":
+        from phc2d.plot.full_cell_surrogate_physics import build_full_cell_surrogate_physics
+
+        result = build_full_cell_surrogate_physics(
+            ns.config,
+            run_dir=ns.run_dir,
+            stage=ns.stage,
+            physics_quantiles=ns.physics_quantiles,
         )
         print(result)
         return

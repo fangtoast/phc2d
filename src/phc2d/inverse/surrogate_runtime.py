@@ -339,3 +339,20 @@ def _resolve_forward_surrogate_checkpoint(cfg: GenerativeInverseConfig) -> Path 
             return path
     case_checkpoints = sorted((run_dir / "cases").glob("*/train/model.pt"))
     return case_checkpoints[0] if case_checkpoints else None
+
+
+# Stable public adapter names. The aliases intentionally preserve the historical
+# class and function objects for compatibility with existing callers.
+MockSurrogate = _MockSurrogate
+QueryFrozenSurrogate = _QueryFrozenSurrogate
+ForwardFrozenSurrogate = _ForwardFrozenSurrogate
+resolve_query_surrogate_checkpoint = _resolve_query_surrogate_checkpoint
+resolve_forward_surrogate_checkpoint = _resolve_forward_surrogate_checkpoint
+
+__all__ = [
+    "ForwardFrozenSurrogate",
+    "MockSurrogate",
+    "QueryFrozenSurrogate",
+    "resolve_forward_surrogate_checkpoint",
+    "resolve_query_surrogate_checkpoint",
+]

@@ -1,3 +1,23 @@
+---
+title: "A2 多 Surrogate Post-Repair 分层验证结果"
+summary: "日期化实验与验证证据；正文保持原始记录。"
+page_type: evidence
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 11 minutes
+primary_layer: L3
+evidence_date: 2026-08-02
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+dataset_scope: v2_10k_wh31x10
+evidence_level: solver_replay
+evidence_status: pilot
+validation_backend: wsl_mpb
+source_artifacts:
+  - runs/20260802/a2_inverse_surrogate_postrepair_validation_v2_202608021718
+---
+
 <!--
   A2 seven-recipe post-repair validation and real-MPB pilot report.
   Author: fangtoast
@@ -12,7 +32,7 @@
 | 元数据 | 值 |
 |---|---|
 | 日期 | 2026-08-02 |
-| 协议 | [`configs/research/a2_inverse_surrogate_postrepair_validation_v2.yaml`](../../../configs/research/a2_inverse_surrogate_postrepair_validation_v2.yaml) |
+| 协议 | [`configs/research/a2_inverse_surrogate_postrepair_validation_v2.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/a2_inverse_surrogate_postrepair_validation_v2.yaml) |
 | 运行 | `runs/20260802/a2_inverse_surrogate_postrepair_validation_v2_202608021718` |
 | 环境 | WSL `Ubuntu` + conda `meep_env`；checkpoint 选择与候选生成使用 `cuda:0`，物理 replay 使用 real MPB |
 | 证据状态 | `single_seed_20_target_pilot` |
@@ -20,6 +40,8 @@
 **目录：** [结论](#一结论) · [问题与边界](#二实验问题与边界) · [协议](#三数据模型与门禁) · [结果](#四结果) · [产物](#五命令与产物) · [限制](#六解释限制与下一证据门)
 
 ---
+
+<a id="一结论"></a>
 
 ## 一、结论
 
@@ -30,6 +52,8 @@
 `mlp_query` 相对 FNO 的同目标配对 replay 差值为 **-0.8116 percentage points**，paired bootstrap 95% CI 为 **[-1.2867, -0.3863]**；`res_mlp_wide` 的对应差值为 **-0.9030 pp**，95% CI 为 **[-1.4761, -0.3524]**。这些数值只支持 single-seed 20-target pilot 范围内的 challenger 证据，不能表述为跨 seed 稳定或正式替换结论。
 
 ---
+
+<a id="二实验问题与边界"></a>
 
 ## 二、实验问题与边界
 
@@ -44,6 +68,8 @@
 - 旧 screen、旧 smoke 和撤销的第一版 A2 只保留历史诊断身份，未并入当前主表。
 
 ---
+
+<a id="三数据模型与门禁"></a>
 
 ## 三、数据、模型与门禁
 
@@ -80,6 +106,8 @@
 
 ---
 
+<a id="四结果"></a>
+
 ## 四、结果
 
 ### 4.1 2-target real-MPB smoke
@@ -109,6 +137,8 @@ Pilot 完成 20 targets × 7 recipes × Top-5，即 **700/700** 次 real-MPB 求
 该决策表示“当前 pilot 支持继续研究 `mlp_query` challenger”，不表示删除 FNO。`fno2d_band_v2` 继续作为固定参考；本结果也不属于纯 surrogate 架构优劣结论。
 
 ---
+
+<a id="五命令与产物"></a>
 
 ## 五、命令与产物
 
@@ -141,6 +171,8 @@ PYTHONPATH=src python -m phc2d.cli inverse benchmark --config configs/research/a
 另有 `candidate_lineage.csv`、`pilot_replay/primary_common_per_target_metrics.csv`、per-target/per-strategy replay CSV 和完整 solver artifacts，用于 target/latent/candidate 追溯与配对复核。
 
 ---
+
+<a id="六解释限制与下一证据门"></a>
 
 ## 六、解释限制与下一证据门
 

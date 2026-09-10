@@ -1,25 +1,42 @@
+---
+title: 综合报告与快照
+summary: 当前跨实验专题总结、历史综合报告、解释性快照与精选图件的兼容入口。
+page_type: landing
+status: draft
+audience: 研究用户、结果审阅者与项目维护者
+owner: 研究生维护
+last_reviewed: 2026-08-31
+reading_time: 3 minutes
+primary_layer: L4
+---
+
 <!--
-  Snapshot-report index for the synchronized phc2d workspace.
+  Frozen snapshot-report index for phc2d.
   Author: fangtoast
   Email: fangtoast@foxmail.com
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
-# 综合报告与公式参考
+# 综合报告与快照
 
-本目录保存带明确证据日期的综合报告、公式参考、模型清单和精选图件。它们适合系统阅读和汇报，但不自动代表今天的最新状态；当前状态先看 [`../../PROJECT_MAP.md`](../../PROJECT_MAP.md)。
+本目录保存跨多个 Experiment ID 的专题综合解释，并保留历史长报告、解释性快照、模型清单和精选图件。普通实验结果仍进入[当前结果](../结果/README.md)和[实验与证据库](../results/README.md)；综合报告不能替代源 run 或独立结果页。
 
-| 角色 | 入口 | 边界 |
+## 当前专题综合
+
+| 报告 | 范围与边界 |
+|---|---|
+| [模型结构图谱](模型结构图谱_20260909.md) | 基于当前 registry 和实现绘制 27 个注册模型，并单列最新 `global_local_band_operator_v1`；只说明 L2 架构，不新增性能或物理证据 |
+| [工作频率与带隙探索总结](工作频率与带隙探索总结_20260831.md) | 汇总 EXP-FWD-012/014/015 与 EXP-PHY-005/006；区分理论频率、gap 标签、surrogate loss 和 real-MPB 证据 |
+
+## 历史综合材料
+
+| 现有内容 | 当前角色 | 长期去向 |
 |---|---|---|
-| 完整项目叙述 | [`phc2d_project_full_introduction_20260724.md`](phc2d_project_full_introduction_20260724.md) | 截至文档证据更新时间的技术快照 |
-| 全胞双路线模型专题 | [`全胞双路线正向与逆向模型报告_20260810.md`](全胞双路线正向与逆向模型报告_20260810.md) | 解析结构→real-MPB→HDF5 数据逻辑，50k 正向 baseline/升级结构与结果；inverse 仍为 10k preflight/未正式训练 |
-| 科学动机与证据链 | [`phc2d_bandgap_field_inverse_design_rationale_20260806.md`](phc2d_bandgap_field_inverse_design_rationale_20260806.md) | 解释带隙、近远场与逆向设计为何需要联合研究；不升级实验状态 |
-| 物理与数据公式 | [`phc2d_physics_data_formula_guide_20260803.md`](phc2d_physics_data_formula_guide_20260803.md) | 当前 full-cell 双路线数据、Full-Wh 升级模型与 inverse 预检公式；保留 p4m/Field 历史边界 |
-| 模型状态清单 | [`phc2d_model_inventory_v1.yaml`](phc2d_model_inventory_v1.yaml) | 注册、实现、验证、历史和 blocked 分字段记录 |
-| 精选图件索引 | [`assets/phc2d_project_full_introduction_20260724/figure_index.md`](assets/phc2d_project_full_introduction_20260724/figure_index.md) | 来源路径、SHA-256 与使用边界 |
-| 全胞模型图件索引 | [`assets/full_cell_forward_inverse_report_20260810/figure_index.md`](assets/full_cell_forward_inverse_report_20260810/figure_index.md) | 十张数据、baseline、升级、结果和 inverse 架构图及来源边界 |
+| [全胞双路线正向与逆向模型报告](全胞双路线正向与逆向模型报告_20260810.md) | 日期化实验综合快照 | `结果/` 或 `archive/`，本轮冻结 |
+| [带隙、场与逆向设计说明](phc2d_bandgap_field_inverse_design_rationale_20260806.md) | 研究概念解释 | `概念/`，本轮冻结 |
+| [项目完整介绍](phc2d_project_full_introduction_20260724.md) | 2026-07 项目快照 | `archive/`，本轮冻结 |
+| [物理数据公式总手册](phc2d_physics_data_formula_guide_20260803.md) | 2026-08 长篇参考快照 | `参考/` 或 `archive/`，本轮冻结 |
+| [模型状态清单](phc2d_model_inventory_v1.yaml) | 机器可读模型身份与证据边界 | 保留，仍由审计命令使用 |
+| [旁支研究](side_project/README.md) | 历史旁支计划与调研 | `archive/`，本轮冻结 |
 
-旁支研究计划与调研见 [`side_project/README.md`](side_project/README.md)。
-
-单项实验的当前结论见 [`../results/README.md`](../results/README.md)。报告中的 surrogate、physics residual 与 real-MPB replay 证据不可互相替代。
-单项实验的当前结论见 [`../results/README.md`](../results/README.md)。修改完整报告前必须运行模型覆盖、来源哈希和本地链接审计；surrogate、field residual 与 real-MPB replay 不可互相替代。
+精选图件继续保留在 `reports/assets/`，并维持来源路径、SHA-256 与证据边界。普通 run 不应在这里生成长篇报告，reports 也不得成为“执行日志 → 更多报告”的默认阅读路径。

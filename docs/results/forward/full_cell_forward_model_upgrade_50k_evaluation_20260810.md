@@ -1,3 +1,24 @@
+---
+title: "Full-Cell 前向升级模型 50K 实验报告（2026-08-10）"
+summary: "日期化实验与验证证据；正文保持原始记录。"
+page_type: evidence
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 11 minutes
+primary_layer: L3
+evidence_date: 2026-08-10
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+dataset_scope: full_cell_bz9_wh81x10
+evidence_level: surrogate_held_out
+evidence_status: completed
+validation_backend: surrogate_only
+source_artifacts:
+  - runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944
+  - runs/20260819/full_cell_upgrade_50k_r2_seed0_202608191658
+---
+
 <!--
   Draft experimental report for the Full-Wh forward model upgrade campaign.
   Author: fangtoast
@@ -16,6 +37,8 @@
 > **Evidence campaign:** `runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944`  
 > **Evaluation jobs:** Slurm array `5401548`；finalizer `5401549`  
 > **Threshold campaign:** planned but not submitted; N40 returned `AssocMaxSubmitJobLimit`
+
+> **2026-08-19 补充：** 已使用冻结 checkpoint 对全部 native 模型补算 seed 0 的逐坐标中心化 R²；ConvNeXt 在 B/G lane 分别为 0.997287/0.999627。公式与 POST 互通，但任务数值不可直接比较。详见[单 seed R²补充评估](全胞前向50K模型R方补充评估_20260819.md)。
 
 ## 1. 本轮最重要的实验结论
 

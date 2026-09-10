@@ -1,0 +1,20 @@
+# EXP-FWD-008 K5 graded-lane seed-0 Full-Wh training contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment: {experiment_id: EXP-FWD-008, family: full_cell_k5_forward_fixed_200, lane: graded_fourier, evidence_status: user_authorized_surrogate_training_pending_wsl_acceptance}
+dataset: {path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, expected_dataset_sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20}
+representation: {source: material_weight_grid, sampling: continuous, threshold: null, resolution: 64, physical_equivalence: true, label_semantics: graded_fourier_k5_Wh}
+models:
+  mlp: {hidden_dim: 256, depth: 6, dropout: 0.05, activation: gelu}
+  res_mlp_wide: {hidden_dim: 256, depth: 6, dropout: 0.05, activation: gelu}
+  lifted_cnn: {channels: 12, activation: gelu}
+  fno2d_band_v2: {width: 32, depth: 4, modes: [8, 8], band_modes: [5, 5], fourier_rank: 8, activation: gelu}
+  mlp_mixer_band_v1: {token_grid: [16, 16], embed_dim: 256, depth: 8, token_mlp_dim: 128, channel_mlp_dim: 512, dropout: 0.05, drop_path: 0.1, layer_scale_init: 1.0e-4, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8]}
+  res_mlp_gated_v2: {hidden_dim: 320, depth: 8, expansion: 2, dropout: 0.05, drop_path: 0.1, layer_scale_init: 1.0e-4, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8]}
+  convnext_band_v1: {stage_dims: [48, 96, 192], stage_depths: [2, 3, 6], stem_stride: 4, kernel_size: 7, channel_expansion: 4, drop_path: 0.1, layer_scale_init: 1.0e-6, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8], dropout: 0.05}
+  tfno2d_band_v3: {width: 64, depth: 6, modes: [12, 12], factorization_rank: 0.75, norm_groups: 8, channel_expansion: 2, local_kernel: 3, drop_path: 0.1, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8], dropout: 0.05}
+training: {max_epochs: 200, required_stop_epoch: 200, early_stopping_patience: 0, epoch_100_continue_gate: false, stop_epoch: 200, convergence_window: [181, 200], convergence_relative_threshold: 0.005, convergence_metric: validation_bands_2_10_mre, require_terminal_checkpoint: true, optimizer: adamw, weight_decay: 1.0e-5, learning_rates: {mlp: 3.0e-4, res_mlp_wide: 3.0e-4, lifted_cnn: 1.0e-3, fno2d_band_v2: 1.0e-3, mlp_mixer_band_v1: 3.0e-4, res_mlp_gated_v2: 3.0e-4, convnext_band_v1: 1.0e-3, tfno2d_band_v3: 5.0e-4}, micro_batch_size: 64, effective_batch_size: 64, loss: normalized_full_matrix_mse, checkpoint_selection: validation_bands_2_10_mre}
+runtime: {device: 'cuda:0', require_accelerator: true, precision: fp32, amp_enabled: false, tf32_enabled: false, num_workers: 4, pin_memory: true, non_blocking_transfer: true}
+output: {runs_dir: runs}

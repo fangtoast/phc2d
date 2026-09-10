@@ -1,3 +1,19 @@
+---
+title: "全胞介电常数内容哈希与碰撞设计"
+summary: "设计全胞参数、几何和多分辨率介电常数内容哈希及 split 碰撞审计。"
+page_type: plan
+status: draft
+plan_state: active
+effective_date: 2026-08-16
+superseded_by: null
+related_results: []
+audience: "研究用户、数据实现者与导师"
+owner: "导师提出方案，研究生维护与验证"
+last_reviewed: 2026-08-17
+reading_time: 9 minutes
+primary_layer: L3
+---
+
 <!--
   Author: Ming Lyu <caref.lm@gmail.com>
   Copyright (c) 2026 Ming Lyu. All rights reserved.
@@ -13,15 +29,14 @@
 
 相关代码：
 
-- [随机结构生成](../../../src/phc2d/generators/full_cell.py)
-- [材料场与现有 geometry hash](../../../src/phc2d/data/full_cell.py)
-- [样本计划与 split](../../../src/phc2d/data/full_cell_generation.py)
+- [随机结构生成](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/generators/full_cell.py)
+- [材料场与现有 geometry hash](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell.py)
+- [样本计划与 split](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell_generation.py)
 
 ## 一、碰撞为什么不可忽略
 
 当前生成器把 master seed、sample ID 和生成器类型经 SHA-256 映射到 32 位随机种子。
 独立样本数为 $n$、种子空间为 $M=2^{32}$ 时，至少发生一次碰撞的概率近似为：
-
 $$
 P(\mathrm{collision})\approx
 1-\exp\left(-\frac{n(n-1)}{2M}\right).

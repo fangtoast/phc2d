@@ -1,0 +1,139 @@
+# Full-cell Full-Wh parameter evidence ledger and minimal ablation contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: phc2d.full_cell_parameter_ablation.v1
+experiment:
+  experiment_id: full_cell_forward_parameter_ablation_v1
+  family: full_cell_forward_parameter_ablation
+  primary_layer: L3
+  evidence_status: preregistered_single_seed_screen
+datasets:
+  binary:
+    source_config: configs/research/full_cell_forward_binary_native_50000_v1.yaml
+    upgrade_config: configs/research/full_cell_forward_upgrade_binary_50k_v1.yaml
+    path: data/full_cell_binary_bz9_50000_xingyi_v1.h5
+    expected_dataset_sha256: e2d99e0c59c3bf5dfebc507e756dbcd18c8623f331ad6193832d774df5213f00
+  graded:
+    source_config: configs/research/full_cell_forward_graded_continuous_50000_v1.yaml
+    upgrade_config: configs/research/full_cell_forward_upgrade_graded_50k_v1.yaml
+    path: data/full_cell_graded_bz9_50000_xingyi_v1.h5
+    expected_dataset_sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46
+  joint:
+    source_config: configs/research/full_cell_forward_upgrade_dual_lane_50k_v1.yaml
+representation:
+  input_field: material_weight_grid_64
+  input_shape: [64, 64]
+  target_field: Wh
+  target_shape: [81, 10]
+split:
+  per_lane: {train: 40000, validation: 5000, held_out_test: 5000}
+  test_access: forbidden_during_stage_a_and_b
+protocol:
+  seed: 0
+  head_kind: dense
+  stage_a: {admission_probe: true, gpu_concurrency: 3}
+  stage_b:
+    train_size: 40000
+    max_epochs: 20
+    gpu_concurrency: 3
+    selection_metric: validation_bands_2_10_mre_pct
+    minimum_relative_improvement: 0.01
+    stop_on_non_finite: true
+    early_stopping_patience: 0
+  fixed:
+    optimizer: adamw
+    weight_decay: 1.0e-5
+    precision: fp32
+    amp_enabled: false
+    tf32_enabled: false
+    effective_batch_size: 64
+    loss: normalized_full_matrix_mse
+    checkpoint_selection: validation_bands_2_10_mre
+evidence_sources:
+  runner: src/phc2d/forward/full_cell.py
+  dual_runner: src/phc2d/forward/full_cell_dual_lane.py
+  catalog: src/phc2d/models/catalog/full_cell.py
+  implementation_root: src/phc2d/models
+  baseline_report: docs/results/forward/full_cell_dual_lane_50000_forward_training_20260808.md
+  upgrade_report: docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md
+  baseline_artifacts: runs/20260808/full_cell_forward_50k_evaluation_campaign_20260808162200
+  upgrade_artifacts: runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944
+models:
+  mlp:
+    lanes: [binary, graded]
+    config_group: baseline
+    learning_rate: 3.0e-4
+    critical_parameters:
+      hidden_dim: {category: structure, current: 256, values: [192, 256, 320], wave1: true, impacts: [capacity, compute, memory, generalization]}
+      depth: {category: structure, current: 6, values: [4, 6, 8], impacts: [capacity, convergence, compute]}
+      dropout: {category: regularization, current: 0.05, values: [0.0, 0.05, 0.1], impacts: [convergence, generalization]}
+  res_mlp_wide:
+    lanes: [binary, graded]
+    config_group: baseline
+    learning_rate: 3.0e-4
+    critical_parameters:
+      depth: {category: structure, current: 6, values: [4, 6, 8], wave1: true, impacts: [capacity, convergence, compute]}
+      hidden_dim: {category: structure, current: 256, values: [192, 256, 320], impacts: [capacity, compute, memory]}
+      dropout: {category: regularization, current: 0.05, values: [0.0, 0.05, 0.1], impacts: [convergence, generalization]}
+  lifted_cnn:
+    lanes: [binary, graded]
+    config_group: baseline
+    learning_rate: 1.0e-3
+    critical_parameters:
+      channels: {category: structure, current: 12, values: [8, 12, 16], wave1: true, impacts: [capacity, compute, memory]}
+      learning_rate: {category: optimization, current: 1.0e-3, values: [5.0e-4, 1.0e-3, 2.0e-3], impacts: [convergence, generalization]}
+  fno2d_band_v2:
+    lanes: [binary, graded]
+    config_group: baseline
+    learning_rate: 1.0e-3
+    critical_parameters:
+      depth: {category: structure, current: 4, values: [3, 4, 6], wave1: true, impacts: [capacity, compute, memory, convergence]}
+      modes: {category: structure, current: [8, 8], values: [[6, 6], [8, 8], [12, 12]], impacts: [capacity, compute, memory]}
+      width: {category: structure, current: 32, values: [24, 32, 48], impacts: [capacity, compute, memory]}
+  mlp_mixer_band_v1:
+    lanes: [binary, graded]
+    config_group: upgrade
+    learning_rate: 3.0e-4
+    critical_parameters:
+      token_grid: {category: structure, current: [16, 16], values: [[8, 8], [16, 16], [32, 32]], wave1: true, impacts: [capacity, compute, memory, generalization]}
+      embed_dim: {category: structure, current: 256, values: [192, 256, 320], impacts: [capacity, compute, memory]}
+      depth: {category: structure, current: 8, values: [6, 8, 10], impacts: [capacity, convergence, compute]}
+      drop_path: {category: regularization, current: 0.1, values: [0.0, 0.1, 0.2], impacts: [convergence, generalization]}
+  res_mlp_gated_v2:
+    lanes: [binary, graded]
+    config_group: upgrade
+    learning_rate: 3.0e-4
+    critical_parameters:
+      depth: {category: structure, current: 8, values: [6, 8, 10], wave1: true, impacts: [capacity, convergence, compute]}
+      hidden_dim: {category: structure, current: 320, values: [256, 320, 384], impacts: [capacity, compute, memory]}
+      expansion: {category: structure, current: 2, values: [1.5, 2, 3], impacts: [capacity, compute, memory]}
+      drop_path: {category: regularization, current: 0.1, values: [0.0, 0.1, 0.2], impacts: [convergence, generalization]}
+  convnext_band_v1:
+    lanes: [binary, graded]
+    config_group: upgrade
+    learning_rate: 1.0e-3
+    critical_parameters:
+      stage_depths: {category: structure, current: [2, 3, 6], values: [[2, 2, 4], [2, 3, 6], [3, 4, 8]], wave1: true, impacts: [capacity, compute, memory, convergence]}
+      stage_dims: {category: structure, current: [48, 96, 192], values: [[32, 64, 128], [48, 96, 192], [64, 128, 256]], impacts: [capacity, compute, memory]}
+      kernel_size: {category: structure, current: 7, values: [5, 7, 9], impacts: [capacity, compute, generalization]}
+      drop_path: {category: regularization, current: 0.1, values: [0.0, 0.1, 0.2], impacts: [convergence, generalization]}
+  tfno2d_band_v3:
+    lanes: [binary, graded]
+    config_group: upgrade
+    learning_rate: 5.0e-4
+    critical_parameters:
+      modes: {category: structure, current: [12, 12], values: [[8, 8], [12, 12], [16, 16]], wave1: true, impacts: [capacity, compute, memory, generalization]}
+      width: {category: structure, current: 64, values: [48, 64, 80], impacts: [capacity, compute, memory]}
+      depth: {category: structure, current: 6, values: [4, 6, 8], impacts: [capacity, compute, convergence]}
+      factorization_rank: {category: structure, current: 0.75, values: [0.5, 0.75, 1.0], impacts: [capacity, compute, memory]}
+  dual_lane_band_operator_v1:
+    lanes: [joint]
+    config_group: dual
+    learning_rate: 5.0e-4
+    critical_parameters:
+      lane_embedding_dim: {category: structure, current: 16, values: [8, 16, 32], wave1: true, impacts: [capacity, compute, cross_lane_generalization]}
+      modes: {category: structure, current: [12, 12], values: [[8, 8], [12, 12], [16, 16]], impacts: [capacity, compute, memory]}
+      width: {category: structure, current: 64, values: [48, 64, 80], impacts: [capacity, compute, memory]}
+      depth: {category: structure, current: 6, values: [4, 6, 8], impacts: [capacity, compute, convergence]}

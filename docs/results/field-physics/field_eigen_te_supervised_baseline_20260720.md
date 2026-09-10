@@ -1,3 +1,17 @@
+---
+title: "1k TE Bloch 本征场监督基线，2026-07-20"
+summary: "日期化实验与验证证据；正文保持原始记录。"
+page_type: archive
+status: historical
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 2 minutes
+primary_layer: L3
+evidence_date: 2026-07-20
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+---
+
 <!--
   Supervised TE eigenfield baseline pilot evidence.
   Author: fangtoast
@@ -6,6 +20,9 @@
 -->
 
 # 1k TE Bloch 本征场监督基线，2026-07-20
+
+!!! warning "历史证据"
+    本页保留早期监督基线及其负结果，不属于正式结果白名单。
 
 在 WSL `Ubuntu` + conda `meep_env` 的 RTX 4060 GPU 上，使用冻结的 1k TE field dataset 完成 data-only `unet_field` 与 `fno_field` 各三个 seed 的训练。输入为 epsilon、physical k 与 band；输出为复数 E/H 与本征频率。训练中 `lambda_pde=0`，没有 PINO、MaxwellNet、MPB replay 或 inverse 集成。
 

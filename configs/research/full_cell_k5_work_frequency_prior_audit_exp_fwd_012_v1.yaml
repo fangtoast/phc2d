@@ -1,0 +1,35 @@
+# EXP-FWD-012 train/validation-only Bragg-prior coverage audit.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: EXP-FWD-012
+  family: full_cell_k5_work_frequency_prior
+  stage: work_frequency_prior_audit
+  evidence_status: authorized_train_validation_audit_no_training
+datasets:
+  binary:
+    path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5
+    grid_field: material_area_fraction_grid_64
+    expected_dataset_sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6
+  graded:
+    path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5
+    grid_field: material_weight_grid_64
+    expected_dataset_sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20
+audit:
+  train_size: 4000
+  train_subset_salt: exp-fwd-010-k5-joint-fair-4k-v1
+  batch_size: 256
+  lower_band_min_one_based: 2
+  lower_band_max_one_based: 9
+  epsilon_rule: train_pooled_q25_positive_adjacent_band_spacing
+  delta_rule: train_pooled_q90_nearest_coordinate_distance_to_x_prior
+  fixed_center_control: train_pooled_median_largest_gap_center
+  primary_direction: X
+  sensitivity_direction: M
+  gates:
+    coordinate_coverage_min: 0.85
+    gap_hit_improvement_min: 0.05
+output:
+  runs_dir: runs

@@ -23,6 +23,32 @@ def configure(sub: Any) -> None:
     )
     replay_mpb.add_argument("--config", type=Path, default=None)
     replay_mpb.set_defaults(command="replay mpb")
+    effective_index = replay_sub.add_parser(
+        "effective-index",
+        help="Audit TE effective index and folded-frequency gap alignment.",
+        description="Run the registered EXP-PHY-005 preflight or physical audit.",
+    )
+    effective_index.add_argument("--config", type=Path, required=True)
+    effective_index.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Validate identities and sampling without importing or running MPB.",
+    )
+    effective_index.add_argument("--run-dir", type=Path, default=None)
+    effective_index.set_defaults(command="replay effective-index")
+    gap_refinement = replay_sub.add_parser(
+        "gap-refinement",
+        help="Refine full-BZ adjacent-band edges with validation-only real MPB.",
+        description="Run a registered validation-only local or adaptive gap-refinement study.",
+    )
+    gap_refinement.add_argument("--config", type=Path, required=True)
+    gap_refinement.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Validate frozen validation identities without importing or running MPB.",
+    )
+    gap_refinement.add_argument("--run-dir", type=Path, default=None)
+    gap_refinement.set_defaults(command="replay gap-refinement")
 
 
 def run(ns: Any) -> bool:
@@ -34,5 +60,27 @@ def run(ns: Any) -> bool:
         if ns.config is None:
             raise SystemExit("`phc2d replay mpb` requires --config <yaml-path>.")
         print(run_replay_mpb(ns.config))
+        return True
+    if ns.command == "replay effective-index":
+        from phc2d.replay.effective_index import run_effective_index_audit
+
+        print(
+            run_effective_index_audit(
+                ns.config,
+                run_dir=ns.run_dir,
+                preflight=bool(ns.preflight),
+            )
+        )
+        return True
+    if ns.command == "replay gap-refinement":
+        from phc2d.replay.gap_refinement import run_gap_refinement_study
+
+        print(
+            run_gap_refinement_study(
+                ns.config,
+                run_dir=ns.run_dir,
+                preflight=bool(ns.preflight),
+            )
+        )
         return True
     return False

@@ -26,6 +26,7 @@ import yaml
 
 from phc2d.data.field_eigen import canonicalize_eigenfields
 from phc2d.data.full_cell import FullCellStructureSpec
+from phc2d.forward.full_cell_metrics import GapEdgeSelection, select_largest_gap_edge
 from phc2d.runs import (
     ensure_figures_dir,
     make_run_dir,
@@ -58,18 +59,6 @@ class GalleryDataset:
     idx_test: np.ndarray
     epsilon_128: np.ndarray
     metadata: dict[str, Any]
-
-
-@dataclass(frozen=True)
-class GapEdgeSelection:
-    """One complete- or pseudo-gap upper-edge mode selected from a full BZ."""
-
-    lower_band_one_based: int
-    upper_band_one_based: int
-    gap: float
-    status: str
-    k_index: int
-    frequency: float
 
 
 def _decode(value: Any) -> str:
@@ -180,46 +169,6 @@ def sampled_gxm_path(k_grid_index: np.ndarray) -> tuple[np.ndarray, tuple[int, .
     except KeyError as exc:
         raise ValueError(f"full-BZ grid is missing sampled path coordinate {exc.args[0]}") from exc
     return path, (0, edge, 2 * edge, 3 * edge), (r"$\Gamma$", r"$X_9$", r"$M_9$", r"$\Gamma$")
-
-
-def select_largest_gap_edge(
-    Wh: np.ndarray,
-    *,
-    lower_band_min_one_based: int = 2,
-    lower_band_max_one_based: int | None = None,
-) -> GapEdgeSelection:
-    """Select the upper edge of the largest configured full-BZ adjacent-band gap."""
-
-    bands = np.asarray(Wh, dtype=np.float64)
-    if bands.ndim != 2 or bands.shape[1] < 2 or bands.shape[0] < 1:
-        raise ValueError(f"Wh must have shape [n_k_points, n_bands>=2], got {bands.shape}")
-    if np.any(~np.isfinite(bands)):
-        raise ValueError("Wh contains non-finite frequencies")
-    lower_min = int(lower_band_min_one_based)
-    lower_max = int(lower_band_max_one_based) if lower_band_max_one_based is not None else bands.shape[1] - 1
-    if lower_min < 1 or lower_max < lower_min or lower_max >= bands.shape[1]:
-        raise ValueError(
-            f"invalid lower-band range {lower_min}..{lower_max} for {bands.shape[1]} retained bands"
-        )
-    candidates: list[GapEdgeSelection] = []
-    for lower_band in range(lower_min, lower_max + 1):
-        lower_index = lower_band - 1
-        upper_index = lower_index + 1
-        lower_max = float(np.max(bands[:, lower_index]))
-        k_index = int(np.argmin(bands[:, upper_index]))
-        upper_min = float(bands[k_index, upper_index])
-        gap = upper_min - lower_max
-        candidates.append(
-            GapEdgeSelection(
-                lower_band_one_based=lower_band,
-                upper_band_one_based=lower_band + 1,
-                gap=gap,
-                status="complete_gap" if gap > 0.0 else "pseudo_gap",
-                k_index=k_index,
-                frequency=upper_min,
-            )
-        )
-    return max(candidates, key=lambda row: (row.gap, -row.lower_band_one_based))
 
 
 def normalized_electric_energy_density(

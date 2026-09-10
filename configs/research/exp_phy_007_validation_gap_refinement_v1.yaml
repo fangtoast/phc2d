@@ -1,0 +1,62 @@
+# EXP-PHY-007 validation-only adaptive full-BZ gap-refinement gate.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: EXP-PHY-007
+  family: research
+  stage: mpb_replay
+  primary_layer: L3
+
+datasets:
+  binary:
+    path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5
+    expected_dataset_sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6
+  graded:
+    path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5
+    expected_dataset_sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20
+
+sampling:
+  split: validation
+  source_manifest: runs/20260828/EXP-PHY-005_202608281751/sample_manifest.jsonl
+  expected_source_manifest_sha256: d00610a8cc68ab7b26402f47bbb60107dc589c76c1287f7346f17035a43800bb
+  sample_count_per_lane: 32
+  policy: all_frozen_exp_phy_005_validation_samples
+
+mpb:
+  polarization: TE
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 64
+  verification_resolution: 96
+  mesh_size: 3
+  eigensolver_tolerance: 1.0e-7
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+
+refinement:
+  initial_spacing: 0.1111111111111111
+  min_levels: 2
+  max_levels: 4
+  required_consecutive_stable_levels: 2
+  stencil: local_3x3_periodic
+  lower_band_min_one_based: 1
+  lower_band_max_one_based: 9
+
+gates:
+  last_refinement_gap_change_max: 0.0005
+  last_refinement_edge_change_max: 0.0005
+  resolution_edge_change_max: 0.0005
+  coarse_gap_change_material: 0.0005
+
+execution:
+  mode: adaptive_real_mpb
+  required_platform: WSL Ubuntu
+  required_conda_environment: meep_env
+  formal_solver_authorized: true
+  authorization_basis: user_requested_plan_execution_2026_09_02
+  no_automatic_retry: true
+
+output:
+  runs_dir: runs

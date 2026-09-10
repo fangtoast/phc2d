@@ -1,3 +1,20 @@
+---
+title: "Physics Forward、PINO、MaxwellNet 与 Inverse Integration 计划"
+summary: "研究计划或执行协议；实施前需与当前代码和证据重新核对。"
+page_type: plan
+status: draft
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 10 minutes
+primary_layer: L0
+plan_state: active
+effective_date: 2026-07-18
+superseded_by: null
+related_results:
+  - docs/results/field-physics/README.md
+---
+
 <!--
   Physics-model reproduction plan for forward surrogates and inverse integration.
   Author: fangtoast

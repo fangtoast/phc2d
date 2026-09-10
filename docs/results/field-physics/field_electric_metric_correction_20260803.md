@@ -1,3 +1,17 @@
+---
+title: "电场度规勘误（2026-08-03）"
+summary: "日期化实验与验证证据；正文保持原始记录。"
+page_type: archive
+status: historical
+audience: "研究用户、复现执行者与项目维护者"
+owner: "研究生维护"
+last_reviewed: 2026-08-13
+reading_time: 4 minutes
+primary_layer: L3
+evidence_date: 2026-08-03
+evidence_scope: "日期化证据或历史记录；正文未因站点重构而改写。"
+---
+
 <!--
   Correction note for the electric-field metric used by field/PINO workflows.
   Author: fangtoast
@@ -9,11 +23,16 @@
 
 # 电场度规勘误（2026-08-03）
 
+!!! warning "历史证据"
+    本页保留旧度规的修正记录；其中受影响的历史数值不能直接作为当前正式比较。
+
 本文修正 TE Bloch eigenfield、`fno_field_v2` 与 adapted PINO 工作流中的电场内积、归一化、相位对齐及 relative $L_2$ 定义。修正前的 B3/B4 数值来自未加介电常数权重的电场度规，只能保留为历史诊断；在完成数据迁移、重训和三 seed 重评前，不得称为修正后结果。
 
 **目录：** [正确度规](#正确度规) · [分母是否为一](#分母是否为一) · [实现范围](#实现范围) · [证据边界](#证据边界)
 
 ---
+
+<a id="正确度规"></a>
 
 ## 正确度规
 
@@ -50,6 +69,8 @@ $$
 
 ---
 
+<a id="分母是否为一"></a>
+
 ## 分母是否为一
 
 若数据生成严格满足
@@ -68,15 +89,19 @@ $H$ 没有被独立归一化；生成链路对 $E/H$ 使用同一个由 $E$ 得�
 
 ---
 
+<a id="实现范围"></a>
+
 ## 实现范围
 
-- [`field_eigen.py`](../../../src/phc2d/data/field_eigen.py)：新数据按 $\int E^*\varepsilon E\,dV=1$ 归一化，并将 schema 升为 `phc2d.field_eigen.v2`。
-- [`field_eigen_v2.py`](../../../src/phc2d/forward/field_eigen_v2.py)：训练相位、E loss 与评估 E relative $L_2$ 改用介电加权度规。
-- [`field_eigen_b4.py`](../../../src/phc2d/forward/field_eigen_b4.py)：seen-$k$ 场对照使用相同度规。
-- [`torch_eigen_residual.py`](../../../src/phc2d/physics/torch_eigen_residual.py)：PINO 场归一化项改为 $\|E\|_\varepsilon$；Rayleigh 商改为 $\langle E,\nabla\times\nabla\times E\rangle/\langle E,\varepsilon E\rangle$。
-- [`field_eigen_te_contract.yaml`](../../../configs/research/field_eigen_te_contract.yaml)：冻结新的归一化和内积契约。
+- [`field_eigen.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/field_eigen.py)：新数据按 $\int E^*\varepsilon E\,dV=1$ 归一化，并将 schema 升为 `phc2d.field_eigen.v2`。
+- [`field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_v2.py)：训练相位、E loss 与评估 E relative $L_2$ 改用介电加权度规。
+- [`field_eigen_b4.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_b4.py)：seen-$k$ 场对照使用相同度规。
+- [`torch_eigen_residual.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/physics/torch_eigen_residual.py)：PINO 场归一化项改为 $\|E\|_\varepsilon$；Rayleigh 商改为 $\langle E,\nabla\times\nabla\times E\rangle/\langle E,\varepsilon E\rangle$。
+- [`field_eigen_te_contract.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/field_eigen_te_contract.yaml)：冻结新的归一化和内积契约。
 
 ---
+
+<a id="证据边界"></a>
 
 ## 证据边界
 

@@ -197,3 +197,14 @@ class _TrainedConditionalGenerator:
             input_repr=self.cfg.output_repr,
             metadata=metadata,
         )
+
+
+# Stable public adapter names. The aliases intentionally preserve the historical
+# class objects so existing imports and serialized identities remain unchanged.
+MockConditionalGenerator = _MockConditionalGenerator
+TrainedConditionalGenerator = _TrainedConditionalGenerator
+
+__all__ = [
+    "MockConditionalGenerator",
+    "TrainedConditionalGenerator",
+]
