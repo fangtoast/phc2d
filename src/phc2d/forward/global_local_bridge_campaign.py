@@ -431,6 +431,47 @@ def status_g3(campaign_dir: str | Path, *, repository_root: str | Path = ".") ->
     return summary
 
 
+def finalize_g3(campaign_dir: str | Path, *, repository_root: str | Path = ".") -> Path:
+    """Fail closed on incomplete G3 evidence, then publish exploratory summaries."""
+    campaign = _resolve(Path(repository_root).resolve(), campaign_dir)
+    plan = _read_csv(campaign / "evaluation_plan.csv")
+    rows = [row for shard in (campaign / "shards").glob("shard_*") if (shard / "evaluation_cells.csv").is_file() for row in _read_csv(shard / "evaluation_cells.csv")]
+    expected = {row["evaluation_id"] for row in plan}
+    observed = [row["evaluation_id"] for row in rows]
+    if len(plan) != 216 or len(rows) != 216 or set(observed) != expected or len(set(observed)) != 216:
+        raise RuntimeError("G3 finalizer requires exactly 216 unique completed cells")
+    if any(row.get("status") != "completed" or not np.isfinite(float(row["bands_2_10_mre_pct"])) for row in rows):
+        raise RuntimeError("G3 finalizer found nonfinite or incomplete metrics")
+    _write_csv(campaign / "evaluation_cells.csv", rows)
+    summary: list[dict[str, Any]] = []
+    for relation in ("native", "cross_lane", "cross_dataset", "cross_dataset_cross_lane"):
+        selected = [float(row["bands_2_10_mre_pct"]) for row in rows if row["relationship"] == relation]
+        summary.append({"relationship": relation, "cell_count": len(selected), "bands_2_10_mre_pct_mean": float(np.mean(selected)), "bands_2_10_mre_pct_std": float(np.std(selected, ddof=0))})
+    _write_csv(campaign / "relationship_summary.csv", summary)
+    native = {(row["source_variant"], row["source_seed"], row["target_domain"]): row for row in rows if row["relationship"] == "native"}
+    comparisons: list[dict[str, Any]] = []
+    for row in rows:
+        if row["relationship"] == "native":
+            continue
+        reference = native.get((row["source_variant"], row["source_seed"], row["target_domain"]))
+        if reference is None:
+            continue
+        archive = campaign / "shards" / f"shard_{int(row['shard_id']):02d}" / f"{row['evaluation_id']}.npz"
+        native_archive = campaign / "shards" / f"shard_{int(reference['shard_id']):02d}" / f"{reference['evaluation_id']}.npz"
+        left, right = np.load(archive)["sample_mre"], np.load(native_archive)["sample_mre"]
+        rng = np.random.default_rng(int(hashlib.sha256(row["evaluation_id"].encode()).hexdigest()[:8], 16)); delta = left - right
+        values = np.empty(10_000, dtype=np.float64)
+        for start in range(0, 10_000, 250):
+            index = rng.integers(0, len(delta), size=(min(250, 10_000 - start), len(delta)))
+            values[start:start + len(index)] = delta[index].mean(axis=1)
+        comparisons.append({"evaluation_id": row["evaluation_id"], "native_evaluation_id": reference["evaluation_id"], "relationship": row["relationship"], "mre_delta_pp": float(delta.mean()), "ci95_low_pp": float(np.quantile(values, .025)), "ci95_high_pp": float(np.quantile(values, .975)), "relative_degradation_pct": float(delta.mean() / max(float(right.mean()), 1e-12) * 100.0), "bootstrap_replicates": 10000})
+    _write_csv(campaign / "paired_bootstrap_comparisons.csv", comparisons)
+    (campaign / "metrics.json").write_text(json.dumps({"planned_cells": 216, "completed_cells": 216, "bootstrap_replicates": 10000, "inference_time_total_s": float(sum(float(row["inference_time_s"]) for row in rows))}, indent=2) + "\n", encoding="utf-8")
+    (campaign / "results.json").write_text(json.dumps({"status": "exploratory_held_out_complete_pending_review", "scientific_boundary": "exploratory_held_out_surrogate_only", "g2_formal_status": "not_passed", "model_promotion": False, "physical_claim": False}, indent=2) + "\n", encoding="utf-8")
+    (campaign / "campaign_status.json").write_text(json.dumps({"status": "evaluation_complete_pending_review", "planned_cells": 216, "completed_cells": 216, "next_gate": "human_review_of_exploratory_surrogate_evidence"}, indent=2) + "\n", encoding="utf-8")
+    return campaign
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__); sub = parser.add_subparsers(dest="command", required=True)
     for name in ("freeze-g1", "freeze-g2", "freeze-continuations", "freeze-g3"):
@@ -441,11 +482,13 @@ def main(argv: Sequence[str] | None = None) -> None:
         if name == "freeze-g3":
             item.add_argument("--g2-campaign", required=True)
             item.add_argument("--continuation-campaign", required=True)
-    for name in ("run-g3-shard", "status-g3"):
+    for name in ("run-g3-shard", "status-g3", "finalize-g3"):
         item = sub.add_parser(name); item.add_argument("--campaign-dir", required=True); item.add_argument("--repository-root", default=".")
         if name == "run-g3-shard": item.add_argument("--shard-id", required=True, type=int); item.add_argument("--device", default="cuda:0")
     args = parser.parse_args(argv)
-    if args.command == "run-g3-shard":
+    if args.command == "finalize-g3":
+        result = finalize_g3(args.campaign_dir, repository_root=args.repository_root)
+    elif args.command == "run-g3-shard":
         result = run_g3_shard(args.campaign_dir, args.shard_id, repository_root=args.repository_root, device=args.device)
     elif args.command == "status-g3":
         result = status_g3(args.campaign_dir, repository_root=args.repository_root)
