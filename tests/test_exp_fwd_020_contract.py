@@ -152,3 +152,12 @@ def test_exp_fwd_020_g3_contract_is_exact_exploratory_216_cell_matrix() -> None:
         "relationship_counts": {"native": 36, "cross_lane": 36, "cross_dataset": 72, "cross_dataset_cross_lane": 72},
         "bootstrap_replicates": 10000,
     }
+
+
+def test_exp_fwd_020_g3_requires_validation_preflight_before_test_cache() -> None:
+    controller = (ROOT / "src/phc2d/forward/global_local_bridge_campaign.py").read_text(encoding="utf-8")
+    assert '"preflight-g3"' in controller
+    assert 'G3 preflight is not available' in controller
+    assert 'test_cache_gate": "g3_six_domain_preflight"' in controller
+    assert 'validation forward/batch consistency failed' in controller
+    assert 'test_cache_created_once": True' in controller

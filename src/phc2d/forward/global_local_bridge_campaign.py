@@ -308,30 +308,15 @@ def freeze_g3(
     expected = {(row["domain"], row["variant"], int(row["seed"])) for row in g2_rows}
     if len(final_rows) != 36 or identities != expected:
         raise RuntimeError("final checkpoint inventory has a collision or omission")
-    import h5py
-
     out.mkdir(parents=True)
-    cache_dir = out / "test_cache"; cache_dir.mkdir()
     datasets: list[dict[str, Any]] = []
     for domain, contract in config["datasets"].items():
         path = _resolve(root, str(contract["path"]))
         if _sha256(path) != str(contract["sha256"]):
             raise RuntimeError(f"dataset hash drift: {domain}")
-        with h5py.File(path, "r") as src:
-            required = {str(contract["grid_field"]), "Wh", "idx_test", "idx_val", "k_points"}
-            missing = required.difference(src.keys())
-            if missing:
-                raise RuntimeError(f"dataset fields missing for {domain}: {sorted(missing)}")
-            indices = np.asarray(src["idx_test"], dtype=np.int64)
-            if len(indices) != int(contract["test_size"]):
-                raise RuntimeError(f"test size drift for {domain}")
-            cache = cache_dir / f"{domain}.h5"
-            with h5py.File(cache, "w") as dst:
-                dst.create_dataset("input", data=src[str(contract["grid_field"])][indices], dtype="f4")
-                dst.create_dataset("Wh", data=src["Wh"][indices], dtype="f4")
-                dst.create_dataset("k_points", data=src["k_points"], dtype="f4")
-                dst.create_dataset("test_indices", data=indices, dtype="i8")
-            datasets.append({"domain": domain, "path": str(path), "grid_field": contract["grid_field"], "dataset_sha256": contract["sha256"], "idx_test_sha256": hashlib.sha256(indices.tobytes()).hexdigest(), "k_points_sha256": hashlib.sha256(np.asarray(src["k_points"], dtype=np.float32).tobytes()).hexdigest(), "cache_path": str(cache), "cache_sha256": _sha256(cache)})
+        # The cache is deliberately absent at freeze time: the single-card validation
+        # preflight must pass before this controller is allowed to read idx_test.
+        datasets.append({"domain": domain, "path": str(path), "grid_field": contract["grid_field"], "dataset_sha256": contract["sha256"], "test_size": int(contract["test_size"]), "cache_path": str(out / "test_cache" / f"{domain}.h5"), "cache_sha256": "", "idx_test_sha256": "", "k_points_sha256": ""})
     cells: list[dict[str, Any]] = []
     for checkpoint in sorted(final_rows, key=lambda item: (item["domain"], item["variant"], int(item["seed"]))):
         for target in config["datasets"]:
@@ -343,7 +328,7 @@ def freeze_g3(
     _write_csv(out / "dataset_manifest.csv", datasets)
     _write_csv(out / "evaluation_plan.csv", cells)
     (out / "config.resolved.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
-    (out / "freeze.json").write_text(json.dumps({"experiment_id": "EXP-FWD-020", "stage": "G3", "test_cache_created_once": True, "checkpoint_count": 36, "cell_count": 216, "relationship_counts": relation_counts, "plan_sha256": _sha256(out / "evaluation_plan.csv")}, indent=2) + "\n", encoding="utf-8")
+    (out / "freeze.json").write_text(json.dumps({"experiment_id": "EXP-FWD-020", "stage": "G3", "test_cache_created_once": False, "test_cache_gate": "g3_six_domain_preflight", "checkpoint_count": 36, "cell_count": 216, "relationship_counts": relation_counts, "plan_sha256": _sha256(out / "evaluation_plan.csv")}, indent=2) + "\n", encoding="utf-8")
     (out / "campaign_status.json").write_text(json.dumps({"status": "frozen_preflight_required", "planned_cells": 216, "completed_cells": 0, "next_gate": "g3_six_domain_preflight"}, indent=2) + "\n", encoding="utf-8")
     return out
 
@@ -386,6 +371,75 @@ def _g3_metrics(prediction: np.ndarray, target: np.ndarray) -> tuple[dict[str, A
     per_band = [{"band_one_based": band + 1, "mre_pct": float(rel[:, :, band].mean() * 100.0), "mae": float(np.abs(diff[:, :, band]).mean()), "r2_variance_weighted": float(np.nansum(r2[:, band] * weights[:, band]) / max(weights[:, band].sum(), 1.0e-12))} for band in range(target.shape[2])]
     per_k = [{"k_index": k, "mre_pct": float(rel[:, k, :].mean() * 100.0), "mae": float(np.abs(diff[:, k, :]).mean()), "r2_variance_weighted": float(np.nansum(r2[k] * weights[k]) / max(weights[k].sum(), 1.0e-12))} for k in range(target.shape[1])]
     return {"bands_2_10_mre_pct": float(sample_mre.mean()), "band1_mre_pct": float(rel[:, :, 0].mean() * 100.0), "bands_1_10_mre_pct": float(rel.mean() * 100.0), "mae": float(np.abs(diff).mean()), "rmse": float(np.sqrt((diff * diff).mean())), "r2_variance_weighted": float(np.nansum(r2 * weights) / max(weights.sum(), 1.0e-12)), "band_order_violation_rate": float(np.mean(np.any(np.diff(prediction, axis=2) < 0, axis=2))), "gap_decision": bool(np.all(np.diff(prediction, axis=2) >= 0)), "complete_gap_status": "ordered_all_samples" if bool(np.all(np.diff(prediction, axis=2) >= 0)) else "band_order_violation"}, per_band, per_k, sample_mre
+
+
+def preflight_g3(campaign_dir: str | Path, *, repository_root: str | Path = ".", device: str = "cuda:0") -> Path:
+    """Prove six-domain validation inference before the one permitted test-cache read."""
+    root = Path(repository_root).resolve(); campaign = _resolve(root, campaign_dir)
+    status = json.loads((campaign / "campaign_status.json").read_text(encoding="utf-8"))
+    if status.get("status") != "frozen_preflight_required":
+        raise RuntimeError(f"G3 preflight is not available: {status.get('status')}")
+    import h5py
+    import torch
+
+    checkpoints = _read_csv(campaign / "checkpoint_manifest.csv")
+    datasets = _read_csv(campaign / "dataset_manifest.csv")
+    if len(checkpoints) != 36 or len(datasets) != 6:
+        raise RuntimeError("G3 preflight requires frozen 36 checkpoints and six datasets")
+    device_obj = torch.device(device)
+    rows: list[dict[str, Any]] = []
+    payloads: list[dict[str, Any]] = []
+    for checkpoint in checkpoints:
+        path = Path(checkpoint["checkpoint_path"])
+        if _sha256(path) != checkpoint["checkpoint_sha256"]:
+            raise RuntimeError(f"checkpoint hash drift: {path}")
+        payloads.append(_g3_checkpoint(path, device_obj, torch))
+        rows.append({"kind": "checkpoint_load", "checkpoint_id": checkpoint["case_id"], "status": "passed", "checkpoint_sha256": checkpoint["checkpoint_sha256"]})
+    for position, dataset in enumerate(datasets):
+        path = Path(dataset["path"])
+        if _sha256(path) != dataset["dataset_sha256"]:
+            raise RuntimeError(f"dataset hash drift: {dataset['domain']}")
+        with h5py.File(path, "r") as source:
+            required = {dataset["grid_field"], "Wh", "idx_val", "k_points"}
+            missing = required.difference(source.keys())
+            if missing:
+                raise RuntimeError(f"validation fields missing for {dataset['domain']}: {sorted(missing)}")
+            indices = np.asarray(source["idx_val"], dtype=np.int64)
+            if len(indices) < 2:
+                raise RuntimeError(f"validation split too small for batch check: {dataset['domain']}")
+            check = indices[: min(4, len(indices))]
+            x = np.asarray(source[dataset["grid_field"]][check], dtype=np.float32)
+            k_points = np.asarray(source["k_points"], dtype=np.float32)
+        prediction_b1 = _g3_predict(payloads[position], x, k_points, 1, device_obj, torch)
+        prediction_bn = _g3_predict(payloads[position], x, k_points, len(x), device_obj, torch)
+        if not np.isfinite(prediction_b1).all() or not np.allclose(prediction_b1, prediction_bn, rtol=1.0e-5, atol=1.0e-6):
+            raise RuntimeError(f"validation forward/batch consistency failed: {dataset['domain']}")
+        rows.append({"kind": "validation_forward", "target_domain": dataset["domain"], "checkpoint_id": checkpoints[position]["case_id"], "samples": len(x), "status": "passed", "batch_consistent": True})
+    # Only the successful preflight reaches this point.  idx_test is read once per
+    # frozen target and immediately copied into an immutable evaluation cache.
+    cache_dir = campaign / "test_cache"; cache_dir.mkdir(exist_ok=False)
+    resolved_datasets: list[dict[str, Any]] = []
+    for dataset in datasets:
+        path = Path(dataset["path"])
+        with h5py.File(path, "r") as source:
+            required = {dataset["grid_field"], "Wh", "idx_test", "k_points"}
+            missing = required.difference(source.keys())
+            if missing:
+                raise RuntimeError(f"test-cache fields missing for {dataset['domain']}: {sorted(missing)}")
+            indices = np.asarray(source["idx_test"], dtype=np.int64)
+            if len(indices) != int(dataset["test_size"]):
+                raise RuntimeError(f"test size drift: {dataset['domain']}")
+            cache = Path(dataset["cache_path"])
+            with h5py.File(cache, "w") as destination:
+                destination.create_dataset("input", data=source[dataset["grid_field"]][indices], dtype="f4")
+                destination.create_dataset("Wh", data=source["Wh"][indices], dtype="f4")
+                destination.create_dataset("k_points", data=source["k_points"], dtype="f4")
+                destination.create_dataset("test_indices", data=indices, dtype="i8")
+            resolved_datasets.append({**dataset, "idx_test_sha256": hashlib.sha256(indices.tobytes()).hexdigest(), "k_points_sha256": hashlib.sha256(np.asarray(source["k_points"], dtype=np.float32).tobytes()).hexdigest(), "cache_sha256": _sha256(cache)})
+    _write_csv(campaign / "dataset_manifest.csv", resolved_datasets)
+    _write_csv(campaign / "preflight_manifest.csv", rows)
+    (campaign / "campaign_status.json").write_text(json.dumps({"status": "evaluation_plan_ready", "planned_cells": 216, "completed_cells": 0, "preflight_checkpoint_loads": 36, "preflight_validation_forwards": 6, "test_cache_created_once": True, "next_gate": "authorized_g3_array_submission"}, indent=2) + "\n", encoding="utf-8")
+    return campaign
 
 
 def run_g3_shard(campaign_dir: str | Path, shard_id: int, *, repository_root: str | Path = ".", device: str = "cuda:0") -> Path:
@@ -482,12 +536,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         if name == "freeze-g3":
             item.add_argument("--g2-campaign", required=True)
             item.add_argument("--continuation-campaign", required=True)
-    for name in ("run-g3-shard", "status-g3", "finalize-g3"):
+    for name in ("preflight-g3", "run-g3-shard", "status-g3", "finalize-g3"):
         item = sub.add_parser(name); item.add_argument("--campaign-dir", required=True); item.add_argument("--repository-root", default=".")
-        if name == "run-g3-shard": item.add_argument("--shard-id", required=True, type=int); item.add_argument("--device", default="cuda:0")
+        if name in {"preflight-g3", "run-g3-shard"}: item.add_argument("--device", default="cuda:0")
+        if name == "run-g3-shard": item.add_argument("--shard-id", required=True, type=int)
     args = parser.parse_args(argv)
     if args.command == "finalize-g3":
         result = finalize_g3(args.campaign_dir, repository_root=args.repository_root)
+    elif args.command == "preflight-g3":
+        result = preflight_g3(args.campaign_dir, repository_root=args.repository_root, device=args.device)
     elif args.command == "run-g3-shard":
         result = run_g3_shard(args.campaign_dir, args.shard_id, repository_root=args.repository_root, device=args.device)
     elif args.command == "status-g3":
@@ -503,7 +560,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     print(result)
 
 
-__all__ = ["freeze_g1", "freeze_g2", "freeze_exp_fwd_020_continuations", "freeze_g3"]
+__all__ = ["freeze_g1", "freeze_g2", "freeze_exp_fwd_020_continuations", "freeze_g3", "preflight_g3", "run_g3_shard", "status_g3", "finalize_g3"]
 
 
 if __name__ == "__main__": main()
