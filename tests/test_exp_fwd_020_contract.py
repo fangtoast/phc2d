@@ -14,7 +14,8 @@ import yaml
 
 from phc2d.models import build_model, get_model_spec
 from phc2d.forward import full_cell
-from phc2d.forward.global_local_bridge_campaign import freeze_exp_fwd_020_continuations, freeze_g1
+from phc2d.forward.global_local_bridge_campaign import finalize_g3, freeze_exp_fwd_020_continuations, freeze_g1
+from phc2d.forward.global_local_bridge_evaluation import cell_metrics, gap_decisions
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -161,3 +162,93 @@ def test_exp_fwd_020_g3_requires_validation_preflight_before_test_cache() -> Non
     assert 'test_cache_gate": "g3_six_domain_preflight"' in controller
     assert 'validation forward/batch consistency failed' in controller
     assert 'test_cache_created_once": True' in controller
+
+
+def test_exp_fwd_020_gap_decision_uses_maximum_adjacent_gap_and_tracks_zero_variance() -> None:
+    target = __import__("numpy").ones((2, 3, 10), dtype="float64")
+    target[:, :, 1] = 1.0  # B2
+    target[:, :, 2] = 1.1  # B3, narrow positive gap
+    target[:, :, 3] = 2.0  # B4
+    target[:, :, 4] = 3.0  # B5, widest selected gap is B4--B5
+    target[1, 0, 4] = 3.1  # retain some, but not all, non-zero-variance coordinates
+    prediction = target.copy()
+    prediction[:, :, 4] += 0.1
+    decision = gap_decisions(target)
+    assert set(decision["lower_band"]) == {4}
+    assert set(decision["upper_band"]) == {5}
+    metrics, per_band, per_k, arrays = cell_metrics(prediction, target)
+    assert metrics["bands_2_10_r2_status"] == "partial_zero_variance"
+    assert metrics["bands_2_10_zero_variance_coordinate_count"] > 0
+    assert metrics["gap_width_mae"] > 0.0
+    assert len(per_band) == 10
+    assert len(per_k) == 3
+    assert arrays["sample_mre_bands_2_10_pct"].shape == (2,)
+
+
+def test_exp_fwd_020_finalizer_writes_complete_directed_and_kernel_outputs(tmp_path: Path) -> None:
+    campaign = tmp_path / "g3"
+    (campaign / "shards").mkdir(parents=True)
+    domains = ("k5_binary", "k5_graded", "k20_binary", "k20_graded", "f50_binary", "f50_graded")
+
+    def relationship(source: str, target: str) -> str:
+        source_dataset, source_lane = source.split("_", 1)
+        target_dataset, target_lane = target.split("_", 1)
+        if source_dataset == target_dataset and source_lane == target_lane:
+            return "native"
+        if source_dataset == target_dataset:
+            return "cross_lane"
+        if source_lane == target_lane:
+            return "cross_dataset"
+        return "cross_dataset_cross_lane"
+
+    cells: list[dict[str, object]] = []
+    shard_rows: dict[int, list[dict[str, object]]] = {index: [] for index in range(8)}
+    for source in domains:
+        for variant, base_error in (("baseline", 2.0), ("candidate", 1.0)):
+            for seed in range(3):
+                checkpoint_id = f"{source}_{variant}_s{seed}"
+                for target in domains:
+                    shard_id = len(cells) % 8
+                    value = base_error + seed * 0.01 + (0.0 if source == target else 0.5)
+                    row = {
+                        "evaluation_id": f"g3_{len(cells):03d}", "checkpoint_id": checkpoint_id,
+                        "source_domain": source, "source_lane": source.split("_", 1)[1], "source_variant": variant, "source_seed": str(seed),
+                        "target_domain": target, "target_lane": target.split("_", 1)[1], "relationship": relationship(source, target), "shard_id": str(shard_id), "status": "completed",
+                        "bands_2_10_mre_pct": str(value), "inference_time_s": "1.0", "latency_per_sample_s": "0.25", "throughput_samples_per_s": "4.0", "peak_gpu_memory_mb": "64.0", "actual_batch_size": "4",
+                    }
+                    cells.append(row)
+                    shard_rows[shard_id].append(row)
+    assert len(cells) == 216
+
+    def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
+        with path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+
+    write_csv(campaign / "evaluation_plan.csv", cells)
+    (campaign / "checkpoint_manifest.csv").write_text("checkpoint_id\nsynthetic\n", encoding="utf-8")
+    (campaign / "dataset_manifest.csv").write_text("domain\nsynthetic\n", encoding="utf-8")
+    for shard_id, rows in shard_rows.items():
+        shard = campaign / "shards" / f"shard_{shard_id:02d}"
+        shard.mkdir()
+        write_csv(shard / "evaluation_cells.csv", rows)
+        for row in rows:
+            __import__("numpy").savez_compressed(shard / f"{row['evaluation_id']}.npz", sample_mre_bands_2_10_pct=__import__("numpy").array([float(row["bands_2_10_mre_pct"])] * 4))
+            write_csv(shard / f"{row['evaluation_id']}_per_band.csv", [{"evaluation_id": row["evaluation_id"], "band_one_based": 1, "mre_pct": row["bands_2_10_mre_pct"]}])
+            write_csv(shard / f"{row['evaluation_id']}_per_k.csv", [{"evaluation_id": row["evaluation_id"], "k_index": 0, "mre_pct": row["bands_2_10_mre_pct"]}])
+            write_csv(shard / f"{row['evaluation_id']}_gap_decision.csv", [{"evaluation_id": row["evaluation_id"], "selected_band_accuracy": "1.0"}])
+
+    finalized = finalize_g3(campaign, repository_root=tmp_path)
+    assert finalized == campaign
+    for name, expected_rows in {
+        "checkpoint_degradation.csv": 180,
+        "checkpoint_degradation_summary.csv": 36,
+        "kernel_paired_bootstrap.csv": 108,
+        "seed_summary.csv": 72,
+        "kernel_direction_summary.csv": 36,
+    }.items():
+        with (campaign / name).open(encoding="utf-8", newline="") as handle:
+            assert len(list(csv.DictReader(handle))) == expected_rows
+    with (campaign / "kernel_paired_bootstrap.csv").open(encoding="utf-8", newline="") as handle:
+        assert {row["conclusion"] for row in csv.DictReader(handle)} == {"candidate_improves"}
