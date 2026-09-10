@@ -13,7 +13,7 @@ PHC2D_ROOT="${PHC2D_ROOT:-$HOME/run/phc2d-exp-fwd-020}"; cd "$PHC2D_ROOT"
 export PYTHONPATH="$PHC2D_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 [[ "${PHC2D_AUTHORIZE_EXP_FWD_020:-}" == YES ]] || { echo "authorization missing" >&2; exit 4; }
 [[ "$(tr -d '[:space:]' < DEPLOYED_GIT_COMMIT)" == "$PHC2D_EXPECTED_COMMIT" ]] || { echo "deployment mismatch" >&2; exit 3; }
-stage="${1:?usage: $0 preflight|g1|g2 [G1_CAMPAIGN_DIR]}"; campaign="${2:-}"
+stage="${1:?usage: $0 preflight|g1|g2|continuation [SOURCE_DIR]}"; campaign="${2:-}"
 mkdir -p "$PHC2D_RUN_ROOT"
 if [[ "$stage" == preflight ]]; then
   campaign="$PHC2D_RUN_ROOT/$(date +%Y%m%d)/EXP-FWD-020_preflight_freeze_$(date +%Y%m%d%H%M%S)"
@@ -30,6 +30,14 @@ elif [[ "$stage" == g1 ]]; then
   grep -q '2.7.1' "$preflight_run/run.meta.json" || { echo "required PyTorch 2.7.1 evidence missing" >&2; exit 5; }
   campaign="$PHC2D_RUN_ROOT/$(date +%Y%m%d)/EXP-FWD-020_g1_$(date +%Y%m%d%H%M%S)"
   "$PHC2D_ENV/bin/python" -m phc2d.forward.global_local_bridge_campaign freeze-g1 --config configs/research/full_cell_global_local_bridge_exp_fwd_020_v1.yaml --output-dir "$campaign" --repository-root "$PHC2D_ROOT"
+elif [[ "$stage" == continuation ]]; then
+  preflight_run="${2:?continuation requires the completed N56 preflight run directory}"
+  g2_source="${3:?continuation requires the frozen 36-run G2 source campaign}"
+  for artifact in run.log run.meta.json config.resolved.yaml metrics.json results.json history.csv model.pt model_summary.json; do test -s "$preflight_run/$artifact" || { echo "preflight evidence missing: $artifact" >&2; exit 5; }; done
+  grep -q 'full_cell_forward_admission_probe_pass' "$preflight_run/results.json" || { echo "preflight did not pass" >&2; exit 5; }
+  grep -q '2.7.1' "$preflight_run/run.meta.json" || { echo "required PyTorch 2.7.1 evidence missing" >&2; exit 5; }
+  campaign="$PHC2D_RUN_ROOT/$(date +%Y%m%d)/EXP-FWD-020_epoch300_continuations_$(date +%Y%m%d%H%M%S)"
+  "$PHC2D_ENV/bin/python" -m phc2d.forward.global_local_bridge_campaign freeze-continuations --source-campaign "$g2_source" --output-dir "$campaign" --repository-root "$PHC2D_ROOT"
 elif [[ "$stage" == g2 && -n "$campaign" ]]; then
   g1="${3:?g2 requires G1 campaign directory}"
   next="$PHC2D_RUN_ROOT/$(date +%Y%m%d)/EXP-FWD-020_g2_$(date +%Y%m%d%H%M%S)"

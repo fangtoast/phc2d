@@ -88,6 +88,8 @@ def test_exp_fwd_020_submitter_requires_and_propagates_versioned_environment() -
     assert "gpu_4090" not in submitter
     assert "PHC2D_CUDA_MODULE=cuda/12.8" in preflight
     assert 'torch.__version__.startswith("2.7.1")' in preflight
+    assert "freeze-continuations" in submitter
+    assert "EXP-FWD-020_epoch300_continuations" in submitter
 
 
 def test_exp_fwd_020_fixed_epoch300_continuation_is_validation_only(tmp_path: Path) -> None:
