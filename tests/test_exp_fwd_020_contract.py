@@ -40,7 +40,7 @@ def test_exp_fwd_020_is_authorized_for_the_gated_n56_campaign() -> None:
     assert config["runtime"]["partition"] == "gpu_5090"
     assert config["runtime"]["cuda_module"] == "cuda/12.8"
     assert config["runtime"]["torch_version"] == "2.7.1"
-    assert config["runtime"]["environment"] == "/data/run01/scxl892/envs/phc2d_gpu_cu128_torch271"
+    assert config["runtime"]["environment"] == "/data/run01/scxl892/envs/phc2d_gpu_cu128_torch271_r1"
     assert config["runtime"]["max_concurrent_jobs"] == 8
     assert len(config["datasets"]) == 6
     assert all("n40_path" in item and "n56_path" in item for item in config["datasets"].values())

@@ -81,7 +81,7 @@ runtime:
   memory_mb: 60000
   cuda_module: cuda/12.8
   torch_version: 2.7.1
-  environment: /data/run01/scxl892/envs/phc2d_gpu_cu128_torch271
+  environment: /data/run01/scxl892/envs/phc2d_gpu_cu128_torch271_r1
   max_concurrent_jobs: 8
 authorization:
   granted: true
