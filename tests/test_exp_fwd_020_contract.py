@@ -137,3 +137,18 @@ def test_exp_fwd_020_freezes_exactly_29_epoch300_continuations(tmp_path: Path) -
     continuation = yaml.safe_load(Path(continuation_rows[0]["config"]).read_text(encoding="utf-8"))
     assert continuation["training"]["required_stop_epoch"] == 300
     assert continuation["continuation"]["stop_when_converged"] is False
+
+
+def test_exp_fwd_020_g3_contract_is_exact_exploratory_216_cell_matrix() -> None:
+    config = yaml.safe_load(
+        (ROOT / "configs/research/full_cell_global_local_bridge_exp_fwd_020_g3_v1.yaml").read_text(encoding="utf-8")
+    )
+    assert config["authorization"]["held_out_test_authorized"] is True
+    assert config["experiment"]["promotion_eligible"] is False
+    assert config["matrix"] == {
+        "checkpoint_count": 36,
+        "target_domain_count": 6,
+        "cell_count": 216,
+        "relationship_counts": {"native": 36, "cross_lane": 36, "cross_dataset": 72, "cross_dataset_cross_lane": 72},
+        "bootstrap_replicates": 10000,
+    }

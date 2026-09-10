@@ -11,9 +11,11 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+import numpy as np
 import yaml
 
 
@@ -247,24 +249,127 @@ def freeze_exp_fwd_020_continuations(
     return out
 
 
+def _g3_relationship(source_domain: str, target_domain: str) -> str:
+    source_dataset, source_lane = source_domain.split("_", 1)
+    target_dataset, target_lane = target_domain.split("_", 1)
+    if source_dataset == target_dataset and source_lane == target_lane:
+        return "native"
+    if source_dataset == target_dataset:
+        return "cross_lane"
+    if source_lane == target_lane:
+        return "cross_dataset"
+    return "cross_dataset_cross_lane"
+
+
+def freeze_g3(
+    config_path: str | Path,
+    g2_campaign: str | Path,
+    continuation_campaign: str | Path,
+    output_dir: str | Path,
+    *,
+    repository_root: str | Path = ".",
+) -> Path:
+    """Freeze the authorized one-read EXP-FWD-020 exploratory 36x6 matrix."""
+    root = Path(repository_root).resolve()
+    config = _load(_resolve(root, config_path))
+    if not bool(config.get("authorization", {}).get("held_out_test_authorized")):
+        raise RuntimeError("G3 held-out authorization is not enabled")
+    if config.get("experiment", {}).get("evidence_status") != "exploratory_held_out_surrogate_only":
+        raise RuntimeError("G3 must retain the exploratory surrogate boundary")
+    g2 = _resolve(root, g2_campaign)
+    continuation = _resolve(root, continuation_campaign)
+    out = _resolve(root, output_dir)
+    if out.exists():
+        raise FileExistsError(f"G3 campaign directory already exists: {out}")
+    g2_rows = _read_csv(g2 / "task_manifest.csv")
+    continuation_rows = _read_csv(continuation / "task_manifest.csv")
+    untouched_rows = _read_csv(continuation / "untouched_checkpoint_sources.csv")
+    if len(g2_rows) != 36 or len(continuation_rows) != 29 or len(untouched_rows) != 7:
+        raise RuntimeError("G3 requires the frozen 36=29+7 final-checkpoint source inventory")
+    final_rows: list[dict[str, Any]] = []
+    for row in untouched_rows:
+        source_run = _resolve(root, row["source_run"])
+        result = json.loads((source_run / "results.json").read_text(encoding="utf-8"))
+        checkpoint = source_run / "model.pt"
+        if result.get("status") != "formal_training_success" or result.get("test_executed"):
+            raise RuntimeError(f"untouched G2 source invalid: {row['case_id']}")
+        final_rows.append({**row, "checkpoint_path": str(checkpoint), "checkpoint_sha256": _sha256(checkpoint), "checkpoint_origin": "g2_validation_best"})
+    for row in continuation_rows:
+        run = _resolve(root, row["run_dir"])
+        result_path, checkpoint = run / "results.json", run / "model.pt"
+        if not result_path.is_file() or not checkpoint.is_file():
+            raise RuntimeError(f"continuation result/checkpoint missing: {row['case_id']}")
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        if result.get("test_executed") or int(result.get("stop_epoch", -1)) != 300 or int(result.get("history_epoch_count", -1)) != 300:
+            raise RuntimeError(f"continuation final state invalid: {row['case_id']}")
+        final_rows.append({**row, "checkpoint_path": str(checkpoint), "checkpoint_sha256": _sha256(checkpoint), "checkpoint_origin": "epoch300_validation_best"})
+    identities = {(row["domain"], row["variant"], int(row["seed"])) for row in final_rows}
+    expected = {(row["domain"], row["variant"], int(row["seed"])) for row in g2_rows}
+    if len(final_rows) != 36 or identities != expected:
+        raise RuntimeError("final checkpoint inventory has a collision or omission")
+    import h5py
+
+    out.mkdir(parents=True)
+    cache_dir = out / "test_cache"; cache_dir.mkdir()
+    datasets: list[dict[str, Any]] = []
+    for domain, contract in config["datasets"].items():
+        path = _resolve(root, str(contract["path"]))
+        if _sha256(path) != str(contract["sha256"]):
+            raise RuntimeError(f"dataset hash drift: {domain}")
+        with h5py.File(path, "r") as src:
+            required = {str(contract["grid_field"]), "Wh", "idx_test", "idx_val", "k_points"}
+            missing = required.difference(src.keys())
+            if missing:
+                raise RuntimeError(f"dataset fields missing for {domain}: {sorted(missing)}")
+            indices = np.asarray(src["idx_test"], dtype=np.int64)
+            if len(indices) != int(contract["test_size"]):
+                raise RuntimeError(f"test size drift for {domain}")
+            cache = cache_dir / f"{domain}.h5"
+            with h5py.File(cache, "w") as dst:
+                dst.create_dataset("input", data=src[str(contract["grid_field"])][indices], dtype="f4")
+                dst.create_dataset("Wh", data=src["Wh"][indices], dtype="f4")
+                dst.create_dataset("k_points", data=src["k_points"], dtype="f4")
+                dst.create_dataset("test_indices", data=indices, dtype="i8")
+            datasets.append({"domain": domain, "path": str(path), "grid_field": contract["grid_field"], "dataset_sha256": contract["sha256"], "idx_test_sha256": hashlib.sha256(indices.tobytes()).hexdigest(), "k_points_sha256": hashlib.sha256(np.asarray(src["k_points"], dtype=np.float32).tobytes()).hexdigest(), "cache_path": str(cache), "cache_sha256": _sha256(cache)})
+    cells: list[dict[str, Any]] = []
+    for checkpoint in sorted(final_rows, key=lambda item: (item["domain"], item["variant"], int(item["seed"]))):
+        for target in config["datasets"]:
+            cells.append({"evaluation_id": f"g3_{len(cells):03d}", "checkpoint_id": checkpoint["case_id"], "source_domain": checkpoint["domain"], "source_lane": checkpoint["lane"], "source_variant": checkpoint["variant"], "source_seed": checkpoint["seed"], "checkpoint_path": checkpoint["checkpoint_path"], "checkpoint_sha256": checkpoint["checkpoint_sha256"], "target_domain": target, "target_lane": "binary" if target.endswith("binary") else "graded", "relationship": _g3_relationship(checkpoint["domain"], target), "shard_id": len(cells) % 8, "status": "planned"})
+    relation_counts = {name: sum(row["relationship"] == name for row in cells) for name in ("native", "cross_lane", "cross_dataset", "cross_dataset_cross_lane")}
+    if len(cells) != 216 or relation_counts != dict(config["matrix"]["relationship_counts"]):
+        raise RuntimeError(f"G3 matrix contract mismatch: {relation_counts}")
+    _write_csv(out / "checkpoint_manifest.csv", final_rows)
+    _write_csv(out / "dataset_manifest.csv", datasets)
+    _write_csv(out / "evaluation_plan.csv", cells)
+    (out / "config.resolved.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    (out / "freeze.json").write_text(json.dumps({"experiment_id": "EXP-FWD-020", "stage": "G3", "test_cache_created_once": True, "checkpoint_count": 36, "cell_count": 216, "relationship_counts": relation_counts, "plan_sha256": _sha256(out / "evaluation_plan.csv")}, indent=2) + "\n", encoding="utf-8")
+    (out / "campaign_status.json").write_text(json.dumps({"status": "frozen_preflight_required", "planned_cells": 216, "completed_cells": 0, "next_gate": "g3_six_domain_preflight"}, indent=2) + "\n", encoding="utf-8")
+    return out
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__); sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("freeze-g1", "freeze-g2", "freeze-continuations"):
+    for name in ("freeze-g1", "freeze-g2", "freeze-continuations", "freeze-g3"):
         item = sub.add_parser(name); item.add_argument("--output-dir", required=True); item.add_argument("--repository-root", default=".")
-        if name in {"freeze-g1", "freeze-g2"}: item.add_argument("--config", required=True)
+        if name in {"freeze-g1", "freeze-g2", "freeze-g3"}: item.add_argument("--config", required=True)
         if name == "freeze-g2": item.add_argument("--g1-dir", required=True)
         if name == "freeze-continuations": item.add_argument("--source-campaign", required=True)
+        if name == "freeze-g3":
+            item.add_argument("--g2-campaign", required=True)
+            item.add_argument("--continuation-campaign", required=True)
     args = parser.parse_args(argv)
     if args.command == "freeze-g1":
         result = freeze_g1(args.config, args.output_dir, repository_root=args.repository_root)
     elif args.command == "freeze-g2":
         result = freeze_g2(args.config, args.g1_dir, args.output_dir, repository_root=args.repository_root)
-    else:
+    elif args.command == "freeze-continuations":
         result = freeze_exp_fwd_020_continuations(args.source_campaign, args.output_dir, repository_root=args.repository_root)
+    else:
+        result = freeze_g3(args.config, args.g2_campaign, args.continuation_campaign, args.output_dir, repository_root=args.repository_root)
     print(result)
 
 
-__all__ = ["freeze_g1", "freeze_g2", "freeze_exp_fwd_020_continuations"]
+__all__ = ["freeze_g1", "freeze_g2", "freeze_exp_fwd_020_continuations", "freeze_g3"]
 
 
 if __name__ == "__main__": main()
