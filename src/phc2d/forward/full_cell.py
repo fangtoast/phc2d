@@ -317,7 +317,7 @@ def _validate_and_resolve(
     }
     if not admission_probe:
         continuation_enabled = bool(continuation)
-        allowed_epochs = {20, 100, 200, 600} if continuation_enabled else {20, 100, 200}
+        allowed_epochs = {20, 100, 200, 300, 600} if continuation_enabled else {20, 100, 200}
         if int(resolved["training"]["max_epochs"]) not in allowed_epochs:
             raise ValueError(f"formal training max_epochs must be one of {sorted(allowed_epochs)}")
         if int(training.get("early_stopping_patience", 0)) < 0:
@@ -331,8 +331,9 @@ def _validate_and_resolve(
         if bool(runtime.get("amp_enabled")) or bool(runtime.get("tf32_enabled")):
             raise ValueError("formal training forbids AMP and TF32")
         if continuation_enabled:
-            if str(experiment.get("experiment_id")) != "EXP-FWD-009":
-                raise ValueError("weight-only convergence continuation requires EXP-FWD-009")
+            continuation_experiment = str(experiment.get("experiment_id"))
+            if continuation_experiment not in {"EXP-FWD-009", "EXP-FWD-020"}:
+                raise ValueError("weight-only continuation requires a registered experiment")
             if str(continuation.get("mode")) != "epoch200_weights_optimizer_reset":
                 raise ValueError("unsupported continuation mode")
             if int(continuation.get("source_epoch", -1)) != 200:
@@ -343,24 +344,36 @@ def _validate_and_resolve(
                 raise ValueError("continuation relative_threshold must equal 0.005")
             if not bool(continuation.get("optimizer_reset", False)):
                 raise ValueError("weight-only continuation must declare optimizer_reset=true")
-            if int(resolved["training"]["max_epochs"]) != 600:
-                raise ValueError("EXP-FWD-009 continuation max_epochs must equal 600")
-            if training.get("required_stop_epoch") is not None:
-                raise ValueError("continuation uses a convergence stop, not required_stop_epoch")
+            if continuation_experiment == "EXP-FWD-009":
+                if int(resolved["training"]["max_epochs"]) != 600:
+                    raise ValueError("EXP-FWD-009 continuation max_epochs must equal 600")
+                if training.get("required_stop_epoch") is not None:
+                    raise ValueError("continuation uses a convergence stop, not required_stop_epoch")
+            else:
+                if int(resolved["training"]["max_epochs"]) != 300 or int(continuation.get("max_total_epoch", -1)) != 300:
+                    raise ValueError("EXP-FWD-020 continuation must run through total epoch 300")
+                if bool(continuation.get("stop_when_converged", True)):
+                    raise ValueError("EXP-FWD-020 continuation forbids early convergence stop")
+                if int(training.get("required_stop_epoch", -1)) != 300:
+                    raise ValueError("EXP-FWD-020 continuation requires terminal epoch 300")
             if int(training.get("early_stopping_patience", -1)) != 0:
                 raise ValueError("continuation requires early_stopping_patience=0")
         if training.get("required_stop_epoch") is not None:
             required_stop = int(training["required_stop_epoch"])
-            if max_epochs != required_stop or required_stop != 200:
-                raise ValueError("fixed-200 training requires max_epochs=required_stop_epoch=200")
+            allowed_required_stops = {200}
+            if continuation_enabled and str(experiment.get("experiment_id")) == "EXP-FWD-020":
+                allowed_required_stops.add(300)
+            if max_epochs != required_stop or required_stop not in allowed_required_stops:
+                raise ValueError("fixed training requires matching registered terminal epoch")
             if int(training.get("early_stopping_patience", -1)) != 0:
                 raise ValueError("fixed-200 training requires early_stopping_patience=0")
             if bool(training.get("epoch_100_continue_gate", False)):
                 raise ValueError("fixed-200 training forbids epoch_100_continue_gate")
             if not bool(training.get("require_terminal_checkpoint", False)):
                 raise ValueError("fixed-200 training requires a terminal checkpoint")
-            if tuple(int(value) for value in training.get("convergence_window", [])) != (181, 200):
-                raise ValueError("fixed-200 training requires convergence_window=[181, 200]")
+            expected_window = (281, 300) if required_stop == 300 else (181, 200)
+            if tuple(int(value) for value in training.get("convergence_window", [])) != expected_window:
+                raise ValueError(f"fixed training requires convergence_window={list(expected_window)}")
             if str(training.get("convergence_metric", "")) != "validation_bands_2_10_mre":
                 raise ValueError("fixed-200 training requires validation_bands_2_10_mre")
             if float(training.get("convergence_relative_threshold", -1.0)) != 0.005:
@@ -838,7 +851,9 @@ def run_full_cell_forward(
                 continuation_convergence["relative_change"],
                 continuation_convergence["passed"],
             )
-            if bool(continuation_convergence["passed"]):
+            if bool(continuation_convergence["passed"]) and bool(
+                resolved["continuation"].get("stop_when_converged", True)
+            ):
                 break
         if gate_enabled and epoch == 100:
             gate_record = _epoch_100_continue_decision(
@@ -892,13 +907,14 @@ def run_full_cell_forward(
         if stop_epoch != required_stop_epoch:
             raise RuntimeError(f"required terminal epoch {required_stop_epoch}, observed {stop_epoch}")
         convergence_window = tuple(int(value) for value in training.get("convergence_window", [181, 200]))
-        if convergence_window != (181, 200):
-            raise ValueError("EXP-FWD-008 convergence_window must be [181, 200]")
+        expected_window = (281, 300) if required_stop_epoch == 300 else (181, 200)
+        if convergence_window != expected_window:
+            raise ValueError(f"terminal convergence_window must be {list(expected_window)}")
         convergence = _convergence_record(
             history,
             metric=("val_bands_2_10_mre_pct" if str(training.get("convergence_metric")) == "validation_bands_2_10_mre" else str(training.get("convergence_metric", "val_bands_2_10_mre_pct"))),
-            first_window=(181, 190),
-            second_window=(191, 200),
+            first_window=(expected_window[0], expected_window[0] + 9),
+            second_window=(expected_window[0] + 10, expected_window[1]),
             threshold=float(training.get("convergence_relative_threshold", 0.005)),
         )
         convergence["contract_metric"] = str(training.get("convergence_metric", "validation_bands_2_10_mre"))

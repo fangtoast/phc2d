@@ -7,12 +7,14 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from pathlib import Path
 import csv
+import json
 
 import pytest
 import yaml
 
 from phc2d.models import build_model, get_model_spec
-from phc2d.forward.global_local_bridge_campaign import freeze_g1
+from phc2d.forward import full_cell
+from phc2d.forward.global_local_bridge_campaign import freeze_exp_fwd_020_continuations, freeze_g1
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -86,3 +88,50 @@ def test_exp_fwd_020_submitter_requires_and_propagates_versioned_environment() -
     assert "gpu_4090" not in submitter
     assert "PHC2D_CUDA_MODULE=cuda/12.8" in preflight
     assert 'torch.__version__.startswith("2.7.1")' in preflight
+
+
+def test_exp_fwd_020_fixed_epoch300_continuation_is_validation_only(tmp_path: Path) -> None:
+    config = yaml.safe_load(
+        (ROOT / "configs/research/full_cell_global_local_bridge_exp_fwd_020_v1.yaml").read_text(encoding="utf-8")
+    )
+    derived = {
+        "experiment": {"experiment_id": "EXP-FWD-020", "lane": "binary", "held_out_test_authorized": False},
+        "dataset": {"path": "unused.h5", "grid_field": "material_area_fraction_grid_64"},
+        "representation": {"sampling": "continuous", "threshold": None, "resolution": 64},
+        "models": {"global_local_band_operator_v1": {**config["model"]["shared_params"], "local_kernel": 3}},
+        "training": {**config["training"], "train_size": 8000, "max_epochs": 300, "required_stop_epoch": 300, "convergence_window": [281, 300], "convergence_metric": "validation_bands_2_10_mre", "convergence_relative_threshold": 0.005, "require_terminal_checkpoint": True, "early_stopping_patience": 0, "learning_rates": {"global_local_band_operator_v1": config["training"]["learning_rate"]}},
+        "runtime": {"precision": "fp32", "amp_enabled": False, "tf32_enabled": False},
+        "continuation": {"mode": "epoch200_weights_optimizer_reset", "source_experiment": "EXP-FWD-020", "source_epoch": 200, "optimizer_reset": True, "data_order_state_restored": False, "check_interval": 20, "relative_threshold": 0.005, "max_total_epoch": 300, "stop_when_converged": False, "source_run": str(tmp_path / "source")},
+    }
+    resolved = full_cell._validate_and_resolve(derived, model_name="global_local_band_operator_v1", seed=0, admission_probe=False)
+    assert resolved["training"]["max_epochs"] == 300
+    assert resolved["experiment"]["held_out_test_authorized"] is False
+
+
+def test_exp_fwd_020_freezes_exactly_29_epoch300_continuations(tmp_path: Path) -> None:
+    source = tmp_path / "g2"; source.mkdir()
+    rows = []
+    domains = ("k5_binary", "k5_graded", "k20_binary", "k20_graded", "f50_binary", "f50_graded")
+    for index, (domain, variant, seed) in enumerate((d, v, s) for d in domains for v in ("baseline", "candidate") for s in (0, 1, 2)):
+        run = source / "runs" / f"{domain}_{variant}_s{seed}"; run.mkdir(parents=True)
+        model, terminal = run / "model.pt", run / "epoch200.pt"
+        model.write_bytes(b"best" + bytes([index])); terminal.write_bytes(b"terminal" + bytes([index]))
+        for name in ("run.log", "run.meta.json", "metrics.json"):
+            (run / name).write_text("{}\n", encoding="utf-8")
+        (run / "config.resolved.yaml").write_text("experiment: {}\n", encoding="utf-8")
+        (run / "history.csv").write_text("epoch\n" + "\n".join(str(epoch) for epoch in range(1, 201)) + "\n", encoding="utf-8")
+        result = {"status": "formal_training_success" if index < 7 else "training_complete_convergence_not_met", "test_executed": False, "selection_split": "validation", "stop_epoch": 200, "history_epoch_count": 200, "checkpoint_sha256": __import__("hashlib").sha256(model.read_bytes()).hexdigest(), "terminal_checkpoint_sha256": __import__("hashlib").sha256(terminal.read_bytes()).hexdigest()}
+        (run / "results.json").write_text(json.dumps(result), encoding="utf-8")
+        config = source / "configs" / f"{index}.yaml"; config.parent.mkdir(exist_ok=True)
+        config.write_text(yaml.safe_dump({"experiment": {"experiment_id": "EXP-FWD-020", "held_out_test_authorized": False}, "training": {"max_epochs": 200}}), encoding="utf-8")
+        rows.append({"task_index": index, "case_id": f"{domain}_{variant}_s{seed}", "domain": domain, "lane": "binary" if domain.endswith("binary") else "graded", "variant": variant, "seed": seed, "config": str(config), "run_dir": str(run)})
+    with (source / "task_manifest.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0])); writer.writeheader(); writer.writerows(rows)
+    (source / "candidate_gate.json").write_text(json.dumps({"selected_domains": list(domains)}), encoding="utf-8")
+    frozen = freeze_exp_fwd_020_continuations(source, tmp_path / "continuations", repository_root=ROOT)
+    with (frozen / "task_manifest.csv").open(encoding="utf-8", newline="") as handle:
+        continuation_rows = list(csv.DictReader(handle))
+    assert len(continuation_rows) == 29
+    continuation = yaml.safe_load(Path(continuation_rows[0]["config"]).read_text(encoding="utf-8"))
+    assert continuation["training"]["required_stop_epoch"] == 300
+    assert continuation["continuation"]["stop_when_converged"] is False
