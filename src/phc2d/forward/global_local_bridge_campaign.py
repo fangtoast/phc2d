@@ -12,6 +12,7 @@ import csv
 import hashlib
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -347,6 +348,89 @@ def freeze_g3(
     return out
 
 
+def _g3_checkpoint(path: Path, device: Any, torch: Any) -> dict[str, Any]:
+    try:
+        payload = torch.load(path, map_location=device, weights_only=True)
+    except TypeError:
+        payload = torch.load(path, map_location=device)
+    if not isinstance(payload, Mapping) or not {"state_dict", "model_name", "model_params", "target_mean", "target_std"}.issubset(payload):
+        raise RuntimeError(f"checkpoint payload is incomplete: {path}")
+    return dict(payload)
+
+
+def _g3_predict(payload: Mapping[str, Any], x: np.ndarray, k_points: np.ndarray, batch: int, device: Any, torch: Any) -> np.ndarray:
+    from phc2d.models import build_model, get_model_spec
+
+    model = build_model(str(payload["model_name"]), input_shape=tuple(payload["input_shape"]), output_shape=tuple(payload["output_shape"]), **dict(payload["model_params"])).to(device)
+    model.load_state_dict(payload["state_dict"], strict=True); model.eval()
+    spec = get_model_spec(str(payload["model_name"]))
+    mean = np.asarray(payload["target_mean"].detach().cpu() if hasattr(payload["target_mean"], "detach") else payload["target_mean"], dtype=np.float32)
+    std = np.asarray(payload["target_std"].detach().cpu() if hasattr(payload["target_std"], "detach") else payload["target_std"], dtype=np.float32)
+    parts: list[np.ndarray] = []
+    with torch.no_grad():
+        for begin in range(0, len(x), batch):
+            xb = torch.from_numpy(x[begin:begin + batch]).to(device)
+            kwargs = {"k_points": torch.from_numpy(k_points).to(device)} if spec.accepts_k_points else {}
+            parts.append((model(xb, **kwargs).detach().cpu().numpy() * std + mean).astype(np.float32))
+    return np.concatenate(parts, axis=0)
+
+
+def _g3_metrics(prediction: np.ndarray, target: np.ndarray) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], np.ndarray]:
+    if not np.isfinite(prediction).all():
+        raise RuntimeError("nonfinite prediction")
+    diff = prediction - target; rel = np.abs(diff) / np.maximum(np.abs(target), 1.0e-8)
+    sample_mre = rel[:, :, 1:].mean(axis=(1, 2)) * 100.0
+    denominator = ((target - target.mean(axis=0, keepdims=True)) ** 2).sum(axis=0)
+    r2 = np.where(denominator > 1.0e-12, 1.0 - (diff * diff).sum(axis=0) / np.maximum(denominator, 1.0e-12), np.nan)
+    weights = np.where(denominator > 1.0e-12, denominator, 0.0)
+    per_band = [{"band_one_based": band + 1, "mre_pct": float(rel[:, :, band].mean() * 100.0), "mae": float(np.abs(diff[:, :, band]).mean()), "r2_variance_weighted": float(np.nansum(r2[:, band] * weights[:, band]) / max(weights[:, band].sum(), 1.0e-12))} for band in range(target.shape[2])]
+    per_k = [{"k_index": k, "mre_pct": float(rel[:, k, :].mean() * 100.0), "mae": float(np.abs(diff[:, k, :]).mean()), "r2_variance_weighted": float(np.nansum(r2[k] * weights[k]) / max(weights[k].sum(), 1.0e-12))} for k in range(target.shape[1])]
+    return {"bands_2_10_mre_pct": float(sample_mre.mean()), "band1_mre_pct": float(rel[:, :, 0].mean() * 100.0), "bands_1_10_mre_pct": float(rel.mean() * 100.0), "mae": float(np.abs(diff).mean()), "rmse": float(np.sqrt((diff * diff).mean())), "r2_variance_weighted": float(np.nansum(r2 * weights) / max(weights.sum(), 1.0e-12)), "band_order_violation_rate": float(np.mean(np.any(np.diff(prediction, axis=2) < 0, axis=2))), "gap_decision": bool(np.all(np.diff(prediction, axis=2) >= 0)), "complete_gap_status": "ordered_all_samples" if bool(np.all(np.diff(prediction, axis=2) >= 0)) else "band_order_violation"}, per_band, per_k, sample_mre
+
+
+def run_g3_shard(campaign_dir: str | Path, shard_id: int, *, repository_root: str | Path = ".", device: str = "cuda:0") -> Path:
+    root = Path(repository_root).resolve(); campaign = _resolve(root, campaign_dir)
+    status = json.loads((campaign / "campaign_status.json").read_text(encoding="utf-8"))
+    if status.get("status") not in {"evaluation_plan_ready", "evaluation_submitted"}:
+        raise RuntimeError(f"G3 is not runnable: {status.get('status')}")
+    import h5py
+    import torch
+
+    selected = [row for row in _read_csv(campaign / "evaluation_plan.csv") if int(row["shard_id"]) == int(shard_id)]
+    if not selected:
+        raise RuntimeError(f"empty G3 shard: {shard_id}")
+    caches = {row["domain"]: row for row in _read_csv(campaign / "dataset_manifest.csv")}
+    out = campaign / "shards" / f"shard_{int(shard_id):02d}"; out.mkdir(parents=True, exist_ok=False)
+    rows: list[dict[str, Any]] = []
+    for cell in selected:
+        checkpoint = Path(cell["checkpoint_path"])
+        if _sha256(checkpoint) != cell["checkpoint_sha256"]:
+            raise RuntimeError(f"checkpoint hash drift: {checkpoint}")
+        with h5py.File(caches[cell["target_domain"]]["cache_path"], "r") as handle:
+            x, target, k_points = np.asarray(handle["input"], dtype=np.float32), np.asarray(handle["Wh"], dtype=np.float32), np.asarray(handle["k_points"], dtype=np.float32)
+        device_obj = torch.device(device); torch.cuda.reset_peak_memory_stats(device_obj)
+        payload = _g3_checkpoint(checkpoint, device_obj, torch)
+        started = time.perf_counter(); prediction = _g3_predict(payload, x, k_points, 64, device_obj, torch); elapsed = time.perf_counter() - started
+        metrics, per_band, per_k, sample_mre = _g3_metrics(prediction, target)
+        np.savez_compressed(out / f"{cell['evaluation_id']}.npz", sample_mre=sample_mre)
+        _write_csv(out / f"{cell['evaluation_id']}_per_band.csv", [{"evaluation_id": cell["evaluation_id"], **value} for value in per_band])
+        _write_csv(out / f"{cell['evaluation_id']}_per_k.csv", [{"evaluation_id": cell["evaluation_id"], **value} for value in per_k])
+        rows.append({**cell, **metrics, "status": "completed", "source_normalizer_reused": True, "inference_time_s": elapsed, "throughput_samples_per_s": len(x) / max(elapsed, 1.0e-12), "peak_gpu_memory_mb": float(torch.cuda.max_memory_allocated(device_obj) / 1024**2)})
+    _write_csv(out / "evaluation_cells.csv", rows)
+    (out / "results.json").write_text(json.dumps({"status": "shard_success", "cell_count": len(rows)}, indent=2) + "\n", encoding="utf-8")
+    return out
+
+
+def status_g3(campaign_dir: str | Path, *, repository_root: str | Path = ".") -> dict[str, Any]:
+    campaign = _resolve(Path(repository_root).resolve(), campaign_dir)
+    status = json.loads((campaign / "campaign_status.json").read_text(encoding="utf-8"))
+    plan = _read_csv(campaign / "evaluation_plan.csv")
+    complete = [row for shard in (campaign / "shards").glob("shard_*") if (shard / "evaluation_cells.csv").is_file() for row in _read_csv(shard / "evaluation_cells.csv")]
+    summary = {**status, "planned_cells": len(plan), "completed_cells": len(complete), "missing_cells": len({row["evaluation_id"] for row in plan} - {row["evaluation_id"] for row in complete})}
+    (campaign / "status_snapshot.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    return summary
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__); sub = parser.add_subparsers(dest="command", required=True)
     for name in ("freeze-g1", "freeze-g2", "freeze-continuations", "freeze-g3"):
@@ -357,8 +441,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         if name == "freeze-g3":
             item.add_argument("--g2-campaign", required=True)
             item.add_argument("--continuation-campaign", required=True)
+    for name in ("run-g3-shard", "status-g3"):
+        item = sub.add_parser(name); item.add_argument("--campaign-dir", required=True); item.add_argument("--repository-root", default=".")
+        if name == "run-g3-shard": item.add_argument("--shard-id", required=True, type=int); item.add_argument("--device", default="cuda:0")
     args = parser.parse_args(argv)
-    if args.command == "freeze-g1":
+    if args.command == "run-g3-shard":
+        result = run_g3_shard(args.campaign_dir, args.shard_id, repository_root=args.repository_root, device=args.device)
+    elif args.command == "status-g3":
+        result = status_g3(args.campaign_dir, repository_root=args.repository_root)
+    elif args.command == "freeze-g1":
         result = freeze_g1(args.config, args.output_dir, repository_root=args.repository_root)
     elif args.command == "freeze-g2":
         result = freeze_g2(args.config, args.g1_dir, args.output_dir, repository_root=args.repository_root)
