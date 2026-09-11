@@ -5,9 +5,11 @@
 # Copyright (c) 2026 fangtoast. All rights reserved.
 
 set -euo pipefail
-commit="${1:?usage: $0 FULL_GIT_COMMIT}"; source_root="${PHC2D_SOURCE_ROOT:-$HOME/run/phc2d}"
+commit="${1:?usage: $0 FULL_GIT_COMMIT}"
+source_root="${PHC2D_SOURCE_ROOT:-/data/run01/scxl892/phc2d}"
+deployment_root="${PHC2D_DEPLOYMENT_ROOT:-/data/run01/scxl892/deployments/EXP-FWD-020}"
 [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || { echo "full commit required" >&2; exit 2; }
-target="$HOME/run/deployments/EXP-FWD-020/$commit"
+target="$deployment_root/$commit"
 [[ ! -e "$target" ]] || { echo "immutable deployment already exists" >&2; exit 3; }
 git -C "$source_root" rev-parse --verify "$commit^{commit}" >/dev/null
 mkdir -p "$(dirname "$target")"; git -C "$source_root" archive "$commit" | tar -x -C "$(dirname "$target")" --transform="s,^,$commit/,"

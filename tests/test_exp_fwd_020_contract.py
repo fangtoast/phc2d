@@ -95,6 +95,12 @@ def test_exp_fwd_020_submitter_requires_and_propagates_versioned_environment() -
     assert "EXP-FWD-020_epoch300_continuations" in submitter
 
 
+def test_exp_fwd_020_deployer_uses_the_live_n56_root_by_default() -> None:
+    deployer = (ROOT / "jobs/paracloud_deploy_exp_fwd_020.sh").read_text(encoding="utf-8")
+    assert 'PHC2D_SOURCE_ROOT:-/data/run01/scxl892/phc2d' in deployer
+    assert 'PHC2D_DEPLOYMENT_ROOT:-/data/run01/scxl892/deployments/EXP-FWD-020' in deployer
+
+
 def test_exp_fwd_020_fixed_epoch300_continuation_is_validation_only(tmp_path: Path) -> None:
     config = yaml.safe_load(
         (ROOT / "configs/research/full_cell_global_local_bridge_exp_fwd_020_v1.yaml").read_text(encoding="utf-8")
