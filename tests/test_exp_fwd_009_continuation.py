@@ -126,6 +126,60 @@ def test_weight_only_source_and_rolling_convergence_contract(tmp_path: Path) -> 
     assert convergence["passed"] is True
 
 
+def test_weight_only_warm_start_accepts_only_full_cell_resolved_source_id(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    fields = ["epoch", "val_bands_2_10_mre_pct", "optimizer_steps", "samples_seen", "wall_time_s"]
+    with (source / "history.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        for epoch in range(1, 201):
+            writer.writerow(
+                {
+                    "epoch": epoch,
+                    "val_bands_2_10_mre_pct": 1.0,
+                    "optimizer_steps": epoch,
+                    "samples_seen": epoch,
+                    "wall_time_s": epoch,
+                }
+            )
+    torch.save({"epoch": 7}, source / "model.pt")
+    torch.save({"epoch": 200, "state_dict": {"weight": torch.ones(1)}}, source / "epoch200.pt")
+    result = {
+        "model": "convnext_band_v1",
+        "seed": 0,
+        "stop_epoch": 200,
+        "history_epoch_count": 200,
+        "checkpoint_sha256": _sha256(source / "model.pt"),
+        "terminal_checkpoint_sha256": _sha256(source / "epoch200.pt"),
+    }
+    (source / "results.json").write_text(json.dumps(result), encoding="utf-8")
+
+    (source / "config.resolved.yaml").write_text(
+        "experiment: {experiment_id: EXP-FWD-020_n40000_e200}\n", encoding="utf-8"
+    )
+    loaded = load_weight_only_warm_start(
+        source,
+        expected_model="convnext_band_v1",
+        expected_seed=0,
+        torch_module=torch,
+        expected_source_experiment="EXP-FWD-020",
+    )
+    assert loaded["source_experiment_id"] == "EXP-FWD-020_n40000_e200"
+
+    (source / "config.resolved.yaml").write_text(
+        "experiment: {experiment_id: EXP-FWD-020-other_n40000_e200}\n", encoding="utf-8"
+    )
+    with pytest.raises(RuntimeError, match="experiment identity mismatch"):
+        load_weight_only_warm_start(
+            source,
+            expected_model="convnext_band_v1",
+            expected_seed=0,
+            torch_module=torch,
+            expected_source_experiment="EXP-FWD-020",
+        )
+
+
 def test_exp_fwd_009_freezes_exact_five_task_derivative(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()

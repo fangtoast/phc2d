@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -38,6 +39,17 @@ def _read_history(path: Path) -> list[dict[str, Any]]:
     ]
 
 
+def _matches_source_experiment(source_experiment: str, expected_experiment: str) -> bool:
+    """Accept the canonical full-cell resolved-ID suffix, but no other family."""
+    if source_experiment == expected_experiment:
+        return True
+    escaped = re.escape(expected_experiment)
+    return re.fullmatch(
+        rf"{escaped}(?:_t\d{{2}})?(?:_r\d+)?_n\d+_e\d+",
+        source_experiment,
+    ) is not None
+
+
 def load_weight_only_warm_start(
     source_run: str | Path,
     *,
@@ -61,7 +73,10 @@ def load_weight_only_warm_start(
         (source / "config.resolved.yaml").read_text(encoding="utf-8")
     )
     source_experiment = str((source_config or {}).get("experiment", {}).get("experiment_id", ""))
-    if expected_source_experiment is not None and source_experiment != expected_source_experiment:
+    if (
+        expected_source_experiment is not None
+        and not _matches_source_experiment(source_experiment, expected_source_experiment)
+    ):
         raise RuntimeError("warm-start source experiment identity mismatch")
     history = _read_history(source / "history.csv")
     if [row["epoch"] for row in history] != list(range(1, 201)):
