@@ -308,7 +308,15 @@ def _validate_and_resolve(
             **training,
             "seed": int(seed),
             "learning_rate": float(learning_rates[model_name]),
-            "max_epochs": 1 if admission_probe else max_epochs,
+            # A continuation probe must exercise the first resumed epoch, rather
+            # than silently becoming an epoch-1 probe that never enters its loop.
+            "max_epochs": (
+                int(continuation.get("source_epoch", 200)) + 1
+                if admission_probe and continuation
+                else 1
+                if admission_probe
+                else max_epochs
+            ),
             "max_train_batches": 1 if admission_probe else None,
         },
         "runtime": runtime,
@@ -668,6 +676,7 @@ def run_full_cell_forward(
             expected_model=model_name,
             expected_seed=seed,
             torch_module=torch,
+            expected_source_experiment=resolved["continuation"].get("source_experiment"),
         )
         model.load_state_dict(warm_start["terminal_payload"]["state_dict"])
     optimizer = torch.optim.AdamW(

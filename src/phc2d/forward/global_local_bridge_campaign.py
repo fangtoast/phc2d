@@ -20,6 +20,12 @@ import numpy as np
 import yaml
 
 from phc2d.forward.global_local_bridge_evaluation import cell_metrics, mean_std, paired_bootstrap
+from phc2d.forward.global_local_bridge_training import (
+    STANDARD_TRAINING_ARTIFACTS,
+    audit_training_manifest,
+    audit_training_task_artifacts,
+    run_training_task,
+)
 
 
 VARIANTS = ("baseline", "candidate")
@@ -166,7 +172,8 @@ def freeze_exp_fwd_020_continuations(
     gate = json.loads(gate_path.read_text(encoding="utf-8"))
     rows = _read_csv(manifest)
     identities = {(row["domain"], row["variant"], int(row["seed"])) for row in rows}
-    expected = {(domain, variant, seed) for domain in gate.get("selected_domains", ()) for variant in VARIANTS for seed in (0, 1, 2)}
+    selected_domains = gate.get("selected_domains", gate.get("passed_domains", ()))
+    expected = {(domain, variant, seed) for domain in selected_domains for variant in VARIANTS for seed in (0, 1, 2)}
     if len(rows) != 36 or identities != expected:
         raise RuntimeError("EXP-FWD-020 G2 source is not the frozen 36-run matrix")
     out.mkdir(parents=True)
@@ -294,18 +301,21 @@ def freeze_g3(
         source_run = _resolve(root, row["source_run"])
         result = json.loads((source_run / "results.json").read_text(encoding="utf-8"))
         checkpoint = source_run / "model.pt"
-        if result.get("status") != "formal_training_success" or result.get("test_executed"):
+        required = list(STANDARD_TRAINING_ARTIFACTS) + ["epoch200.pt"]
+        missing = [name for name in required if not (source_run / name).is_file() or not (source_run / name).stat().st_size]
+        if missing or result.get("status") != "formal_training_success" or result.get("test_executed"):
             raise RuntimeError(f"untouched G2 source invalid: {row['case_id']}")
-        final_rows.append({**row, "checkpoint_path": str(checkpoint), "checkpoint_sha256": _sha256(checkpoint), "checkpoint_origin": "g2_validation_best"})
+        final_rows.append({**row, "checkpoint_path": str(checkpoint), "checkpoint_sha256": _sha256(checkpoint), "checkpoint_origin": "g2_validation_best", "training_convergence_status": result["status"]})
     for row in continuation_rows:
         run = _resolve(root, row["run_dir"])
         result_path, checkpoint = run / "results.json", run / "model.pt"
         if not result_path.is_file() or not checkpoint.is_file():
             raise RuntimeError(f"continuation result/checkpoint missing: {row['case_id']}")
+        audit_training_task_artifacts({**row, "_run_dir": str(run), "_is_continuation": "True"}, admission_probe=False)
         result = json.loads(result_path.read_text(encoding="utf-8"))
         if result.get("test_executed") or int(result.get("stop_epoch", -1)) != 300 or int(result.get("history_epoch_count", -1)) != 300:
             raise RuntimeError(f"continuation final state invalid: {row['case_id']}")
-        final_rows.append({**row, "checkpoint_path": str(checkpoint), "checkpoint_sha256": _sha256(checkpoint), "checkpoint_origin": "epoch300_validation_best"})
+        final_rows.append({**row, "checkpoint_path": str(checkpoint), "checkpoint_sha256": _sha256(checkpoint), "checkpoint_origin": "epoch300_validation_best", "training_convergence_status": result["status"]})
     identities = {(row["domain"], row["variant"], int(row["seed"])) for row in final_rows}
     expected = {(row["domain"], row["variant"], int(row["seed"])) for row in g2_rows}
     if len(final_rows) != 36 or identities != expected:
@@ -652,6 +662,17 @@ def main(argv: Sequence[str] | None = None) -> None:
         item = sub.add_parser(name); item.add_argument("--campaign-dir", required=True); item.add_argument("--repository-root", default=".")
         if name in {"preflight-g3", "run-g3-shard"}: item.add_argument("--device", default="cuda:0")
         if name == "run-g3-shard": item.add_argument("--shard-id", required=True, type=int)
+    item = sub.add_parser("run-training-task")
+    item.add_argument("--manifest", required=True)
+    item.add_argument("--task-index", required=True, type=int)
+    item.add_argument("--repository-root", default=".")
+    item.add_argument("--admission-probe", action="store_true")
+    item.add_argument("--run-dir-override")
+    item = sub.add_parser("audit-training-manifest")
+    item.add_argument("--manifest", required=True)
+    item.add_argument("--start-index", required=True, type=int)
+    item.add_argument("--end-index", required=True, type=int)
+    item.add_argument("--repository-root", default=".")
     args = parser.parse_args(argv)
     if args.command == "finalize-g3":
         result = finalize_g3(args.campaign_dir, repository_root=args.repository_root)
@@ -667,12 +688,21 @@ def main(argv: Sequence[str] | None = None) -> None:
         result = freeze_g2(args.config, args.g1_dir, args.output_dir, repository_root=args.repository_root)
     elif args.command == "freeze-continuations":
         result = freeze_exp_fwd_020_continuations(args.source_campaign, args.output_dir, repository_root=args.repository_root)
+    elif args.command == "run-training-task":
+        result = run_training_task(
+            args.manifest, args.task_index, repository_root=args.repository_root,
+            admission_probe=args.admission_probe, run_dir_override=args.run_dir_override,
+        )
+    elif args.command == "audit-training-manifest":
+        result = audit_training_manifest(
+            args.manifest, args.start_index, args.end_index, repository_root=args.repository_root,
+        )
     else:
         result = freeze_g3(args.config, args.g2_campaign, args.continuation_campaign, args.output_dir, repository_root=args.repository_root)
     print(result)
 
 
-__all__ = ["freeze_g1", "freeze_g2", "freeze_exp_fwd_020_continuations", "freeze_g3", "preflight_g3", "run_g3_shard", "status_g3", "finalize_g3"]
+__all__ = ["freeze_g1", "freeze_g2", "freeze_exp_fwd_020_continuations", "freeze_g3", "run_training_task", "audit_training_manifest", "preflight_g3", "run_g3_shard", "status_g3", "finalize_g3"]
 
 
 if __name__ == "__main__": main()
