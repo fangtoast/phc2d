@@ -14,6 +14,8 @@ import yaml
 
 from phc2d.models import build_model, get_model_spec
 from phc2d.forward import full_cell
+from phc2d.forward import global_local_bridge_campaign
+from phc2d.forward import global_local_bridge_training
 from phc2d.forward.global_local_bridge_campaign import finalize_g3, freeze_exp_fwd_020_continuations, freeze_g1
 from phc2d.forward.global_local_bridge_evaluation import cell_metrics, gap_decisions
 
@@ -109,6 +111,9 @@ def test_exp_fwd_020_fixed_epoch300_continuation_is_validation_only(tmp_path: Pa
     resolved = full_cell._validate_and_resolve(derived, model_name="global_local_band_operator_v1", seed=0, admission_probe=False)
     assert resolved["training"]["max_epochs"] == 300
     assert resolved["experiment"]["held_out_test_authorized"] is False
+    probe = full_cell._validate_and_resolve(derived, model_name="global_local_band_operator_v1", seed=0, admission_probe=True)
+    assert probe["training"]["max_epochs"] == 201
+    assert probe["training"]["max_train_batches"] == 1
 
 
 def test_exp_fwd_020_freezes_exactly_29_epoch300_continuations(tmp_path: Path) -> None:
@@ -138,6 +143,48 @@ def test_exp_fwd_020_freezes_exactly_29_epoch300_continuations(tmp_path: Path) -
     continuation = yaml.safe_load(Path(continuation_rows[0]["config"]).read_text(encoding="utf-8"))
     assert continuation["training"]["required_stop_epoch"] == 300
     assert continuation["continuation"]["stop_when_converged"] is False
+
+
+def test_exp_fwd_020_continuation_manifest_uses_named_columns_and_fails_closed(tmp_path: Path) -> None:
+    source = tmp_path / "source"; source.mkdir()
+    best, terminal = source / "model.pt", source / "epoch200.pt"
+    best.write_bytes(b"best"); terminal.write_bytes(b"epoch200")
+    (source / "results.json").write_text(json.dumps({"model": "global_local_band_operator_v1", "seed": 2}), encoding="utf-8")
+    config = tmp_path / "task.yaml"
+    config.write_text(yaml.safe_dump({
+        "experiment": {"experiment_id": "EXP-FWD-020", "domain": "f50_graded", "lane": "graded", "variant": "candidate"},
+        "models": {"global_local_band_operator_v1": {}},
+        "continuation": {"source_run": str(source), "source_experiment": "EXP-FWD-020", "source_epoch": 200},
+    }), encoding="utf-8")
+    row = {
+        "task_index": 9, "case_id": "f50_graded_candidate_s2", "domain": "f50_graded", "lane": "graded", "variant": "candidate", "seed": 2,
+        "config": str(config), "run_dir": str(tmp_path / "runs" / "f50_graded_candidate_s2"), "source_run": str(source),
+        "source_best_checkpoint_sha256": __import__("hashlib").sha256(best.read_bytes()).hexdigest(),
+        "source_epoch200_checkpoint_sha256": __import__("hashlib").sha256(terminal.read_bytes()).hexdigest(),
+        "source_status": "training_complete_convergence_not_met", "source_config": str(config),
+    }
+    manifest = tmp_path / "continuation_manifest.csv"
+    with manifest.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(row)); writer.writeheader(); writer.writerow(row)
+    selected = global_local_bridge_training.load_training_task(manifest, 9, repository_root=tmp_path)
+    assert selected["_config_path"] == str(config)
+    assert "," not in selected["_config_path"]
+    with __import__("pytest").raises(RuntimeError, match="exactly one row"):
+        global_local_bridge_training.load_training_task(manifest, 8, repository_root=tmp_path)
+    terminal.write_bytes(b"tampered")
+    with __import__("pytest").raises(RuntimeError, match="checkpoint hash mismatch"):
+        global_local_bridge_training.load_training_task(manifest, 9, repository_root=tmp_path)
+
+
+def test_exp_fwd_020_terminal_artifact_audit_allows_nonconverged_epoch300(tmp_path: Path) -> None:
+    run = tmp_path / "run"; run.mkdir()
+    terminal = run / "epoch300.pt"; terminal.write_bytes(b"terminal")
+    for name in ("run.log", "run.meta.json", "config.resolved.yaml", "history.csv", "model.pt", "model_summary.json"):
+        (run / name).write_text("{}\n", encoding="utf-8")
+    result = {"status": "training_complete_convergence_not_met", "model": "global_local_band_operator_v1", "seed": 1, "test_executed": False, "selection_split": "validation", "stop_epoch": 300, "history_epoch_count": 300, "terminal_checkpoint_sha256": __import__("hashlib").sha256(terminal.read_bytes()).hexdigest()}
+    (run / "results.json").write_text(json.dumps(result), encoding="utf-8")
+    (run / "metrics.json").write_text(json.dumps({"value": 1.0}), encoding="utf-8")
+    global_local_bridge_training.audit_training_task_artifacts({"case_id": "synthetic", "seed": "1", "_run_dir": str(run), "_is_continuation": "True"}, admission_probe=False)
 
 
 def test_exp_fwd_020_g3_contract_is_exact_exploratory_216_cell_matrix() -> None:
