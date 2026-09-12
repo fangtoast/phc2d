@@ -226,6 +226,7 @@ def test_exp_fwd_020_g3_reuses_a_hash_verified_one_read_cache(tmp_path: Path) ->
     resolved = global_local_bridge_campaign._g3_reuse_test_cache(source, [{"domain": "k5_binary", "dataset_sha256": "dataset-hash", "test_size": "2"}])
     assert resolved[0]["cache_path"] == str(cache)
     assert resolved[0]["test_cache_origin"] == "reused_one_read_cache"
+    assert global_local_bridge_campaign._sha256(str(cache)) == global_local_bridge_campaign._sha256(cache)
 
 
 def test_exp_fwd_020_terminal_artifact_audit_allows_nonconverged_epoch300(tmp_path: Path) -> None:
