@@ -6,7 +6,7 @@ status: draft
 audience: 模型研究者、结果审阅者与复现执行者
 owner: 研究生维护，导师审阅研究主张
 last_reviewed: 2026-09-12
-reading_time: 12 minutes
+reading_time: 16 minutes
 primary_layer: L3
 evidence_date: 2026-09-12
 evidence_level: surrogate_held_out
@@ -154,7 +154,96 @@ source_artifacts:
 
 历史 K5 对照排除 `dual_lane_band_operator_v1` 与 EXP-FWD-010/011：前者同时看过两条 lane，后者是 4k+4k、seed-0 的公平性负对照，均不等价于当前单 lane source。历史最优也允许在不同 target 中来自不同模型，因此它是“逐方向的下界包络”，不是一个可部署的统一基线。
 
-### K5 来源：与八种既有单路线模型逐方向并列
+### K5 完整六域：模型逐行、目标逐列
+
+这是现有资料中唯一完整的“模型 × 六个 target”交叉评估矩阵。前 8 行是 EXP-FWD-009 的已冻结 K5 单路线 checkpoint；最后一行是本轮 `global_local_band_operator_v1`，聚合 $3\times3$、$7\times7$ 与三个 seed 的 6 个 cell。表内只并列数值；因不是同一 campaign 的 paired test 合同，粗体最低值也不代表跨 campaign 显著胜出。
+
+#### K5 Binary 训练来源
+
+| source model | K5 Binary | K5 Graded | K20 Binary | K20 Graded | F50 Binary | F50 Graded |
+|---|---:|---:|---:|---:|---:|---:|
+| MLP | 2.051% | 4.713% | **1.984%** | 3.115% | 3.477% | 9.638% |
+| ResMLP-Wide | 1.587% | 3.296% | 2.916% | 2.142% | 2.583% | 8.497% |
+| Lifted CNN | 1.538% | **1.739%** | 6.938% | 5.404% | 6.435% | 6.596% |
+| FNO v2 | 1.051% | 2.634% | 3.428% | 4.275% | 1.557% | 3.591% |
+| MLP-Mixer | 1.506% | 3.324% | 2.989% | 2.219% | 2.177% | 6.960% |
+| Gated ResMLP | 1.609% | 3.475% | 2.758% | **2.090%** | 2.795% | 8.764% |
+| ConvNeXt | 0.693% | 2.432% | 7.405% | 5.798% | 1.264% | **2.097%** |
+| TFNO v3 | 0.601% | 3.880% | 3.054% | 4.531% | **0.834%** | 4.700% |
+| **本轮 Global-Local（3x3/7x7 × 3 seed 均值）** | **0.555%** | 3.336% | 2.635% | 3.363% | 0.845% | 3.207% |
+
+#### K5 Graded 训练来源
+
+| source model | K5 Binary | K5 Graded | K20 Binary | K20 Graded | F50 Binary | F50 Graded |
+|---|---:|---:|---:|---:|---:|---:|
+| MLP | 4.386% | 1.587% | 6.114% | **1.885%** | 4.551% | 6.191% |
+| ResMLP-Wide | 3.423% | 1.418% | 5.649% | 2.429% | 2.864% | 5.300% |
+| Lifted CNN | 2.332% | 1.165% | 10.355% | 7.640% | 2.249% | 2.806% |
+| FNO v2 | **1.542%** | 0.772% | 5.276% | 3.418% | **1.630%** | 1.339% |
+| MLP-Mixer | 3.195% | 1.263% | 10.059% | 8.098% | 3.844% | 2.792% |
+| Gated ResMLP | 4.277% | 1.423% | 6.161% | 2.440% | 4.393% | 5.266% |
+| ConvNeXt | 1.822% | 0.454% | **5.120%** | 3.629% | 2.218% | 1.830% |
+| TFNO v3 | 2.080% | 0.409% | 5.878% | 3.712% | 2.857% | **0.927%** |
+| **本轮 Global-Local（3x3/7x7 × 3 seed 均值）** | 1.990% | **0.404%** | 7.559% | 5.321% | 2.397% | 0.952% |
+
+这两张表直接显示了模型间的交叉域图景：不存在在六个 target 全部最优的单路线模型。当前模型在两条 K5 native 上最低；K5 Binary $\rightarrow$ F50 Binary 与 TFNO v3 接近；其余 K5 来源的跨域方向没有超过相应历史专门模型。
+
+### K20：模型间的 cross-lane 与跨数据集结果
+
+历史 K20 是 seed-0 逐模型表；本轮行为两核三 seed 均值，故仅做数值并列。箭头的左侧始终是 source checkpoint、右侧是 held-out target。
+
+| K20 source model | K20 Binary → K20 Graded | K20 Graded → K20 Binary |
+|---|---:|---:|
+| MLP | 5.303% | 10.647% |
+| ResMLP-Wide | 3.989% | 4.120% |
+| Lifted CNN | **3.414%** | 2.378% |
+| FNO v2 | 3.847% | **1.571%** |
+| MLP-Mixer | 3.880% | 4.359% |
+| Gated ResMLP | 3.822% | 4.356% |
+| ConvNeXt | 3.612% | 2.736% |
+| TFNO v3 | 3.737% | 3.178% |
+| **本轮 Global-Local** | 3.792% | 1.994% |
+
+| K20 source model | K20 Binary → F50 Binary | K20 Binary → F50 Graded | K20 Graded → F50 Binary | K20 Graded → F50 Graded |
+|---|---:|---:|---:|---:|
+| MLP | 5.357% | 13.110% | 13.294% | 7.647% |
+| ResMLP-Wide | 4.616% | 11.717% | **3.483%** | 7.645% |
+| Lifted CNN | 10.795% | 15.536% | 8.342% | 5.117% |
+| FNO v2 | 5.704% | 10.525% | 12.356% | 6.390% |
+| MLP-Mixer | 4.217% | 10.578% | 5.526% | 9.341% |
+| Gated ResMLP | 4.742% | 11.572% | 5.131% | 7.731% |
+| ConvNeXt | 3.970% | 6.233% | 5.188% | **2.805%** |
+| TFNO v3 | **3.357%** | **4.191%** | 6.261% | 3.907% |
+| **本轮 Global-Local** | 4.881% | 7.319% | 6.426% | 3.474% |
+
+### F50：模型间的 cross-lane 与跨数据集结果
+
+F50 的历史 cross-lane 表只有 FNO v2 和四个升级模型；跨数据集表则覆盖八个单路线模型。因此按证据实际覆盖分为两张表，不能为缺行补造数值。
+
+| F50 source model | F50 Binary → F50 Graded | F50 Graded → F50 Binary |
+|---|---:|---:|
+| FNO v2 | **1.717%** | 2.096% |
+| MLP-Mixer | 3.748% | 2.536% |
+| Gated ResMLP | 5.813% | 5.465% |
+| ConvNeXt | 2.381% | 2.866% |
+| TFNO v3 | 7.222% | 2.586% |
+| **本轮 Global-Local** | 2.716% | **2.394%** |
+
+| F50 source model | F50 Binary → K20 Binary | F50 Binary → K20 Graded | F50 Graded → K20 Binary | F50 Graded → K20 Graded |
+|---|---:|---:|---:|---:|
+| MLP | 3.276% | 3.612% | 11.912% | 8.794% |
+| ResMLP-Wide | 2.499% | **3.171%** | 12.421% | 9.341% |
+| Lifted CNN | 24.748% | 28.781% | 21.638% | 22.254% |
+| FNO v2 | 5.100% | 3.938% | **9.470%** | **6.633%** |
+| MLP-Mixer | 3.698% | 4.583% | 12.314% | 9.572% |
+| Gated ResMLP | **2.029%** | 4.326% | 12.588% | 10.195% |
+| ConvNeXt | 12.689% | 11.109% | 11.722% | 8.580% |
+| TFNO v3 | 4.854% | 3.508% | 11.297% | 9.009% |
+| **本轮 Global-Local** | 4.078% | 5.033% | 11.812% | 9.062% |
+
+由上述逐模型表可见，跨域并不存在“某一结构永远最好”：例如 K20 Binary $\rightarrow$ F50 的两个 target 都是 TFNO v3 最低，K20 Graded $\rightarrow$ F50 Binary 是 ResMLP-Wide 最低，F50 Binary $\rightarrow$ K20 Binary 是 Gated ResMLP 最低，而 F50 Graded 的两个 K20 target 都是 FNO v2 最低。当前模型仅在 F50 Graded $\rightarrow$ F50 Binary 的已列历史模型中数值最低；这一观察仍不升级为跨 campaign 的统计胜出。
+
+### 逐方向最低值摘要（辅助阅读）
 
 | 当前 source → target | 当前全局—局部算子 | 历史最低 MRE（模型） | Δ（百分点） | 数值定位 |
 |---|---:|---:|---:|---|
