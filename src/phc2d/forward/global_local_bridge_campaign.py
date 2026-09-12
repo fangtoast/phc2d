@@ -281,6 +281,7 @@ def freeze_g3(
     output_dir: str | Path,
     *,
     repository_root: str | Path = ".",
+    reuse_test_cache_from: str | Path | None = None,
 ) -> Path:
     """Freeze the authorized one-read EXP-FWD-020 exploratory 36x6 matrix."""
     root = Path(repository_root).resolve()
@@ -292,8 +293,15 @@ def freeze_g3(
     g2 = _resolve(root, g2_campaign)
     continuation = _resolve(root, continuation_campaign)
     out = _resolve(root, output_dir)
+    cache_source = _resolve(root, reuse_test_cache_from) if reuse_test_cache_from else None
     if out.exists():
         raise FileExistsError(f"G3 campaign directory already exists: {out}")
+    if cache_source is not None:
+        source_status = json.loads((cache_source / "campaign_status.json").read_text(encoding="utf-8"))
+        if source_status.get("status") != "evaluation_plan_ready" or not source_status.get("test_cache_created_once"):
+            raise RuntimeError("G3 cache reuse requires a successful one-read preflight source")
+        if not (cache_source / "dataset_manifest.csv").is_file() or not (cache_source / "test_cache").is_dir():
+            raise RuntimeError("G3 cache reuse source artifacts are incomplete")
     g2_rows = _read_csv(g2 / "task_manifest.csv")
     continuation_rows = _read_csv(continuation / "task_manifest.csv")
     untouched_rows = _read_csv(continuation / "untouched_checkpoint_sources.csv")
@@ -343,7 +351,7 @@ def freeze_g3(
     _write_csv(out / "dataset_manifest.csv", datasets)
     _write_csv(out / "evaluation_plan.csv", cells)
     (out / "config.resolved.yaml").write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
-    (out / "freeze.json").write_text(json.dumps({"experiment_id": "EXP-FWD-020", "stage": "G3", "test_cache_created_once": False, "test_cache_gate": "g3_six_domain_preflight", "checkpoint_count": 36, "cell_count": 216, "relationship_counts": relation_counts, "plan_sha256": _sha256(out / "evaluation_plan.csv")}, indent=2) + "\n", encoding="utf-8")
+    (out / "freeze.json").write_text(json.dumps({"experiment_id": "EXP-FWD-020", "stage": "G3", "test_cache_created_once": False, "test_cache_gate": "g3_six_domain_preflight", "test_cache_source_campaign": str(cache_source) if cache_source is not None else "", "checkpoint_count": 36, "cell_count": 216, "relationship_counts": relation_counts, "plan_sha256": _sha256(out / "evaluation_plan.csv")}, indent=2) + "\n", encoding="utf-8")
     (out / "campaign_status.json").write_text(json.dumps({"status": "frozen_preflight_required", "planned_cells": 216, "completed_cells": 0, "next_gate": "g3_six_domain_preflight"}, indent=2) + "\n", encoding="utf-8")
     return out
 
@@ -373,6 +381,31 @@ def _g3_predict(payload: Mapping[str, Any], x: np.ndarray, k_points: np.ndarray,
             kwargs = {"k_points": torch.from_numpy(k_points).to(device)} if spec.accepts_k_points else {}
             parts.append((model(xb, **kwargs).detach().cpu().numpy() * std + mean).astype(np.float32))
     return np.concatenate(parts, axis=0)
+
+
+def _g3_reuse_test_cache(source_campaign: Path, datasets: Sequence[Mapping[str, str]]) -> list[dict[str, Any]]:
+    """Validate and reference an already authorized, one-read six-domain cache."""
+    status = json.loads((source_campaign / "campaign_status.json").read_text(encoding="utf-8"))
+    if status.get("status") != "evaluation_plan_ready" or not status.get("test_cache_created_once"):
+        raise RuntimeError("G3 cache reuse source has not passed one-read preflight")
+    cached = {row["domain"]: row for row in _read_csv(source_campaign / "dataset_manifest.csv")}
+    if set(cached) != {row["domain"] for row in datasets}:
+        raise RuntimeError("G3 cache reuse source domains do not match frozen datasets")
+    resolved: list[dict[str, Any]] = []
+    for dataset in datasets:
+        source = cached[dataset["domain"]]
+        if source.get("dataset_sha256") != dataset["dataset_sha256"] or not source.get("cache_sha256"):
+            raise RuntimeError(f"G3 cache reuse provenance mismatch: {dataset['domain']}")
+        cache = Path(source["cache_path"])
+        if not cache.is_file() or _sha256(cache) != source["cache_sha256"]:
+            raise RuntimeError(f"G3 cache reuse hash drift: {dataset['domain']}")
+        with __import__("h5py").File(cache, "r") as handle:
+            required = {"input", "Wh", "k_points", "test_indices"}
+            missing = required.difference(handle.keys())
+            if missing or len(handle["input"]) != int(dataset["test_size"]) or len(handle["Wh"]) != int(dataset["test_size"]):
+                raise RuntimeError(f"G3 cache reuse schema mismatch: {dataset['domain']}")
+        resolved.append({**dataset, "cache_path": str(cache), "cache_sha256": source["cache_sha256"], "idx_test_sha256": source["idx_test_sha256"], "k_points_sha256": source["k_points_sha256"], "test_cache_origin": "reused_one_read_cache"})
+    return resolved
 
 
 def preflight_g3(campaign_dir: str | Path, *, repository_root: str | Path = ".", device: str = "cuda:0") -> Path:
@@ -417,30 +450,38 @@ def preflight_g3(campaign_dir: str | Path, *, repository_root: str | Path = ".",
         if not np.isfinite(prediction_b1).all() or not np.allclose(prediction_b1, prediction_bn, rtol=1.0e-5, atol=1.0e-6):
             raise RuntimeError(f"validation forward/batch consistency failed: {dataset['domain']}")
         rows.append({"kind": "validation_forward", "target_domain": dataset["domain"], "checkpoint_id": checkpoints[position]["case_id"], "samples": len(x), "status": "passed", "batch_consistent": True})
-    # Only the successful preflight reaches this point.  idx_test is read once per
-    # frozen target and immediately copied into an immutable evaluation cache.
-    cache_dir = campaign / "test_cache"; cache_dir.mkdir(exist_ok=False)
-    resolved_datasets: list[dict[str, Any]] = []
-    for dataset in datasets:
-        path = Path(dataset["path"])
-        with h5py.File(path, "r") as source:
-            required = {dataset["grid_field"], "Wh", "idx_test", "k_points"}
-            missing = required.difference(source.keys())
-            if missing:
-                raise RuntimeError(f"test-cache fields missing for {dataset['domain']}: {sorted(missing)}")
-            indices = np.asarray(source["idx_test"], dtype=np.int64)
-            if len(indices) != int(dataset["test_size"]):
-                raise RuntimeError(f"test size drift: {dataset['domain']}")
-            cache = Path(dataset["cache_path"])
-            with h5py.File(cache, "w") as destination:
-                destination.create_dataset("input", data=source[dataset["grid_field"]][indices], dtype="f4")
-                destination.create_dataset("Wh", data=source["Wh"][indices], dtype="f4")
-                destination.create_dataset("k_points", data=source["k_points"], dtype="f4")
-                destination.create_dataset("test_indices", data=indices, dtype="i8")
-            resolved_datasets.append({**dataset, "idx_test_sha256": hashlib.sha256(indices.tobytes()).hexdigest(), "k_points_sha256": hashlib.sha256(np.asarray(source["k_points"], dtype=np.float32).tobytes()).hexdigest(), "cache_sha256": _sha256(cache)})
+    freeze = json.loads((campaign / "freeze.json").read_text(encoding="utf-8"))
+    source_value = str(freeze.get("test_cache_source_campaign", ""))
+    if source_value:
+        cache_source = _resolve(root, source_value)
+        resolved_datasets = _g3_reuse_test_cache(cache_source, datasets)
+        (campaign / "test_cache").symlink_to(cache_source / "test_cache", target_is_directory=True)
+        rows.extend({"kind": "test_cache_reuse", "target_domain": row["domain"], "status": "passed", "cache_path": row["cache_path"], "cache_sha256": row["cache_sha256"]} for row in resolved_datasets)
+    else:
+        # Only the successful preflight reaches this point.  idx_test is read once per
+        # frozen target and immediately copied into an immutable evaluation cache.
+        cache_dir = campaign / "test_cache"; cache_dir.mkdir(exist_ok=False)
+        resolved_datasets: list[dict[str, Any]] = []
+        for dataset in datasets:
+            path = Path(dataset["path"])
+            with h5py.File(path, "r") as source:
+                required = {dataset["grid_field"], "Wh", "idx_test", "k_points"}
+                missing = required.difference(source.keys())
+                if missing:
+                    raise RuntimeError(f"test-cache fields missing for {dataset['domain']}: {sorted(missing)}")
+                indices = np.asarray(source["idx_test"], dtype=np.int64)
+                if len(indices) != int(dataset["test_size"]):
+                    raise RuntimeError(f"test size drift: {dataset['domain']}")
+                cache = Path(dataset["cache_path"])
+                with h5py.File(cache, "w") as destination:
+                    destination.create_dataset("input", data=source[dataset["grid_field"]][indices], dtype="f4")
+                    destination.create_dataset("Wh", data=source["Wh"][indices], dtype="f4")
+                    destination.create_dataset("k_points", data=source["k_points"], dtype="f4")
+                    destination.create_dataset("test_indices", data=indices, dtype="i8")
+                resolved_datasets.append({**dataset, "idx_test_sha256": hashlib.sha256(indices.tobytes()).hexdigest(), "k_points_sha256": hashlib.sha256(np.asarray(source["k_points"], dtype=np.float32).tobytes()).hexdigest(), "cache_sha256": _sha256(cache)})
     _write_csv(campaign / "dataset_manifest.csv", resolved_datasets)
     _write_csv(campaign / "preflight_manifest.csv", rows)
-    (campaign / "campaign_status.json").write_text(json.dumps({"status": "evaluation_plan_ready", "planned_cells": 216, "completed_cells": 0, "preflight_checkpoint_loads": 36, "preflight_validation_forwards": 6, "test_cache_created_once": True, "next_gate": "authorized_g3_array_submission"}, indent=2) + "\n", encoding="utf-8")
+    (campaign / "campaign_status.json").write_text(json.dumps({"status": "evaluation_plan_ready", "planned_cells": 216, "completed_cells": 0, "preflight_checkpoint_loads": 36, "preflight_validation_forwards": 6, "test_cache_created_once": True, "test_cache_original_reads_this_campaign": 0 if source_value else 6, "test_cache_source_campaign": source_value, "next_gate": "authorized_g3_array_submission"}, indent=2) + "\n", encoding="utf-8")
     return campaign
 
 
@@ -462,9 +503,12 @@ def run_g3_shard(campaign_dir: str | Path, shard_id: int, *, repository_root: st
         checkpoint = Path(cell["checkpoint_path"])
         if _sha256(checkpoint) != cell["checkpoint_sha256"]:
             raise RuntimeError(f"checkpoint hash drift: {checkpoint}")
-        with h5py.File(caches[cell["target_domain"]]["cache_path"], "r") as handle:
+        cache = caches[cell["target_domain"]]
+        if _sha256(cache["cache_path"]) != cache["cache_sha256"]:
+            raise RuntimeError(f"G3 cache hash drift: {cell['target_domain']}")
+        with h5py.File(cache["cache_path"], "r") as handle:
             x, target, k_points = np.asarray(handle["input"], dtype=np.float32), np.asarray(handle["Wh"], dtype=np.float32), np.asarray(handle["k_points"], dtype=np.float32)
-        device_obj = torch.device(device); torch.cuda.reset_peak_memory_stats(device_obj)
+        device_obj = torch.device(device); torch.cuda.reset_peak_memory_stats()
         payload = _g3_checkpoint(checkpoint, device_obj, torch)
         started = time.perf_counter(); prediction = _g3_predict(payload, x, k_points, 64, device_obj, torch); elapsed = time.perf_counter() - started
         metrics, per_band, per_k, sample_arrays = cell_metrics(prediction, target)
@@ -472,7 +516,7 @@ def run_g3_shard(campaign_dir: str | Path, shard_id: int, *, repository_root: st
         _write_csv(out / f"{cell['evaluation_id']}_per_band.csv", [{"evaluation_id": cell["evaluation_id"], **value} for value in per_band])
         _write_csv(out / f"{cell['evaluation_id']}_per_k.csv", [{"evaluation_id": cell["evaluation_id"], **value} for value in per_k])
         _write_csv(out / f"{cell['evaluation_id']}_gap_decision.csv", [{"evaluation_id": cell["evaluation_id"], **{key: value for key, value in metrics.items() if "gap" in key or key.startswith("selected_") or key.startswith("upper_") or key.startswith("band_k_") or key.startswith("complete_") or key.startswith("pseudo_")}}])
-        rows.append({**cell, **metrics, "status": "completed", "source_normalizer_reused": True, "actual_batch_size": min(64, len(x)), "inference_time_s": elapsed, "latency_per_sample_s": elapsed / max(len(x), 1), "throughput_samples_per_s": len(x) / max(elapsed, 1.0e-12), "peak_gpu_memory_mb": float(torch.cuda.max_memory_allocated(device_obj) / 1024**2)})
+        rows.append({**cell, **metrics, "status": "completed", "source_normalizer_reused": True, "actual_batch_size": min(64, len(x)), "inference_time_s": elapsed, "latency_per_sample_s": elapsed / max(len(x), 1), "throughput_samples_per_s": len(x) / max(elapsed, 1.0e-12), "peak_gpu_memory_mb": float(torch.cuda.max_memory_allocated() / 1024**2)})
     _write_csv(out / "evaluation_cells.csv", rows)
     (out / "results.json").write_text(json.dumps({"status": "shard_success", "cell_count": len(rows)}, indent=2) + "\n", encoding="utf-8")
     return out
@@ -661,6 +705,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         if name == "freeze-g3":
             item.add_argument("--g2-campaign", required=True)
             item.add_argument("--continuation-campaign", required=True)
+            item.add_argument("--reuse-test-cache-from")
     for name in ("preflight-g3", "run-g3-shard", "status-g3", "finalize-g3"):
         item = sub.add_parser(name); item.add_argument("--campaign-dir", required=True); item.add_argument("--repository-root", default=".")
         if name in {"preflight-g3", "run-g3-shard"}: item.add_argument("--device", default="cuda:0")
@@ -701,7 +746,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             args.manifest, args.start_index, args.end_index, repository_root=args.repository_root,
         )
     else:
-        result = freeze_g3(args.config, args.g2_campaign, args.continuation_campaign, args.output_dir, repository_root=args.repository_root)
+        result = freeze_g3(args.config, args.g2_campaign, args.continuation_campaign, args.output_dir, repository_root=args.repository_root, reuse_test_cache_from=args.reuse_test_cache_from)
     print(result)
 
 

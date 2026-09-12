@@ -209,6 +209,25 @@ def test_exp_fwd_020_manifest_writer_preserves_late_lineage_columns(tmp_path: Pa
     assert rows[1]["source_config"] == "source.yaml"
 
 
+def test_exp_fwd_020_g3_reuses_a_hash_verified_one_read_cache(tmp_path: Path) -> None:
+    h5py = pytest.importorskip("h5py")
+    np = __import__("numpy")
+    source = tmp_path / "source"; cache_dir = source / "test_cache"; cache_dir.mkdir(parents=True)
+    cache = cache_dir / "k5_binary.h5"
+    with h5py.File(cache, "w") as handle:
+        handle.create_dataset("input", data=np.zeros((2, 64, 64), dtype="float32"))
+        handle.create_dataset("Wh", data=np.zeros((2, 81, 10), dtype="float32"))
+        handle.create_dataset("k_points", data=np.zeros((81, 2), dtype="float32"))
+        handle.create_dataset("test_indices", data=np.array([3, 4], dtype="int64"))
+    (source / "campaign_status.json").write_text(json.dumps({"status": "evaluation_plan_ready", "test_cache_created_once": True}), encoding="utf-8")
+    row = {"domain": "k5_binary", "dataset_sha256": "dataset-hash", "cache_path": str(cache), "cache_sha256": __import__("hashlib").sha256(cache.read_bytes()).hexdigest(), "idx_test_sha256": "index-hash", "k_points_sha256": "k-hash"}
+    with (source / "dataset_manifest.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(row)); writer.writeheader(); writer.writerow(row)
+    resolved = global_local_bridge_campaign._g3_reuse_test_cache(source, [{"domain": "k5_binary", "dataset_sha256": "dataset-hash", "test_size": "2"}])
+    assert resolved[0]["cache_path"] == str(cache)
+    assert resolved[0]["test_cache_origin"] == "reused_one_read_cache"
+
+
 def test_exp_fwd_020_terminal_artifact_audit_allows_nonconverged_epoch300(tmp_path: Path) -> None:
     run = tmp_path / "run"; run.mkdir()
     terminal = run / "epoch300.pt"; terminal.write_bytes(b"terminal")
@@ -243,6 +262,8 @@ def test_exp_fwd_020_g3_requires_validation_preflight_before_test_cache() -> Non
     assert 'test_cache_gate": "g3_six_domain_preflight"' in controller
     assert 'validation forward/batch consistency failed' in controller
     assert 'test_cache_created_once": True' in controller
+    assert "torch.cuda.reset_peak_memory_stats()" in controller
+    assert "_g3_reuse_test_cache" in controller
 
 
 def test_exp_fwd_020_gap_decision_uses_maximum_adjacent_gap_and_tracks_zero_variance() -> None:
