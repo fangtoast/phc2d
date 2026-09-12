@@ -36,6 +36,7 @@ primary_layer: L3
 | [EXP-FWD-014：gap 决策损失短预算筛选](EXP-FWD-014-gap决策损失短预算筛选.md) | N40 seed0 配对训练；k 点与多数 gap 指标改善，但全谱 MRE 安全门失败，停止自动三 seed 扩展，Draft |
 | [EXP-FWD-015：gap 决策近简并审计](EXP-FWD-015-gap决策近简并审计.md) | 近简并只带来最多 3.0 个百分点容差收益；低命中主要是模型排序与 complete-gap 召回问题，Draft |
 | [EXP-FWD-019：组件归因三种子确认](EXP-FWD-019-组件归因三种子确认.md) | 42项F50 validation-only确认完成；ConvNeXt大核信号最强，FNO/Joint频谱删除受容量混杂，TFNO channel未通过两路线一致性门，Draft |
+| [EXP-FWD-020：全局—局部带隙算子六域交叉评估](EXP-FWD-020-全局局部带隙算子六域交叉评估.md) | 36 个冻结 checkpoint 的 216-cell held-out surrogate 评估已完成；跨域 MRE 明显高于 native，7x7 对 3x3 没有全局一致优势；G2 未通过，不作 promotion，Draft |
 | [超参数灵敏度分析（历史单 seed）](灵敏度分析.md) | 局部搜索的解释性记录；残差 MLP 加深是待多 seed 确认的假设，不作正式排名或 promotion |
 
 [返回研究结果与报告](../README.md)

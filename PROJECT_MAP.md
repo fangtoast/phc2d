@@ -31,7 +31,7 @@
 
 > 2026-09-08 EXP-FWD-019 状态：C0、21项 seed0 接受谱系和42项 F50 validation-only 三种子确认已完成。ConvNeXt $7\times7\to1\times1$ 在 B/G 两路线、三种子上稳定大幅退化，是当前容量混杂最小的组件信号；FNO/Joint 删除 spectral 也稳定退化，但参数量同时减少约90%/86%；TFNO `no_channel` 未通过 Graded 方向一致性门。23/42项终态未满足收敛门，六域冻结评估、held-out test 和物理验证均未执行。详见[三种子确认结果](docs/results/forward/EXP-FWD-019-组件归因三种子确认.md)。
 
-> 2026-09-09 EXP-FWD-020 状态：`global_local_band_operator_v1` 已按 EXP-FWD-019 信号组装为固定等权的 Tucker 频谱分支与周期 ConvNeXt 式 $7\times7$ depthwise 局部分支，并完成本地工程合同；该状态仅为 `implemented_not_authorized`，没有训练或性能/物理证据。下一门是获得单独授权后执行 F50 B/G 的 `3\times3 -> 7\times7` seed0 配对短筛，held-out test 继续冻结。详见[实验合同](experiments/research/EXP-FWD-020-全局局部带隙算子桥接.md)。
+> 2026-09-12 EXP-FWD-020 状态：36 个冻结 checkpoint（7 个原 G2 validation-best、29 个 epoch-300 continuation validation-best）已完成 K5/K20/F50 Binary/Graded 的 216-cell held-out surrogate 交叉评估。native Bands 2--10 MRE 均值为 `0.297%`，同数据集跨 lane、跨数据集同 lane、双重跨域依次为 `2.703%`、`3.295%`、`5.409%`；7x7 对 3x3 没有跨域一致优势。G2 仍为 `not_passed`，结果仅为探索性 surrogate 证据，不作 promotion、real-MPB/Meep 或物理结论。详见[六域交叉评估 Draft](docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md)。
 
 # PROJECT MAP
 
