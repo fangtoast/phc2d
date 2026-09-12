@@ -31,7 +31,8 @@ from phc2d.forward.global_local_bridge_training import (
 VARIANTS = ("baseline", "candidate")
 
 
-def _sha256(path: Path) -> str:
+def _sha256(path: str | Path) -> str:
+    path = Path(path)
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
