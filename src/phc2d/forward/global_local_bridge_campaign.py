@@ -42,8 +42,11 @@ def _sha256(path: Path) -> str:
 def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
     if not rows:
         raise ValueError("manifest cannot be empty")
+    fieldnames = list(rows[0])
+    for row in rows[1:]:
+        fieldnames.extend(key for key in row if key not in fieldnames)
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 

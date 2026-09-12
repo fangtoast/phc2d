@@ -184,6 +184,22 @@ def test_exp_fwd_020_continuation_manifest_uses_named_columns_and_fails_closed(t
         global_local_bridge_training.load_training_task(manifest, 9, repository_root=tmp_path)
 
 
+def test_exp_fwd_020_manifest_writer_preserves_late_lineage_columns(tmp_path: Path) -> None:
+    path = tmp_path / "checkpoint_manifest.csv"
+    global_local_bridge_campaign._write_csv(
+        path,
+        [
+            {"case_id": "untouched", "checkpoint_origin": "g2_validation_best"},
+            {"case_id": "continued", "checkpoint_origin": "epoch300_validation_best", "source_config": "source.yaml"},
+        ],
+    )
+    with path.open(encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert list(rows[0]) == ["case_id", "checkpoint_origin", "source_config"]
+    assert rows[0]["source_config"] == ""
+    assert rows[1]["source_config"] == "source.yaml"
+
+
 def test_exp_fwd_020_terminal_artifact_audit_allows_nonconverged_epoch300(tmp_path: Path) -> None:
     run = tmp_path / "run"; run.mkdir()
     terminal = run / "epoch300.pt"; terminal.write_bytes(b"terminal")
