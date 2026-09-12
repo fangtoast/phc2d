@@ -8,6 +8,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from pathlib import Path
 import csv
 import json
+import subprocess
 
 import pytest
 import yaml
@@ -93,6 +94,14 @@ def test_exp_fwd_020_submitter_requires_and_propagates_versioned_environment() -
     assert 'torch.__version__.startswith("2.7.1")' in preflight
     assert "freeze-continuations" in submitter
     assert "EXP-FWD-020_epoch300_continuations" in submitter
+
+
+def test_exp_fwd_020_g3_submitter_has_valid_shell_syntax() -> None:
+    subprocess.run(
+        ["bash", "-n", "jobs/paracloud_submit_exp_fwd_020_g3.sh"],
+        cwd=ROOT,
+        check=True,
+    )
 
 
 def test_exp_fwd_020_deployer_uses_the_live_n56_root_by_default() -> None:
