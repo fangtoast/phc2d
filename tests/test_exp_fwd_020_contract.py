@@ -233,6 +233,7 @@ def test_exp_fwd_020_g3_contract_is_exact_exploratory_216_cell_matrix() -> None:
         "relationship_counts": {"native": 36, "cross_lane": 36, "cross_dataset": 72, "cross_dataset_cross_lane": 72},
         "bootstrap_replicates": 10000,
     }
+    assert config["datasets"]["f50_binary"]["grid_field"] == "material_weight_grid_64"
 
 
 def test_exp_fwd_020_g3_requires_validation_preflight_before_test_cache() -> None:
