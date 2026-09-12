@@ -75,6 +75,69 @@ source_artifacts:
 | K20 Binary | 36 | 4.713% |
 | K20 Graded | 36 | 4.452% |
 
+## 全部 source--target 方向（36 组）
+
+此前的主表按关系类别聚合，无法回答“哪个源域迁移到哪个目标域”的问题。下表完整列出 36 个有向组合；每行汇总 `2` 个 kernel × `3` 个 seed，即 6 个 cell 的 `bands_2_10_mre_pct`。因此它是全部 216 cell 的方向级视图；逐 seed 与逐 kernel 的原始汇总仍保留在证据目录的 `seed_summary.csv`、`kernel_direction_summary.csv` 和 `evaluation_cells.csv`，不应把方向均值误读为单一模型结果。
+
+| source domain | target domain | 关系 | cells | MRE 均值 | MRE 标准差 |
+|---|---|---|---:|---:|---:|
+| F50 Binary | F50 Binary | native | 6 | 0.387% | 0.0019% |
+| F50 Binary | F50 Graded | 跨 lane | 6 | 2.716% | 0.3177% |
+| F50 Binary | K20 Binary | 跨数据集 | 6 | 4.078% | 0.6441% |
+| F50 Binary | K20 Graded | 跨数据集且跨 lane | 6 | 5.033% | 1.4523% |
+| F50 Binary | K5 Binary | 跨数据集 | 6 | 0.700% | 0.0246% |
+| F50 Binary | K5 Graded | 跨数据集且跨 lane | 6 | 3.328% | 0.4049% |
+| F50 Graded | F50 Binary | 跨 lane | 6 | 2.394% | 0.2641% |
+| F50 Graded | F50 Graded | native | 6 | 0.0949% | 0.0008% |
+| F50 Graded | K20 Binary | 跨数据集且跨 lane | 6 | 11.812% | 0.3944% |
+| F50 Graded | K20 Graded | 跨数据集 | 6 | 9.062% | 0.3275% |
+| F50 Graded | K5 Binary | 跨数据集且跨 lane | 6 | 5.919% | 0.4048% |
+| F50 Graded | K5 Graded | 跨数据集 | 6 | 3.233% | 0.3463% |
+| K20 Binary | F50 Binary | 跨数据集 | 6 | 4.881% | 1.1852% |
+| K20 Binary | F50 Graded | 跨数据集且跨 lane | 6 | 7.319% | 2.1923% |
+| K20 Binary | K20 Binary | native | 6 | 0.200% | 0.0041% |
+| K20 Binary | K20 Graded | 跨 lane | 6 | 3.792% | 0.0872% |
+| K20 Binary | K5 Binary | 跨数据集 | 6 | 2.516% | 0.4912% |
+| K20 Binary | K5 Graded | 跨数据集且跨 lane | 6 | 5.479% | 0.9300% |
+| K20 Graded | F50 Binary | 跨数据集且跨 lane | 6 | 6.426% | 0.6303% |
+| K20 Graded | F50 Graded | 跨数据集 | 6 | 3.474% | 0.6510% |
+| K20 Graded | K20 Binary | 跨 lane | 6 | 1.994% | 0.1814% |
+| K20 Graded | K20 Graded | native | 6 | 0.141% | 0.0097% |
+| K20 Graded | K5 Binary | 跨数据集且跨 lane | 6 | 3.066% | 0.1942% |
+| K20 Graded | K5 Graded | 跨数据集 | 6 | 1.842% | 0.4029% |
+| K5 Binary | F50 Binary | 跨数据集 | 6 | 0.845% | 0.0327% |
+| K5 Binary | F50 Graded | 跨数据集且跨 lane | 6 | 3.207% | 0.6231% |
+| K5 Binary | K20 Binary | 跨数据集 | 6 | 2.635% | 0.3931% |
+| K5 Binary | K20 Graded | 跨数据集且跨 lane | 6 | 3.363% | 0.8546% |
+| K5 Binary | K5 Binary | native | 6 | 0.555% | 0.0067% |
+| K5 Binary | K5 Graded | 跨 lane | 6 | 3.336% | 0.2341% |
+| K5 Graded | F50 Binary | 跨数据集且跨 lane | 6 | 2.397% | 0.2173% |
+| K5 Graded | F50 Graded | 跨数据集 | 6 | 0.952% | 0.0733% |
+| K5 Graded | K20 Binary | 跨数据集且跨 lane | 6 | 7.559% | 1.0822% |
+| K5 Graded | K20 Graded | 跨数据集 | 6 | 5.321% | 1.4289% |
+| K5 Graded | K5 Binary | 跨 lane | 6 | 1.990% | 0.1191% |
+| K5 Graded | K5 Graded | native | 6 | 0.404% | 0.0155% |
+
+## 跨数据集与跨 lane 的完整汇总
+
+数据集迁移具有明显方向性：例如 K20→F50 的 24 个 cell 均值为 5.525%，而 F50→K20 为 7.496%；这说明不能用无方向的“F50--K20 迁移”掩盖 source 的差异。
+
+| source dataset → target dataset | cells | MRE 均值 | MRE 标准差 |
+|---|---:|---:|---:|
+| K5 → K20 | 24 | 4.719% | 2.1627% |
+| K5 → F50 | 24 | 1.850% | 1.0485% |
+| K20 → K5 | 24 | 3.226% | 1.4854% |
+| K20 → F50 | 24 | 5.525% | 1.9802% |
+| F50 → K5 | 24 | 3.295% | 1.8756% |
+| F50 → K20 | 24 | 7.496% | 3.2258% |
+
+| lane 方向 | 数据集是否改变 | cells | MRE 均值 | MRE 标准差 |
+|---|---|---:|---:|---:|
+| Binary → Graded | 否 | 18 | 3.281% | 0.4991% |
+| Graded → Binary | 否 | 18 | 2.126% | 0.2736% |
+| Binary → Graded | 是 | 36 | 4.621% | 1.9367% |
+| Graded → Binary | 是 | 36 | 6.197% | 3.1553% |
+
 ## 原生域的核大小结果
 
 `MRE delta` 定义为 `7x7 - 3x3`，负值表示 $7\times7$ 较低。方向“一致”要求三个 seed 同向，paired bootstrap 结论同时使用配对的样本级误差，而不是把不同 test target 强行配对。
