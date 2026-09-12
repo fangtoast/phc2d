@@ -38,7 +38,7 @@ source_artifacts:
 
 这是一项完整但**探索性**的 held-out surrogate 结果。`g2_formal_status=not_passed`，不产生 model promotion、real-MPB/Meep replay 或 physical claim。
 
-与已发表的 K5、K20/F50 历史交叉域表作数值并列时，本模型在有历史覆盖的 28 个方向中有 5 个方向低于对应的“历史单路线最优值”；其余 23 个方向较高。由于各 campaign 的 test cache 身份、source seed 数、训练预算和 checkpoint 选择合同并未在跨 campaign 层面冻结为同一配对协议，这只是方向级的历史定位，**不是**显著性检验、架构冠军或 promotion 结论。
+与已发表的 K5、K20/F50 历史交叉域表作数值并列时，本模型在有历史覆盖的 28 个方向中有 4 个方向低于对应的“历史单路线最优值”；其余 24 个方向较高。由于各 campaign 的 test cache 身份、source seed 数、训练预算和 checkpoint 选择合同并未在跨 campaign 层面冻结为同一配对协议，这只是方向级的历史定位，**不是**显著性检验、架构冠军或 promotion 结论。
 
 ## 评估对象与证据边界
 
@@ -222,12 +222,12 @@ F50 的历史 cross-lane 表只有 FNO v2 和四个升级模型；跨数据集�
 
 | F50 source model | F50 Binary → F50 Graded | F50 Graded → F50 Binary |
 |---|---:|---:|
-| FNO v2 | **1.717%** | 2.096% |
+| FNO v2 | **1.717%** | **2.096%** |
 | MLP-Mixer | 3.748% | 2.536% |
 | Gated ResMLP | 5.813% | 5.465% |
 | ConvNeXt | 2.381% | 2.866% |
 | TFNO v3 | 7.222% | 2.586% |
-| **本轮 Global-Local** | 2.716% | **2.394%** |
+| **本轮 Global-Local** | 2.716% | 2.394% |
 
 | F50 source model | F50 Binary → K20 Binary | F50 Binary → K20 Graded | F50 Graded → K20 Binary | F50 Graded → K20 Graded |
 |---|---:|---:|---:|---:|
@@ -241,7 +241,7 @@ F50 的历史 cross-lane 表只有 FNO v2 和四个升级模型；跨数据集�
 | TFNO v3 | 4.854% | 3.508% | 11.297% | 9.009% |
 | **本轮 Global-Local** | 4.078% | 5.033% | 11.812% | 9.062% |
 
-由上述逐模型表可见，跨域并不存在“某一结构永远最好”：例如 K20 Binary $\rightarrow$ F50 的两个 target 都是 TFNO v3 最低，K20 Graded $\rightarrow$ F50 Binary 是 ResMLP-Wide 最低，F50 Binary $\rightarrow$ K20 Binary 是 Gated ResMLP 最低，而 F50 Graded 的两个 K20 target 都是 FNO v2 最低。当前模型仅在 F50 Graded $\rightarrow$ F50 Binary 的已列历史模型中数值最低；这一观察仍不升级为跨 campaign 的统计胜出。
+由上述逐模型表可见，跨域并不存在“某一结构永远最好”：例如 K20 Binary $\rightarrow$ F50 的两个 target 都是 TFNO v3 最低，K20 Graded $\rightarrow$ F50 Binary 是 ResMLP-Wide 最低，F50 Binary $\rightarrow$ K20 Binary 是 Gated ResMLP 最低，而 F50 Graded 的两个 K20 target 以及 F50 Graded $\rightarrow$ F50 Binary 都是 FNO v2 最低。当前模型没有在已列的跨域方向中形成最低数值；这一观察仍不升级为跨 campaign 的统计胜出。
 
 ### 逐方向最低值摘要（辅助阅读）
 
@@ -278,7 +278,7 @@ K5 来源的结果说明：当前模型的两个 native 数值可进入历史单
 | F50 Binary → F50 Graded | 2.716% | 2.381%（ConvNeXt） | +0.335 | 高于历史方向最优 |
 | F50 Binary → K20 Binary | 4.078% | 2.029%（Gated ResMLP） | +2.049 | 高于历史方向最优 |
 | F50 Binary → K20 Graded | 5.033% | 3.171%（ResMLP-Wide） | +1.862 | 高于历史方向最优 |
-| F50 Graded → F50 Binary | 2.394% | 2.536%（MLP-Mixer） | -0.142 | 低于历史方向最优 |
+| F50 Graded → F50 Binary | 2.394% | 2.096%（FNO v2） | +0.298 | 高于历史方向最优 |
 | F50 Graded → F50 Graded | 0.0949% | 0.0500%（ConvNeXt） | +0.0449 | 高于历史方向最优 |
 | F50 Graded → K20 Binary | 11.812% | 9.470%（FNO v2） | +2.343 | 高于历史方向最优 |
 | F50 Graded → K20 Graded | 9.062% | 6.633%（FNO v2） | +2.429 | 高于历史方向最优 |
@@ -287,7 +287,7 @@ K5 来源的结果说明：当前模型的两个 native 数值可进入历史单
 
 ### 对照结论
 
-1. 在历史覆盖的 28 个方向中，当前数值低于对应历史单路线包络的有 5 个：K5 Binary native、K5 Graded native、K20 Binary native、K20 Graded native，以及 F50 Graded $\rightarrow$ F50 Binary。其余 23 个方向均高于逐方向历史最优值。
+1. 在历史覆盖的 28 个方向中，当前数值低于对应历史单路线包络的有 4 个：K5 Binary native、K5 Graded native、K20 Binary native、K20 Graded native。其余 24 个方向均高于逐方向历史最优值。
 2. 这不支持“全局—局部算子已经解决跨域泛化”。尤其 K20 $\rightarrow$ F50、F50 $\rightarrow$ K20 与 K5 Graded $\rightarrow$ K20 的多数方向仍落后于某个历史专门模型；跨域最优模型也随方向改变，不能从表中选出单一全局冠军。
 3. 同时，它提示当前模型的 native 训练拟合在 K5/K20 上有竞争力，而迁移弱点集中在 lane 与数据集同时改变的方向。该模式与本页 216-cell 的关系聚合一致，但尚不足以归因为局部核、频谱分支或训练轮数中的任何单一因素。
 4. 要形成可检验的“模型 A 优于模型 B 跨域”结论，下一步需要新建同一数据版本、同一 split/cache、同一 source seed、同一训练预算的成对基线矩阵；在该合同下才能用逐样本 paired bootstrap。当前不应重跑、微调或依据这些历史表选择 checkpoint。
