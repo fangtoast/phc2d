@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from phc2d.cli.commands.data_pairing import configure_pairing_audit, run_pairing_audit
 from phc2d.data import infer_dataset_schema
 
 
@@ -63,6 +64,7 @@ def configure(sub: Any) -> None:
         help="Structure-plan process count or 'auto'; generator.plan_workers is used when omitted.",
     )
     prepare_plan.set_defaults(command="data prepare-full-cell-plan")
+    configure_pairing_audit(data_sub)
     accept_cluster = data_sub.add_parser(
         "accept-cluster",
         help="Recompute fixed cluster structures in WSL and gate a full-cell dataset.",
@@ -190,6 +192,8 @@ def run(ns: Any) -> bool:
                 workers=plan_worker_override,
             )
         )
+        return True
+    if run_pairing_audit(ns):
         return True
     if ns.command == "data accept-cluster":
         from phc2d.data.full_cell_acceptance import run_cluster_wsl_acceptance

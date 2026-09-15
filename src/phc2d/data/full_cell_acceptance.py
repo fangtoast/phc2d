@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import csv
 import hashlib
-import json
 import time
 from collections import defaultdict
 from collections.abc import Mapping
@@ -31,7 +30,12 @@ from phc2d.runs import (
     write_results,
     write_run_meta,
 )
-from phc2d.solvers import MPBParallelConfig, MPBWorkerJob, run_mpb_worker_jobs, solve_bands_for_full_cell_mpb
+from phc2d.solvers import (
+    MPBParallelConfig,
+    MPBWorkerJob,
+    run_mpb_worker_jobs,
+    solve_bands_for_full_cell_mpb,
+)
 
 
 AcceptanceSolverFn = Callable[..., tuple[np.ndarray, dict[str, Any]]]
@@ -78,15 +82,17 @@ def select_fixed_structures(
     for index, structure in enumerate(bundle.structures):
         grouped[_stratum(structure, lane)].append(index)
     fourier_lane = lane in {"binary_fourier", "graded_fourier"}
-    required = (
-        {"polar_hole_1", "polar_hole_2", "spectral_threshold"}
-        if lane == "binary_air_holes"
-        else {"graded_core_1", "graded_core_2"}
-    )
+    required = {"polar_hole_1", "polar_hole_2", "spectral_threshold"} if lane == "binary_air_holes" else {"graded_core_1", "graded_core_2"}
     if fourier_lane:
         if not grouped:
             raise ValueError(f"{lane} has no strata")
-        ordered_groups = {key: sorted(values, key=lambda index: hashlib.sha256(bundle.structures[index].sample_id.encode()).hexdigest()) for key, values in grouped.items()}
+        ordered_groups = {
+            key: sorted(
+                values,
+                key=lambda index: hashlib.sha256(bundle.structures[index].sample_id.encode()).hexdigest(),
+            )
+            for key, values in grouped.items()
+        }
         selected: list[int] = []
         while len(selected) < int(count):
             progress = False
@@ -102,16 +108,15 @@ def select_fixed_structures(
     if int(count) < len(required):
         raise ValueError("acceptance structure count cannot be smaller than the stratum count")
     ordered = {
-        key: sorted(values, key=lambda index: hashlib.sha256(bundle.structures[index].sample_id.encode()).hexdigest())
+        key: sorted(
+            values,
+            key=lambda index: hashlib.sha256(bundle.structures[index].sample_id.encode()).hexdigest(),
+        )
         for key, values in grouped.items()
     }
     selected = [ordered[key].pop(0) for key in sorted(required)]
     while len(selected) < int(count):
-        candidates = [
-            (hashlib.sha256(bundle.structures[index].sample_id.encode()).hexdigest(), key, index)
-            for key, values in ordered.items()
-            for index in values
-        ]
+        candidates = [(hashlib.sha256(bundle.structures[index].sample_id.encode()).hexdigest(), key, index) for key, values in ordered.items() for index in values]
         if not candidates:
             raise ValueError("dataset contains fewer structures than requested for acceptance")
         _, key, index = min(candidates)
@@ -178,6 +183,15 @@ def run_cluster_wsl_acceptance(
     write_run_meta(out, {"task": task, "dataset_path": str(dataset), "execution_profile": profile})
 
     bundle = load_full_cell_hdf5(dataset)
+    expected_cutoff = acceptance.get("expected_fourier_cutoff")
+    if expected_cutoff is not None and any(int(structure.parameters.get("fourier_cutoff", -1)) != int(expected_cutoff) for structure in bundle.structures):
+        raise ValueError("dataset Fourier cutoff does not match the acceptance config")
+    expected_prefix = str(acceptance.get("expected_sample_id_prefix", "")).strip()
+    if expected_prefix and any(not structure.sample_id.startswith(f"{expected_prefix}_") for structure in bundle.structures):
+        raise ValueError("dataset sample_id prefix does not match the acceptance config")
+    expected_cohort_seed = acceptance.get("expected_paired_cohort_seed")
+    if expected_cohort_seed is not None and any(int(structure.parameters.get("paired_cohort_seed", -1)) != int(expected_cohort_seed) for structure in bundle.structures):
+        raise ValueError("dataset paired cohort seed does not match the acceptance config")
     structure_indices = select_fixed_structures(
         bundle,
         lane=lane,
@@ -206,7 +220,11 @@ def run_cluster_wsl_acceptance(
         worker_backend="processpool",
         fail_fast=False,
         suppress_solver_output=True,
-        worker_thread_env={"OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1", "MKL_NUM_THREADS": "1"},
+        worker_thread_env={
+            "OMP_NUM_THREADS": "1",
+            "OPENBLAS_NUM_THREADS": "1",
+            "MKL_NUM_THREADS": "1",
+        },
     )
     started = time.perf_counter()
     worker_results, worker_summary = run_mpb_worker_jobs(
@@ -217,11 +235,7 @@ def run_cluster_wsl_acceptance(
     )
     elapsed = time.perf_counter() - started
     failures = [result for result in worker_results if result.status != "computed" or result.bands is None]
-    finite_and_ordered = not failures and all(
-        np.isfinite(result.bands).all() and np.all(np.diff(result.bands, axis=1) >= -1.0e-7)
-        for result in worker_results
-        if result.bands is not None
-    )
+    finite_and_ordered = not failures and all(np.isfinite(result.bands).all() and np.all(np.diff(result.bands, axis=1) >= -1.0e-7) for result in worker_results if result.bands is not None)
     errors: list[np.ndarray] = []
     rows: list[dict[str, Any]] = []
     for result in worker_results:

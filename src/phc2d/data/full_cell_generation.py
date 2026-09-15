@@ -34,7 +34,6 @@ from phc2d.data.full_cell import (
 )
 from phc2d.generators.full_cell import (
     build_full_cell_structure_spec,
-    full_cell_structure_stats,
     generate_binary_polar_holes,
     generate_binary_spectral_threshold,
     generate_graded_rbf_fourier,
@@ -237,15 +236,9 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
     if stage == "dataset_generation":
         if protocol not in {"full_cell_v1", "full_cell_fourier_v2"}:
             problems.append("dataset.protocol must be full_cell_v1 or full_cell_fourier_v2")
-        allowed_lanes = (
-            {"graded_medium", "binary_air_holes"}
-            if protocol == "full_cell_v1"
-            else {"graded_fourier", "binary_fourier"}
-        )
+        allowed_lanes = {"graded_medium", "binary_air_holes"} if protocol == "full_cell_v1" else {"graded_fourier", "binary_fourier"}
         if dataset.get("lane") not in allowed_lanes:
-            problems.append(
-                "dataset.lane does not match the selected full-cell protocol"
-            )
+            problems.append("dataset.lane does not match the selected full-cell protocol")
         if int(dataset.get("sample_count", 0)) <= 0:
             problems.append("dataset.sample_count must be positive")
         split = dict(dataset.get("split") or {})
@@ -255,9 +248,7 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
             problems.append("dataset.output_path is required")
         expected_rasters = [32, 64, 128] if protocol == "full_cell_v1" else [32, 64, 128, 256]
         if [int(value) for value in dataset.get("raster_resolutions", [])] != expected_rasters:
-            problems.append(
-                f"dataset.raster_resolutions must be exactly {expected_rasters}"
-            )
+            problems.append(f"dataset.raster_resolutions must be exactly {expected_rasters}")
         if protocol == "full_cell_fourier_v2":
             raster_contract = dict(dataset.get("raster_contract") or {})
             if raster_contract.get("method") != MASTER_BLOCK_MEAN_V1:
@@ -265,11 +256,22 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
             if int(raster_contract.get("source_resolution", 0)) != 256:
                 problems.append("full_cell_fourier_v2 raster source_resolution must be 256")
             if str(solver.get("resolution_status", "")) != "frozen_resolution_64":
-                problems.append(
-                    "full_cell_fourier_v2 requires solver.resolution_status=frozen_resolution_64"
-                )
+                problems.append("full_cell_fourier_v2 requires solver.resolution_status=frozen_resolution_64")
             if not str(solver.get("resolution_evidence", "")).strip():
                 problems.append("full_cell_fourier_v2 requires solver.resolution_evidence")
+            paired_single = generator.get("paired_coefficient_seed")
+            paired_cohort = generator.get("paired_cohort_seed")
+            if paired_single is not None and paired_cohort is not None:
+                problems.append("generator.paired_coefficient_seed and paired_cohort_seed are mutually exclusive")
+            if paired_cohort is not None:
+                if generator.get("pairing_contract") != "cutoff_paired_cohort_v1":
+                    problems.append("generator.pairing_contract must be cutoff_paired_cohort_v1 with generator.paired_cohort_seed")
+                if not str(dataset.get("sample_id_prefix", "")).strip():
+                    problems.append("dataset.sample_id_prefix is required with generator.paired_cohort_seed")
+                try:
+                    int(paired_cohort)
+                except (TypeError, ValueError):
+                    problems.append("generator.paired_cohort_seed must be an integer")
         plan_workers = generator.get("plan_workers", 1)
         if not (isinstance(plan_workers, str) and plan_workers.lower() == "auto"):
             try:
@@ -294,9 +296,7 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
     if str(solver.get("backend", "")).lower() != "mpb" or bool(solver.get("use_proxy", False)):
         problems.append("solver must be real MPB with use_proxy=false")
     if str(solver.get("environment", "")) not in SUPPORTED_EXECUTION_ENVIRONMENTS:
-        problems.append(
-            "solver.environment must be wsl_meep_env or native_linux_conda_meep_env"
-        )
+        problems.append("solver.environment must be wsl_meep_env or native_linux_conda_meep_env")
     if str(solver.get("polarization", "")).upper() != "TE":
         problems.append("full_cell_v1 pilot is frozen to TE")
     frozen_solver = {
@@ -361,7 +361,10 @@ def _stable_stratified_splits(
     labels = [""] * total
     assigned = Counter()
     for stratum in sorted(grouped):
-        indices = sorted(grouped[stratum], key=lambda index: hashlib.sha256(sample_ids[index].encode("utf-8")).hexdigest())
+        indices = sorted(
+            grouped[stratum],
+            key=lambda index: hashlib.sha256(sample_ids[index].encode("utf-8")).hexdigest(),
+        )
         exact = {name: len(indices) * fractions[name] for name in names}
         counts = {name: int(np.floor(exact[name])) for name in names}
         remaining = len(indices) - sum(counts.values())
@@ -378,7 +381,10 @@ def _stable_stratified_splits(
         while assigned[target] < int(split_counts[target]):
             donor = next(name for name in names if assigned[name] > int(split_counts[name]))
             candidates = [index for index, label_name in enumerate(labels) if label_name == donor]
-            move = min(candidates, key=lambda index: hashlib.sha256(f"move:{target}:{sample_ids[index]}".encode("utf-8")).hexdigest())
+            move = min(
+                candidates,
+                key=lambda index: hashlib.sha256(f"move:{target}:{sample_ids[index]}".encode("utf-8")).hexdigest(),
+            )
             labels[move] = target
             assigned[donor] -= 1
             assigned[target] += 1
@@ -429,15 +435,7 @@ def build_full_cell_hash_ledger(
                 )
 
     collisions: list[dict[str, Any]] = []
-    hash_fields = sorted(
-        {
-            key
-            for row in rows
-            for key in row
-            if key in {"parameter_hash", "geometry_hash"}
-            or key.startswith("content_hash_r")
-        }
-    )
+    hash_fields = sorted({key for row in rows for key in row if key in {"parameter_hash", "geometry_hash"} or key.startswith("content_hash_r")})
     for field_name in hash_fields:
         grouped: dict[str, list[str]] = defaultdict(list)
         for row in rows:
@@ -483,10 +481,7 @@ def _require_unique_full_cell_hashes(
 ) -> None:
     if collisions:
         first = collisions[0]
-        raise RuntimeError(
-            "full-cell hash collision detected; generation is fail-closed: "
-            f"{first['hash_type']} {first['hash']}"
-        )
+        raise RuntimeError(f"full-cell hash collision detected; generation is fail-closed: {first['hash_type']} {first['hash']}")
 
 
 def _structure_schedule(lane: str, count: int) -> list[tuple[str, Any, str]]:
@@ -530,8 +525,9 @@ def _structure_schedule(lane: str, count: int) -> list[tuple[str, Any, str]]:
 def _generate_structure_task(
     task: tuple[int, str, Any, str, int, str, dict[str, Any]],
 ) -> tuple[FullCellStructureSpec, str]:
-    index, family, variant, stratum, seed, experiment_id, generator_cfg = task
-    sample_id = f"{experiment_id}_{index:06d}"
+    index, family, variant, stratum, seed, sample_id_prefix, generator_cfg = task
+    sample_id = f"{sample_id_prefix}_{index:06d}"
+    pairing_key = sample_id if "paired_cohort_seed" in generator_cfg else None
     if family == "graded_rbf_fourier":
         structure = generate_graded_rbf_fourier(
             sample_id,
@@ -558,6 +554,7 @@ def _generate_structure_task(
             master_seed=seed,
             material_fraction_bin=int(variant),
             config=generator_cfg,
+            pairing_key=pairing_key,
         )
     elif family == "unified_fourier_graded":
         material_bin, temperature_bin = variant
@@ -567,6 +564,7 @@ def _generate_structure_task(
             material_fraction_bin=int(material_bin),
             temperature_bin=int(temperature_bin),
             config=generator_cfg,
+            pairing_key=pairing_key,
         )
     else:
         raise ValueError(f"unsupported full-cell generator family: {family}")
@@ -599,9 +597,7 @@ def _resolve_plan_workers(
     if resolved <= 0:
         raise ValueError("plan workers must be positive")
     if resolved > available:
-        raise RuntimeError(
-            f"plan workers requested {resolved}, but only {available} CPUs are available"
-        )
+        raise RuntimeError(f"plan workers requested {resolved}, but only {available} CPUs are available")
     return max(1, min(resolved, effective_count))
 
 
@@ -617,10 +613,8 @@ def _generate_structures(
     lane = str(dataset["lane"])
     seed = int(dataset["seed"])
     experiment_id = str(dict(cfg["experiment"])["experiment_id"])
-    tasks = [
-        (index, family, variant, stratum, seed, experiment_id, generator_cfg)
-        for index, (family, variant, stratum) in enumerate(_structure_schedule(lane, effective_count))
-    ]
+    sample_id_prefix = str(dataset.get("sample_id_prefix", experiment_id))
+    tasks = [(index, family, variant, stratum, seed, sample_id_prefix, generator_cfg) for index, (family, variant, stratum) in enumerate(_structure_schedule(lane, effective_count))]
     resolved_workers = max(1, min(int(workers), max(effective_count, 1)))
     if progress_fn is not None:
         progress_fn(0, effective_count)
@@ -695,6 +689,7 @@ def _load_frozen_sample_plan(
     if len(rows) != effective_count:
         raise ValueError(f"Frozen sample plan has {len(rows)} rows; expected {effective_count}")
     experiment_id = str(dict(cfg["experiment"])["experiment_id"])
+    sample_id_prefix = str(dict(cfg["dataset"]).get("sample_id_prefix", experiment_id))
     generator_cfg = dict(cfg.get("generator") or {})
     epsilon_air = float(generator_cfg.get("epsilon_air", 1.0))
     epsilon_material = float(generator_cfg.get("epsilon_material", 8.9))
@@ -703,7 +698,7 @@ def _load_frozen_sample_plan(
     strata: list[str] = []
     splits: list[str] = []
     for index, (row, (expected_family, _variant, expected_stratum)) in enumerate(zip(rows, expected_schedule)):
-        sample_id = f"{experiment_id}_{index:06d}"
+        sample_id = f"{sample_id_prefix}_{index:06d}"
         if int(row.get("sample_index", -1)) != index or str(row.get("sample_id")) != sample_id:
             raise ValueError(f"Frozen sample plan identity mismatch at row {index}")
         family = str(row.get("generator_family"))
@@ -718,7 +713,11 @@ def _load_frozen_sample_plan(
             family=family,
             material_kind="continuous" if "graded" in family else "binary",
             payload=dict(row.get("parameters") or {}),
-            metadata={"stats": dict(row.get("stats") or {}), "resumed_from_sample_plan": True},
+            metadata={
+                "stats": dict(row.get("stats") or {}),
+                "pairing": dict(row.get("pairing") or {}),
+                "resumed_from_sample_plan": True,
+            },
             epsilon_air=epsilon_air,
             epsilon_material=epsilon_material,
             schema_version=str(row.get("schema_version", "phc2d.full_cell.v1")),
@@ -729,7 +728,11 @@ def _load_frozen_sample_plan(
         strata.append(stratum)
         splits.append(split)
     expected_ids = [item.sample_id for item in structures]
-    split_counts = _effective_split_counts(dict(dict(cfg["dataset"])["split"]), int(dict(cfg["dataset"])["sample_count"]), effective_count)
+    split_counts = _effective_split_counts(
+        dict(dict(cfg["dataset"])["split"]),
+        int(dict(cfg["dataset"])["sample_count"]),
+        effective_count,
+    )
     _, _, _, expected_splits = _stable_stratified_splits(expected_ids, strata, split_counts)
     if splits != expected_splits:
         raise ValueError("Frozen sample plan split assignments do not match the configured stable split")
@@ -797,9 +800,7 @@ def prepare_full_cell_sample_plan(
 
     dataset_cfg = dict(cfg["dataset"])
     sample_count = int(dataset_cfg["sample_count"])
-    split_counts = {
-        name: int(dict(dataset_cfg["split"])[name]) for name in ("train", "val", "test")
-    }
+    split_counts = {name: int(dict(dataset_cfg["split"])[name]) for name in ("train", "val", "test")}
     sample_plan_path = out / "sample_plan.jsonl"
     reused = sample_plan_path.is_file()
     plan_workers = 0
@@ -835,13 +836,10 @@ def prepare_full_cell_sample_plan(
                 "material_kind": structure.material_kind,
                 "schema_version": structure.schema_version,
                 "geometry_hash": structure.geometry_hash,
-                **{
-                    key: value
-                    for key, value in hash_rows[index].items()
-                    if key.endswith("_hash") or key.startswith("content_hash_r")
-                },
+                **{key: value for key, value in hash_rows[index].items() if key.endswith("_hash") or key.startswith("content_hash_r")},
                 "parameters": structure.parameters,
                 "stats": structure.metadata.get("stats", {}),
+                "pairing": structure.metadata.get("pairing", {}),
             }
             for index, structure in enumerate(structures)
         ]
@@ -868,6 +866,13 @@ def prepare_full_cell_sample_plan(
         "hash_collision_count": len(collisions),
         "reused_existing_plan": reused,
         "plan_workers_resolved": plan_workers,
+        "pairing": {
+            "contract": "cutoff_paired_cohort_v1",
+            "sample_id_prefix": dataset_cfg.get("sample_id_prefix"),
+            "paired_cohort_seed": dict(cfg.get("generator") or {}).get("paired_cohort_seed"),
+        }
+        if dict(cfg.get("generator") or {}).get("paired_cohort_seed") is not None
+        else {},
     }
     write_json(out / "sample_plan_manifest.json", manifest)
     elapsed = float(time.perf_counter() - started)
@@ -939,9 +944,16 @@ def _write_preview_figures(
     for axis, structure in zip(axes.flat, structures[:count]):
         weight = material_grid(structure, 64)
         epsilon = structure.epsilon_air + (structure.epsilon_material - structure.epsilon_air) * weight
-        image = axis.imshow(epsilon, origin="lower", cmap="Blues", vmin=structure.epsilon_air, vmax=structure.epsilon_material)
+        image = axis.imshow(
+            epsilon,
+            origin="lower",
+            cmap="Blues",
+            vmin=structure.epsilon_air,
+            vmax=structure.epsilon_material,
+        )
         axis.set_title(f"{structure.generator_family}\n{structure.sample_id}", fontsize=8)
-        axis.set_xticks([]); axis.set_yticks([])
+        axis.set_xticks([])
+        axis.set_yticks([])
     for axis in list(axes.flat)[count:]:
         axis.axis("off")
     fig.colorbar(image, ax=axes.ravel().tolist(), shrink=0.75, label="epsilon")
@@ -951,9 +963,16 @@ def _write_preview_figures(
     resolutions = [int(value) for value in raster_resolutions]
     fig, axes = plt.subplots(1, len(resolutions), figsize=(3 * len(resolutions), 3), squeeze=False)
     for axis, resolution in zip(axes.flat, resolutions):
-        axis.imshow(material_grid(structures[0], resolution), origin="lower", cmap="Blues", vmin=0.0, vmax=1.0)
+        axis.imshow(
+            material_grid(structures[0], resolution),
+            origin="lower",
+            cmap="Blues",
+            vmin=0.0,
+            vmax=1.0,
+        )
         axis.set_title(f"{resolution}x{resolution}")
-        axis.set_xticks([]); axis.set_yticks([])
+        axis.set_xticks([])
+        axis.set_yticks([])
     fig.savefig(figures_dir / "resolution_pairing.png", dpi=180, bbox_inches="tight")
     plt.close(fig)
 
@@ -961,7 +980,8 @@ def _write_preview_figures(
     fig, axis = plt.subplots(figsize=(4.5, 4))
     heatmap = axis.imshow(bands[0, :, band_index].reshape(n_side, n_side), origin="lower", cmap="viridis")
     axis.set_title(f"sample 0, band {band_index + 1}")
-    axis.set_xlabel("k_y index"); axis.set_ylabel("k_x index")
+    axis.set_xlabel("k_y index")
+    axis.set_ylabel("k_x index")
     fig.colorbar(heatmap, ax=axis, label="a/lambda")
     fig.savefig(figures_dir / "bz_band_preview.png", dpi=180, bbox_inches="tight")
     plt.close(fig)
@@ -998,8 +1018,18 @@ def run_full_cell_generation(
     experiment = dict(cfg.get("experiment") or {})
     experiment_id = str(experiment.get("experiment_id", "full_cell_generation"))
     output_cfg = dict(cfg.get("output") or {})
-    out = make_run_dir(experiment_id, runs_dir=_repo_path(output_cfg.get("runs_dir", "runs")), run_dir=_repo_path(run_dir) if run_dir else None)
-    logger = setup_logging(log_file=out / "run.log", run_meta={"script": "phc2d.data.full_cell_generation", "config_path": _relative(config_path)})
+    out = make_run_dir(
+        experiment_id,
+        runs_dir=_repo_path(output_cfg.get("runs_dir", "runs")),
+        run_dir=_repo_path(run_dir) if run_dir else None,
+    )
+    logger = setup_logging(
+        log_file=out / "run.log",
+        run_meta={
+            "script": "phc2d.data.full_cell_generation",
+            "config_path": _relative(config_path),
+        },
+    )
     ensure_figures_dir(out)
     started = time.perf_counter()
     history: list[dict[str, Any]] = []
@@ -1025,9 +1055,23 @@ def run_full_cell_generation(
         reason = "; ".join(problems)
         history.append({"stage": "contract_check", "status": "blocked", "reason": reason})
         _write_history(out / "history.csv", history)
-        write_metrics(out, {"status": "blocked", "wall_time_total_s": float(time.perf_counter() - started), "real_mpb_generation_started": False})
+        write_metrics(
+            out,
+            {
+                "status": "blocked",
+                "wall_time_total_s": float(time.perf_counter() - started),
+                "real_mpb_generation_started": False,
+            },
+        )
         write_results(out, {"status": "blocked", "reason": reason, "dataset_written": False})
-        write_run_meta(out, {"status": "blocked", "validation_boundary": execution_profile["validation_boundary"], "execution_profile": execution_profile})
+        write_run_meta(
+            out,
+            {
+                "status": "blocked",
+                "validation_boundary": execution_profile["validation_boundary"],
+                "execution_profile": execution_profile,
+            },
+        )
         return out
     if str(experiment.get("stage")) == "solver_preflight":
         return run_full_cell_solver_preflight(
@@ -1049,7 +1093,13 @@ def run_full_cell_generation(
         idx_train, idx_val, idx_test, expected_labels = _stable_stratified_splits(sample_ids, strata, split_counts)
         if split_labels != expected_labels:
             raise ValueError("Frozen sample plan split assignments changed during resume")
-        history.append({"stage": "structure_generation", "status": "resumed", "reason": "validated frozen sample_plan.jsonl"})
+        history.append(
+            {
+                "stage": "structure_generation",
+                "status": "resumed",
+                "reason": "validated frozen sample_plan.jsonl",
+            }
+        )
     else:
         plan_workers_resolved = _resolve_plan_workers(
             cfg,
@@ -1113,20 +1163,22 @@ def run_full_cell_generation(
                     "material_kind": structure.material_kind,
                     "schema_version": structure.schema_version,
                     "geometry_hash": structure.geometry_hash,
-                    **{
-                        key: value
-                        for key, value in hash_rows[index].items()
-                        if key.endswith("_hash") or key.startswith("content_hash_r")
-                    },
+                    **{key: value for key, value in hash_rows[index].items() if key.endswith("_hash") or key.startswith("content_hash_r")},
                     "parameters": structure.parameters,
                     "stats": structure.metadata.get("stats", {}),
+                    "pairing": structure.metadata.get("pairing", {}),
                 }
                 for index, structure in enumerate(structures)
             ],
         )
     results, worker_summary = run_mpb_worker_jobs(jobs, config=parallel, shard_dir=out / "worker_shards", solver_fn=solver_fn)
     failures = [
-        {"sample_id": item.sample_id, "sample_index": item.sample_index, "status": item.status, "reason": item.error}
+        {
+            "sample_id": item.sample_id,
+            "sample_index": item.sample_index,
+            "status": item.status,
+            "reason": item.error,
+        }
         for item in results
         if item.status != "computed" or item.bands is None
     ]
@@ -1167,14 +1219,8 @@ def run_full_cell_generation(
     configured_output = _repo_path(str(dataset_cfg["output_path"]))
     dataset_path = configured_output if effective_count == full_count else out / f"{configured_output.stem}_smoke_{effective_count}.h5"
     real_mpb_generation_eligible = not skip_environment_check and solver_fn is solve_bands_for_full_cell_mpb
-    formal_acceptance_eligible = bool(
-        real_mpb_generation_eligible and execution_profile.get("formal_acceptance_eligible")
-    )
-    validation_boundary = (
-        str(execution_profile["validation_boundary"])
-        if real_mpb_generation_eligible
-        else "unaccepted_test_only_injected_or_unchecked_solver"
-    )
+    formal_acceptance_eligible = bool(real_mpb_generation_eligible and execution_profile.get("formal_acceptance_eligible"))
+    validation_boundary = str(execution_profile["validation_boundary"]) if real_mpb_generation_eligible else "unaccepted_test_only_injected_or_unchecked_solver"
     raster_contract = dict(dataset_cfg.get("raster_contract") or {})
     metadata = {
         "protocol": dataset_cfg["protocol"],
@@ -1187,11 +1233,19 @@ def run_full_cell_generation(
         "config_path": _relative(config_path),
         "config_hash": _hash_text(resolved_yaml),
         "validation_boundary": validation_boundary,
-        "raster_contract": raster_contract or {
+        "raster_contract": raster_contract
+        or {
             "method": "direct_cell_center_v1",
             "source_resolution": max(raster_resolutions),
         },
         "content_hash_collision_count": len(collisions),
+        "pairing": {
+            "contract": "cutoff_paired_cohort_v1",
+            "sample_id_prefix": dataset_cfg.get("sample_id_prefix"),
+            "paired_cohort_seed": dict(cfg.get("generator") or {}).get("paired_cohort_seed"),
+        }
+        if dict(cfg.get("generator") or {}).get("paired_cohort_seed") is not None
+        else {},
     }
     write_full_cell_hdf5(
         dataset_path,
@@ -1205,12 +1259,8 @@ def run_full_cell_generation(
         raster_resolutions=raster_resolutions,
         metadata=metadata,
         raster_method=str(raster_contract.get("method", "direct_cell_center_v1")),
-        raster_source_resolution=int(
-            raster_contract.get("source_resolution", max(raster_resolutions))
-        ),
-        content_hash_quantization_levels=int(
-            raster_contract.get("content_hash_quantization_levels", 65536)
-        ),
+        raster_source_resolution=int(raster_contract.get("source_resolution", max(raster_resolutions))),
+        content_hash_quantization_levels=int(raster_contract.get("content_hash_quantization_levels", 65536)),
     )
     figures = ensure_figures_dir(out)
     _write_preview_figures(
@@ -1232,15 +1282,12 @@ def run_full_cell_generation(
                 "generator_family": structure.generator_family,
                 "geometry_hash": structure.geometry_hash,
                 "parameter_hash": structure.parameter_hash,
-                **{
-                    key: value
-                    for key, value in hash_row.items()
-                    if key.startswith("content_hash_r")
-                },
+                **{key: value for key, value in hash_row.items() if key.startswith("content_hash_r")},
                 "Wh_hash": result.Wh_hash,
                 "mpb_solve_time_s": result.solve_time_s,
                 "solver_metadata": result.solve_metadata,
                 "structure_stats": structure.metadata.get("stats", {}),
+                "pairing": structure.metadata.get("pairing", {}),
             }
         )
     _write_jsonl(out / "sample_metadata.jsonl", sample_rows)
@@ -1256,6 +1303,7 @@ def run_full_cell_generation(
         "k_grid": {**dict(cfg["k_grid"]), "k_points_hash": _hash_text(_canonical_json(k_points))},
         "dataset_file_hash": _file_hash(dataset_path),
         "worker_summary": worker_summary,
+        "pairing": metadata["pairing"],
     }
     write_json(out / "solver_provenance.json", provenance)
     native_cluster = str(solver_payload.get("environment")) == "native_linux_conda_meep_env"
@@ -1285,7 +1333,11 @@ def run_full_cell_generation(
         "failed_case_ledger": "failed_case_ledger.jsonl",
         "next_gate": (
             "wsl_cross_environment_acceptance"
-            if status in {"cluster_real_mpb_preflight_pass_pending_wsl_acceptance", "cluster_generated_pending_wsl_acceptance"}
+            if status
+            in {
+                "cluster_real_mpb_preflight_pass_pending_wsl_acceptance",
+                "cluster_generated_pending_wsl_acceptance",
+            }
             else "resolution_convergence_64_96_128"
             if status == "pilot_generated_pending_convergence"
             else "solver_oracle_preflight_then_full_pilot"
@@ -1315,8 +1367,25 @@ def run_full_cell_generation(
             "stratum_counts": dict(Counter(strata)),
         },
     )
-    write_results(out, {"status": status, "dataset_written": True, "dataset_path": _relative(dataset_path), "dataset_manifest": "dataset_manifest.yaml", "next_gate": manifest["next_gate"]})
-    write_run_meta(out, {"status": status, "validation_boundary": validation_boundary, "config_path": _relative(config_path), "execution_profile": execution_profile})
+    write_results(
+        out,
+        {
+            "status": status,
+            "dataset_written": True,
+            "dataset_path": _relative(dataset_path),
+            "dataset_manifest": "dataset_manifest.yaml",
+            "next_gate": manifest["next_gate"],
+        },
+    )
+    write_run_meta(
+        out,
+        {
+            "status": status,
+            "validation_boundary": validation_boundary,
+            "config_path": _relative(config_path),
+            "execution_profile": execution_profile,
+        },
+    )
     logger.info("Full-cell generation completed with status %s: %s", status, dataset_path)
     return out
 
@@ -1327,7 +1396,14 @@ def _uniform_structure(sample_id: str, *, material_weight: float, solver_cfg: Mp
         sample_id=sample_id,
         generator_family="graded_rbf_fourier",
         material_kind="continuous",
-        parameters={"blobs": [], "modes": [], "fourier_strength": 0.0, "temperature": 1.0, "bias": bias, "target_material_fraction": float(material_weight)},
+        parameters={
+            "blobs": [],
+            "modes": [],
+            "fourier_strength": 0.0,
+            "temperature": 1.0,
+            "bias": bias,
+            "target_material_fraction": float(material_weight),
+        },
         parameter_names=("bias",),
         parameter_vector=(bias,),
         parameter_mask=(True,),
@@ -1337,7 +1413,17 @@ def _uniform_structure(sample_id: str, *, material_weight: float, solver_cfg: Mp
 
 
 def _circle_structure(sample_id: str, *, radius: float, solver_cfg: MpbBandSolverConfig) -> FullCellStructureSpec:
-    payload = {"hole_count": 1, "holes": [{"center_x": 0.0, "center_y": 0.0, "radius": float(radius), "modes": [{"order": order, "cos": 0.0, "sin": 0.0} for order in range(2, 6)]}]}
+    payload = {
+        "hole_count": 1,
+        "holes": [
+            {
+                "center_x": 0.0,
+                "center_y": 0.0,
+                "radius": float(radius),
+                "modes": [{"order": order, "cos": 0.0, "sin": 0.0} for order in range(2, 6)],
+            }
+        ],
+    }
     return FullCellStructureSpec(
         sample_id=sample_id,
         generator_family="binary_polar_holes",
@@ -1354,8 +1440,21 @@ def _circle_structure(sample_id: str, *, radius: float, solver_cfg: MpbBandSolve
 def _representative_k_points(n_side: int) -> np.ndarray:
     points, indices = build_full_bz_grid(n_side)
     half = n_side // 2
-    wanted = {(-half, -half), (-half, 0), (-half, half), (0, -half), (0, 0), (0, half), (half, -half), (half, 0), (half, half)}
-    return np.asarray([point for point, index in zip(points, indices) if tuple(int(value) for value in index) in wanted], dtype=np.float64)
+    wanted = {
+        (-half, -half),
+        (-half, 0),
+        (-half, half),
+        (0, -half),
+        (0, 0),
+        (0, half),
+        (half, -half),
+        (half, 0),
+        (half, half),
+    }
+    return np.asarray(
+        [point for point, index in zip(points, indices) if tuple(int(value) for value in index) in wanted],
+        dtype=np.float64,
+    )
 
 
 def run_full_cell_solver_preflight(
@@ -1370,9 +1469,19 @@ def run_full_cell_solver_preflight(
     cfg = load_full_cell_generation_config(config_path)
     experiment = dict(cfg["experiment"])
     output_cfg = dict(cfg.get("output") or {})
-    out = _repo_path(run_dir) if run_dir is not None else make_run_dir(str(experiment["experiment_id"]), runs_dir=_repo_path(output_cfg.get("runs_dir", "runs")))
+    out = (
+        _repo_path(run_dir)
+        if run_dir is not None
+        else make_run_dir(
+            str(experiment["experiment_id"]),
+            runs_dir=_repo_path(output_cfg.get("runs_dir", "runs")),
+        )
+    )
     out.mkdir(parents=True, exist_ok=True)
-    logger = setup_logging(log_file=out / "run.log", run_meta={"script": "phc2d.data.full_cell_generation", "stage": "solver_preflight"})
+    logger = setup_logging(
+        log_file=out / "run.log",
+        run_meta={"script": "phc2d.data.full_cell_generation", "stage": "solver_preflight"},
+    )
     ensure_figures_dir(out)
     started = time.perf_counter()
     resolved_yaml = yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True)
@@ -1385,10 +1494,20 @@ def run_full_cell_solver_preflight(
         problems.extend(environment_problems)
     if problems:
         reason = "; ".join(problems)
-        _write_history(out / "history.csv", [{"stage": "solver_preflight", "status": "blocked", "reason": reason}])
+        _write_history(
+            out / "history.csv",
+            [{"stage": "solver_preflight", "status": "blocked", "reason": reason}],
+        )
         write_metrics(out, {"status": "blocked", "wall_time_total_s": float(time.perf_counter() - started)})
         write_results(out, {"status": "blocked", "reason": reason})
-        write_run_meta(out, {"status": "blocked", "validation_boundary": execution_profile["validation_boundary"], "execution_profile": execution_profile})
+        write_run_meta(
+            out,
+            {
+                "status": "blocked",
+                "validation_boundary": execution_profile["validation_boundary"],
+                "execution_profile": execution_profile,
+            },
+        )
         return out
     solver_cfg = _solver_config(dict(cfg["solver"]))
     k_points = _representative_k_points(int(dict(cfg["k_grid"])["n_side"]))
@@ -1407,13 +1526,34 @@ def run_full_cell_solver_preflight(
     material_structure = _uniform_structure("oracle_uniform_material", material_weight=1.0, solver_cfg=solver_cfg)
     radius = float(dict(cfg.get("preflight") or {}).get("circle_radius", 0.20))
     circle_structure = _circle_structure("oracle_circle", radius=radius, solver_cfg=solver_cfg)
-    measured("uniform_air_material_function", lambda: solve_bands_for_full_cell_mpb(air_structure, k_points=k_points, config=solver_cfg))
-    measured("uniform_air_native", lambda: solve_uniform_medium_mpb(solver_cfg.epsilon_air, k_points=k_points, config=solver_cfg))
-    measured("uniform_material_function", lambda: solve_bands_for_full_cell_mpb(material_structure, k_points=k_points, config=solver_cfg))
-    measured("uniform_material_native", lambda: solve_uniform_medium_mpb(solver_cfg.epsilon_material, k_points=k_points, config=solver_cfg))
-    measured("circle_material_function", lambda: solve_bands_for_full_cell_mpb(circle_structure, k_points=k_points, config=solver_cfg))
-    measured("circle_material_function_repeat", lambda: solve_bands_for_full_cell_mpb(circle_structure, k_points=k_points, config=solver_cfg))
-    measured("circle_native", lambda: solve_circular_air_hole_mpb(center=(0.0, 0.0), radius=radius, k_points=k_points, config=solver_cfg))
+    measured(
+        "uniform_air_material_function",
+        lambda: solve_bands_for_full_cell_mpb(air_structure, k_points=k_points, config=solver_cfg),
+    )
+    measured(
+        "uniform_air_native",
+        lambda: solve_uniform_medium_mpb(solver_cfg.epsilon_air, k_points=k_points, config=solver_cfg),
+    )
+    measured(
+        "uniform_material_function",
+        lambda: solve_bands_for_full_cell_mpb(material_structure, k_points=k_points, config=solver_cfg),
+    )
+    measured(
+        "uniform_material_native",
+        lambda: solve_uniform_medium_mpb(solver_cfg.epsilon_material, k_points=k_points, config=solver_cfg),
+    )
+    measured(
+        "circle_material_function",
+        lambda: solve_bands_for_full_cell_mpb(circle_structure, k_points=k_points, config=solver_cfg),
+    )
+    measured(
+        "circle_material_function_repeat",
+        lambda: solve_bands_for_full_cell_mpb(circle_structure, k_points=k_points, config=solver_cfg),
+    )
+    measured(
+        "circle_native",
+        lambda: solve_circular_air_hole_mpb(center=(0.0, 0.0), radius=radius, k_points=k_points, config=solver_cfg),
+    )
     air_abs = np.abs(cases["uniform_air_material_function"] - cases["uniform_air_native"])
     material_abs = np.abs(cases["uniform_material_function"] - cases["uniform_material_native"])
     air_max = float(np.max(air_abs))
@@ -1479,8 +1619,14 @@ def run_full_cell_solver_preflight(
         "execution_profile": execution_profile,
     }
     np.savez_compressed(out / "solver_preflight_bands.npz", k_points=k_points, **cases)
-    write_json(out / "solver_preflight_cases.json", {"k_points": k_points.tolist(), "metrics": metrics, "failures": failures})
-    _write_history(out / "history.csv", [{"stage": "solver_preflight", "status": status, "reason": "; ".join(failures)}])
+    write_json(
+        out / "solver_preflight_cases.json",
+        {"k_points": k_points.tolist(), "metrics": metrics, "failures": failures},
+    )
+    _write_history(
+        out / "history.csv",
+        [{"stage": "solver_preflight", "status": status, "reason": "; ".join(failures)}],
+    )
     write_metrics(out, metrics)
     next_gate = (
         "full_cell_graded_and_binary_max4"
@@ -1520,7 +1666,16 @@ def write_combined_full_cell_manifest(
     for lane, value in (("graded_medium", graded_manifest), ("binary_air_holes", binary_manifest)):
         manifest_path = _repo_path(value)
         payload = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
-        entries.append({"lane": lane, "manifest": _relative(manifest_path), "manifest_sha256": _file_hash(manifest_path), "dataset": payload.get("dataset_path"), "dataset_sha256": payload.get("dataset_sha256"), "status": payload.get("status")})
+        entries.append(
+            {
+                "lane": lane,
+                "manifest": _relative(manifest_path),
+                "manifest_sha256": _file_hash(manifest_path),
+                "dataset": payload.get("dataset_path"),
+                "dataset_sha256": payload.get("dataset_sha256"),
+                "status": payload.get("status"),
+            }
+        )
     convergence = None
     if convergence_evidence is not None:
         convergence_path = _repo_path(convergence_evidence)
