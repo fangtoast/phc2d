@@ -22,7 +22,9 @@ primary_layer: L3
 
 ## 结论与当前状态
 
-本实验已经获得实现、N56 `hp_5090` admission 与过门后分批执行授权，但在单卡 admission 闭合前保持 `authorized_pending_implementation_and_admission`。配置、脚本或冻结 manifest 不等于训练完成；只有 63 个训练任务和 378 个 held-out surrogate cell 的机器制品全部通过审计，才能写入结果页。
+本实验已经获得实现、N56 `gpu_5090` admission 与过门后分批执行授权，但在单卡 admission 闭合前保持 `authorized_pending_implementation_and_admission`。配置、脚本或冻结 manifest 不等于训练完成；只有 63 个训练任务和 378 个 held-out surrogate cell 的机器制品全部通过审计，才能写入结果页。
+
+资源合同在 2026-09-15 19:03（UTC+8）经人工修订：首次 `hp_5090` 提交被集群拒绝，且该名称不是当前 Slurm 注册分区；随后人工明确授权改投 `gpu_5090` 或 `gpu_4090`。本次选择 `gpu_5090`，即使提交时无空闲卡也允许进入等待队列；不自动切换 `gpu_4090` 或 N40。
 
 研究问题是：在每个 checkpoint 的总训练样本严格固定为 8,000 时，跨 Fourier cutoff、跨 Binary/Graded 路线和六域联合训练，能否缓解既有单域模型的跨域退化？本实验只产生 `seed0_exploratory_surrogate` 证据，不涉及 real-MPB、Meep、物理结论或模型 promotion。
 
@@ -68,12 +70,12 @@ primary_layer: L3
 
 1. 先冻结配置、六份数据身份、七种制度、63 项训练 manifest 与全部子集/normalizer。
 2. N56 重新核验数据 SHA-256、字段、shape、split 和零重叠；held-out 标签在训练冻结阶段不得读取。
-3. 在 `hp_5090` 对九个模型分别执行一次 `S3-BG` admission，证明六域读取、前向、反向、有限 loss/gradient 和标准制品。
+3. 在 `gpu_5090` 对九个模型分别执行一次 `S3-BG` admission，证明六域读取、前向、反向、有限 loss/gradient 和标准制品。
 4. admission 全部通过后，按阶段 18、18、27 项执行；每个数组最多 16 项、并发不超过 7，前批审计通过后才提交下一批。
 5. 63 个 checkpoint 冻结后，各 test target 只读取一次并进入只读 cache，再执行 378-cell 评估。
-6. 任一作业失败、非有限值、制品缺失、身份冲突或 hash 不符时 fail closed；禁止自动重试、取消、续训、换分区、转移 N40 或修改科学判据。
+6. 任一作业失败、非有限值、制品缺失、身份冲突或 hash 不符时 fail closed；禁止自动重试、取消、续训、未经授权换分区、转移 N40 或修改科学判据。
 
-资源合同为 N56 `hp_5090`、每项 1 GPU、8 CPU、60 GB、最长 24 小时，沿用 CUDA 12.8 / PyTorch 2.7.1 环境。若提交前该分区不可用，本实验记为 blocked，等待新的资源决定。
+资源合同为 N56 `gpu_5090`、每项 1 GPU、8 CPU、60 GB、最长 24 小时，沿用 CUDA 12.8 / PyTorch 2.7.1 环境。允许在无空闲卡时进入 `gpu_5090` 等待队列；除非再次取得人工授权，否则不切换其他分区。
 
 ## 预期证据
 

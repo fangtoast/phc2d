@@ -63,7 +63,7 @@ evaluation:
 runtime:
   target_platform: paracloud-n56
   dataset_path_key: n56_path
-  partition: hp_5090
+  partition: gpu_5090
   device: cuda:0
   require_accelerator: true
   gpus_per_task: 1
@@ -84,5 +84,6 @@ runtime:
 output: {runs_root: /data/run01/scxl892/runs/EXP-FWD-021}
 authorization:
   granted_on: 2026-09-15
-  scope: implementation_n56_hp5090_admission_and_gate_conditioned_full_campaign
-  prohibited: [automatic_retry, cancellation, additional_training, partition_change, n40_fallback, scientific_criterion_change, real_MPB, real_Meep]
+  resource_amended_on: 2026-09-15T19:03:41+08:00
+  scope: implementation_n56_gpu5090_admission_and_gate_conditioned_full_campaign
+  prohibited: [automatic_retry, cancellation, additional_training, unapproved_partition_change, n40_fallback, scientific_criterion_change, real_MPB, real_Meep]
