@@ -28,6 +28,11 @@ case "$PHC2D_PLATFORM_ID" in
     ;;
 esac
 
+if [[ -n "${PHC2D_EXPECTED_COMMIT:-}" && "$PHC2D_DEPLOYED_GIT_COMMIT" != "$PHC2D_EXPECTED_COMMIT" ]]; then
+  echo "Deployed commit mismatch: expected $PHC2D_EXPECTED_COMMIT, got $PHC2D_DEPLOYED_GIT_COMMIT" >&2
+  exit 2
+fi
+
 workers="${SLURM_CPUS_PER_TASK:?SLURM_CPUS_PER_TASK is required.}"
 case "$PHC2D_STAGE" in
   plan)

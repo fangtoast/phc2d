@@ -97,14 +97,27 @@ def _sample_latent_payload(
     cutoff: int,
     audit_resolution: int,
     paired_coefficient_seed: int | None = None,
+    paired_cohort_seed: int | None = None,
+    pairing_key: str | None = None,
 ) -> tuple[dict[str, Any], np.ndarray]:
+    if paired_coefficient_seed is not None and paired_cohort_seed is not None:
+        raise ValueError("paired_coefficient_seed and paired_cohort_seed are mutually exclusive")
+    if paired_cohort_seed is not None and not str(pairing_key or "").strip():
+        raise ValueError("paired_cohort_seed requires a stable pairing_key")
     modes = []
     for mx, my in independent_half_plane_modes(cutoff):
         coefficient_rng = rng
         if paired_coefficient_seed is not None:
+            coefficient_rng = np.random.default_rng(derive_full_cell_seed64(paired_coefficient_seed, "fourier_mode", mx, my))
+        elif paired_cohort_seed is not None:
             coefficient_rng = np.random.default_rng(
                 derive_full_cell_seed64(
-                    paired_coefficient_seed, "fourier_mode", mx, my
+                    paired_cohort_seed,
+                    "paired_cohort",
+                    pairing_key,
+                    "fourier_mode",
+                    mx,
+                    my,
                 )
             )
         modes.append(
@@ -127,11 +140,7 @@ def _sample_latent_payload(
         "mode_order": "mx_then_my_ascending",
         "zero_mode": "excluded",
         "coefficient_distribution": "iid_standard_normal",
-        "coefficient_derivation": (
-            "sha256_per_mode_v1"
-            if paired_coefficient_seed is not None
-            else "sequential_rng_v1"
-        ),
+        "coefficient_derivation": ("sha256_per_mode_v1" if paired_coefficient_seed is not None else "sha256_paired_cohort_per_sample_mode_v1" if paired_cohort_seed is not None else "sequential_rng_v1"),
         "paired_coefficient_seed": paired_coefficient_seed,
         "fourier_cutoff": int(cutoff),
         "modes": modes,
@@ -139,6 +148,13 @@ def _sample_latent_payload(
         "normalization_mean": mean,
         "normalization_std": std,
     }
+    if paired_cohort_seed is not None:
+        payload.update(
+            {
+                "paired_cohort_seed": paired_cohort_seed,
+                "pairing_key": str(pairing_key),
+            }
+        )
     return payload, (field - mean) / std
 
 
@@ -201,13 +217,18 @@ def generate_unified_fourier_binary(
     master_seed: int,
     material_fraction_bin: int,
     config: Mapping[str, Any] | None = None,
+    pairing_key: str | None = None,
 ) -> FullCellStructureSpec:
     """Generate one binary material field from the shared Fourier latent contract."""
 
     cfg = dict(config or {})
+    paired_cohort_seed = int(cfg["paired_cohort_seed"]) if "paired_cohort_seed" in cfg else None
+    if paired_cohort_seed is not None and not str(pairing_key or "").strip():
+        raise ValueError("paired_cohort_seed requires a stable pairing_key")
+    stochastic_identity = pairing_key if paired_cohort_seed is not None else sample_id
     seed = derive_full_cell_seed64(
         master_seed,
-        sample_id,
+        stochastic_identity,
         "unified_fourier_binary",
         UNIFIED_FOURIER_SEED_VERSION,
     )
@@ -232,11 +253,9 @@ def generate_unified_fourier_binary(
         rng,
         cutoff=cutoff,
         audit_resolution=audit_resolution,
-        paired_coefficient_seed=(
-            int(cfg["paired_coefficient_seed"])
-            if "paired_coefficient_seed" in cfg
-            else None
-        ),
+        paired_coefficient_seed=(int(cfg["paired_coefficient_seed"]) if "paired_coefficient_seed" in cfg else None),
+        paired_cohort_seed=paired_cohort_seed,
+        pairing_key=pairing_key,
     )
     threshold = float(np.quantile(latent, 1.0 - target))
     payload = {
@@ -254,6 +273,17 @@ def generate_unified_fourier_binary(
             "seed": seed,
             "seed_derivation": UNIFIED_FOURIER_SEED_VERSION,
             "material_fraction_bin": int(material_fraction_bin),
+            **(
+                {
+                    "pairing": {
+                        "contract": "cutoff_paired_cohort_v1",
+                        "pairing_key": str(pairing_key),
+                        "paired_cohort_seed": paired_cohort_seed,
+                    }
+                }
+                if paired_cohort_seed is not None
+                else {}
+            ),
         },
         epsilon_air=float(cfg.get("epsilon_air", 1.0)),
         epsilon_material=float(cfg.get("epsilon_material", 8.9)),
@@ -262,11 +292,12 @@ def generate_unified_fourier_binary(
     tolerance = float(cfg.get("target_material_fraction_tolerance", 0.01))
     if abs(float(stats["material_fraction"]) - target) > tolerance:
         raise RuntimeError("binary unified Fourier sample failed target-fraction gate")
-    if not {float(np.min(spec.rasterize((audit_resolution, audit_resolution)))), float(np.max(spec.rasterize((audit_resolution, audit_resolution))))} <= {0.0, 1.0}:
+    if not {
+        float(np.min(spec.rasterize((audit_resolution, audit_resolution)))),
+        float(np.max(spec.rasterize((audit_resolution, audit_resolution)))),
+    } <= {0.0, 1.0}:
         raise RuntimeError("binary unified Fourier sample is not strictly binary")
-    return FullCellStructureSpec.from_mapping(
-        {**spec.to_mapping(), "metadata": {**spec.metadata, "stats": stats}}
-    )
+    return FullCellStructureSpec.from_mapping({**spec.to_mapping(), "metadata": {**spec.metadata, "stats": stats}})
 
 
 def generate_unified_fourier_graded(
@@ -276,13 +307,18 @@ def generate_unified_fourier_graded(
     material_fraction_bin: int,
     temperature_bin: int,
     config: Mapping[str, Any] | None = None,
+    pairing_key: str | None = None,
 ) -> FullCellStructureSpec:
     """Generate one graded material field from the shared Fourier latent contract."""
 
     cfg = dict(config or {})
+    paired_cohort_seed = int(cfg["paired_cohort_seed"]) if "paired_cohort_seed" in cfg else None
+    if paired_cohort_seed is not None and not str(pairing_key or "").strip():
+        raise ValueError("paired_cohort_seed requires a stable pairing_key")
+    stochastic_identity = pairing_key if paired_cohort_seed is not None else sample_id
     seed = derive_full_cell_seed64(
         master_seed,
-        sample_id,
+        stochastic_identity,
         "unified_fourier_graded",
         UNIFIED_FOURIER_SEED_VERSION,
     )
@@ -311,28 +347,16 @@ def generate_unified_fourier_graded(
         rng,
         cutoff=cutoff,
         audit_resolution=audit_resolution,
-        paired_coefficient_seed=(
-            int(cfg["paired_coefficient_seed"])
-            if "paired_coefficient_seed" in cfg
-            else None
-        ),
+        paired_coefficient_seed=(int(cfg["paired_coefficient_seed"]) if "paired_coefficient_seed" in cfg else None),
+        paired_cohort_seed=paired_cohort_seed,
+        pairing_key=pairing_key,
     )
     low = float(np.min(latent) - 20.0 * temperature)
     high = float(np.max(latent) + 20.0 * temperature)
     iterations = int(cfg.get("bias_bisection_iterations", 80))
     for _ in range(iterations):
         mid = 0.5 * (low + high)
-        mean = float(
-            np.mean(
-                1.0
-                / (
-                    1.0
-                    + np.exp(
-                        np.clip((mid - latent) / temperature, -60.0, 60.0)
-                    )
-                )
-            )
-        )
+        mean = float(np.mean(1.0 / (1.0 + np.exp(np.clip((mid - latent) / temperature, -60.0, 60.0)))))
         if mean > target:
             low = mid
         else:
@@ -356,6 +380,17 @@ def generate_unified_fourier_graded(
             "seed_derivation": UNIFIED_FOURIER_SEED_VERSION,
             "material_fraction_bin": int(material_fraction_bin),
             "temperature_bin": int(temperature_bin),
+            **(
+                {
+                    "pairing": {
+                        "contract": "cutoff_paired_cohort_v1",
+                        "pairing_key": str(pairing_key),
+                        "paired_cohort_seed": paired_cohort_seed,
+                    }
+                }
+                if paired_cohort_seed is not None
+                else {}
+            ),
         },
         epsilon_air=float(cfg.get("epsilon_air", 1.0)),
         epsilon_material=float(cfg.get("epsilon_material", 8.9)),
@@ -368,9 +403,7 @@ def generate_unified_fourier_graded(
         raise RuntimeError("graded unified Fourier sample failed bias target gate")
     if float(stats["gray_fraction"]) < float(cfg.get("minimum_gray_fraction", 0.01)):
         raise RuntimeError("graded unified Fourier sample failed gray-fraction gate")
-    return FullCellStructureSpec.from_mapping(
-        {**spec.to_mapping(), "metadata": {**spec.metadata, "stats": stats}}
-    )
+    return FullCellStructureSpec.from_mapping({**spec.to_mapping(), "metadata": {**spec.metadata, "stats": stats}})
 
 
 __all__ = [

@@ -1,0 +1,9 @@
+# WSL Ubuntu + meep_env acceptance for the EXP-DAT-006 K=8 Graded dataset.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment: {experiment_id: full_cell_graded_fourier_k8_bz9_10000_wsl_acceptance_v1, family: research, stage: cross_environment_acceptance}
+acceptance: {lane: graded_fourier, structure_count: 8, workers: 4, median_mre_max: 0.005, p95_mre_max: 0.01, expected_fourier_cutoff: 8, expected_sample_id_prefix: EXP-DAT-006-G, expected_paired_cohort_seed: 2026091552}
+solver: {environment: wsl_meep_env, backend: mpb, resolution: 64, mesh_size: 3, polarization: TE, num_bands: 10, band_guard_count: 4, band_order_policy: frequency_ascending, eigensolver_tolerance: 1.0e-7, expected_meep_version: 1.33.0-beta, expected_mpb_version: 1.12.0, epsilon_air: 1.0, epsilon_material: 8.9, lattice: square, lattice_constant: 1.0}
+output: {runs_dir: runs}

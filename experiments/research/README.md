@@ -12,6 +12,7 @@
 ## 数据与表征
 
 - [`full_cell_k5_dual_lane_xingyi.md`](full_cell_k5_dual_lane_xingyi.md)：EXP-DAT-005 K=5 binary/graded 各 10k 的 Xingyi 生成、审计与本地/N40 交付合同。
+- [`EXP-DAT-006-K8-K10-K15配对数据生产.md`](EXP-DAT-006-K8-K10-K15配对数据生产.md)：K8/K10/K15 Binary/Graded 各 10k 的跨 K 配对、Xingyi 分 wave 生产与 WSL 验收合同。
 - [`full_cell_dual_lane_data.md`](full_cell_dual_lane_data.md)：非 p4m 全胞双路线 real-MPB 数据协议。
 - [`full_cell_graded_paracloud_m9.md`](full_cell_graded_paracloud_m9.md)：M9 渐变 10k 生成与 WSL 跨环境验收合同。
 - [`full_cell_dual_lane_50000_xingyi.md`](full_cell_dual_lane_50000_xingyi.md)：Xingyi 二值/连续各 50k 的计划冻结、双节点提交、恢复与 WSL 验收合同。
