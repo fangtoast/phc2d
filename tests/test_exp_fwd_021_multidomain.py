@@ -41,6 +41,9 @@ def test_frozen_profile_has_exact_7_by_9_by_6_contract() -> None:
     assert profile["models"]["global_local_band_operator_v1"]["local_kernel"] == 3
     assert profile["training"]["seed"] == 0
     assert profile["training"]["max_epochs"] == 200
+    assert profile["runtime"]["memory_policy"] == "scheduler_default_per_gpu"
+    assert profile["runtime"]["aggregate_gpu_limit"] == 7
+    assert profile["runtime"]["single_task_distributed_training"] is False
     for regime in profile["regimes"].values():
         assert sum(regime["domains"].values()) == 8000
 
@@ -187,7 +190,7 @@ def test_n56_scripts_freeze_resource_and_no_retry_contract() -> None:
         assert "#SBATCH --partition=gpu_5090" in worker
         assert "#SBATCH --gres=gpu:1" in worker
         assert "#SBATCH --cpus-per-task=8" in worker
-        assert "#SBATCH --mem=60000" in worker
+        assert "#SBATCH --mem" not in worker
         assert "#SBATCH --time=24:00:00" in worker
         assert "cuda/12.8" in worker
         assert "phc2d_gpu_cu128_torch271_r1" in worker
