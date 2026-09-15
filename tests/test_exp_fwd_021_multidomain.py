@@ -184,7 +184,7 @@ def test_n56_scripts_freeze_resource_and_no_retry_contract() -> None:
     evaluate = (ROOT / "jobs/paracloud_exp_fwd_021_evaluate.sh").read_text(encoding="utf-8")
     controller = (ROOT / "jobs/paracloud_submit_exp_fwd_021.sh").read_text(encoding="utf-8")
     for worker in (train, evaluate):
-        assert "#SBATCH --partition=hp_5090" in worker
+        assert "#SBATCH --partition=gpu_5090" in worker
         assert "#SBATCH --gres=gpu:1" in worker
         assert "#SBATCH --cpus-per-task=8" in worker
         assert "#SBATCH --mem=60000" in worker

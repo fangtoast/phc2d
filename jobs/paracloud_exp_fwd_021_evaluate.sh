@@ -4,7 +4,7 @@
 # Email: fangtoast@foxmail.com
 # Copyright (c) 2026 fangtoast. All rights reserved.
 
-#SBATCH --partition=hp_5090
+#SBATCH --partition=gpu_5090
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=60000

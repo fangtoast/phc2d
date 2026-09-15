@@ -91,7 +91,10 @@ def repository_commit(root: str | Path) -> str:
     repository = Path(root)
     try:
         return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=repository, text=True
+            ["git", "rev-parse", "HEAD"],
+            cwd=repository,
+            text=True,
+            stderr=subprocess.DEVNULL,
         ).strip()
     except (OSError, subprocess.CalledProcessError):
         marker = repository / "DEPLOYED_GIT_COMMIT"
