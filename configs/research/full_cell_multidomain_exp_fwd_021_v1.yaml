@@ -68,7 +68,8 @@ runtime:
   require_accelerator: true
   gpus_per_task: 1
   cpus_per_task: 8
-  memory_mb: 60000
+  memory_policy: scheduler_default_per_gpu
+  scheduler_default_memory_gb_per_gpu: 126
   time_limit: '24:00:00'
   cuda_module: cuda/12.8
   torch_version: 2.7.1
@@ -80,10 +81,13 @@ runtime:
   amp_enabled: false
   tf32_enabled: false
   max_concurrent_jobs: 7
+  campaign_parallelism: independent_single_gpu_tasks
+  aggregate_gpu_limit: 7
+  single_task_distributed_training: false
   max_tasks_per_array: 16
 output: {runs_root: /data/run01/scxl892/runs/EXP-FWD-021}
 authorization:
   granted_on: 2026-09-15
-  resource_amended_on: 2026-09-15T19:03:41+08:00
-  scope: implementation_n56_gpu5090_admission_and_gate_conditioned_full_campaign
+  resource_amended_on: 2026-09-15T19:12:00+08:00
+  scope: implementation_n56_gpu5090_scheduler_default_memory_task_parallel_admission_and_gate_conditioned_full_campaign
   prohibited: [automatic_retry, cancellation, additional_training, unapproved_partition_change, n40_fallback, scientific_criterion_change, real_MPB, real_Meep]
