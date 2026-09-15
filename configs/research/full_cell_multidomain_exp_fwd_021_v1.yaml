@@ -1,0 +1,88 @@
+# EXP-FWD-021 fixed-8k multidomain Full-Wh campaign contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: phc2d.full_cell_multidomain.v1
+experiment:
+  experiment_id: EXP-FWD-021
+  family: full_cell_fair_multidomain
+  evidence_status: authorized_pending_implementation_and_admission
+  primary_layer: L3_experiment_evidence
+  scientific_boundary: seed0_exploratory_surrogate_only
+datasets:
+  k5_binary: {label: K5-B, path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, n56_path: /data/run01/scxl892/data/exp_fwd_020/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sample_count: 10000, train_count: 8000, validation_count: 1000, test_count: 1000, target_shape: [81, 10], grid_shape: [64, 64], sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6}
+  k5_graded: {label: K5-G, path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, n56_path: /data/run01/scxl892/data/exp_fwd_020/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sample_count: 10000, train_count: 8000, validation_count: 1000, test_count: 1000, target_shape: [81, 10], grid_shape: [64, 64], sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20}
+  k20_binary: {label: K20-B, path: data/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5, n56_path: /data/run01/scxl892/data/exp_fwd_020/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sample_count: 10000, train_count: 8000, validation_count: 1000, test_count: 1000, target_shape: [81, 10], grid_shape: [64, 64], sha256: 2661eb1e9e3b398a7b69c4083daefa761ea9c26a1081c478b968fd6a951d6b56}
+  k20_graded: {label: K20-G, path: data/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5, n56_path: /data/run01/scxl892/data/exp_fwd_020/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sample_count: 10000, train_count: 8000, validation_count: 1000, test_count: 1000, target_shape: [81, 10], grid_shape: [64, 64], sha256: 96b127b43f2c31fb7591e9634317a7ed35332ceae1077b2277de15058902fd72}
+  f50_binary: {label: F50-B, path: data/full_cell_binary_bz9_50000_xingyi_v1.h5, n56_path: /data/run01/scxl892/data/exp_fwd_020/full_cell_binary_bz9_50000_xingyi_v1.h5, grid_field: material_weight_grid_64, sample_count: 50000, train_count: 40000, validation_count: 5000, test_count: 5000, target_shape: [81, 10], grid_shape: [64, 64], sha256: e2d99e0c59c3bf5dfebc507e756dbcd18c8623f331ad6193832d774df5213f00}
+  f50_graded: {label: F50-G, path: data/full_cell_graded_bz9_50000_xingyi_v1.h5, n56_path: /data/run01/scxl892/data/exp_fwd_020/full_cell_graded_bz9_50000_xingyi_v1.h5, grid_field: material_weight_grid_64, sample_count: 50000, train_count: 40000, validation_count: 5000, test_count: 5000, target_shape: [81, 10], grid_shape: [64, 64], sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46}
+subset:
+  ranking_salt: exp-fwd-021-domain-ranking-v1
+  require_nested: true
+  require_zero_validation_test_overlap: true
+regimes:
+  S1-B: {stage: 1, domains: {k5_binary: 4000, k20_binary: 4000}}
+  S1-G: {stage: 1, domains: {k5_graded: 4000, k20_graded: 4000}}
+  S2-K5-BG: {stage: 2, domains: {k5_binary: 4000, k5_graded: 4000}}
+  S2-K20-BG: {stage: 2, domains: {k20_binary: 4000, k20_graded: 4000}}
+  S3-B: {stage: 3, domains: {k5_binary: 2667, k20_binary: 2667, f50_binary: 2666}}
+  S3-G: {stage: 3, domains: {k5_graded: 2667, k20_graded: 2667, f50_graded: 2666}}
+  S3-BG: {stage: 3, domains: {k5_binary: 1334, k20_binary: 1333, f50_binary: 1333, k5_graded: 1333, k20_graded: 1334, f50_graded: 1333}}
+models:
+  mlp: {hidden_dim: 256, depth: 6, dropout: 0.05, activation: gelu}
+  res_mlp_wide: {hidden_dim: 256, depth: 6, dropout: 0.05, activation: gelu}
+  lifted_cnn: {channels: 12, activation: gelu}
+  fno2d_band_v2: {width: 32, depth: 4, modes: [8, 8], band_modes: [5, 5], fourier_rank: 8, activation: gelu}
+  mlp_mixer_band_v1: {token_grid: [16, 16], embed_dim: 256, depth: 8, token_mlp_dim: 128, channel_mlp_dim: 512, dropout: 0.05, drop_path: 0.1, layer_scale_init: 1.0e-4, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8]}
+  res_mlp_gated_v2: {hidden_dim: 320, depth: 8, expansion: 2, dropout: 0.05, drop_path: 0.1, layer_scale_init: 1.0e-4, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8]}
+  convnext_band_v1: {stage_dims: [48, 96, 192], stage_depths: [2, 3, 6], stem_stride: 4, kernel_size: 7, channel_expansion: 4, drop_path: 0.1, layer_scale_init: 1.0e-6, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8], dropout: 0.05}
+  tfno2d_band_v3: {width: 64, depth: 6, modes: [12, 12], factorization_rank: 0.75, norm_groups: 8, channel_expansion: 2, local_kernel: 3, drop_path: 0.1, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8], dropout: 0.05}
+  global_local_band_operator_v1: {width: 64, depth: 6, modes: [12, 12], factorization_rank: 0.75, norm_groups: 8, channel_expansion: 4, local_kernel: 3, drop_path: 0.1, head_kind: dense, head_hidden_dim: 256, band_embedding_dim: 32, fourier_frequencies: [1, 2, 4, 8], dropout: 0.05}
+training:
+  seed: 0
+  train_size_per_task: 8000
+  max_epochs: 200
+  required_stop_epoch: 200
+  optimizer: adamw
+  weight_decay: 1.0e-5
+  micro_batch_size: 64
+  effective_batch_size: 64
+  loss: pooled_normalized_full_matrix_mse
+  checkpoint_selection: equal_source_domain_validation_bands_2_10_mre
+  convergence_windows: [[181, 190], [191, 200]]
+  convergence_relative_threshold: 0.005
+  learning_rates: {mlp: 3.0e-4, res_mlp_wide: 3.0e-4, lifted_cnn: 1.0e-3, fno2d_band_v2: 1.0e-3, mlp_mixer_band_v1: 3.0e-4, res_mlp_gated_v2: 3.0e-4, convnext_band_v1: 1.0e-3, tfno2d_band_v3: 5.0e-4, global_local_band_operator_v1: 5.0e-4}
+evaluation:
+  targets: [k5_binary, k5_graded, k20_binary, k20_graded, f50_binary, f50_graded]
+  metrics: [band1_mre_pct, bands_2_10_mre_pct, bands_1_10_mre_pct, per_band_mre_pct]
+  macro_weighting: equal_target_domain
+  paired_bootstrap_reference_model: fno2d_band_v2
+  bootstrap_replicates: 2000
+  original_test_target_reads_per_domain: 1
+runtime:
+  target_platform: paracloud-n56
+  dataset_path_key: n56_path
+  partition: hp_5090
+  device: cuda:0
+  require_accelerator: true
+  gpus_per_task: 1
+  cpus_per_task: 8
+  memory_mb: 60000
+  time_limit: '24:00:00'
+  cuda_module: cuda/12.8
+  torch_version: 2.7.1
+  environment: /data/run01/scxl892/envs/phc2d_gpu_cu128_torch271_r1
+  num_workers: 4
+  pin_memory: true
+  non_blocking_transfer: true
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  max_concurrent_jobs: 7
+  max_tasks_per_array: 16
+output: {runs_root: /data/run01/scxl892/runs/EXP-FWD-021}
+authorization:
+  granted_on: 2026-09-15
+  scope: implementation_n56_hp5090_admission_and_gate_conditioned_full_campaign
+  prohibited: [automatic_retry, cancellation, additional_training, partition_change, n40_fallback, scientific_criterion_change, real_MPB, real_Meep]
