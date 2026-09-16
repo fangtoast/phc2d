@@ -11,9 +11,8 @@ PHC2D_ENV="${PHC2D_ENV:-$HOME/run/envs/phc2d_gpu_cu118}"
 : "${PHC2D_FWD022_CAMPAIGN:?Set PHC2D_FWD022_CAMPAIGN}"
 : "${PHC2D_FWD022_STAGE:?Set PHC2D_FWD022_STAGE}"
 
-cd "$PHC2D_ROOT"
-export PYTHONPATH="$PHC2D_ROOT/src"
-export PATH="$PHC2D_ENV/bin:$PATH"
+# Reuse the platform runtime, including its CUDA module initialization.
+source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"
 
 case "$PHC2D_FWD022_STAGE" in
   preflight)
