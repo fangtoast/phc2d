@@ -112,6 +112,83 @@ def test_global_local_bridge_has_fixed_spectral_and_periodic_large_kernel_branch
     assert torch.allclose(output, shifted, atol=2.0e-5, rtol=2.0e-5)
 
 
+def test_global_local_branch_interventions_preserve_raw_and_renorm_scales() -> None:
+    torch = _require_torch()
+    model = build_model(
+        "global_local_band_operator_v1",
+        input_shape=(8, 8),
+        output_shape=(5, 3),
+        width=4,
+        depth=1,
+        modes=(2, 2),
+        norm_groups=1,
+        channel_expansion=1,
+        local_kernel=3,
+        drop_path=0.0,
+        dropout=0.0,
+    ).eval()
+    block = model.blocks[0]
+    block.norm = torch.nn.Identity()
+    block.spectral = torch.nn.Identity()
+    block.local = torch.nn.Identity()
+    block.drop_path = torch.nn.Identity()
+    x = torch.randn(2, 4, 8, 8)
+
+    expected_scales = {
+        "full": 1.0,
+        "g_off_raw": 0.5,
+        "l_off_raw": 0.5,
+        "g_off_renorm": 1.0,
+        "l_off_renorm": 1.0,
+    }
+    for mode, scale in expected_scales.items():
+        model.set_branch_intervention(mode)
+        observed = block(x, None)
+        expected = torch.nn.functional.gelu(x + scale * x)
+        assert torch.equal(observed, expected)
+
+
+def test_global_local_legacy_component_mask_maps_to_renormalized_branch() -> None:
+    torch = _require_torch()
+    model = build_model(
+        "global_local_band_operator_v1",
+        input_shape=(8, 8),
+        output_shape=(5, 3),
+        width=4,
+        depth=1,
+        modes=(2, 2),
+        norm_groups=1,
+        channel_expansion=1,
+        local_kernel=3,
+        drop_path=0.0,
+        dropout=0.0,
+    ).eval()
+    x = torch.randn(2, 1, 8, 8)
+    model.set_branch_intervention("g_off_renorm")
+    with torch.no_grad():
+        intervention = model(x)
+    model.set_component_mask(("spectral",))
+    with torch.no_grad():
+        legacy = model(x)
+    assert torch.equal(intervention, legacy)
+
+
+def test_global_local_branch_intervention_does_not_change_state_dict_schema() -> None:
+    _require_torch()
+    model = build_model(
+        "global_local_band_operator_v1",
+        input_shape=(8, 8),
+        output_shape=(5, 3),
+        width=4,
+        depth=1,
+        modes=(2, 2),
+        norm_groups=1,
+    )
+    before = tuple(model.state_dict())
+    model.set_branch_intervention("l_off_raw")
+    assert tuple(model.state_dict()) == before
+
+
 @pytest.mark.parametrize("name", UPGRADE_NAMES)
 @pytest.mark.parametrize("head_kind", ("dense", "k_conditioned"))
 def test_upgrade_forward_backward_and_dynamic_k_shape(name: str, head_kind: str) -> None:

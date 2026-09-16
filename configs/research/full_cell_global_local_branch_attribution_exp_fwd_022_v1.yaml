@@ -1,0 +1,78 @@
+# EXP-FWD-022 frozen Global/Local branch-attribution contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+schema_version: phc2d.global_local_branch_attribution.v1
+experiment:
+  experiment_id: EXP-FWD-022
+  primary_layer: L3_experiment_evidence
+  evidence_status: implementation_preflight
+  evidence_scope: frozen_validation_branch_attribution
+  promotion_eligible: false
+datasets:
+  k5_binary:
+    path: data/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5
+    grid_field: material_area_fraction_grid_64
+    sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6
+    batch_size: 64
+    diagnostic_samples: 512
+  k5_graded:
+    path: data/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5
+    grid_field: material_weight_grid_64
+    sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20
+    batch_size: 64
+    diagnostic_samples: 512
+  k20_binary:
+    path: data/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5
+    grid_field: material_area_fraction_grid_64
+    sha256: 2661eb1e9e3b398a7b69c4083daefa761ea9c26a1081c478b968fd6a951d6b56
+    batch_size: 64
+    diagnostic_samples: 512
+  k20_graded:
+    path: data/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5
+    grid_field: material_weight_grid_64
+    sha256: 96b127b43f2c31fb7591e9634317a7ed35332ceae1077b2277de15058902fd72
+    batch_size: 64
+    diagnostic_samples: 512
+  f50_binary:
+    path: data/full_cell_binary_bz9_50000_xingyi_v1.h5
+    grid_field: material_weight_grid_64
+    sha256: e2d99e0c59c3bf5dfebc507e756dbcd18c8623f331ad6193832d774df5213f00
+    batch_size: 64
+    diagnostic_samples: 512
+  f50_graded:
+    path: data/full_cell_graded_bz9_50000_xingyi_v1.h5
+    grid_field: material_weight_grid_64
+    sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46
+    batch_size: 64
+    diagnostic_samples: 512
+matrix:
+  checkpoint_count: 36
+  target_count: 6
+  intervention_count: 5
+  checkpoint_target_cells: 216
+  intervention_cells: 1080
+  shard_count: 8
+  bootstrap_replicates: 10000
+runtime:
+  target_platform: paracloud-n40
+  partition: gpu_4090
+  gpus_per_task: 1
+  cpus_per_task: 6
+  memory_mb: 60000
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  max_array_concurrency: 4
+authorization:
+  granted_on: 2026-09-16
+  scope: g0_implementation_g1_validation_and_asset_transfer
+  prohibited:
+    - automatic_retry
+    - automatic_independent_training
+    - test_driven_change
+    - model_promotion
+    - real_MPB
+    - real_Meep
+    - physical_claim
