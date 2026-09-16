@@ -7,6 +7,8 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import yaml
 
@@ -49,6 +51,13 @@ def test_intervention_identity_is_complete_and_unique() -> None:
         "l_off_renorm",
     )
     assert len(set(INTERVENTIONS)) == 5
+
+
+def test_n40_launcher_initializes_shared_cuda_runtime_before_execution() -> None:
+    launcher = Path("jobs/paracloud_exp_fwd_022.sh").read_text(encoding="utf-8")
+    initialization = 'source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"'
+    assert initialization in launcher
+    assert launcher.index(initialization) < launcher.index('case "$PHC2D_FWD022_STAGE"')
 
 
 def test_output_distance_uses_prediction_change_without_target() -> None:
