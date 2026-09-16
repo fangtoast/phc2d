@@ -40,6 +40,7 @@
 - [`EXP-FWD-020-全局局部带隙算子桥接.md`](EXP-FWD-020-全局局部带隙算子桥接.md)：由 EXP-FWD-019 推导的固定融合频谱—周期大核桥接模型；G3 六域评估完成，G2 未通过，结果保持探索性 surrogate 边界。
 - [`EXP-FWD-021-8k公平多域训练与六域验证.md`](EXP-FWD-021-8k公平多域训练与六域验证.md)：九个标准 Full-Wh 模型、七种固定 8k 多域制度、seed0 训练与六域 378-cell 探索性评估合同。
 - [`EXP-FWD-023-固定模型十二域交叉测试.md`](EXP-FWD-023-固定模型十二域交叉测试.md)：复用 63 个冻结 checkpoint，在 N56 补充 K8/K10/K15 六域并汇总十二域；不重训，新数据仍待 WSL 物理验收。
+- [`EXP-FWD-022-全局局部分支归因.md`](EXP-FWD-022-全局局部分支归因.md)：冻结 36 个 Global–Local checkpoint，通过 raw/renorm 关断、输出扰动与内部 attribution 区分分支依赖和尺度效应；独立训练需在 G1 人工审阅后另行准入。
 - [`full_cell_forward_upgrade_10k.md`](full_cell_forward_upgrade_10k.md)：五个 Full-Wh 升级模型在 N40 的 admission 与 10k 七波训练合同。
 - [`field_eigen_te.md`](field_eigen_te.md)：TE Bloch eigenfield、Field FNO 与 adapted PINO。
 - [`near_field_surrogate.md`](near_field_surrogate.md)：near-field、NeurOLight 与 Maxwell residual 可行性边界。
