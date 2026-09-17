@@ -182,7 +182,10 @@ def run(campaign: Path, index: int, probe: bool = False) -> Path:
     config = yaml.safe_load(Path(row["config"]).read_text())
     if file_sha256(config["dataset"]["path"]) != row["dataset_sha256"]:
         raise RuntimeError("mixed dataset hash drift")
-    if not probe and json.loads((campaign / "campaign_status.json").read_text())["status"] not in ("capability_preflight_passed", "capability_training_submitted"):
+    if not probe and json.loads((campaign / "campaign_status.json").read_text())["status"] not in (
+        "capability_preflight_passed", "capability_training_submitted",
+        "capability_training_batch_0_submitted", "capability_training_batch_1_submitted",
+    ):
         raise RuntimeError("training requires preflight pass")
     output = campaign / "admission" / row["case_id"] if probe else Path(row["run_dir"])
     if output.exists():
@@ -215,7 +218,22 @@ def preflight(campaign: Path) -> Path:
     return campaign
 
 
-def submit(campaign: Path, stage: str, root: str | Path, authorization_id: str) -> dict[str, Any]:
+def audit_training_task(row: dict[str, str]) -> None:
+    """Audit the terminal artifacts before admitting the next scheduler batch."""
+    output = Path(row["run_dir"])
+    result = json.loads((output / "results.json").read_text())
+    metrics = json.loads((output / "metrics.json").read_text())
+    if (result["test_executed"] or result["selection_split"] != "validation" or result["stop_epoch"] != 200
+            or result["history_epoch_count"] != 200 or metrics["parameter_count"] != int(row["parameter_count"])):
+        raise RuntimeError("completed task identity/terminal epoch mismatch")
+    if not (output / "epoch200.pt").is_file() or file_sha256(output / "model.pt") != result["checkpoint_sha256"]:
+        raise RuntimeError("completed task checkpoint missing or hash drift")
+    history = _rows(output / "history.csv")
+    if [int(r["epoch"]) for r in history] != list(range(1, 201)):
+        raise RuntimeError("completed task history must contain exactly epochs 1..200")
+
+
+def submit(campaign: Path, stage: str, root: str | Path, authorization_id: str, batch_index: int = 0) -> dict[str, Any]:
     """Submit each stage once; preserve uncertain/failed submission intent.
 
     A marker is created before Slurm calls. An exception never permits an
@@ -230,17 +248,28 @@ def submit(campaign: Path, stage: str, root: str | Path, authorization_id: str) 
     contract = yaml.safe_load((campaign / "config.resolved.yaml").read_text())
     if authorization_id != contract["authorization_id"]:
         raise RuntimeError("submission authorization mismatch")
-    expected = "capability_frozen_pending_preflight" if stage == "preflight" else "capability_preflight_passed"
+    if batch_index not in (0, 1):
+        raise ValueError("training uses exactly two batches of 15 tasks")
+    expected = ("capability_frozen_pending_preflight" if stage == "preflight" else
+                "capability_preflight_passed" if batch_index == 0 else "capability_training_batch_0_submitted")
     if stage not in ("preflight", "training") or json.loads((campaign / "campaign_status.json").read_text())["status"] != expected:
         raise RuntimeError("submission stage gate not passed")
     if stage == "training":
-        evidence = json.loads((campaign / "submission_preflight.json").read_text())
-        job = evidence["preflight_job_id"]
+        previous = "submission_preflight.json" if batch_index == 0 else "submission_training_batch_0.json"
+        evidence = json.loads((campaign / previous).read_text())
+        if evidence["status"] != "submitted":
+            raise RuntimeError("previous submission failed or remains uncertain")
+        job = evidence["preflight_job_id" if batch_index == 0 else "train_job_id"]
         accounting = subprocess.run(["sacct", "-j", job, "--format=JobID,State,ExitCode", "-n", "-P"], check=True,
                                     text=True, capture_output=True).stdout.splitlines()
-        if f"{job}|COMPLETED|0:0" not in accounting:
-            raise RuntimeError("training requires COMPLETED/0:0 preflight accounting")
-    marker = campaign / f"submission_{stage}.json"
+        required = [job] if batch_index == 0 else [f"{job}_{i}" for i in range(15)]
+        if any(f"{item}|COMPLETED|0:0" not in accounting for item in required):
+            raise RuntimeError("training requires COMPLETED/0:0 previous-stage accounting")
+        if batch_index == 1:
+            for index in range(15):
+                audit_training_task(task(campaign, index))
+    suffix = stage if stage == "preflight" else f"training_batch_{batch_index}"
+    marker = campaign / f"submission_{suffix}.json"
     record: dict[str, Any] = {"status": "submission_intent", "authorization_id": authorization_id, "stage": stage}
     with marker.open("x", encoding="utf-8") as h:
         json.dump(record, h)
@@ -248,7 +277,9 @@ def submit(campaign: Path, stage: str, root: str | Path, authorization_id: str) 
     export = (f"ALL,PHC2D_ROOT={root},PHC2D_GPU_PLATFORM=n40,PHC2D_CUDA_MODULE={runtime['cuda_module']},"
               f"PHC2D_FWD022_CAPABILITY={campaign}")
     common = ["sbatch", "--parsable", "-p", runtime["partition"], f"--gres=gpu:{runtime['gpus_per_task']}",
-              "-c", str(runtime["cpus_per_task"]), f"--mem={runtime['memory_mb']}"]
+              "-c", str(runtime["cpus_per_task"])]
+    if runtime.get("memory_mb") is not None:
+        common.append(f"--mem={runtime['memory_mb']}")
     worker = str(root / "jobs/paracloud_exp_fwd_022_capability.sh")
 
     def dispatch(kind: str, time_limit: str, extra: list[str]) -> str:
@@ -268,13 +299,18 @@ def submit(campaign: Path, stage: str, root: str | Path, authorization_id: str) 
         if stage == "preflight":
             dispatch("preflight", "01:00:00", [])
         else:
-            job_id = dispatch("train", runtime["time_limit"], [f"--array=0-29%{runtime['max_concurrent_jobs']}"])
-            _json(campaign / "campaign_status.json", {"status": "capability_training_submitted", "training_job_id": job_id,
+            start, stop = batch_index * 15, batch_index * 15 + 14
+            job_id = dispatch("train", runtime["time_limit"], [f"--array={start}-{stop}%{runtime['max_concurrent_jobs']}"])
+            record.update(batch_index=batch_index, start_index=start, end_index=stop)
+            _json(campaign / "campaign_status.json", {"status": f"capability_training_batch_{batch_index}_submitted", "training_job_id": job_id,
                                                       "authorization_id": authorization_id, "test_executed": False})
-            dispatch("finalize", "02:00:00", [f"--dependency=afterok:{job_id}"])
+            if batch_index == 1:
+                dispatch("finalize", "02:00:00", [f"--dependency=afterok:{job_id}"])
         record["status"] = "submitted"
     except Exception as exc:
         record.update(status="submission_failed_or_uncertain", error=str(exc))
+        if isinstance(exc, subprocess.CalledProcessError):
+            record.update(scheduler_stdout=exc.stdout, scheduler_stderr=exc.stderr)
         _json(marker, record)
         raise
     _json(marker, record)
@@ -329,6 +365,7 @@ def finalize(campaign: Path) -> Path:
     samples, summary, comparisons, benefits = {}, [], [], []
     for row in rows:
         task(campaign, int(row["task_index"]))
+        audit_training_task(row)
         sample, domain = _validation_samples(row)
         samples[(row["lane"], row["variant"], row["seed"])] = sample
         result = json.loads((Path(row["run_dir"]) / "results.json").read_text())
@@ -364,6 +401,7 @@ def main() -> None:
     parser.add_argument("--repository-root", default=".")
     parser.add_argument("--task-index", type=int)
     parser.add_argument("--authorization-id")
+    parser.add_argument("--batch-index", type=int, default=0)
     args = parser.parse_args()
     if args.stage == "freeze":
         result = freeze(args.config, args.campaign_dir, args.repository_root)
@@ -374,7 +412,7 @@ def main() -> None:
     elif args.stage == "finalize":
         result = finalize(args.campaign_dir)
     else:
-        result = submit(args.campaign_dir, args.stage.removeprefix("submit-"), args.repository_root, args.authorization_id)
+        result = submit(args.campaign_dir, args.stage.removeprefix("submit-"), args.repository_root, args.authorization_id, args.batch_index)
     print(result)
 
 
