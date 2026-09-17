@@ -396,3 +396,52 @@ def test_cpu_admission_writes_complete_artifacts_without_test_access(tmp_path: P
     assert cell_result["status"] == "evaluation_cell_success"
     assert cell_result["per_band_record_count"] == 10
     assert len(contracts.read_csv(cell / "per_band_metrics.csv")) == 10
+    from phc2d.forward.full_cell_multidomain_evidence import (
+        CELL_ARTIFACTS, audit_evaluation_runs, evaluation_rows, freeze_log_correction,
+    )
+
+    log = (cell / "run.log").read_text(encoding="utf-8")
+    assert "evaluation_start" in log and "evaluation_complete" in log
+    assert audit_evaluation_runs(campaign)["cell_count"] == 1
+    metrics_file = cell / "metrics.json"
+    metrics_text = metrics_file.read_text(encoding="utf-8")
+    invalid_metrics = json.loads(metrics_text)
+    invalid_metrics["band1_mre_pct"] = float("nan")
+    metrics_file.write_text(json.dumps(invalid_metrics), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="non-finite"):
+        audit_evaluation_runs(campaign)
+    metrics_file.write_text(metrics_text, encoding="utf-8")
+    # Reproduce the historical defect. A derivative must preserve this original.
+    (cell / "run.log").write_text("", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="artifact missing or empty"):
+        audit_evaluation_runs(campaign)
+    hashes = {name: contracts.sha256_file(cell / name) for name in CELL_ARTIFACTS}
+    manifest = freeze_log_correction(
+        campaign, correction_id="logfix_test", authorization_id="explicit-test-authorization",
+        repository_root=ROOT,
+    )
+    frozen = contracts.read_csv(manifest)
+    assert len(frozen) == 1 and frozen[0]["source_cell_dir"] == "evaluation/cells/SMOKE/mlp_s0/a_binary"
+    assert json.loads(frozen[0]["source_artifact_hashes"]) == hashes
+    assert evaluation_rows(campaign)[0]["cell_dir"] == frozen[0]["cell_dir"]
+    wrong_commit = [{**frozen[0], "correction_execution_commit": "wrong-deployment"}]
+    contracts.write_csv(manifest, wrong_commit)
+    with pytest.raises(RuntimeError, match="deployment commit mismatch"):
+        run_evaluation_task(campaign, 0, device_override="cpu", log_correction=True)
+    contracts.write_csv(manifest, frozen)
+    repaired = run_evaluation_task(campaign, 0, device_override="cpu", log_correction=True)
+    assert repaired != cell
+    assert "evaluation_complete" in (repaired / "run.log").read_text(encoding="utf-8")
+    assert {name: contracts.sha256_file(cell / name) for name in CELL_ARTIFACTS} == hashes
+    assert audit_evaluation_runs(campaign)["cell_count"] == 1
+    repaired_metrics = json.loads((repaired / "metrics.json").read_text(encoding="utf-8"))
+    original_metrics = json.loads((cell / "metrics.json").read_text(encoding="utf-8"))
+    for key in ("band1_mre_pct", "bands_2_10_mre_pct", "bands_1_10_mre_pct"):
+        assert repaired_metrics[key] == original_metrics[key]
+    with pytest.raises(FileExistsError, match="already frozen"):
+        freeze_log_correction(campaign, correction_id="retry", authorization_id="test", repository_root=ROOT)
+    with pytest.raises(FileExistsError, match="not empty"):
+        run_evaluation_task(campaign, 0, device_override="cpu", log_correction=True)
+    (cell / "run.log").write_text("tampered original", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="original correction evidence changed"):
+        evaluation_rows(campaign)

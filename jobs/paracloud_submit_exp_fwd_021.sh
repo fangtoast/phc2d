@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Manual, fail-closed controller for EXP-FWD-021 on N56 hp_5090.
+# Manual, fail-closed controller for EXP-FWD-021 on N56.
 # Author: fangtoast
 # Email: fangtoast@foxmail.com
 # Copyright (c) 2026 fangtoast. All rights reserved.
@@ -16,7 +16,7 @@ cd "$PHC2D_ROOT"
 export PATH="$PHC2D_ENV/bin:$PATH"
 export PYTHONPATH="$PHC2D_ROOT/src"
 
-command_name="${1:?usage: $0 freeze|admission|audit-admission|train-batch|freeze-evaluation|evaluation-batch|status|finalize [campaign] [batch]}"
+command_name="${1:?usage: $0 freeze|admission|audit-admission|train-batch|freeze-evaluation|evaluation-batch|evaluation-log-correction|status|finalize [campaign] [batch]}"
 campaign="${2:-}"
 case "$command_name" in
   freeze)
@@ -93,24 +93,35 @@ PY
     [[ ! -e "$marker" ]] || { echo "evaluation batch already submitted; no retry permitted" >&2; exit 5; }
     if (( batch > 0 )); then
       previous_start=$(((batch - 1) * 16)); previous_end=$((previous_start + 15))
-      python - "$campaign" "$previous_start" "$previous_end" <<'PY'
-import csv, json, pathlib, sys
-root = pathlib.Path(sys.argv[1]); start, end = int(sys.argv[2]), int(sys.argv[3])
-with (root / "evaluation/evaluation_manifest.csv").open(encoding="utf-8", newline="") as handle:
-    rows = [row for row in csv.DictReader(handle) if start <= int(row["cell_index"]) <= end]
-if len(rows) != end - start + 1:
-    raise SystemExit("previous evaluation batch manifest is incomplete")
-for row in rows:
-    result = root / row["cell_dir"] / "results.json"
-    if not result.is_file() or json.loads(result.read_text())["status"] != "evaluation_cell_success":
-        raise SystemExit(f"previous evaluation batch is incomplete: {row['cell_id']}")
-PY
+      python -m phc2d.forward.full_cell_multidomain_campaign audit-evaluation \
+        --campaign "$campaign" --start-index "$previous_start" --end-index "$previous_end"
     fi
     job_id="$(sbatch --parsable --array="$start-$end%7" -J "fwd021_eval_b${batch}" \
       -o "$campaign/slurm_eval_b${batch}_%A_%a.out" -e "$campaign/slurm_eval_b${batch}_%A_%a.err" \
       --export="ALL,PHC2D_ROOT=$PHC2D_ROOT,PHC2D_ENV=$PHC2D_ENV,PHC2D_FWD021_CAMPAIGN=$campaign" \
       jobs/paracloud_exp_fwd_021_evaluate.sh)"
     printf 'job_id=%s\narray=%s-%s%%7\n' "$job_id" "$start" "$end" > "$marker"
+    printf 'job_id=%s\n' "$job_id"
+    ;;
+  evaluation-log-correction)
+    : "${campaign:?correction requires the frozen campaign}"
+    manifest="$campaign/evaluation/log_correction_manifest.csv"
+    marker="$campaign/evaluation/log_correction_submission.env"
+    [[ ! -e "$marker" ]] || { echo "log correction already submitted; no retry permitted" >&2; exit 5; }
+    indices="$(python - "$manifest" "$PHC2D_EXPECTED_COMMIT" <<'PY'
+import csv, sys
+with open(sys.argv[1], encoding="utf-8", newline="") as handle:
+    rows = list(csv.DictReader(handle))
+if not rows or len(rows) > 16 or any(row["correction_execution_commit"] != sys.argv[2] for row in rows):
+    raise SystemExit("invalid log correction deployment or slice")
+print(",".join(row["cell_index"] for row in rows))
+PY
+)"
+    job_id="$(sbatch --parsable --array="$indices%7" -J fwd021_eval_logfix \
+      -o "$campaign/slurm_eval_logfix_%A_%a.out" -e "$campaign/slurm_eval_logfix_%A_%a.err" \
+      --export="ALL,PHC2D_ROOT=$PHC2D_ROOT,PHC2D_ENV=$PHC2D_ENV,PHC2D_FWD021_CAMPAIGN=$campaign,PHC2D_FWD021_LOG_CORRECTION=1" \
+      jobs/paracloud_exp_fwd_021_evaluate.sh)"
+    printf 'job_id=%s\narray=%s%%7\n' "$job_id" "$indices" > "$marker"
     printf 'job_id=%s\n' "$job_id"
     ;;
   status)

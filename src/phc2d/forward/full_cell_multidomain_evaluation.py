@@ -22,10 +22,12 @@ from phc2d.forward.full_cell_multidomain_contracts import (
     TRAINING_SUCCESS_STATUSES,
     audit_training_runs,
     read_csv,
+    repository_commit,
     sha256_array,
     sha256_file,
     write_csv,
 )
+from phc2d.forward.full_cell_multidomain_evidence import audit_evaluation_runs, evaluation_rows
 from phc2d.forward.full_cell_multidomain_training import forward_full_wh
 from phc2d.forward.global_local_bridge_evaluation import cell_metrics, paired_bootstrap
 from phc2d.models import (
@@ -272,6 +274,7 @@ def run_evaluation_task(
     cell_index: int,
     *,
     device_override: str | None = None,
+    log_correction: bool = False,
 ) -> Path:
     """Evaluate one manifest-addressed checkpoint-to-target cell from frozen cache."""
 
@@ -279,28 +282,37 @@ def run_evaluation_task(
     evaluation = campaign / "evaluation"
     rows = [
         row
-        for row in read_csv(evaluation / "evaluation_manifest.csv")
+        for row in (evaluation_rows(campaign) if log_correction else read_csv(evaluation / "evaluation_manifest.csv"))
         if int(row["cell_index"]) == int(cell_index)
     ]
     if len(rows) != 1:
         raise RuntimeError(f"cell_index {cell_index} must resolve exactly once")
     row = rows[0]
+    if log_correction and "correction_id" not in row:
+        raise RuntimeError("cell is not in the frozen log-only correction plan")
+    execution_commit = repository_commit(Path(__file__).resolve().parents[3])
+    if log_correction and row["correction_execution_commit"] != execution_commit:
+        raise RuntimeError("log correction deployment commit mismatch")
     output = campaign / row["cell_dir"]
     if output.exists() and any(output.iterdir()):
         raise FileExistsError(f"evaluation cell directory is not empty: {output}")
     output.mkdir(parents=True, exist_ok=True)
     ensure_figures_dir(output)
-    setup_logging(
+    logger = setup_logging(
         log_file=output / "run.log",
         run_meta={
             "script": "python -m phc2d.forward.full_cell_multidomain_campaign run-evaluation-task",
             "experiment_id": "EXP-FWD-021",
             "cell_id": row["cell_id"],
+            "execution_start_git_commit": execution_commit,
             "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
             "slurm_partition": os.environ.get("SLURM_JOB_PARTITION"),
             "slurm_node": os.environ.get("SLURM_JOB_NODELIST"),
         },
     )
+    logger.info("evaluation_start cell=%s checkpoint=%s target=%s correction=%s",
+                row["cell_id"], row["checkpoint_sha256"], row["target_domain"],
+                row.get("correction_id", "none"))
     checkpoint_path = Path(row["checkpoint_path"])
     if sha256_file(checkpoint_path) != row["checkpoint_sha256"]:
         raise RuntimeError(f"checkpoint hash mismatch for {row['cell_id']}")
@@ -428,6 +440,11 @@ def run_evaluation_task(
             "model": row["model"],
             "target_domain": row["target_domain"],
             "seed": int(row["seed"]),
+            "execution_start_git_commit": execution_commit,
+            **({"correction_lineage": {key: row[key] for key in (
+                "correction_id", "source_cell_dir", "source_artifact_hashes",
+                "correction_execution_commit", "authorization_id",
+            )}} if log_correction else {}),
             "checkpoint_sha256": row["checkpoint_sha256"],
             "cache_sha256": cache_row["cache_sha256"],
             "per_band_record_count": len(per_band),
@@ -436,6 +453,8 @@ def run_evaluation_task(
             "physical_claim": False,
         },
     )
+    logger.info("evaluation_complete cell=%s samples=%s bands=%s elapsed_s=%.6f",
+                row["cell_id"], len(inputs), len(per_band), elapsed)
     return output
 
 
@@ -443,7 +462,7 @@ def evaluation_status(campaign_dir: str | Path) -> dict[str, Any]:
     """Return a read-only completeness snapshot and fail on corrupt completed cells."""
 
     campaign, _ = _load_campaign(campaign_dir)
-    manifest = read_csv(campaign / "evaluation" / "evaluation_manifest.csv")
+    manifest = evaluation_rows(campaign)
     completed = 0
     missing: list[str] = []
     for row in manifest:
@@ -463,6 +482,15 @@ def evaluation_status(campaign_dir: str | Path) -> dict[str, Any]:
         if not np.isfinite(np.asarray(numeric, dtype=np.float64)).all():
             raise RuntimeError(f"non-finite evaluation metrics: {row['cell_id']}")
         completed += 1
+    # Audit completed contiguous slices once, avoiding repeated checkpoint/cache hashing.
+    indices = sorted(int(row["cell_index"]) for row in manifest if row["cell_id"] not in missing)
+    if indices:
+        start = previous = indices[0]
+        for index in [*indices[1:], indices[-1] + 2]:
+            if index != previous + 1:
+                audit_evaluation_runs(campaign, start_index=start, end_index=previous)
+                start = index
+            previous = index
     return {
         "status": "evaluation_complete" if completed == 378 else "evaluation_incomplete",
         "expected_cells": 378,
@@ -495,7 +523,7 @@ def finalize_evaluation(campaign_dir: str | Path) -> Path:
     evaluation = campaign / "evaluation"
     rows: list[dict[str, Any]] = []
     sample_paths: dict[tuple[str, str, str], Path] = {}
-    for item in read_csv(evaluation / "evaluation_manifest.csv"):
+    for item in evaluation_rows(campaign):
         cell = campaign / item["cell_dir"]
         metrics = json.loads((cell / "metrics.json").read_text(encoding="utf-8"))
         rows.append(

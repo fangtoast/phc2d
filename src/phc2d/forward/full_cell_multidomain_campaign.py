@@ -23,6 +23,7 @@ from phc2d.forward.full_cell_multidomain_evaluation import (
     run_evaluation_task,
 )
 from phc2d.forward.full_cell_multidomain_training import run_training_task
+from phc2d.forward.full_cell_multidomain_evidence import audit_evaluation_runs, freeze_log_correction
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -58,6 +59,18 @@ def _parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--campaign", required=True)
     evaluate.add_argument("--cell-index", type=int, required=True)
     evaluate.add_argument("--device")
+    evaluate.add_argument("--log-correction", action="store_true")
+
+    correction = subparsers.add_parser("freeze-log-correction", help="freeze immutable log-only derivatives")
+    correction.add_argument("--campaign", required=True)
+    correction.add_argument("--correction-id", required=True)
+    correction.add_argument("--authorization-id", required=True)
+    correction.add_argument("--repository-root", default=".")
+
+    audit_eval = subparsers.add_parser("audit-evaluation", help="audit a completed evaluation slice")
+    audit_eval.add_argument("--campaign", required=True)
+    audit_eval.add_argument("--start-index", type=int, default=0)
+    audit_eval.add_argument("--end-index", type=int)
 
     status = subparsers.add_parser("status", help="inspect evaluation completeness")
     status.add_argument("--campaign", required=True)
@@ -99,7 +112,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     elif args.command == "freeze-evaluation":
         print(freeze_evaluation(args.campaign))
     elif args.command == "run-evaluation-task":
-        print(run_evaluation_task(args.campaign, args.cell_index, device_override=args.device))
+        print(run_evaluation_task(args.campaign, args.cell_index, device_override=args.device, log_correction=args.log_correction))
+    elif args.command == "freeze-log-correction":
+        print(freeze_log_correction(args.campaign, correction_id=args.correction_id,
+              authorization_id=args.authorization_id, repository_root=args.repository_root))
+    elif args.command == "audit-evaluation":
+        print(json.dumps(audit_evaluation_runs(args.campaign, start_index=args.start_index,
+                         end_index=args.end_index), indent=2))
     elif args.command == "status":
         print(json.dumps(evaluation_status(args.campaign), indent=2))
     elif args.command == "finalize":

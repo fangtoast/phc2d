@@ -19,5 +19,9 @@ source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"
 : "${PHC2D_FWD021_CAMPAIGN:?Set the frozen campaign directory.}"
 : "${SLURM_ARRAY_TASK_ID:?Run as a Slurm array task.}"
 
+correction_args=()
+if [[ "${PHC2D_FWD021_LOG_CORRECTION:-0}" == 1 ]]; then
+  correction_args=(--log-correction)
+fi
 python -m phc2d.forward.full_cell_multidomain_campaign run-evaluation-task \
-  --campaign "$PHC2D_FWD021_CAMPAIGN" --cell-index "$SLURM_ARRAY_TASK_ID"
+  --campaign "$PHC2D_FWD021_CAMPAIGN" --cell-index "$SLURM_ARRAY_TASK_ID" "${correction_args[@]}"
