@@ -1,0 +1,21 @@
+# EXP-FWD-023 N56 evaluation-only extension of frozen EXP-FWD-021 checkpoints.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+schema_version: phc2d.full_cell_transfer_evaluation.v1
+experiment_id: EXP-FWD-023
+source_experiment_id: EXP-FWD-021
+source_campaign: /data/run01/scxl892/runs/EXP-FWD-021/20260915/EXP-FWD-021_20260915194709
+checkpoint_count: 63
+new_cell_count: 378
+combined_cell_count: 756
+authorization_id: user-n56-twelve-domain-no-retraining-20260917
+dataset_acceptance: cluster_audited_pending_wsl_acceptance
+pairing_audit: /data/run01/scxl892/data/exp_dat_006/provenance/pairing_audit.json
+datasets:
+  k8_binary: {label: K8-B, path: /data/run01/scxl892/data/exp_dat_006/full_cell_binary_fourier_k8_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sample_count: 10000, train_count: 8000, validation_count: 1000, test_count: 1000, target_shape: [81, 10], grid_shape: [64, 64], sha256: 18b789f2680b4266b9b348693b080334222903028bf92854c77feb5af91abc51}
+  k8_graded: {label: K8-G, path: /data/run01/scxl892/data/exp_dat_006/full_cell_graded_fourier_k8_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sample_count: 10000, train_count: 8000, validation_count: 1000, test_count: 1000, target_shape: [81, 10], grid_shape: [64, 64], sha256: f115a042d8e5cf4afc079afe320b931bc1c156b4e2ace8f3658de50ac1dc1179}
+  k10_binary: {label: K10-B, path: /data/run01/scxl892/data/exp_dat_006/full_cell_binary_fourier_k10_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sample_count: 10000, train_count: 8000, validation_count: 1000, test_count: 1000, target_shape: [81, 10], grid_shape: [64, 64], sha256: 791f8a9b1490a39a914ae0d71a90720eb791cec22ddbc1bb0f8d03c33d800fe0}
+  k10_graded: {label: K10-G, path: /data/run01/scxl892/data/exp_dat_006/full_cell_graded_fourier_k10_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sample_count: 10000, train_count: 8000, validation_count: 1000, test_count: 1000, target_shape: [81, 10], grid_shape: [64, 64], sha256: 844e686e10c2c829eae9c1c9d43af855d57628d311ae492ab16b1ab652e8df97}
+  k15_binary: {label: K15-B, path: /data/run01/scxl892/data/exp_dat_006/full_cell_binary_fourier_k15_bz9_10000_xingyi_v1.h5, grid_field: material_area_fraction_grid_64, sample_count: 10000, train_count: 8000, validation_count: 1000, test_count: 1000, target_shape: [81, 10], grid_shape: [64, 64], sha256: c821b662509a638eb662502d50838dfb43e2990db50ddc9df74c938fb7249a9d}
+  k15_graded: {label: K15-G, path: /data/run01/scxl892/data/exp_dat_006/full_cell_graded_fourier_k15_bz9_10000_xingyi_v1.h5, grid_field: material_weight_grid_64, sample_count: 10000, train_count: 8000, validation_count: 1000, test_count: 1000, target_shape: [81, 10], grid_shape: [64, 64], sha256: 1ed2600cefb290bdf739cf0d71e372eefa589e02ec71567528fd76f5f662df0e}

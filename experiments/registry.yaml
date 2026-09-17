@@ -636,6 +636,25 @@ experiments:
       summary: 已冻结 seed0、七种 8k 制度、九模型与六域评估边界；N56 hp_5090 admission 通过前不得提交正式训练。
     tags: [forward, full-cell, multidomain, fair-8k, seed0, six-domain, surrogate-only]
 
+  - id: EXP-FWD-023
+    title: 固定模型十二域交叉测试
+    task: forward
+    status: authorized_pending_data_transfer_and_freeze
+    mapping_status: complete
+    research_question: EXP-FWD-021 的 63 个冻结模型在 K5/K8/K10/K15/K20/F50 两路线上的 held-out surrogate 泛化如何？
+    spec:
+      - experiments/research/EXP-FWD-023-固定模型十二域交叉测试.md
+    config:
+      - configs/research/full_cell_transfer_exp_fwd_023_v1.yaml
+    runs: {local: [], referenced_not_local: []}
+    result: []
+    report: []
+    related_experiments: [EXP-FWD-021, EXP-DAT-006]
+    decision:
+      state: authorized_pending_freeze
+      summary: 仅在 N56 测试、不重训；新增六域保留物理验收待完成标识，先哈希和泄漏审计再读一次 test cache。
+    tags: [forward, full-cell, twelve-domain, fixed-checkpoint, seed0, surrogate-only]
+
   - id: EXP-QRY-001
     title: A1 V2 10k Continuous Query 公平对照
     task: query
