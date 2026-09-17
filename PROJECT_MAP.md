@@ -5,7 +5,7 @@
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
-> 2026-09-17 EXP-FWD-022 状态：1,080 个冻结 validation 干预单元已完成；同域两个分支关断均退化，但域相关排序与内部 attribution 不完全一致。独立训练已获用户授权，尚未提交：原 width-only、Full 参数量 ±5% 的 G-only 控制不存在可行配置，需人类决定调整合同或暂缓容量对照。详见[分支依赖与独立能力 Draft](docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md)。
+> 2026-09-17 EXP-FWD-022 状态：1,080 个冻结 validation 干预单元已完成；同域两个分支关断均退化，但域相关排序与内部 attribution 不完全一致。用户批准独立训练参数量对照的 head fallback，Full ±5% 工程检查已通过；30-run 正式训练待 N40 GPU 准入，无能力结果。详见[分支依赖与独立能力 Draft](docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md)。
 
 > 2026-08-07 工程状态：通用超算物理 campaign 控制面与 `full_cell_band` 参考适配器已实现；query/k-path、field-eigen、resolution-convergence 与 inverse replay 仅完成适配器登记，尚未完成多节点迁移。详见 [`docs/hpc_physics_campaigns.md`](docs/hpc_physics_campaigns.md)。这不是新的物理验证结论。
 

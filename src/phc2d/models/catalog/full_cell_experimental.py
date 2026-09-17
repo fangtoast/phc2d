@@ -93,6 +93,7 @@ def model_specs() -> tuple[tuple[str, ModelFactory, ModelSpec], ...]:
                 defaults={
                     **_operator_defaults(channel_expansion=4, local_kernel=7),
                     "enabled_branches": ("spectral", "local"),
+                    "dense_head_hidden_dim": None,
                 },
                 source=(
                     "phc2d EXP-FWD-019-derived fixed-fusion spectral and "

@@ -12,6 +12,10 @@ variants: [full, g_only, l_only, g_only_cap, l_only_cap]
 local_kernel: 3
 parameter_tolerance: 0.05
 width_search: {min: 8, max: 512, step: 8}
+# User-approved fallback: used only if closest width fails the tolerance.
+head_search: {min: 8, max: 2048, step: 1}
+parameter_control_policy: width_first_then_head_fallback
+parameter_control_authorization: user-2026-09-17-approved-head-width-fallback
 split: {train_per_domain: 8000, validation_per_domain: 1000, test_authorized: false}
 training:
   max_epochs: 200
