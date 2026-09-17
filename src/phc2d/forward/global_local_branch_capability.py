@@ -41,28 +41,52 @@ def _rows(path: Path) -> list[dict[str, str]]:
 
 
 def parameter_controls(params: dict[str, Any], input_shape: Any, output_shape: Any,
-                       search: dict[str, int], tolerance: float) -> list[dict[str, Any]]:
-    """Choose nearest parameter counts using width only, without GPU allocation."""
+                       search: dict[str, int], tolerance: float,
+                       head_search: dict[str, int] | None = None) -> list[dict[str, Any]]:
+    """Match width first, with an explicitly authorized head-width fallback.
+
+    The fallback is used only if the closest width fails the fixed tolerance.
+    This is a parameter-count control, not architecture-equivalent matching.
+    """
     import torch
     from phc2d.models import build_model
 
-    def count(branches: list[str], width: int) -> int:
+    def count(branches: list[str], width: int, head: int | None) -> int:
         with torch.device("meta"):
             model = build_model(MODEL, input_shape=input_shape, output_shape=output_shape,
-                                **{**params, "width": width, "enabled_branches": branches})
+                                **{**params, "width": width, "dense_head_hidden_dim": head, "enabled_branches": branches})
         return sum(p.numel() for p in model.parameters())
 
     width = int(params["width"])
-    full = count(["spectral", "local"], width)
-    rows = [{"variant": "full", "width": width, "parameter_count": full, "enabled_branches": ["spectral", "local"]}]
+    head = None  # The ordinary dense head is a single linear projection.
+    full = count(["spectral", "local"], width, head)
+    rows = [{"variant": "full", "width": width, "dense_head_hidden_dim": head, "parameter_count": full,
+             "enabled_branches": ["spectral", "local"]}]
     for branch, variant in (("spectral", "g_only"), ("local", "l_only")):
-        rows.append({"variant": variant, "width": width, "parameter_count": count([branch], width), "enabled_branches": [branch]})
-        candidates = [(w, count([branch], w)) for w in range(search["min"], search["max"] + 1, search["step"])
+        rows.append({"variant": variant, "width": width, "dense_head_hidden_dim": head,
+                     "parameter_count": count([branch], width, head), "enabled_branches": [branch]})
+        candidates = [(w, count([branch], w, head)) for w in range(search["min"], search["max"] + 1, search["step"])
                       if w % int(params["norm_groups"]) == 0]
         chosen_width, n = min(candidates, key=lambda pair: (abs(pair[1] - full), pair[0]))
+        chosen_head = head
+        if abs(n / full - 1) > tolerance and head_search is not None:
+            # Dense-head parameter count is affine in hidden dimension; verify
+            # the candidate via the factory, rather than trusting the formula.
+            if params["head_kind"] != "dense":
+                raise ValueError("head-width fallback currently requires a dense head")
+            base_head = head_search["min"]
+            head_base_count = count([branch], chosen_width, base_head)
+            increment = count([branch], chosen_width, base_head + 1) - head_base_count
+            if increment <= 0:
+                raise RuntimeError("head parameter count must increase with width")
+            desired = base_head + (full - head_base_count) / increment
+            allowed = range(head_search["min"], head_search["max"] + 1, head_search["step"])
+            chosen_head = min(allowed, key=lambda h: (abs(h - desired), h))
+            n = count([branch], chosen_width, chosen_head)
         if abs(n / full - 1) > tolerance:
             raise RuntimeError(f"parameter-count control unavailable: {variant}")
-        rows.append({"variant": variant + "_cap", "width": chosen_width, "parameter_count": n, "enabled_branches": [branch]})
+        rows.append({"variant": variant + "_cap", "width": chosen_width, "dense_head_hidden_dim": chosen_head,
+                     "parameter_count": n, "enabled_branches": [branch]})
     return sorted(rows, key=lambda row: VARIANTS.index(row["variant"]))
 
 
@@ -80,7 +104,7 @@ def freeze(config_path: str | Path, campaign: str | Path, root: str | Path = "."
     first_spec = source["datasets"][first_domain]
     with h5py.File(root / first_spec["path"], "r") as h:
         counts = parameter_controls(params, h[first_spec["grid_field"]].shape[1:], h["Wh"].shape[1:],
-                                    contract["width_search"], contract["parameter_tolerance"])
+                                    contract["width_search"], contract["parameter_tolerance"], contract.get("head_search"))
     # Check feasibility before creating any campaign or copying expensive data.
     campaign.mkdir(parents=True, exist_ok=False)
     (campaign / "derived_configs").mkdir()
@@ -92,7 +116,8 @@ def freeze(config_path: str | Path, campaign: str | Path, root: str | Path = "."
                                           train_per_domain=contract["split"]["train_per_domain"],
                                           validation_per_domain=contract["split"]["validation_per_domain"])
         mixed[lane] = mix
-        selected = parameter_controls(params, mix["grid_shape"], mix["target_shape"], contract["width_search"], contract["parameter_tolerance"])
+        selected = parameter_controls(params, mix["grid_shape"], mix["target_shape"], contract["width_search"],
+                                      contract["parameter_tolerance"], contract.get("head_search"))
         if counts is not None and selected != counts:
             raise RuntimeError("lane parameter control mismatch")
         counts = selected
@@ -105,7 +130,8 @@ def freeze(config_path: str | Path, campaign: str | Path, root: str | Path = "."
                     "dataset": {"path": mix["path"], "grid_field": "input_grid", "expected_dataset_sha256": mix["sha256"]},
                     "representation": {"source": "input_grid", "resolution": mix["grid_shape"][0], "sampling": "continuous",
                                        "threshold": None, "physical_equivalence": True},
-                    "models": {MODEL: {**params, "width": variant["width"], "enabled_branches": variant["enabled_branches"]}},
+                    "models": {MODEL: {**params, "width": variant["width"], "dense_head_hidden_dim": variant["dense_head_hidden_dim"],
+                                       "enabled_branches": variant["enabled_branches"]}},
                     "training": {**contract["training"], "train_size": mix["n_train"], "optimizer": "adamw",
                                  "loss": "normalized_full_matrix_mse", "learning_rates": {MODEL: contract["training"]["learning_rate"]},
                                  "required_stop_epoch": 200, "require_terminal_checkpoint": True, "epoch_100_continue_gate": False,
@@ -127,6 +153,7 @@ def freeze(config_path: str | Path, campaign: str | Path, root: str | Path = "."
     (campaign / "config.resolved.yaml").write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
     _json(campaign / "freeze.json", {"experiment_id": "EXP-FWD-022", "task_count": 30, "contract_sha256": file_sha256(config_path),
                                     "manifest_sha256": file_sha256(campaign / "task_manifest.csv"),
+                                    "resolved_contract_sha256": file_sha256(campaign / "config.resolved.yaml"),
                                     "execution_start_git_commit": os.environ.get("PHC2D_DEPLOYED_GIT_COMMIT"), "test_executed": False})
     _json(campaign / "campaign_status.json", {"status": "capability_frozen_pending_preflight", "test_executed": False})
     return campaign
@@ -173,6 +200,8 @@ def run(campaign: Path, index: int, probe: bool = False) -> Path:
 
 
 def preflight(campaign: Path) -> Path:
+    if json.loads((campaign / "campaign_status.json").read_text())["status"] != "capability_frozen_pending_preflight":
+        raise RuntimeError("preflight requires a frozen campaign")
     rows = _rows(campaign / "task_manifest.csv")
     completed = []
     for row in rows:
@@ -184,6 +213,72 @@ def preflight(campaign: Path) -> Path:
     _csv(campaign / "preflight_manifest.csv", completed)
     _json(campaign / "campaign_status.json", {"status": "capability_preflight_passed", "test_executed": False})
     return campaign
+
+
+def submit(campaign: Path, stage: str, root: str | Path, authorization_id: str) -> dict[str, Any]:
+    """Submit each stage once; preserve uncertain/failed submission intent.
+
+    A marker is created before Slurm calls. An exception never permits an
+    automatic retry, because scheduler acceptance may be uncertain.
+    """
+    import subprocess
+
+    root = Path(root).resolve()
+    frozen = json.loads((campaign / "freeze.json").read_text())
+    if file_sha256(campaign / "config.resolved.yaml") != frozen["resolved_contract_sha256"]:
+        raise RuntimeError("resolved contract hash drift")
+    contract = yaml.safe_load((campaign / "config.resolved.yaml").read_text())
+    if authorization_id != contract["authorization_id"]:
+        raise RuntimeError("submission authorization mismatch")
+    expected = "capability_frozen_pending_preflight" if stage == "preflight" else "capability_preflight_passed"
+    if stage not in ("preflight", "training") or json.loads((campaign / "campaign_status.json").read_text())["status"] != expected:
+        raise RuntimeError("submission stage gate not passed")
+    if stage == "training":
+        evidence = json.loads((campaign / "submission_preflight.json").read_text())
+        job = evidence["preflight_job_id"]
+        accounting = subprocess.run(["sacct", "-j", job, "--format=JobID,State,ExitCode", "-n", "-P"], check=True,
+                                    text=True, capture_output=True).stdout.splitlines()
+        if f"{job}|COMPLETED|0:0" not in accounting:
+            raise RuntimeError("training requires COMPLETED/0:0 preflight accounting")
+    marker = campaign / f"submission_{stage}.json"
+    record: dict[str, Any] = {"status": "submission_intent", "authorization_id": authorization_id, "stage": stage}
+    with marker.open("x", encoding="utf-8") as h:
+        json.dump(record, h)
+    runtime = contract["runtime"]
+    export = (f"ALL,PHC2D_ROOT={root},PHC2D_GPU_PLATFORM=n40,PHC2D_CUDA_MODULE={runtime['cuda_module']},"
+              f"PHC2D_FWD022_CAPABILITY={campaign}")
+    common = ["sbatch", "--parsable", "-p", runtime["partition"], f"--gres=gpu:{runtime['gpus_per_task']}",
+              "-c", str(runtime["cpus_per_task"]), f"--mem={runtime['memory_mb']}"]
+    worker = str(root / "jobs/paracloud_exp_fwd_022_capability.sh")
+
+    def dispatch(kind: str, time_limit: str, extra: list[str]) -> str:
+        result = subprocess.run(common + ["-t", time_limit, "-J", f"fwd022_cap_{kind}",
+                                "-o", str(campaign / f"slurm_cap_{kind}_%A_%a.out"),
+                                "-e", str(campaign / f"slurm_cap_{kind}_%A_%a.err"),
+                                f"--export={export},PHC2D_FWD022_CAP_STAGE={kind}"] + extra + [worker],
+                                check=True, text=True, capture_output=True, cwd=root)
+        job_id = result.stdout.strip().split(";")[0]
+        if not job_id.isdigit():
+            raise RuntimeError(f"unexpected scheduler response: {result.stdout}")
+        record[f"{kind}_job_id"] = job_id
+        _json(marker, record)
+        return job_id
+
+    try:
+        if stage == "preflight":
+            dispatch("preflight", "01:00:00", [])
+        else:
+            job_id = dispatch("train", runtime["time_limit"], [f"--array=0-29%{runtime['max_concurrent_jobs']}"])
+            _json(campaign / "campaign_status.json", {"status": "capability_training_submitted", "training_job_id": job_id,
+                                                      "authorization_id": authorization_id, "test_executed": False})
+            dispatch("finalize", "02:00:00", [f"--dependency=afterok:{job_id}"])
+        record["status"] = "submitted"
+    except Exception as exc:
+        record.update(status="submission_failed_or_uncertain", error=str(exc))
+        _json(marker, record)
+        raise
+    _json(marker, record)
+    return record
 
 
 def _validation_samples(row: dict[str, str]) -> tuple[np.ndarray, np.ndarray]:
@@ -228,6 +323,9 @@ def finalize(campaign: Path) -> Path:
     from phc2d.forward.global_local_bridge_evaluation import paired_bootstrap
 
     rows = _rows(campaign / "task_manifest.csv")
+    expected = {(lane, variant, seed) for lane in ("binary", "graded") for variant in VARIANTS for seed in ("0", "1", "2")}
+    if len(rows) != 30 or {(r["lane"], r["variant"], r["seed"]) for r in rows} != expected:
+        raise RuntimeError("finalization requires the complete unique 30-task matrix")
     samples, summary, comparisons, benefits = {}, [], [], []
     for row in rows:
         task(campaign, int(row["task_index"]))
@@ -260,11 +358,12 @@ def finalize(campaign: Path) -> Path:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("stage", choices=("freeze", "preflight", "train", "finalize"))
+    parser.add_argument("stage", choices=("freeze", "preflight", "train", "finalize", "submit-preflight", "submit-training"))
     parser.add_argument("--campaign-dir", required=True, type=Path)
     parser.add_argument("--config", type=Path)
     parser.add_argument("--repository-root", default=".")
     parser.add_argument("--task-index", type=int)
+    parser.add_argument("--authorization-id")
     args = parser.parse_args()
     if args.stage == "freeze":
         result = freeze(args.config, args.campaign_dir, args.repository_root)
@@ -272,8 +371,10 @@ def main() -> None:
         result = preflight(args.campaign_dir)
     elif args.stage == "train":
         result = run(args.campaign_dir, args.task_index)
-    else:
+    elif args.stage == "finalize":
         result = finalize(args.campaign_dir)
+    else:
+        result = submit(args.campaign_dir, args.stage.removeprefix("submit-"), args.repository_root, args.authorization_id)
     print(result)
 
 

@@ -46,6 +46,7 @@ def _build_factorized_band_operator(
     enabled_branches: Any,
     local_operator_kind: str,
     branch_fusion: str,
+    dense_head_hidden_dim: int | None = None,
 ) -> Any:
     torch, nn, functional = require_torch(model_name, need_functional=True)
     in_shape, in_channels = image_contract(input_shape, model_name=model_name)
@@ -290,6 +291,7 @@ def _build_factorized_band_operator(
                 band_embedding_dim=int(band_embedding_dim),
                 fourier_frequencies=fourier_frequencies,
                 dropout=float(dropout),
+                dense_hidden_dim=dense_head_hidden_dim,
             )
 
         def set_component_mask(self, disabled_branches: Any = ()) -> None:
@@ -486,6 +488,7 @@ def build_global_local_band_operator_v1(
     fourier_frequencies: Any = (1, 2, 4, 8),
     dropout: float = 0.05,
     enabled_branches: Any = ("spectral", "local"),
+    dense_head_hidden_dim: int | None = None,
 ) -> Any:
     """Build the fixed-fusion spectral and periodic large-kernel bridge."""
 
@@ -513,4 +516,5 @@ def build_global_local_band_operator_v1(
         enabled_branches=enabled_branches,
         local_operator_kind="convnext",
         branch_fusion="fixed_mean",
+        dense_head_hidden_dim=dense_head_hidden_dim,
     )

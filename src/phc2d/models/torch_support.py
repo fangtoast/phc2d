@@ -134,6 +134,7 @@ def make_band_head(
     band_embedding_dim: int,
     fourier_frequencies: Any,
     dropout: float,
+    dense_hidden_dim: int | None = None,
 ) -> Any:
     """Build a dense or k-conditioned Full-Wh prediction head."""
 
@@ -151,7 +152,17 @@ def make_band_head(
         def __init__(self) -> None:
             super().__init__()
             self.norm = nn.LayerNorm(latent_dim)
-            self.projection = nn.Linear(latent_dim, n_k_points * n_bands)
+            if dense_hidden_dim is None:
+                # Preserve the legacy dense head and state-dict schema.
+                self.projection = nn.Linear(latent_dim, n_k_points * n_bands)
+            else:
+                if int(dense_hidden_dim) <= 0:
+                    raise ValueError("dense_hidden_dim must be positive")
+                self.projection = nn.Sequential(
+                    nn.Linear(latent_dim, int(dense_hidden_dim)),
+                    nn.GELU(),
+                    nn.Linear(int(dense_hidden_dim), n_k_points * n_bands),
+                )
 
         def forward(self, latent: Any, _: Any | None = None) -> Any:
             output = self.projection(self.norm(latent))
