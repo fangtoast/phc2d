@@ -1,0 +1,34 @@
+# Frozen independent branch capability contract for EXP-FWD-022.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+experiment_id: EXP-FWD-022
+source_controller: configs/research/full_cell_global_local_bridge_exp_fwd_020_v1.yaml
+domains_by_lane:
+  binary: [k5_binary, k20_binary]
+  graded: [k5_graded, k20_graded]
+seeds: [0, 1, 2]
+variants: [full, g_only, l_only, g_only_cap, l_only_cap]
+local_kernel: 3
+parameter_tolerance: 0.05
+width_search: {min: 8, max: 512, step: 8}
+split: {train_per_domain: 8000, validation_per_domain: 1000, test_authorized: false}
+training:
+  max_epochs: 200
+  micro_batch_size: 8
+  effective_batch_size: 64
+  learning_rate: 0.0005
+  weight_decay: 0.00001
+  early_stopping_patience: 0
+  convergence_window: [181, 200]
+  convergence_relative_threshold: 0.005
+runtime:
+  partition: gpu_4090
+  cuda_module: cuda/11.8
+  gpus_per_task: 1
+  cpus_per_task: 6
+  memory_mb: 60000
+  max_concurrent_jobs: 3
+  time_limit: '24:00:00'
+authorization_id: user-2026-09-17-exp-fwd-022-independent-training
+prohibited: [automatic_retry, automatic_continuation, cancellation, test_evaluation, resource_change, physical_claim]

@@ -485,6 +485,7 @@ def build_global_local_band_operator_v1(
     band_embedding_dim: int = 32,
     fourier_frequencies: Any = (1, 2, 4, 8),
     dropout: float = 0.05,
+    enabled_branches: Any = ("spectral", "local"),
 ) -> Any:
     """Build the fixed-fusion spectral and periodic large-kernel bridge."""
 
@@ -509,7 +510,7 @@ def build_global_local_band_operator_v1(
         lane_conditioned=False,
         num_lanes=2,
         lane_embedding_dim=16,
-        enabled_branches=("spectral", "local"),
+        enabled_branches=enabled_branches,
         local_operator_kind="convnext",
         branch_fusion="fixed_mean",
     )
