@@ -5,7 +5,7 @@
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
-> 2026-09-17 EXP-FWD-022 状态：1,080 个冻结 validation 干预单元已完成。用户批准参数量对照 head fallback，Full ±5% 检查已通过。首次 GPU 准入提交被显式内存规则拒绝；用户已授权修正重提，采用 N40 每卡默认 60GB、两批各 15 个、最多并发 3 个，待 GPU 准入及能力结果。原失败记录保留。详见[分支依赖与独立能力 Draft](docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md)。
+> 2026-09-17 EXP-FWD-022 状态：1,080 个冻结 validation 干预单元已固化。用户批准 head fallback 和内存适配重提；参数量 Full ±5% 与十种 GPU 准入已通过（5461528 COMPLETED/0:0）。N40 Binary 第一批 15-run 数组 5461531 已提交运行，Graded 后批待前批完成并审计；每卡默认 60GB、最多并发 3 个，半小时监控已启用。原失败记录保留，尚无独立能力终态结果；下一 gate 为 30-run 能力证据及人工审阅。详见[分支依赖与独立能力 Draft](docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md)。
 
 > 2026-08-07 工程状态：通用超算物理 campaign 控制面与 `full_cell_band` 参考适配器已实现；query/k-path、field-eigen、resolution-convergence 与 inverse replay 仅完成适配器登记，尚未完成多节点迁移。详见 [`docs/hpc_physics_campaigns.md`](docs/hpc_physics_campaigns.md)。这不是新的物理验证结论。
 

@@ -21,7 +21,7 @@ primary_layer: L3
 
 # EXP-FWD-022：Global / Local 分支依赖与独立能力归因
 
-**结论：**冻结 validation 归因 G0--G1 已完成，结果见[分支依赖与独立能力](../../docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md)。2026-09-17 用户授权 G2--G3 独立训练，并批准 width-only 不可行时的 head fallback；参数量 ±5% 合同保持不变，需通过 N40 GPU 准入后提交。renorm 只控制融合系数，不能解释为纯信息删除。
+**结论：**冻结 validation 归因 G0--G1 已完成，结果见[分支依赖与独立能力](../../docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md)。2026-09-17 用户批准 G2--G3、head fallback 与默认内存方式修正重提；参数量 ±5% 和十种 N40 GPU 准入已通过，Binary 第一批 15-run 已提交，能力证据尚未完成。renorm 只控制融合系数，不能解释为纯信息删除。
 
 **目录：** [研究问题](#research-question) · [冻结干预](#intervention) · [指标](#metrics) · [内部归因](#internal) · [独立训练](#training) · [执行门](#gates) · [证据边界](#boundary)
 
@@ -141,8 +141,8 @@ G1 人工通过后，Binary 与 Graded 分开使用 K5+K20 等权 mixed contract
 | G0 工程门 | 五态干预、输出扰动、双样本集 attribution、兼容测试与单卡预检通过 | 已授权 |
 | G1 冻结归因 | 1080/1080 validation cells、216 组内部 attribution、paired bootstrap 全部有限完整 | 已授权在 N40 执行 |
 | G1 人工审阅 | 判定是否存在稳定 G/L 分化信号 | 用户已授权继续独立训练 |
-| G2 独立训练准入 | 30-run manifest、容量控制和训练资源重新冻结；十种结构 GPU 单 batch 准入 | 首次显式内存申请被拒绝；用户已授权默认内存方式修正重提 |
-| G3 能力证据 | dependency 与 capability 分层解释、组合收益完成 | 已授权；尚无训练结果 |
+| G2 独立训练准入 | 30-run manifest、容量控制和训练资源重新冻结；十种结构 GPU 单 batch 准入 | 已通过；5461528 COMPLETED/0:0；原失败记录保留 |
+| G3 能力证据 | dependency 与 capability 分层解释、组合收益完成 | 进行中；Binary 数组 5461531 已提交，Graded 后批待前批终态审计 |
 
 G0/G1 使用 N40 `gpu_4090`。N56 只作为 EXP-FWD-020 checkpoint 来源；传输必须保留 checkpoint SHA-256，并且不得覆盖不匹配文件。
 
