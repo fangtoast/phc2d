@@ -90,7 +90,10 @@ def model_specs() -> tuple[tuple[str, ModelFactory, ModelSpec], ...]:
                 input_layout="image",
                 accepts_k_points=True,
                 requires=("torch",),
-                defaults=_operator_defaults(channel_expansion=4, local_kernel=7),
+                defaults={
+                    **_operator_defaults(channel_expansion=4, local_kernel=7),
+                    "enabled_branches": ("spectral", "local"),
+                },
                 source=(
                     "phc2d EXP-FWD-019-derived fixed-fusion spectral and "
                     "periodic large-kernel bridge"
