@@ -141,7 +141,7 @@ G1 人工通过后，Binary 与 Graded 分开使用 K5+K20 等权 mixed contract
 | G0 工程门 | 五态干预、输出扰动、双样本集 attribution、兼容测试与单卡预检通过 | 已授权 |
 | G1 冻结归因 | 1080/1080 validation cells、216 组内部 attribution、paired bootstrap 全部有限完整 | 已授权在 N40 执行 |
 | G1 人工审阅 | 判定是否存在稳定 G/L 分化信号 | 用户已授权继续独立训练 |
-| G2 独立训练准入 | 30-run manifest、容量控制和训练资源重新冻结；十种结构 GPU 单 batch 准入 | 已授权 head fallback；参数量工程检查通过，待 GPU 准入 |
+| G2 独立训练准入 | 30-run manifest、容量控制和训练资源重新冻结；十种结构 GPU 单 batch 准入 | 首次显式内存申请被拒绝；用户已授权默认内存方式修正重提 |
 | G3 能力证据 | dependency 与 capability 分层解释、组合收益完成 | 已授权；尚无训练结果 |
 
 G0/G1 使用 N40 `gpu_4090`。N56 只作为 EXP-FWD-020 checkpoint 来源；传输必须保留 checkpoint SHA-256，并且不得覆盖不匹配文件。

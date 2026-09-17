@@ -8,6 +8,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from pathlib import Path
 import json
 from types import SimpleNamespace
+import subprocess
 
 import numpy as np
 import pytest
@@ -147,19 +148,44 @@ def test_preflight_submission_is_exclusive_and_uses_shared_runtime(tmp_path, mon
     assert len(calls) == 1
 
 
-def test_training_submission_requires_accounting_and_records_array_and_finalizer(tmp_path, monkeypatch):
+def test_first_training_batch_requires_accounting_and_records_only_15_tasks(tmp_path, monkeypatch):
     auth = submission_campaign(tmp_path, "capability_preflight_passed")
-    (tmp_path / "submission_preflight.json").write_text(json.dumps({"preflight_job_id": "123"}))
+    (tmp_path / "submission_preflight.json").write_text(json.dumps({"preflight_job_id": "123", "status": "submitted"}))
     calls = []
     def scheduler(args, **kwargs):
         calls.append(args)
         return SimpleNamespace(stdout="123|COMPLETED|0:0\n" if args[0] == "sacct" else str(200 + len(calls)))
     monkeypatch.setattr("subprocess.run", scheduler)
     result = submit(tmp_path, "training", tmp_path, auth)
-    assert result["train_job_id"] == "202" and result["finalize_job_id"] == "203"
-    assert "--array=0-29%3" in calls[1]
-    assert "--dependency=afterok:202" in calls[2]
-    assert json.loads((tmp_path / "campaign_status.json").read_text())["status"] == "capability_training_submitted"
+    assert result["train_job_id"] == "202" and "finalize_job_id" not in result
+    assert "--array=0-14%3" in calls[1] and len(calls) == 2
+    assert json.loads((tmp_path / "campaign_status.json").read_text())["status"] == "capability_training_batch_0_submitted"
+
+
+def test_second_batch_requires_all_previous_tasks_and_adds_finalizer(tmp_path, monkeypatch):
+    auth = submission_campaign(tmp_path, "capability_training_batch_0_submitted")
+    (tmp_path / "submission_training_batch_0.json").write_text(json.dumps({"train_job_id": "123", "status": "submitted"}))
+    calls, audited = [], []
+    def scheduler(args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(stdout="\n".join(f"123_{i}|COMPLETED|0:0" for i in range(15))
+                               if args[0] == "sacct" else str(200 + len(calls)))
+    monkeypatch.setattr("subprocess.run", scheduler)
+    monkeypatch.setattr("phc2d.forward.global_local_branch_capability.task", lambda campaign, i: {"task_index": i})
+    monkeypatch.setattr("phc2d.forward.global_local_branch_capability.audit_training_task", lambda row: audited.append(row["task_index"]))
+    result = submit(tmp_path, "training", tmp_path, auth, batch_index=1)
+    assert audited == list(range(15))
+    assert "--array=15-29%3" in calls[1] and "--dependency=afterok:202" in calls[2]
+    assert result["finalize_job_id"] == "203"
+
+
+def test_second_batch_does_not_start_after_failed_task(tmp_path, monkeypatch):
+    auth = submission_campaign(tmp_path, "capability_training_batch_0_submitted")
+    (tmp_path / "submission_training_batch_0.json").write_text(json.dumps({"train_job_id": "123", "status": "submitted"}))
+    monkeypatch.setattr("subprocess.run", lambda *a, **k: SimpleNamespace(stdout="123_0|FAILED|1:0"))
+    with pytest.raises(RuntimeError, match="previous-stage accounting"):
+        submit(tmp_path, "training", tmp_path, auth, batch_index=1)
+    assert not (tmp_path / "submission_training_batch_1.json").exists()
 
 
 def test_failed_submission_intent_is_preserved_and_never_automatically_retried(tmp_path, monkeypatch):
@@ -182,6 +208,34 @@ def test_submission_rejects_unapproved_identity_and_hash_drift(tmp_path):
         h.write("\n# drift\n")
     with pytest.raises(RuntimeError, match="hash drift"):
         submit(tmp_path, "preflight", tmp_path, auth)
+
+
+def test_platform_default_memory_omits_explicit_memory_request(tmp_path, monkeypatch):
+    auth = submission_campaign(tmp_path)
+    path = tmp_path / "config.resolved.yaml"
+    config = yaml.safe_load(path.read_text())
+    config["runtime"]["memory_mb"] = None
+    path.write_text(yaml.safe_dump(config))
+    (tmp_path / "freeze.json").write_text(json.dumps({"resolved_contract_sha256": file_sha256(path)}))
+    calls = []
+    def scheduler(args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(stdout="123")
+    monkeypatch.setattr("subprocess.run", scheduler)
+    submit(tmp_path, "preflight", tmp_path, auth)
+    assert not any(arg.startswith("--mem") for arg in calls[0])
+
+
+def test_scheduler_failure_preserves_diagnostic_stderr(tmp_path, monkeypatch):
+    auth = submission_campaign(tmp_path)
+    def scheduler(args, **kwargs):
+        raise subprocess.CalledProcessError(1, args, output="", stderr="explicit memory request prohibited")
+    monkeypatch.setattr("subprocess.run", scheduler)
+    with pytest.raises(subprocess.CalledProcessError):
+        submit(tmp_path, "preflight", tmp_path, auth)
+    marker = json.loads((tmp_path / "submission_preflight.json").read_text())
+    assert marker["scheduler_stderr"] == "explicit memory request prohibited"
+    assert marker["status"] == "submission_failed_or_uncertain"
 
 
 def test_worker_initializes_cuda_through_existing_runtime():

@@ -31,8 +31,10 @@ runtime:
   cuda_module: cuda/11.8
   gpus_per_task: 1
   cpus_per_task: 6
-  memory_mb: 60000
+  memory_mb: null
+  memory_policy: partition_default
+  default_memory_gb_per_gpu: 60
   max_concurrent_jobs: 3
   time_limit: '24:00:00'
-authorization_id: user-2026-09-17-exp-fwd-022-independent-training
+authorization_id: user-2026-09-17-exp-fwd-022-memory-fix-resubmit
 prohibited: [automatic_retry, automatic_continuation, cancellation, test_evaluation, resource_change, physical_claim]

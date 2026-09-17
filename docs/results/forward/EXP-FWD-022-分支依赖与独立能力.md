@@ -144,7 +144,7 @@ per-band 与 per-k 产物已生成，但空间模式的跨 seed 稳定性及 BH-
 | 组合收益 | B_GL=min(E_G,E_L)−E_Full；参数量控制同理；配对 bootstrap 和 seed 方向 | 未有结果 |
 | 依赖与能力解释 | 两层结论分列，不用 G1 直接推断单支能力 | 未有结果 |
 
-**原 width-only 阻塞已通过用户批准的 head fallback 解决；尚无训练性能结果。** 原 G-only width=64 为 −7.87%，width=72 为 +16.28%，不满足 ±5%。保持固定搜索和 tolerance，优先选择最近 width，仅在失败时启用可调隐藏层的 dense head。
+**原 width-only 阻塞已通过用户批准的 head fallback 解决；GPU 准入提交被平台内存规则拒绝，尚无训练性能结果。** 原 G-only width=64 为 −7.87%，width=72 为 +16.28%，不满足 ±5%。保持固定搜索和 tolerance，优先选择最近 width，仅在失败时启用可调隐藏层的 dense head。
 
 | 训练变体 | Trunk width | Dense head | 参数量 | 相对 Full |
 |---|---:|---|---:|---:|
@@ -156,6 +156,8 @@ per-band 与 per-k 产物已生成，但空间模式的跨 seed 稳定性及 BH-
 
 上述参数量由同一公开 factory 的工程检查给出，不是性能证据。旧 `head_hidden_dim` 仅作用于 k-conditioned head；新显式 `dense_head_hidden_dim` 只在 G-only 参数量控制中启用，普通三组与默认 checkpoint schema 保持不变。G-only 对照因此同时改变 head 结构，L-only 对照改变特征维度；二者只排除简单参数总量解释，不能证明架构等价或无优化混杂。
 
-每条 lane 使用 16,000 train、2,000 validation；不加载 test 标签。统一从零训练 200 epoch、AdamW、learning rate 5×10⁻⁴、weight decay 10⁻⁵、FP32、micro batch 8、effective batch 64、无 early stopping。按 validation bands 2–10 MRE 选择 checkpoint，并保留 epoch200 与末 20 epoch 收敛检查。先完成十种 lane×结构的单 batch GPU 准入，再提交 30-run；失败不自动重试或改资源。
+每条 lane 使用 16,000 train、2,000 validation；不加载 test 标签。统一从零训练 200 epoch、AdamW、learning rate 5×10⁻⁴、weight decay 10⁻⁵、FP32、micro batch 8、effective batch 64、无 early stopping。按 validation bands 2–10 MRE 选择 checkpoint，并保留 epoch200 与末 20 epoch 收敛检查。先完成十种 lane×结构的单 batch GPU 准入，再推进 30-run；N40 在途任务上限为 16，故两批各 15 个、最多并发 3 个，前批 Slurm 完成且终态审计通过后才提交后批；失败不自动重试或改资源。
+
+首次冻结产物在 N40 `/HOME/scw6g7a/run/phc2d/runs/20260917/EXP-FWD-022_capability_202609171224/`：30-run manifest、两条 lane mixed 数据及来源 SHA 已生成，执行起始 commit 为 `56c1e0f`。`submission_preflight.json` 保留失败意图，未获得 job ID。平台诊断明确拒绝显式 `--mem=60000`，要求单卡默认 60GB；不带 `--mem` 的 `sbatch --test-only` 检查通过，但这不是作业或 GPU 准入通过。用户随后明确授权修正并重提，使用新的授权标识与运行目录，保留原失败记录；移除显式内存参数，使用分区默认每卡 60GB。科学合同不变，不把提交检查当成训练结果。
 
 训练结束后仅用新训练证据更新本节与摘要；不回填预测值、不改写 G1 原始指标。实验协议位于仓库 `experiments/research/EXP-FWD-022-全局局部分支归因.md`，独立训练配置草案位于 `configs/research/full_cell_branch_capability_exp_fwd_022_v1.yaml`。
