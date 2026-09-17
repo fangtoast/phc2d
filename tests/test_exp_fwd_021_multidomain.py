@@ -226,7 +226,8 @@ def test_all_nine_models_complete_cpu_small_forward(model_name: str) -> None:
     assert torch.isfinite(output).all()
 
 
-def test_cpu_admission_writes_complete_artifacts_without_test_access(tmp_path: Path) -> None:
+@pytest.mark.parametrize("evaluation_experiment", ["EXP-FWD-021", "EXP-FWD-023"])
+def test_cpu_admission_writes_complete_artifacts_without_test_access(tmp_path: Path, evaluation_experiment: str) -> None:
     h5py = pytest.importorskip("h5py")
     pytest.importorskip("torch")
     campaign = tmp_path / "campaign"
@@ -354,6 +355,8 @@ def test_cpu_admission_writes_complete_artifacts_without_test_access(tmp_path: P
         assert (output / name).stat().st_size > 0
 
     evaluation = campaign / "evaluation"
+    profile["experiment"]["experiment_id"] = evaluation_experiment
+    (campaign / "config.resolved.yaml").write_text(yaml.safe_dump(profile), encoding="utf-8")
     cache = evaluation / "cache/a_binary.npz"
     cache.parent.mkdir(parents=True)
     np.savez_compressed(
@@ -394,6 +397,7 @@ def test_cpu_admission_writes_complete_artifacts_without_test_access(tmp_path: P
     cell = run_evaluation_task(campaign, 0, device_override="cpu")
     cell_result = json.loads((cell / "results.json").read_text(encoding="utf-8"))
     assert cell_result["status"] == "evaluation_cell_success"
+    assert cell_result["experiment_id"] == evaluation_experiment
     assert cell_result["per_band_record_count"] == 10
     assert len(contracts.read_csv(cell / "per_band_metrics.csv")) == 10
     from phc2d.forward.full_cell_multidomain_evidence import (

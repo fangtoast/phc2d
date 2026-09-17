@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import yaml
 
 from phc2d.forward.full_cell_multidomain_contracts import (
     read_csv, repository_commit, sha256_array, sha256_file, write_csv,
@@ -93,6 +94,7 @@ def audit_evaluation_runs(
     """Audit a completed slice, including immutable identities and finite per-band evidence."""
     campaign = Path(campaign_dir).resolve()
     evaluation = campaign / "evaluation"
+    profile = yaml.safe_load((campaign / "config.resolved.yaml").read_text(encoding="utf-8"))
     manifest = evaluation_rows(campaign)
     end = max(int(r["cell_index"]) for r in manifest) if end_index is None else end_index
     rows = [r for r in manifest if start_index <= int(r["cell_index"]) <= end]
@@ -115,6 +117,8 @@ def audit_evaluation_runs(
                 raise RuntimeError(f"invalid required metric: {row['cell_id']}/{key}")
         if result.get("status") != "evaluation_cell_success":
             raise RuntimeError(f"evaluation did not succeed: {row['cell_id']}")
+        if result.get("experiment_id") != profile["experiment"]["experiment_id"]:
+            raise RuntimeError(f"evaluation experiment identity mismatch: {row['cell_id']}")
         for key in ("cell_id", "regime", "model", "target_domain"):
             if result.get(key) != row[key]:
                 raise RuntimeError(f"evaluation identity mismatch: {row['cell_id']}/{key}")

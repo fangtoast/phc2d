@@ -1,4 +1,4 @@
-"""Frozen-cache six-domain evaluation for EXP-FWD-021.
+"""Frozen-cache six-domain evaluation for fixed multidomain checkpoints.
 
 Author: fangtoast
 Email: fangtoast@foxmail.com
@@ -73,7 +73,8 @@ def evaluation_plan_rows(training_rows: Sequence[Mapping[str, Any]], targets: Se
     return rows
 
 
-def _load_campaign(campaign_dir: str | Path) -> tuple[Path, dict[str, Any]]:
+def load_evaluation_campaign(campaign_dir: str | Path) -> tuple[Path, dict[str, Any]]:
+    """Read a resolved evaluation profile without importing the training stack."""
     campaign = Path(campaign_dir).resolve()
     payload = yaml.safe_load((campaign / "config.resolved.yaml").read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping):
@@ -102,7 +103,7 @@ def _torch_load(torch: Any, path: Path, *, map_location: Any = "cpu") -> dict[st
 def freeze_evaluation(campaign_dir: str | Path) -> Path:
     """Freeze 63 accepted checkpoints and read each held-out target once into cache."""
 
-    campaign, profile = _load_campaign(campaign_dir)
+    campaign, profile = load_evaluation_campaign(campaign_dir)
     audit_training_runs(campaign / "task_manifest.csv")
     evaluation = campaign / "evaluation"
     if evaluation.exists() and any(evaluation.iterdir()):
@@ -201,7 +202,7 @@ def freeze_evaluation(campaign_dir: str | Path) -> Path:
         evaluation,
         {
             "script": "python -m phc2d.forward.full_cell_multidomain_campaign freeze-evaluation",
-            "experiment_id": "EXP-FWD-021",
+            "experiment_id": profile["experiment"]["experiment_id"],
             "checkpoint_count": 63,
             "evaluation_cell_count": 378,
         },
@@ -278,7 +279,7 @@ def run_evaluation_task(
 ) -> Path:
     """Evaluate one manifest-addressed checkpoint-to-target cell from frozen cache."""
 
-    campaign, profile = _load_campaign(campaign_dir)
+    campaign, profile = load_evaluation_campaign(campaign_dir)
     evaluation = campaign / "evaluation"
     rows = [
         row
@@ -302,7 +303,7 @@ def run_evaluation_task(
         log_file=output / "run.log",
         run_meta={
             "script": "python -m phc2d.forward.full_cell_multidomain_campaign run-evaluation-task",
-            "experiment_id": "EXP-FWD-021",
+            "experiment_id": profile["experiment"]["experiment_id"],
             "cell_id": row["cell_id"],
             "execution_start_git_commit": execution_commit,
             "slurm_job_id": os.environ.get("SLURM_JOB_ID"),
@@ -434,7 +435,7 @@ def run_evaluation_task(
         output,
         {
             "status": "evaluation_cell_success",
-            "experiment_id": "EXP-FWD-021",
+            "experiment_id": profile["experiment"]["experiment_id"],
             "cell_id": row["cell_id"],
             "regime": row["regime"],
             "model": row["model"],
@@ -461,7 +462,7 @@ def run_evaluation_task(
 def evaluation_status(campaign_dir: str | Path) -> dict[str, Any]:
     """Return a read-only completeness snapshot and fail on corrupt completed cells."""
 
-    campaign, _ = _load_campaign(campaign_dir)
+    campaign, _ = load_evaluation_campaign(campaign_dir)
     manifest = evaluation_rows(campaign)
     completed = 0
     missing: list[str] = []
@@ -516,7 +517,7 @@ def _transfer_group(profile: Mapping[str, Any], regime: str, target: str) -> str
 def finalize_evaluation(campaign_dir: str | Path) -> Path:
     """Finalize only a complete finite 63-by-6 matrix with paired evidence."""
 
-    campaign, profile = _load_campaign(campaign_dir)
+    campaign, profile = load_evaluation_campaign(campaign_dir)
     status = evaluation_status(campaign)
     if status["status"] != "evaluation_complete":
         raise RuntimeError(f"cannot finalize incomplete evaluation: {status['completed_cells']}/378")
@@ -584,7 +585,7 @@ def finalize_evaluation(campaign_dir: str | Path) -> Path:
                         **paired_bootstrap(
                             candidate,
                             baseline,
-                            key=f"EXP-FWD-021:{regime}:{model}:{target}",
+                            key=f"{profile['experiment']['experiment_id']}:{regime}:{model}:{target}",
                             replicates=replicates,
                         ),
                     }
@@ -643,4 +644,5 @@ __all__ = [
     "finalize_evaluation",
     "freeze_evaluation",
     "run_evaluation_task",
+    "load_evaluation_campaign",
 ]
