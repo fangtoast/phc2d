@@ -1,24 +1,25 @@
 ---
 title: EXP-FWD-022 分支依赖与独立能力
-summary: 已完成冻结 validation 分支关断；记录域相关依赖及尺度控制差异，独立训练能力证据待补充。
+summary: 冻结分支关断与30项独立训练已完成；固定200 epoch预算下Full优于单支及参数量控制，但仅11项通过收敛门，待人工审阅。
 page_type: evidence
 status: draft
 audience: 导师、正向模型研究者与结果审阅者
 owner: 研究生维护，导师审阅科学主张
-last_reviewed: 2026-09-17
-date: 2026-09-17
-scope: frozen_validation_branch_dependency_and_pending_independent_capability
-reading_time: 8 minutes
+last_reviewed: 2026-09-18
+date: 2026-09-18
+scope: frozen_validation_branch_dependency_and_fixed_budget_independent_capability
+reading_time: 12 minutes
 primary_layer: L3
-evidence_date: 2026-09-16
-evidence_scope: frozen_validation_branch_dependency_only
+evidence_date: 2026-09-18
+evidence_scope: frozen_validation_dependency_and_k5_k20_lane_separated_200_epoch_capability
 dataset_scope: full_cell_k5_k20_f50_binary_graded_validation_wh81x10
 evidence_level: surrogate_held_out
 evidence_status: completed
 validation_backend: surrogate_only
-completion_qualification: validation_only_reuses_checkpoint_selection_split_not_independent_held_out_test
+completion_qualification: validation_only_checkpoint_selection_split_capability_11_of_30_converged_pending_human_review_not_test_confirmed
 source_artifacts:
   - runs/20260916/EXP-FWD-022_g1_validation_202609161602
+  - runs/20260917/EXP-FWD-022_capability_202609171226
 ---
 
 <!--
@@ -34,7 +35,7 @@ source_artifacts:
 
 **结论：同域 Full 模型关闭任一分支均显著退化；Binary 的 Local 关断损失更大，K20 Graded 的 Global 关断损失更大。该证据只回答共同训练模型的当前依赖，不回答单分支独立能力。** 部分跨域关断反而改善；内部一阶 attribution 与关断排序并不完全一致。
 
-本页保持 Draft。2026-09-17 用户授权进入独立训练；训练完成后在第六节补充能力证据，不改写本次冻结干预结果。
+**独立能力补充：固定 200 epoch 预算下，Binary/Graded 两条 K5+K20 mixed lane 的 Full 均优于普通单支及参数量控制，三个 seed 方向一致。** 但仅 11/30 通过末段收敛门，不能写成充分优化后的能力上限。本页保持 Draft，等待人工审阅；第一至五节仍为 2026-09-16 固化的 G1 证据，第六节单独记录 2026-09-18 完成的独立训练，不改写 G1 原始指标。
 
 **目录：** [证据范围](#scope) · [同域结果](#native) · [尺度控制](#scale) · [跨域与内部归因](#attribution) · [结论边界](#limits) · [独立训练](#capability)
 
@@ -133,18 +134,15 @@ per-band 与 per-k 产物已生成，但空间模式的跨 seed 稳定性及 BH-
 
 <a id="capability"></a>
 
-## 六、独立训练能力：等待新证据
+## 六、独立训练能力：固定预算下 Full 领先，收敛门未闭合
 
-2026-09-17 用户明确授权训练，并批准参数量控制在 width-only 不可行时额外调整预测 head。固定 Binary/Graded 分开 K5+K20 等权 mixed train/validation，kernel 3×3；Full、G-only、L-only、G-only 参数量控制、L-only 参数量控制 × 三 seed，共 30 个从零训练任务。参数量目标仍为 Full ±5%，不是 architecture-equivalent control。旧 EXP-FWD-020 checkpoint 不作公平训练基线。
+**工程终态已完成，科学状态为待人工审阅的固定预算 validation 能力证据。** N40 的 30/30 训练任务与 finalizer 均 `COMPLETED/0:0`；每项完成 200 epoch，配置、身份、参数量、checkpoint SHA 与终态审计通过。汇总表有 30 个唯一 case、24 条配对比较、12 条组合收益，主指标均有限；仅 11/30 通过预先固定的收敛门，未自动延长训练。
 
-| 后续需补充 | 准入/证据要求 | 当前科学状态 |
-|---|---|---|
-| 训练性能 | 统一合同、相同 epoch/batch/optimizer；validation 选 checkpoint，保留收敛状态 | 未有结果 |
-| 单分支能力 | 分别报告 K5/K20 validation 与等权 mixed MRE | 未有结果 |
-| 组合收益 | B_GL=min(E_G,E_L)−E_Full；参数量控制同理；配对 bootstrap 和 seed 方向 | 未有结果 |
-| 依赖与能力解释 | 两层结论分列，不用 G1 直接推断单支能力 | 未有结果 |
+### 6.1 统一训练合同与参数量控制
 
-**参数量与 GPU 准入已通过，第一批正式训练已提交；尚无终态能力结果。** 原 G-only width=64 为 −7.87%，width=72 为 +16.28%，不满足 ±5%。保持固定搜索和 tolerance，优先选择最近 width，仅在失败时启用用户批准的可调隐藏层 dense head。
+2026-09-17 用户授权从零训练与 head fallback。Binary/Graded 分开，各用 K5+K20 等权 mixed：每域 8,000 train、1,000 validation，每 lane 共 16,000 train、2,000 validation；两种材料 lane 不混合，不加载 test 标签。固定 kernel 3×3、三 seed、200 epoch、AdamW、learning rate 5×10⁻⁴、weight decay 10⁻⁵、FP32、micro batch 8、effective batch 64、无 early stopping。按 validation Bands 2–10 MRE 选择 best checkpoint，另保留 epoch200。
+
+参数量目标仍为 Full ±5%。G-only width-only 的相邻候选无法满足该门，因此启用获批的 dense head；旧 EXP-FWD-020 checkpoint 不作本合同的公平训练基线。
 
 | 训练变体 | Trunk width | Dense head | 参数量 | 相对 Full |
 |---|---:|---|---:|---:|
@@ -154,12 +152,72 @@ per-band 与 per-k 产物已生成，但空间模式的跨 seed 稳定性及 BH-
 | G-only 参数量控制 | 64 | 隐藏层 291、GELU | 2,572,395 | +0.02% |
 | L-only 参数量控制 | 224 | 原单层线性 | 2,614,890 | +1.67% |
 
-上述参数量由同一公开 factory 的工程检查给出，不是性能证据。按现有训练器 `sum(p.numel())` 计数，spectral 的复数 core 每个元素计一，因此不是实数自由度匹配。旧 `head_hidden_dim` 仅作用于 k-conditioned head；新显式 `dense_head_hidden_dim` 只在 G-only 参数量控制中启用，普通三组与默认 checkpoint schema 保持不变。G-only 对照因此同时改变 head 结构，L-only 对照改变特征维度；二者只控制此口径的参数总量，不能证明架构等价或无优化混杂。
+参数量经同一公开 factory 与训练终态核验。按现有训练器 `sum(p.numel())` 计数，spectral 复数 core 每个元素计一，不是实数自由度匹配。`dense_head_hidden_dim` 仅在 G-only 参数量控制中启用。G-only 对照改变 head，L-only 对照改变特征维度；二者是 **parameter-count control，不是 architecture-equivalent control**，不能消除优化难度混杂。
 
-每条 lane 使用 16,000 train、2,000 validation；不加载 test 标签。统一从零训练 200 epoch、AdamW、learning rate 5×10⁻⁴、weight decay 10⁻⁵、FP32、micro batch 8、effective batch 64、无 early stopping。按 validation bands 2–10 MRE 选择 checkpoint，并保留 epoch200 与末 20 epoch 收敛检查。先完成十种 lane×结构的单 batch GPU 准入，再推进 30-run；N40 在途任务上限为 16，故两批各 15 个、最多并发 3 个，前批 Slurm 完成且终态审计通过后才提交后批；失败不自动重试或改资源。
+### 6.2 独立训练性能
 
-首次冻结产物在 N40 `/HOME/scw6g7a/run/phc2d/runs/20260917/EXP-FWD-022_capability_202609171224/`：30-run manifest、两条 lane mixed 数据及来源 SHA 已生成，执行起始 commit 为 `56c1e0f`。`submission_preflight.json` 保留失败意图，未获得 job ID。平台诊断明确拒绝显式 `--mem=60000`，要求单卡默认 60GB；不带 `--mem` 的 `sbatch --test-only` 检查通过，但这不是作业或 GPU 准入通过。用户随后明确授权修正并重提，使用新的授权标识与运行目录，保留原失败记录；移除显式内存参数，使用分区默认每卡 60GB。科学合同不变，不把提交检查当成训练结果。
+以下来自 finalizer 对各 best-validation checkpoint 的统一重评。MRE 为 Bands 2–10、81 个 k 点的样本平均相对误差，单位 `%`；mixed 为 K5/K20 等权平均。报告三 seed **均值 ± 样本标准差（ddof=1）**，不是均值 CI。
 
-修正后的 campaign 为 N40 `/HOME/scw6g7a/run/phc2d/runs/20260917/EXP-FWD-022_capability_202609171226/`，部署 commit `f4f1625`，GPU 准入 job `5461528` 已十种结构全部通过且 Slurm `COMPLETED/0:0`。第一批 Binary 15-run 已提交数组 `5461531`；第二批 Graded 15-run 尚未提交，需等待前批全部完成和终态审计。30 分钟监控已启用，按 gate 推进两批训练并在全部终态审计后补充本节。原始定位文件为 `preflight_manifest.csv`、`submission_training_batch_0.json`、`campaign_status.json`，本地小型证据镜像位于仓库相同 `runs/20260917/` 路径。
+| lane | 训练变体 | mixed MRE（%） | K5 MRE（%） | K20 MRE（%） | 收敛通过 |
+|---|---|---:|---:|---:|---:|
+| Binary | Full | 0.3804 ± 0.0037 | 0.5512 ± 0.0051 | 0.2095 ± 0.0035 | 1/3 |
+| Binary | G-only | 0.5375 ± 0.0016 | 0.6523 ± 0.0039 | 0.4226 ± 0.0010 | 2/3 |
+| Binary | L-only | 0.6601 ± 0.0032 | 1.0278 ± 0.0068 | 0.2923 ± 0.0018 | 3/3 |
+| Binary | G-only 参数量控制 | 0.4856 ± 0.0082 | 0.5719 ± 0.0124 | 0.3994 ± 0.0044 | 0/3 |
+| Binary | L-only 参数量控制 | 0.6568 ± 0.0023 | 1.0190 ± 0.0025 | 0.2945 ± 0.0069 | 1/3 |
+| Graded | Full | 0.2737 ± 0.0049 | 0.3969 ± 0.0065 | 0.1505 ± 0.0060 | 0/3 |
+| Graded | G-only | 0.4057 ± 0.0080 | 0.4723 ± 0.0147 | 0.3391 ± 0.0022 | 1/3 |
+| Graded | L-only | 0.5505 ± 0.0011 | 0.8704 ± 0.0013 | 0.2306 ± 0.0010 | 1/3 |
+| Graded | G-only 参数量控制 | 0.3625 ± 0.0070 | 0.4039 ± 0.0052 | 0.3211 ± 0.0089 | 1/3 |
+| Graded | L-only 参数量控制 | 0.5468 ± 0.0004 | 0.8601 ± 0.0036 | 0.2335 ± 0.0030 | 1/3 |
 
-训练结束后仅用新训练证据更新本节与摘要；不回填预测值、不改写 G1 原始指标。实验协议位于仓库 `experiments/research/EXP-FWD-022-全局局部分支归因.md`，独立训练配置草案位于 `configs/research/full_cell_branch_capability_exp_fwd_022_v1.yaml`。
+证据：本节末所列 capability 目录的 `capability_metrics.csv`；每项 `runs/{case_id}/results.json` 与 `history.csv` 保存选择 epoch、完整训练历史和收敛状态。
+
+**不同 K 下的单支能力排序不同。** 两 lane 中 G-only 在 K5 的描述性均值优于 L-only，而 L-only 在 K20 优于 G-only，普通和参数量控制均呈现这一模式。它是统一 mixed 训练下的目标域性能差异，不是 G1 的关断依赖，也不能据此推断随 K 单调变化的因果机制。Graded K5 的 G-only 参数量控制与 Full 均值接近，但 seed 0 方向相反；尚无该域配对检验或等价门，不能称“独立充分”。
+
+### 6.3 配对比较与组合收益
+
+下表为同 lane、同 seed、同 validation 样本的 $\Delta E=E_{single}-E_{Full}$，单位 pp；方括号为 10,000 次 sample-level paired bootstrap 的 95% percentile CI。正值表示单支更差。重采样在 2,000 条 mixed validation 样本池内进行，未按 K 分层；CI 条件于已选 checkpoint，不包含重新训练、checkpoint 选择或跨 seed 不确定性。
+
+| lane | 对照 Full 的变体 | seed 0：Δ [95% CI] | seed 1：Δ [95% CI] | seed 2：Δ [95% CI] |
+|---|---|---:|---:|---:|
+| Binary | G-only | 0.1579 [0.1522, 0.1638] | 0.1543 [0.1484, 0.1603] | 0.1590 [0.1533, 0.1646] |
+| Binary | L-only | 0.2834 [0.2730, 0.2943] | 0.2718 [0.2615, 0.2825] | 0.2838 [0.2730, 0.2943] |
+| Binary | G-only 参数量控制 | 0.0995 [0.0931, 0.1061] | 0.1012 [0.0949, 0.1077] | 0.1150 [0.1085, 0.1216] |
+| Binary | L-only 参数量控制 | 0.2766 [0.2658, 0.2871] | 0.2742 [0.2638, 0.2848] | 0.2785 [0.2683, 0.2887] |
+| Graded | G-only | 0.1298 [0.1252, 0.1345] | 0.1364 [0.1320, 0.1407] | 0.1297 [0.1252, 0.1342] |
+| Graded | L-only | 0.2754 [0.2659, 0.2848] | 0.2740 [0.2640, 0.2838] | 0.2811 [0.2714, 0.2909] |
+| Graded | G-only 参数量控制 | 0.0791 [0.0738, 0.0842] | 0.0894 [0.0841, 0.0950] | 0.0979 [0.0924, 0.1034] |
+| Graded | L-only 参数量控制 | 0.2718 [0.2626, 0.2811] | 0.2693 [0.2600, 0.2788] | 0.2782 [0.2688, 0.2876] |
+
+24 条比较的 CI 均高于 0，每种 lane×变体的三个 seed 方向一致。相对 Full 的误差增加均超过 1% practical threshold，最小为 26.3%；该阈值与统计方向分开报告，不用它替代 CI。依据 `paired_bootstrap.csv`，仅针对 mixed 主指标，不将其 CI 套用于 K5/K20 子域。
+
+定义 $B_{GL}=\min(E_G,E_L)-E_{Full}$，参数量控制对应 $B_{GL}^{cap}$。每个 seed 内先计算 min，再汇总；以下单位 pp。
+
+| lane | 指标 | seed 0 | seed 1 | seed 2 | 三 seed 均值 ± SD |
+|---|---|---:|---:|---:|---:|
+| Binary | B_GL | 0.1579 | 0.1543 | 0.1590 | 0.1571 ± 0.0025 |
+| Binary | B_GL cap | 0.0995 | 0.1012 | 0.1150 | 0.1052 ± 0.0085 |
+| Graded | B_GL | 0.1298 | 0.1364 | 0.1297 | 0.1320 ± 0.0039 |
+| Graded | B_GL cap | 0.0791 | 0.0894 | 0.0979 | 0.0888 ± 0.0094 |
+
+所有 seed 的两类组合收益均为正；本次 mixed 指标中较好的单支均为 G-only。`combination_benefits.csv` 未生成 min 统计量的 bootstrap CI，上表 SD 不是该 CI；统计支持来自前表各单支对 Full 的配对比较，各 CI 是逐项区间，不是联合置信区域。普通与参数量控制均落后，表明**本预算下组合优势不能简单归因于 Full 参数总量更多**，不证明充分优化后的架构优越性。
+
+### 6.4 收敛与解释边界
+
+| 证据层 | 支持的结论 | 仍不支持的结论 |
+|---|---|---|
+| G1 冻结关断 | 已共同训练的 Full 对分支的域相关依赖与系数控制敏感度 | 单支从零训练能力、纯信息因果分解 |
+| 本次独立训练 | 固定合同和 200 epoch 下，Full 的 mixed validation 性能一致优于四种单支；K5/K20 单支排序不同 | 单支理论能力不足、无限预算上限、等价或独立充分 |
+| 参数量控制 | Full 领先不只发生在参数量较少的普通单支中 | 架构等价、优化难度完全可比 |
+| 收敛门 | Binary 7/15、Graded 4/15 通过；合计 11/30 | 全组收敛、能力确认 gate 全部通过 |
+
+收敛定义保持不变：epochs 181–190 与 191–200 的 validation MRE 窗口均值相对变化不超过 0.5%。未通过是科学资格限制，不是 Slurm 失败；通过也只是该局部窗口标准，不代表全局最优。尤其 Full 仅 Binary 1/3、Graded 0/3 通过，因此本页只称“固定预算优势”，不称充分优化后的稳定能力结论。validation 同时用于 checkpoint 选择和重评；没有独立 test、物理验证或 model promotion。
+
+### 6.5 原始证据与下一决策
+
+有效 campaign 在 N40 `/HOME/scw6g7a/run/phc2d/runs/20260917/EXP-FWD-022_capability_202609171226/`，部署 commit `f4f1625aad3d70654ccd1167c89e7fc40a5eb139`。GPU 准入 `5461528`、Binary 数组 `5461531`、Graded 数组 `5462590`、finalizer `5462591` 均已完成且 exit 0。两批训练使用默认每卡 60GB、单 GPU/6 CPU、最多并发 3；没有改变科学合同。
+
+本地镜像为仓库相同 `runs/20260917/EXP-FWD-022_capability_202609171226/`：224 个小型 JSON/CSV/YAML 文件已与 N40 SHA256 核对，不含数据集或 checkpoint。定位文件为 `freeze.json`、`task_manifest.csv`、`config.resolved.yaml`、`mixed_data_manifest.json`、`results.json`，三张结果表及每项训练终态文件。原始产物不发布到文档站。旧 `EXP-FWD-022_capability_202609171224` 的提交失败记录与部署 `56c1e0f` 保留为修正 lineage；原显式内存参数被平台拒绝，不计为训练结果。
+
+实验协议为仓库 `experiments/research/EXP-FWD-022-全局局部分支归因.md`，训练配置为 `configs/research/full_cell_branch_capability_exp_fwd_022_v1.yaml`。**下一 gate 是人工审阅此固定预算结果与未收敛限制**：若需要更强的能力确认，应另行批准统一的后续训练合同；不得据此自动续训、修改门槛、评估 test 或升级物理主张。
