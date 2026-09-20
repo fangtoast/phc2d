@@ -38,6 +38,7 @@ primary_layer: L3
 | [EXP-FWD-019：组件归因三种子确认](EXP-FWD-019-组件归因三种子确认.md) | 42项F50 validation-only确认完成；ConvNeXt大核信号最强，FNO/Joint频谱删除受容量混杂，TFNO channel未通过两路线一致性门，Draft |
 | [EXP-FWD-020：全局—局部带隙算子六域交叉评估](EXP-FWD-020-全局局部带隙算子六域交叉评估.md) | 36 个冻结 checkpoint 的 216-cell held-out surrogate 评估已完成；跨域 MRE 明显高于 native，7x7 对 3x3 没有全局一致优势；G2 未通过，不作 promotion，Draft |
 | [EXP-FWD-023：固定模型十二域交叉测试](EXP-FWD-023-十二域交叉测试.md) | 63 个冻结 checkpoint 的 K5/K8/K10/K15/K20/F50 双路线 756-cell 交叉测试；S3-BG/TFNO 十二域等权最低，限 seed0 surrogate，Draft |
+| [EXP-FWD-023：多域统一模型与历史单域模型对比](EXP-FWD-023-多域与历史单域模型对比.md) | T07 六域混合 8k 与 K5/K20/F50 六类历史单域模型的同测试样本描述性对比；列出 M01–M09 全部旧六域结果及 T07 新 K 域结果，保留预算/轮数不一致边界，Draft |
 | [超参数灵敏度分析（历史单 seed）](灵敏度分析.md) | 局部搜索的解释性记录；残差 MLP 加深是待多 seed 确认的假设，不作正式排名或 promotion |
 
 [返回研究结果与报告](../README.md)

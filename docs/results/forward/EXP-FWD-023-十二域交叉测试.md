@@ -249,6 +249,7 @@ TFNO 和 Global-Local 用更高训练成本与更低推理吞吐换取了显著�
 
 ## 证据边界与下一决策
 
+- T07 六域混合模型与历史 K5/K20/F50 单域模型的同旧六域对比见[多域统一模型与历史单域模型对比](EXP-FWD-023-多域与历史单域模型对比.md)。该页区分“六个专域专家的原生上限”和“单一 checkpoint 的跨域稳健性”，不把不同预算与轮数解释为受控因果实验。
 - 本页是 `seed0 exploratory surrogate evidence`。样本 bootstrap 只描述固定 seed、固定 checkpoint 下的样本不确定性，不能替代跨 seed 稳定性。
 - K8/K10/K15 六份数据已通过 N56 文件哈希、schema、split、同 lane 配对和 source train/validation 隔离审计，但仍标记为 `cluster_audited_pending_wsl_acceptance`；它们尚未完成 WSL `meep_env` 的独立物理验收。
 - 结果没有 real-MPB/Meep replay，不能推出物理带隙或器件性能结论，也不自动触发模型 promotion。
