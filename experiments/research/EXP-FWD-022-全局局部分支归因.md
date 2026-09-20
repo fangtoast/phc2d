@@ -1,11 +1,11 @@
 ---
 title: EXP-FWD-022 全局局部分支归因
-summary: 冻结 Global-Local checkpoint，通过 raw/renorm 分支关断、输出扰动和内部 attribution 区分分支依赖与尺度效应。
+summary: 冻结分支依赖与独立训练均已完成；联合对照区分当前Full依赖、单支适应能力与固定预算组合收益。
 page_type: plan
 status: draft
 audience: 正向代理研究者、复现执行者与结果审阅者
 owner: 研究生维护，导师审阅研究主张
-last_reviewed: 2026-09-17
+last_reviewed: 2026-09-20
 reading_time: 8 minutes
 primary_layer: L3
 ---
@@ -21,7 +21,7 @@ primary_layer: L3
 
 # EXP-FWD-022：Global / Local 分支依赖与独立能力归因
 
-**结论：**冻结 validation 归因 G0--G1 已完成，结果见[分支依赖与独立能力](../../docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md)。2026-09-17 用户批准 G2--G3、head fallback 与默认内存方式修正重提；参数量 ±5% 和十种 N40 GPU 准入已通过，Binary 第一批 15-run 已提交，能力证据尚未完成。renorm 只控制融合系数，不能解释为纯信息删除。
+**结论：**冻结 validation 归因 G0--G1 与 30 项独立训练 G2--G3 均已完成，结果见[分支依赖与独立能力](../../docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md)。四个可比 3×3 domain 的均值排序为两域同向、两域反向；加入 seed 方向门后为一域稳定同向、两域稳定反向、一域冻结排序不稳定，说明“当前 Full 依赖”不能直接替代“单支重训能力”。固定 200 epoch 下 Full 的 mixed 主指标领先，但只有 11/30 通过末段收敛门。renorm 只控制融合系数，不能解释为纯信息删除。
 
 **目录：** [研究问题](#research-question) · [冻结干预](#intervention) · [指标](#metrics) · [内部归因](#internal) · [独立训练](#training) · [执行门](#gates) · [证据边界](#boundary)
 
@@ -142,7 +142,7 @@ G1 人工通过后，Binary 与 Graded 分开使用 K5+K20 等权 mixed contract
 | G1 冻结归因 | 1080/1080 validation cells、216 组内部 attribution、paired bootstrap 全部有限完整 | 已授权在 N40 执行 |
 | G1 人工审阅 | 判定是否存在稳定 G/L 分化信号 | 用户已授权继续独立训练 |
 | G2 独立训练准入 | 30-run manifest、容量控制和训练资源重新冻结；十种结构 GPU 单 batch 准入 | 已通过；5461528 COMPLETED/0:0；原失败记录保留 |
-| G3 能力证据 | dependency 与 capability 分层解释、组合收益完成 | 进行中；Binary 数组 5461531 已提交，Graded 后批待前批终态审计 |
+| G3 能力证据 | dependency 与 capability 分层解释、组合收益完成 | 已完成；30/30 与 finalizer 均 COMPLETED/0:0，状态 pending_human_review；仅 11/30 通过收敛门 |
 
 G0/G1 使用 N40 `gpu_4090`。N56 只作为 EXP-FWD-020 checkpoint 来源；传输必须保留 checkpoint SHA-256，并且不得覆盖不匹配文件。
 
@@ -156,4 +156,4 @@ G0/G1 使用 N40 `gpu_4090`。N56 只作为 EXP-FWD-020 checkpoint 来源；传�
 - 机器合同：[EXP-FWD-022 配置](../../configs/research/full_cell_global_local_branch_attribution_exp_fwd_022_v1.yaml)
 - 实现入口：`phc2d.forward.global_local_branch_attribution`
 
-G1 只能形成 frozen validation branch dependency 证据，不改变 EXP-FWD-020 的 `g2_formal_status=not_passed`，不产生模型 promotion、test-confirmed、real-MPB/Meep 或物理因果主张。本页由 AI 整理，保持 Draft，等待人类负责人审阅。
+G1 只能形成 frozen validation branch dependency 证据，不改变 EXP-FWD-020 的 `g2_formal_status=not_passed`。G3 只形成固定 200 epoch、validation-only 的独立能力证据，且收敛门未闭合；两者均不产生模型 promotion、test-confirmed、real-MPB/Meep 或物理因果主张。本页由 AI 整理，保持 Draft，等待人类负责人审阅。
