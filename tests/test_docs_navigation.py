@@ -106,6 +106,8 @@ def test_formal_results_navigation_is_an_explicit_whitelist() -> None:
         "results/forward/EXP-FWD-014-gap决策损失短预算筛选.md",
         "results/forward/EXP-FWD-015-gap决策近简并审计.md",
         "results/forward/EXP-FWD-019-组件归因三种子确认.md",
+        "results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+        "results/forward/EXP-FWD-023-十二域交叉测试.md",
         "results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md",
         "results/field-physics/代理选频与真实响应差异_20260825.md",
         "results/field-physics/EXP-PHY-005-TE有效折射率与折叠频率校准.md",

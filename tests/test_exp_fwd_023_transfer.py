@@ -219,7 +219,7 @@ def test_rendered_draft_contains_all_756_cells_and_boundaries(tmp_path: Path) ->
     write_csv(combined / "twelve_domain_macro.csv", macros)
     write_csv(combined / "training_resources.csv", [{**cp, "training_status": "formal_training_success" if i < 23 else "training_complete_convergence_not_met"} for i, cp in enumerate(checkpoints)])
     output = render_transfer_report(tmp_path)
-    text = output.read_text()
+    text = output.read_text(encoding="utf-8")
     assert "status: draft" in text and "WSL real-MPB 数据验收未完成" in text
     assert "23 个通过收敛门、40 个" in text and "跨 seed" in text
     assert text.count("1.0000 / 1.2000") == 756
