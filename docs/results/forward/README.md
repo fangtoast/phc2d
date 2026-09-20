@@ -5,7 +5,7 @@ page_type: landing
 status: draft
 audience: 模型研究者、复现执行者与结果审阅者
 owner: 研究生维护
-last_reviewed: 2026-08-27
+last_reviewed: 2026-09-20
 reading_time: 3 minutes
 primary_layer: L3
 ---
@@ -37,6 +37,7 @@ primary_layer: L3
 | [EXP-FWD-015：gap 决策近简并审计](EXP-FWD-015-gap决策近简并审计.md) | 近简并只带来最多 3.0 个百分点容差收益；低命中主要是模型排序与 complete-gap 召回问题，Draft |
 | [EXP-FWD-019：组件归因三种子确认](EXP-FWD-019-组件归因三种子确认.md) | 42项F50 validation-only确认完成；ConvNeXt大核信号最强，FNO/Joint频谱删除受容量混杂，TFNO channel未通过两路线一致性门，Draft |
 | [EXP-FWD-020：全局—局部带隙算子六域交叉评估](EXP-FWD-020-全局局部带隙算子六域交叉评估.md) | 36 个冻结 checkpoint 的 216-cell held-out surrogate 评估已完成；跨域 MRE 明显高于 native，7x7 对 3x3 没有全局一致优势；G2 未通过，不作 promotion，Draft |
+| [EXP-FWD-023：固定模型十二域交叉测试](EXP-FWD-023-十二域交叉测试.md) | 63 个冻结 checkpoint 的 K5/K8/K10/K15/K20/F50 双路线 756-cell 交叉测试；S3-BG/TFNO 十二域等权最低，限 seed0 surrogate，Draft |
 | [超参数灵敏度分析（历史单 seed）](灵敏度分析.md) | 局部搜索的解释性记录；残差 MLP 加深是待多 seed 确认的假设，不作正式排名或 promotion |
 
 [返回研究结果与报告](../README.md)

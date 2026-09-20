@@ -616,7 +616,7 @@ experiments:
   - id: EXP-FWD-021
     title: 8k 公平多域训练与六域验证
     task: forward
-    status: authorized_pending_implementation_and_admission
+    status: completed_seed0_exploratory_surrogate
     mapping_status: complete
     research_question: 固定每个 checkpoint 使用 8,000 条训练样本时，跨 K、跨路线与六域联合训练能否改善九个标准 Full-Wh 模型的六域泛化？
     spec:
@@ -625,34 +625,40 @@ experiments:
       - configs/research/full_cell_multidomain_exp_fwd_021_v1.yaml
     runs:
       local: []
-      referenced_not_local: []
-    result: []
+      referenced_not_local:
+        - runs/EXP-FWD-021/20260915/EXP-FWD-021_20260915194709
+    result:
+      - docs/results/forward/EXP-FWD-023-十二域交叉测试.md
     report: []
     related_experiments:
       - EXP-FWD-010
       - EXP-FWD-020
     decision:
-      state: authorized_pending_admission
-      summary: 已冻结 seed0、七种 8k 制度、九模型与六域评估边界；N56 hp_5090 admission 通过前不得提交正式训练。
+      state: completed_pending_human_review
+      summary: 63/63 个固定 200 epoch 训练任务与原六域 378/378 个 cell 已完成；23 个通过末窗收敛门、40 个未通过，结论限 seed0 exploratory surrogate。
     tags: [forward, full-cell, multidomain, fair-8k, seed0, six-domain, surrogate-only]
 
   - id: EXP-FWD-023
     title: 固定模型十二域交叉测试
     task: forward
-    status: authorized_pending_data_transfer_and_freeze
+    status: completed_seed0_exploratory_surrogate
     mapping_status: complete
     research_question: EXP-FWD-021 的 63 个冻结模型在 K5/K8/K10/K15/K20/F50 两路线上的 held-out surrogate 泛化如何？
     spec:
       - experiments/research/EXP-FWD-023-固定模型十二域交叉测试.md
     config:
       - configs/research/full_cell_transfer_exp_fwd_023_v1.yaml
-    runs: {local: [], referenced_not_local: []}
-    result: []
+    runs:
+      local: []
+      referenced_not_local:
+        - runs/20260917/EXP-FWD-023_202609171354
+    result:
+      - docs/results/forward/EXP-FWD-023-十二域交叉测试.md
     report: []
     related_experiments: [EXP-FWD-021, EXP-DAT-006]
     decision:
-      state: authorized_pending_freeze
-      summary: 仅在 N56 测试、不重训；新增六域保留物理验收待完成标识，先哈希和泄漏审计再读一次 test cache。
+      state: completed_pending_human_review
+      summary: 756/756 个十二域 cell 与 7,560 条逐 Band 记录完成；S3-BG/TFNO 十二域等权最低，仍限 seed0 surrogate，K8/K10/K15 待 WSL 物理验收。
     tags: [forward, full-cell, twelve-domain, fixed-checkpoint, seed0, surrogate-only]
 
   - id: EXP-QRY-001
