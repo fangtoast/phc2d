@@ -5,7 +5,7 @@
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
-> 2026-09-18 EXP-FWD-022 状态：1,080 个冻结 validation 干预单元保持固化。N40 独立能力 30/30 训练及 finalizer 全部 COMPLETED/0:0，终态与哈希审计通过；30 个模型结果、24 条配对比较、12 条组合收益已补充。Binary/Graded 分开 K5+K20 的固定 200 epoch 预算下，Full 优于普通及参数量控制单支，三个 seed 方向一致；但仅 11/30 通过末段收敛门，状态为 capability_complete_pending_human_review，不作充分优化后的能力确认、test/physical 或 promotion。原失败记录保留；下一 gate 为人工审阅固定预算结果及收敛限制。详见[分支依赖与独立能力 Draft](docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md)。
+> 2026-09-20 EXP-FWD-022 状态：1,080 个冻结 validation 干预单元与 30/30 独立训练均保持完整，终态与哈希审计已通过。联合对照限定 K5/K20、Binary/Graded、3×3：按三 seed 均值为 2 域同向、2 域反向；加入 seed 方向门后为 1 域稳定同向、2 域稳定反向、1 域冻结排序不稳定。重训能力在两 lane 均稳定表现为 K5 的 G-only 更好、K20 的 L-only 更好；Full 在固定 200 epoch mixed 主指标上仍优于普通及参数量控制单支，但仅 11/30 通过末段收敛门。结论保持 validation-only、capability_complete_pending_human_review，不作 test/physical、充分优化能力或 promotion 主张；下一 gate 为人工审阅联合判读。详见[分支依赖与独立能力 Draft](docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md)。
 
 > 2026-08-07 工程状态：通用超算物理 campaign 控制面与 `full_cell_band` 参考适配器已实现；query/k-path、field-eigen、resolution-convergence 与 inverse replay 仅完成适配器登记，尚未完成多节点迁移。详见 [`docs/hpc_physics_campaigns.md`](docs/hpc_physics_campaigns.md)。这不是新的物理验证结论。
 

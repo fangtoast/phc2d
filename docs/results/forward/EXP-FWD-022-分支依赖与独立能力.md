@@ -1,14 +1,14 @@
 ---
 title: EXP-FWD-022 分支依赖与独立能力
-summary: 冻结分支关断与30项独立训练已完成；固定200 epoch预算下Full优于单支及参数量控制，但仅11项通过收敛门，待人工审阅。
+summary: 冻结依赖与独立训练联合对照完成；均值排序两域同向两域反向，但按seed审计为一同向、两反向、一不稳定。
 page_type: evidence
 status: draft
 audience: 导师、正向模型研究者与结果审阅者
 owner: 研究生维护，导师审阅科学主张
-last_reviewed: 2026-09-18
+last_reviewed: 2026-09-20
 date: 2026-09-18
 scope: frozen_validation_branch_dependency_and_fixed_budget_independent_capability
-reading_time: 12 minutes
+reading_time: 14 minutes
 primary_layer: L3
 evidence_date: 2026-09-18
 evidence_scope: frozen_validation_dependency_and_k5_k20_lane_separated_200_epoch_capability
@@ -37,7 +37,9 @@ source_artifacts:
 
 **独立能力补充：固定 200 epoch 预算下，Binary/Graded 两条 K5+K20 mixed lane 的 Full 均优于普通单支及参数量控制，三个 seed 方向一致。** 但仅 11/30 通过末段收敛门，不能写成充分优化后的能力上限。本页保持 Draft，等待人工审阅；第一至五节仍为 2026-09-16 固化的 G1 证据，第六节单独记录 2026-09-18 完成的独立训练，不改写 G1 原始指标。
 
-**目录：** [证据范围](#scope) · [同域结果](#native) · [尺度控制](#scale) · [跨域与内部归因](#attribution) · [结论边界](#limits) · [独立训练](#capability)
+**联合判读：冻结关断与单支重训不是同一种问题。** 四个可比 3×3 domain 的三 seed 均值排序为两域同向、两域反向；但 K5 Graded 的冻结排序在 seed 间不一致，严格按 seed 方向应记为一域同向、两域反向、一域不稳定。普通单支与参数量控制则稳定地在 K5 由 G-only 更好、K20 由 L-only 更好。该结果支持“依赖不等于能力”，不支持用关断幅度直接预测单支训练上限。
+
+**目录：** [证据范围](#scope) · [同域结果](#native) · [尺度控制](#scale) · [跨域与内部归因](#attribution) · [结论边界](#limits) · [独立训练](#capability) · [联合判读](#joint-reading)
 
 <a id="scope"></a>
 
@@ -51,7 +53,7 @@ source_artifacts:
 | 配对统计 | 864 条比较，10,000 次 sample-level paired bootstrap |
 | 内部 attribution | 每个 checkpoint-target 随机 512 主集与结构分层 512 探索集；共 5,184 分支层记录 |
 | 工程终态 | 8/8 分片及 finalizer 均 COMPLETED/0:0；1,080 唯一身份、主指标有限 |
-| 未执行 | test、独立训练能力评估、real-MPB/Meep；不作 promotion |
+| 本冻结阶段未执行 | test、独立训练能力评估、real-MPB/Meep；后续独立训练另见第六节 |
 
 以下为三个 seed 的算术均值。MRE 为 Bands 2–10，单位 `%`；误差差值为百分点（pp）。样本 bootstrap CI 不衡量跨训练 seed 不确定性，seed 方向另行检查。kernel 指 Local kernel；K5/K20 是 Fourier cutoff，F50 是历史 50k 数据合同，不是 K50。
 
@@ -221,3 +223,52 @@ per-band 与 per-k 产物已生成，但空间模式的跨 seed 稳定性及 BH-
 本地镜像为仓库相同 `runs/20260917/EXP-FWD-022_capability_202609171226/`：224 个小型 JSON/CSV/YAML 文件已与 N40 SHA256 核对，不含数据集或 checkpoint。定位文件为 `freeze.json`、`task_manifest.csv`、`config.resolved.yaml`、`mixed_data_manifest.json`、`results.json`，三张结果表及每项训练终态文件。原始产物不发布到文档站。旧 `EXP-FWD-022_capability_202609171224` 的提交失败记录与部署 `56c1e0f` 保留为修正 lineage；原显式内存参数被平台拒绝，不计为训练结果。
 
 实验协议为仓库 `experiments/research/EXP-FWD-022-全局局部分支归因.md`，训练配置为 `configs/research/full_cell_branch_capability_exp_fwd_022_v1.yaml`。**下一 gate 是人工审阅此固定预算结果与未收敛限制**：若需要更强的能力确认，应另行批准统一的后续训练合同；不得据此自动续训、修改门槛、评估 test 或升级物理主张。
+
+<a id="joint-reading"></a>
+
+## 七、冻结依赖与独立能力的联合判读
+
+### 7.1 两套证据回答不同问题
+
+| 证据 | 操作 | 回答的问题 | 不能回答的问题 |
+|---|---|---|---|
+| 冻结关断 | 对单域训练完成的 Full checkpoint 关闭一个分支；主比较使用 renorm | Full 已形成的表示当前依赖哪个分支；是否存在共适应和关断敏感度 | 单支适应后能达到的性能；分支理论能力上限 |
+| 独立训练 | 在 Binary/Graded 各自的 K5+K20 mixed contract 中从零训练 Full、G-only、L-only 及参数量控制 | 分支重新适应后的固定预算能力；Full 是否有组合收益 | 与单域 Full 的严格配对因果差；充分优化后的架构上限 |
+
+直接可比范围限定为 K5/K20、Binary/Graded、local kernel 3×3 和 validation。F50 没有对应的独立训练，不进入本节。冻结 Full 按单域训练，独立 Full 按 K5+K20 mixed 训练；因此下表比较描述性方向，不把两套 MRE 相减作为新的归因量。
+
+### 7.2 同域数值对照
+
+前三个 MRE 来自冻结单域 Full 及其 renorm 关断；后三个来自独立 mixed 训练后在对应子域上的重评。均为三个 seed 算术均值，单位 `%`。
+
+| domain | 冻结 Full | G-off renorm（只留 L） | L-off renorm（只留 G） | 重训 Full | G-only 重训 | L-only 重训 |
+|---|---:|---:|---:|---:|---:|---:|
+| K5 Binary | 0.558 | 3.291 | 9.758 | 0.551 | 0.652 | 1.028 |
+| K20 Binary | 0.198 | 2.774 | 10.740 | 0.210 | 0.423 | 0.292 |
+| K5 Graded | 0.407 | 5.506 | 4.904 | 0.397 | 0.472 | 0.870 |
+| K20 Graded | 0.130 | 9.209 | 4.919 | 0.150 | 0.339 | 0.231 |
+
+两套 Full 的绝对差异为 −0.006、+0.012、−0.010、+0.020 pp，数值量级接近，但训练数据合同不同，不能视为同 checkpoint 配对。相比直接关断，单支从零训练后的 MRE 在全部八个“domain×保留分支”单元都更低，说明重训能显著适应结构删除；冻结关断更适合测当前 Full 的共适应依赖，而不是估计单支能力。
+
+### 7.3 分支排序的相同与反向
+
+冻结侧以 $I_G^{ctrl}$ 与 $I_L^{ctrl}$ 较大者标记“更强依赖”；训练侧以较低 MRE 标记“更好的单支”。参数量控制列只检查排序是否保持，不代表架构等价。
+
+| domain | 冻结 $I_G/I_L$（pp） | 冻结更强依赖 | 普通单支 G/L MRE（%） | 更好单支 | 参数量控制 G/L MRE（%） | 描述性方向 |
+|---|---:|---|---:|---|---:|---|
+| K5 Binary | 2.734 / 9.201 | Local（3/3 seed） | 0.652 / 1.028 | G-only | 0.572 / 1.019 | 反向（稳定） |
+| K20 Binary | 2.576 / 10.542 | Local（3/3 seed） | 0.423 / 0.292 | L-only | 0.399 / 0.295 | 同向（稳定） |
+| K5 Graded | 5.098 / 4.496 | 均值 Global；seed 为 1G/2L | 0.472 / 0.870 | G-only | 0.404 / 0.860 | 均值同向，冻结排序不稳定；7×7 均值也翻转 |
+| K20 Graded | 9.079 / 4.789 | Global（3/3 seed） | 0.339 / 0.231 | L-only | 0.321 / 0.234 | 反向（稳定） |
+
+这里的“同向/反向”只是两种排序的对照：G1 尚未直接检验 $I_G-I_L$，独立训练也未对每个 K 子域预注册 G-only 与 L-only 的配对检验。按均值可描述为 2/4 同向；加入 seed 方向门后，只能写成 1 域稳定同向、2 域稳定反向、1 域冻结排序不稳定，不能写成统计一致率。
+
+### 7.4 汇总结论
+
+1. **Full 的组合仍有价值。** 普通 G-only 与 L-only 在四个子域的三 seed 均值都高于相应重训 Full；mixed 主指标中，Full 对四种单支变体的 24 条配对 CI 全部支持 Full 更好。
+2. **冻结关断明显低估单支适应能力。** 关断后的保留分支继承 Full 的共适应表示，而独立训练允许剩余分支和 head 重新组织；二者数值差距不应解释为“重训恢复率”或纯信息量。
+3. **冻结依赖呈现有限的 lane 倾向，但不构成稳定规律。** Binary 在 K5/K20 均为 Local 更强且三 seed 一致；K20 Graded 为 Global 更强且三 seed 一致；K5 Graded 只有均值偏 Global，seed 排序为 1G/2L，7×7 均值也会翻转。
+4. **独立能力排序更像 K 模式。** Binary/Graded 及两种参数量控制都在 K5 由 G-only 更好、K20 由 L-only 更好。这是两个离散 K 水平上的重复模式，不支持单调复杂度或物理因果结论。
+5. **最稳妥的机制表述是互补与共适应并存。** Full 形成了无法通过事后删除无损保留的联合表示；单支经重训可恢复大量性能，但固定预算下仍没有全面追平 Full。参数量控制降低了“只是参数更少”的解释力度，却没有消除 head、width 和优化难度混杂。
+
+本联合判读继承两侧限制：G1 是 checkpoint-selection validation 上的冻结干预；独立训练仅 11/30 通过末段收敛门，仍是固定 200 epoch validation 证据。没有 test、real-MPB/Meep、模型 promotion 或分支物理语义确认。
