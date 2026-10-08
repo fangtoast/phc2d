@@ -1,0 +1,323 @@
+% ============================================================================
+% 图契约（thesis-figure-skill 步骤①）
+% 核心结论：神经网络把有限维离散样本映射到有限维向量，而神经算子在
+% 连续函数空间中完成输入函数到输出函数的映射，并能表达全局非局部交互。
+% 图原型：复刻参考图的纯几何·对比双栏布局（两页、两组对照）。
+% 证据层级：hero=神经算子内部的提升—算子层—投影链路；支撑=有限维向量、
+% 结构热图、连续场、k点表格、能带曲线和布里渊区示意。
+% 能不能更少？：保留参考图中决定“有限维 vs 函数到函数”差异的模块；删除
+% 不承载语义的装饰，只用矢量路径、节点、公式和曲线表达信息。
+% 版式测量：参考图1约 1955×645（3.03:1），参考图2约 1998×811（2.46:1）。
+% 目标印刷宽度 W_print≈28 cm；最小印刷字号≈7.5 pt；中文标注全部水平排版。
+% ============================================================================
+\documentclass[border=3pt,multi,tikz]{standalone}
+\usepackage[UTF8,fontset=windows]{ctex}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,fit,positioning,decorations.pathreplacing,shadings}
+\setCJKfamilyfont{hei}{Microsoft YaHei}
+\setCJKfamilyfont{song}{SimSun}
+
+\definecolor{nnblue}{HTML}{183B82}
+\definecolor{nnblue2}{HTML}{2E5DB3}
+\definecolor{opgreen}{HTML}{167A68}
+\definecolor{opgreen2}{HTML}{2B9B85}
+\definecolor{ink}{HTML}{172033}
+\definecolor{muted}{HTML}{4F5D6B}
+\definecolor{orange}{HTML}{D86A20}
+\definecolor{softblue}{HTML}{EEF4FF}
+\definecolor{softgreen}{HTML}{EFFAF5}
+\definecolor{heatblue}{HTML}{1B327E}
+\definecolor{heatcyan}{HTML}{26A7A1}
+\definecolor{heatlime}{HTML}{B9D957}
+\definecolor{heatgold}{HTML}{F3DD72}
+\definecolor{heatpurple}{HTML}{392065}
+
+\tikzset{
+  >={Latex[length=2.2mm,width=1.6mm]},
+  titleblue/.style={font=\CJKfamily{hei}\bfseries\fontsize{20}{22}\selectfont,text=nnblue},
+  titlegreen/.style={font=\CJKfamily{hei}\bfseries\fontsize{20}{22}\selectfont,text=opgreen},
+  subtitle/.style={font=\CJKfamily{hei}\bfseries\fontsize{8.6}{10}\selectfont,text=ink},
+  cnlabel/.style={font=\CJKfamily{song}\fontsize{7.2}{8.6}\selectfont,text=ink},
+  smalllabel/.style={font=\CJKfamily{song}\fontsize{6.2}{7.2}\selectfont,text=muted},
+  mathlabel/.style={font=\rmfamily\fontsize{9}{10}\selectfont,text=ink},
+  arrow/.style={->,line width=1.05pt,draw=ink},
+  greenarrow/.style={->,line width=1.05pt,draw=opgreen},
+  conn/.style={line width=.35pt,draw=nnblue!70},
+  orangeconn/.style={->,line width=.55pt,draw=orange,dashed},
+  panelblue/.style={rounded corners=2pt,draw=nnblue!35,fill=softblue,line width=.7pt},
+  panelgreen/.style={rounded corners=2pt,draw=opgreen!55,fill=softgreen,line width=.7pt},
+  layer/.style={circle,draw=nnblue!85,fill=white,line width=.65pt,minimum size=5.2mm,inner sep=0pt},
+  opnode/.style={circle,draw=opgreen!85,fill=opgreen!22,line width=.5pt,minimum size=3.7mm,inner sep=0pt},
+  point/.style={circle,fill=nnblue,inner sep=0pt,minimum size=2.4mm},
+  opbox/.style={rounded corners=2pt,draw=opgreen!75,fill=white,line width=.8pt},
+}
+
+% A small irregular field used in both pages. It is entirely vector geometry.
+\newcommand{\fieldblob}[2]{%
+  \begin{scope}[shift={(#1,#2)}]
+    \def\blob{(-1.2,-.75) .. controls (-1.55,-.1) and (-1.28,.72) .. (-.72,1.02)
+      .. controls (-.2,1.28) and (.32,.74) .. (.72,.86)
+      .. controls (1.18,1.05) and (1.48,.44) .. (1.28,-.05)
+      .. controls (1.55,-.72) and (.84,-1.18) .. (.32,-1.04)
+      .. controls (-.18,-1.22) and (-.8,-1.3) .. (-1.2,-.75) -- cycle}
+    \clip \blob;
+    \path[shade,shading=axis,left color=heatblue,right color=heatcyan] (-1.65,-1.4) rectangle (1.7,1.4);
+    \shade[ball color=heatgold,opacity=.92] (-.42,.62) circle (.55);
+    \shade[ball color=heatgold,opacity=.86] (.62,-.56) circle (.48);
+    \shade[ball color=heatpurple,opacity=.52] (-.92,-.45) circle (.52);
+    \draw[draw=opgreen!70!black,line width=.7pt] \blob;
+  \end{scope}}
+
+\newcommand{\smallaxis}[2]{%
+  \draw[->,line width=.55pt,draw=ink] (#1,#2) -- ++(.72,0) node[below=-1pt,cnlabel] {$x_1$};
+  \draw[->,line width=.55pt,draw=ink] (#1,#2) -- ++(0,.72) node[left=-1pt,cnlabel] {$x_2$};}
+
+\newcommand{\bandchart}[3]{%
+  % #1,#2 lower-left; #3 colour
+  \begin{scope}[shift={(#1,#2)}]
+    \draw[->,line width=.55pt] (0,0) -- (3.25,0) node[below=1pt,smalllabel] {$k$路径};
+    \draw[->,line width=.55pt] (0,0) -- (0,2.45) node[left=1pt,smalllabel] {$\omega$};
+    \foreach \xx/\lab in {0/$\Gamma$,1.05/$X$,2.1/$M$,3.15/$\Gamma$}{
+      \draw[dashed,gray!65,line width=.35pt] (\xx,0) -- (\xx,2.32);
+      \node[below=1pt,mathlabel] at (\xx,0) {\lab};}
+    \draw[#3,line width=.8pt] (0,.15) .. controls (.45,.62) and (.72,.78) .. (1.05,.82)
+      .. controls (1.52,.9) and (1.78,.55) .. (2.1,.67)
+      .. controls (2.46,.79) and (2.82,.74) .. (3.15,.18);
+    \draw[#3,line width=.8pt] (0,.58) .. controls (.43,.72) and (.75,.38) .. (1.05,.52)
+      .. controls (1.54,.7) and (1.75,.36) .. (2.1,.43)
+      .. controls (2.5,.53) and (2.8,.42) .. (3.15,.56);
+    \draw[#3,line width=.8pt] (0,1.05) .. controls (.4,1.14) and (.7,1.02) .. (1.05,1.1)
+      .. controls (1.6,1.2) and (1.75,1.04) .. (2.1,1.14)
+      .. controls (2.6,1.25) and (2.8,1.1) .. (3.15,1.05);
+    \draw[#3,line width=.8pt] (0,1.65) .. controls (.45,1.54) and (.7,1.49) .. (1.05,1.6)
+      .. controls (1.5,1.74) and (1.78,1.45) .. (2.1,1.55)
+      .. controls (2.55,1.68) and (2.82,1.52) .. (3.15,1.58);
+    \draw[#3,line width=.8pt] (0,2.14) .. controls (.45,2.02) and (.76,2.16) .. (1.05,2.1)
+      .. controls (1.48,2.03) and (1.76,2.18) .. (2.1,2.08)
+      .. controls (2.5,1.98) and (2.8,2.13) .. (3.15,2.04);
+  \end{scope}}
+
+% ============================================================================
+% 页面 1：有限维神经网络 vs 神经算子
+% ============================================================================
+\begin{document}
+\begin{tikzpicture}[x=.9cm,y=.9cm]
+  % panels and divider
+  \path[panelblue] (.15,.15) rectangle (15.95,10.35);
+  \path[panelgreen] (16.35,.15) rectangle (32.15,10.35);
+  \draw[nnblue,line width=1.0pt] (16.15,.15) -- (16.15,10.35);
+
+  \node[titleblue] at (8.05,9.93) {神经网络};
+  \node[titlegreen] at (24.25,9.93) {神经算子};
+
+  % left: input vector
+  \node[subtitle,align=center] at (1.38,8.72) {输入向量};
+  \node[mathlabel] at (1.38,8.15) {$x\in\mathbb{R}^{n}$};
+  \draw[draw=ink,line width=.6pt] (.86,7.58) -- (.86,4.15) -- (1.10,4.15);
+  \draw[draw=ink,line width=.6pt] (1.90,7.58) -- (1.90,4.15) -- (1.66,4.15);
+  \foreach \yy in {7.20,6.58,5.96,5.34,4.72}{\node[point] at (1.38,\yy) {};}
+  \node[mathlabel] at (2.18,4.15) {$n$};
+  \node[smalllabel,align=center] at (1.38,3.45) {离散采样\\（有限维）};
+  \draw[arrow] (2.52,6.0) -- (3.63,6.0);
+
+  % left: fully-connected network
+  \node[subtitle] at (7.25,8.72) {全连接深度网络};
+  \foreach \i/\yy in {1/7.2,2/6.25,3/5.3,4/4.35,5/3.4}{\node[layer] (a\i) at (4.65,\yy) {};}
+  \foreach \i/\yy in {1/7.2,2/6.25,3/5.3,4/4.35,5/3.4}{\node[layer] (b\i) at (6.65,\yy) {};}
+  \foreach \i/\yy in {1/7.2,2/6.25,3/5.3,4/4.35,5/3.4}{\node[layer] (c\i) at (8.65,\yy) {};}
+  \foreach \i/\yy in {1/7.2,2/6.25,3/5.3,4/4.35,5/3.4}{\node[layer] (d\i) at (11.55,\yy) {};}
+  \foreach \i in {1,...,5}{\foreach \j in {1,...,5}{
+      \draw[conn] (a\i) -- (b\j); \draw[conn] (b\i) -- (c\j); \draw[conn] (c\i) -- (d\j);}}
+  \node[mathlabel] at (4.65,2.72) {$\ell=1$};
+  \node[mathlabel] at (6.65,2.72) {$\ell=2$};
+  \node[mathlabel] at (8.65,2.72) {$\cdots$};
+  \node[mathlabel] at (11.55,2.72) {$\ell=L$};
+  \draw[arrow] (12.22,6.0) -- (13.12,6.0);
+
+  % left: output vector
+  \node[subtitle,align=center] at (14.25,8.72) {输出向量};
+  \node[mathlabel] at (14.25,8.15) {$y\in\mathbb{R}^{m}$};
+  \draw[draw=ink,line width=.6pt] (13.72,7.58) -- (13.72,4.15) -- (13.96,4.15);
+  \draw[draw=ink,line width=.6pt] (14.76,7.58) -- (14.76,4.15) -- (14.52,4.15);
+  \foreach \yy in {7.20,6.58,5.96,5.34,4.72}{\node[rectangle,fill=nnblue,minimum size=2.4mm,inner sep=0pt] at (14.25,\yy) {};}
+  \node[mathlabel] at (15.04,4.15) {$m$};
+  \node[smalllabel,align=center] at (14.25,3.45) {离散采样\\（有限维）};
+  \node[mathlabel] at (7.75,1.43) {$x\in\mathbb{R}^{n}\quad\longrightarrow\quad y\in\mathbb{R}^{m}$};
+  \node[mathlabel] at (7.75,.72) {$y=f_{\theta}(x)$};
+
+  % right: input function and blob
+  \node[subtitle,align=center,text=opgreen] at (17.55,8.72) {输入函数};
+  \node[mathlabel] at (17.55,8.15) {$a(x)$};
+  \fieldblob{18.15}{6.15}
+  \draw[->,line width=.55pt,draw=ink] (17.42,4.92) -- ++(.72,0) node[below=-1pt,cnlabel] {$x_1$};
+  \draw[->,line width=.55pt,draw=ink] (17.42,4.92) -- ++(0,.72) node[left=-1pt,cnlabel] {$x_2$};
+  \node[smalllabel] at (18.10,3.88) {定义域 $\Omega\subset\mathbb{R}^{d}$};
+  \draw[greenarrow] (19.42,6.12) -- (20.15,6.12);
+
+  % lifting layer
+  \path[opbox] (20.25,3.68) rectangle (21.95,8.15);
+  \node[cnlabel,align=center,text=opgreen] at (21.10,7.67) {提升层\\$\mathcal{L}$};
+  \path[draw=opgreen!65,line width=.6pt,rounded corners=2pt] (20.73,4.10) rectangle (21.47,6.90);
+  \foreach \yy in {6.55,6.05,5.55,5.05,4.55}{\node[opnode] at (21.10,\yy) {};}
+  \node[mathlabel] at (21.10,4.22) {$\vdots$};
+  \draw[greenarrow] (21.96,6.12) -- (22.45,6.12);
+
+  % operator layer hero
+  \path[opbox,line width=1.15pt] (22.52,2.98) rectangle (27.50,8.15);
+  \node[cnlabel,align=center,text=opgreen] at (25.01,7.68) {算子层 $\mathcal{K}$};
+  \node[smalllabel,text=orange] at (25.01,7.17) {傅里叶空间};
+  \node[mathlabel] at (23.55,6.72) {$\mathcal{F}[\cdot]$};
+  \draw[greenarrow] (24.10,6.72) -- (24.35,6.72);
+  \node[mathlabel,text=orange] at (25.05,6.72) {$\times\,K(k)$};
+  \draw[greenarrow] (25.78,6.72) -- (26.10,6.72);
+  \node[mathlabel] at (26.70,6.72) {$\mathcal{F}^{-1}[\cdot]$};
+  \foreach \i/\yy in {1/5.75,2/5.20,3/4.65,4/4.10}{\node[opnode] (ol\i) at (23.25,\yy) {};}
+  \foreach \i/\yy in {1/5.75,2/5.20,3/4.65,4/4.10}{\node[opnode] (or\i) at (26.65,\yy) {};}
+  \foreach \i in {1,...,4}{\foreach \j in {1,...,4}{\draw[orangeconn] (ol\i) .. controls (24.0,5.0) and (25.7,5.0) .. (or\j);}}
+  \node[smalllabel,align=center,text=orange] at (25.01,3.42) {通过积分核实现全局（非局部）交互};
+  \draw[greenarrow] (27.52,6.12) -- (28.02,6.12);
+
+  % projection layer
+  \path[opbox] (28.08,3.68) rectangle (29.78,8.15);
+  \node[cnlabel,align=center,text=opgreen] at (28.93,7.67) {投影层\\$\mathcal{P}$};
+  \path[draw=opgreen!65,line width=.6pt,rounded corners=2pt] (28.56,4.10) rectangle (29.30,6.90);
+  \foreach \yy in {6.55,6.05,5.55,5.05,4.55}{\node[opnode] at (28.93,\yy) {};}
+  \node[mathlabel] at (28.93,4.22) {$\vdots$};
+  \draw[greenarrow] (29.80,6.12) -- (30.45,6.12);
+
+  % right output
+  \node[subtitle,align=center,text=opgreen] at (31.18,8.72) {输出函数};
+  \node[mathlabel] at (31.18,8.15) {$u(x)$};
+  \fieldblob{31.18}{6.15}
+  \draw[->,line width=.55pt,draw=ink] (30.45,4.92) -- ++(.72,0) node[below=-1pt,cnlabel] {$x_1$};
+  \draw[->,line width=.55pt,draw=ink] (30.45,4.92) -- ++(0,.72) node[left=-1pt,cnlabel] {$x_2$};
+  \node[smalllabel] at (31.15,3.88) {定义域 $\Omega\subset\mathbb{R}^{d}$};
+  \node[mathlabel,text=opgreen] at (24.25,1.38) {$\mathcal{G}_{\theta}:\quad a(x)\quad\longrightarrow\quad u(x)$};
+\end{tikzpicture}
+
+% ============================================================================
+% 页面 2：面向光子晶体的传统网络 vs 神经算子
+% ============================================================================
+\begin{tikzpicture}[x=.86cm,y=.86cm]
+  \path[panelblue] (.15,.15) rectangle (15.95,12.15);
+  \path[panelgreen] (16.35,.15) rectangle (32.15,12.15);
+  \draw[nnblue,line width=1.0pt] (16.15,.15) -- (16.15,12.15);
+
+  \node[titleblue] at (8.05,11.72) {传统神经网络};
+  \node[titlegreen] at (24.25,11.72) {神经算子};
+
+  % left heading
+  \node[mathlabel] at (8.05,10.93) {$\rho\;\longrightarrow\;W$};
+  \node[subtitle,text=nnblue] at (8.05,10.38) {有限维回归};
+
+  % left input structure map
+  \node[cnlabel,align=center] at (2.78,9.55) {输入：单元胞\\结构图 $\rho(x,y)$};
+  \path[fill=nnblue!95,draw=nnblue!95] (.95,5.12) rectangle (4.62,8.58);
+  \foreach \xx in {1.38,2.42,3.46,4.18}{\foreach \yy in {5.66,6.62,7.58,8.18}{
+    \node[circle,fill=white,minimum size=4.6mm,inner sep=0pt] at (\xx,\yy) {};}}
+  \draw[->,line width=.6pt] (1.25,4.72) -- (4.25,4.72) node[below=1pt,mathlabel] {$x$};
+  \draw[->,line width=.6pt] (1.25,4.72) -- (1.25,8.18) node[left=1pt,mathlabel] {$y$};
+  \node[mathlabel] at (2.78,4.24) {$\rho(x,y)$};
+  \path[fill=white,draw=gray!60] (1.45,3.64) rectangle (4.20,3.86);
+  \path[shade,shading=axis,left color=white,right color=nnblue] (1.45,3.64) rectangle (4.20,3.86);
+  \node[smalllabel] at (1.45,3.36) {$0$};\node[smalllabel] at (4.20,3.36) {$1$};
+  \draw[arrow] (4.78,6.75) -- (5.28,6.75);
+
+  % left MLP/CNN stack
+  \node[cnlabel,align=center] at (7.08,9.55) {MLP/CNN\\层};
+  \foreach \x/\h in {5.55/2.40,6.12/2.16,6.69/1.94,7.26/1.74,8.55/2.35}{
+    \path[fill=nnblue!10,draw=nnblue!70,line width=.7pt] (\x,5.15) -- ++(.42,.25) -- ++(0,\h) -- ++(-.42,-.25) -- cycle;
+    \path[fill=nnblue!18,draw=nnblue!70,line width=.7pt] (\x+.42,5.40) -- ++(.22,.20) -- ++(0,\h) -- ++(-.22,-.20) -- cycle;}
+  \node[mathlabel] at (7.47,6.76) {$\cdots$};
+  \draw[arrow] (9.15,6.75) -- (9.80,6.75);
+
+  % left table
+  \node[cnlabel,align=center] at (12.20,9.55) {输出：预定义 $k$ 点的\\能带频率};
+  \draw[fill=white,draw=gray!65,line width=.55pt] (10.25,7.05) rectangle (14.45,9.05);
+  \path[fill=nnblue!10] (10.25,8.60) rectangle (14.45,9.05);
+  \draw[gray!55] (12.13,7.05) -- (12.13,9.05);
+  \foreach \yy in {8.60,8.15,7.70,7.35}{\draw[gray!55] (10.25,\yy) -- (14.45,\yy);}
+  \node[smalllabel] at (11.18,8.82) {$k$点};
+  \node[smalllabel] at (13.27,8.82) {$\omega$（归一化）};
+  \node[smalllabel] at (11.18,8.38) {$\Gamma(0,0)$};\node[smalllabel] at (13.27,8.38) {0.000};
+  \node[smalllabel] at (11.18,7.94) {$X(\pi/a,0)$};\node[smalllabel] at (13.27,7.94) {0.412};
+  \node[smalllabel] at (11.18,7.50) {$M(\pi/a,\pi/a)$};\node[smalllabel] at (13.27,7.50) {0.623};
+  \node[smalllabel] at (11.18,7.18) {$\Gamma(0,0)$};\node[smalllabel] at (13.27,7.18) {0.842};
+
+  % left band chart
+  \bandchart{10.38}{3.78}{nnblue2}
+  \node[smalllabel] at (9.78,3.37) {$\omega\,(a/c)$};
+  \node[smalllabel,text=nnblue] at (8.03,.65) {改变分辨率或采样点需要重新训练};
+
+  % right heading
+  \node[mathlabel] at (24.25,10.93) {$\mathcal{G}_{\theta}:\;\varepsilon(x,y)\;\longrightarrow\;\omega(k)$};
+  \node[subtitle,text=opgreen] at (24.25,10.38) {函数到函数映射};
+
+  % right input continuous field
+  \node[cnlabel,align=center] at (18.18,9.55) {输入：材料分布\\$\varepsilon(x,y)$（连续场）};
+  \begin{scope}
+    \clip (16.85,5.12) rectangle (19.70,8.12);
+    \path[shade,shading=axis,left color=heatpurple,right color=heatcyan] (16.85,5.12) rectangle (19.70,8.12);
+    \shade[ball color=heatlime,opacity=.9] (17.42,7.45) circle (.62);
+    \shade[ball color=heatgold,opacity=.86] (18.52,6.86) circle (.62);
+    \shade[ball color=heatpurple,opacity=.74] (19.18,7.70) circle (.58);
+    \shade[ball color=heatlime,opacity=.75] (17.55,5.62) circle (.54);
+    \shade[ball color=heatgold,opacity=.72] (19.00,5.45) circle (.46);
+  \end{scope}
+  \draw[draw=ink,line width=.65pt] (16.85,5.12) rectangle (19.70,8.12);
+  \draw[->,line width=.6pt] (17.12,4.72) -- (19.25,4.72) node[below=1pt,mathlabel] {$x$};
+  \draw[->,line width=.6pt] (17.12,4.72) -- (17.12,7.10) node[left=1pt,mathlabel] {$y$};
+  \node[mathlabel] at (18.28,4.25) {$\varepsilon(x,y)$};
+  \path[fill=white,draw=gray!60] (16.95,3.62) rectangle (19.45,3.86);
+  \path[shade,shading=axis,left color=heatpurple,right color=heatgold] (16.95,3.62) rectangle (19.45,3.86);
+  \node[smalllabel] at (16.95,3.32) {$\varepsilon_{\min}$};\node[smalllabel] at (19.45,3.32) {$\varepsilon_{\max}$};
+  \draw[greenarrow] (19.88,6.62) -- (20.35,6.62);
+
+  % right encoder
+  \path[opbox] (20.40,4.58) rectangle (22.32,8.70);
+  \node[cnlabel,align=center,text=opgreen] at (21.36,8.28) {编码器/\\提升\\$\mathcal{E}$};
+  \path[draw=opgreen!65,line width=.6pt,rounded corners=2pt] (20.92,5.00) rectangle (21.80,7.15);
+  \foreach \yy in {6.80,6.35,5.90,5.45}{\node[opnode] at (21.36,\yy) {};}
+  \node[mathlabel] at (21.36,5.14) {$\vdots$};
+  \draw[greenarrow] (22.34,6.62) -- (22.72,6.62);
+
+  % right global operator
+  \path[opbox,line width=1.05pt] (22.76,4.22) rectangle (26.82,8.92);
+  \node[cnlabel,align=center,text=opgreen] at (24.79,8.43) {全局算子变换};
+  \node[mathlabel,text=opgreen] at (24.79,7.86) {$\mathcal{K}_{\theta}$};
+  \foreach \i/\xx in {1/23.22,2/24.05,3/24.88,4/25.71,5/26.40}{\node[opnode] (gl\i) at (\xx,6.40) {};}
+  \foreach \i/\xx in {1/23.22,2/24.05,3/24.88,4/25.71,5/26.40}{\node[opnode] (gr\i) at (\xx,5.55) {};}
+  \draw[orange!75,dashed,line width=.6pt] (24.79,5.05) circle (1.05);
+  \draw[->,orange!85,line width=.55pt] (24.79,5.05) -- (25.85,5.05);
+  \draw[->,orange!85,line width=.55pt] (24.79,5.05) -- (24.79,6.12);
+  \foreach \i in {1,...,5}{\foreach \j in {1,...,5}{\draw[orangeconn] (gl\i) .. controls (24.0,6.1) and (25.55,6.1) .. (gr\j);}}
+  \node[smalllabel,align=center,text=opgreen] at (24.79,4.55) {（傅里叶/谱混合）};
+  \draw[greenarrow] (26.84,6.62) -- (27.20,6.62);
+
+  % right decoder
+  \path[opbox] (27.24,4.58) rectangle (29.18,8.70);
+  \node[cnlabel,align=center,text=opgreen] at (28.21,8.28) {解码器/\\投影\\$\mathcal{D}$};
+  \path[draw=opgreen!65,line width=.6pt,rounded corners=2pt] (27.77,5.00) rectangle (28.65,7.15);
+  \foreach \yy in {6.80,6.35,5.90,5.45}{\node[opnode] at (28.21,\yy) {};}
+  \node[mathlabel] at (28.21,5.14) {$\vdots$};
+  \draw[greenarrow] (29.20,6.62) -- (29.56,6.62);
+
+  % right response: Brillouin zone and band curves
+  \node[cnlabel,align=center] at (30.72,9.55) {输出：电磁响应\\（连续）};
+  \node[mathlabel,align=center] at (30.72,8.85) {$\omega(k),\;W(k)$};
+  \path[fill=gray!7,draw=gray!70,line width=.55pt] (29.60,6.10) -- (31.72,6.10) -- (31.20,8.05) -- (30.05,8.05) -- cycle;
+  \path[fill=opgreen!55,draw=ink,line width=.65pt] (30.13,6.35) -- (31.30,6.46) -- (31.45,7.35) -- (30.85,7.88) -- (29.92,7.55) -- cycle;
+  \node[mathlabel] at (30.92,7.10) {$X$};\node[mathlabel] at (30.44,7.42) {$\Gamma$};\node[mathlabel] at (31.18,7.75) {$M$};
+  \draw[->,line width=.6pt] (30.65,7.20) -- (30.65,8.75) node[above=1pt,mathlabel] {$k_y$};
+  \draw[->,line width=.6pt] (30.65,7.20) -- (31.70,7.20) node[right=1pt,mathlabel] {$k_x$};
+  \bandchart{29.62}{1.55}{opgreen}
+  \node[smalllabel,text=opgreen] at (27.00,.65) {查询点/分辨率灵活};
+\end{tikzpicture}
+\end{document}
+
+
+
+
+
