@@ -1,0 +1,262 @@
+% 图契约 / Draft / primary_layer: L2 / owner: fangtoast
+% 核心结论：不同结构分布共享同一周期物理求解出口（忠实重绘用户参考图）。
+% 图原型：Mode C，16:9 三栏；hero=K5/K20/F50；支撑=材料映射与完整 BZ 网格。
+% 证据边界：仅概念图；结构纹理由矢量重建，不是新求解数据。公式与常数按图转录。
+% 测量：1672x941；左栏 x17..575，中栏583..1145，右栏1152..1656；
+% 主体 y128..770；验收条 y780..876；结论 y884..932。
+% 印刷：画布宽32cm，最小中文7pt；保持与参考图对应的相对尺寸、留白和白背景。
+% 布局：左栏上方周期场+公式，中部二值/渐变分支，下方介电映射；
+% 中栏三张等高卡片，各含结构图、正文、结论；右栏网格+图例、公式、张量卡。
+% 连线：主流程深蓝实线；周期边界双向虚线；底部依次7节点，箭头接命名锚点。
+% 视觉：深蓝标题、蓝/青/橙三数据域、浅蓝标题条；不增加性能数值或新研究主张。
+% 可删元素：无新增装饰；底部条保留原参考图独立的验收逻辑。
+% 文案：Binary/Graded/Fourier/Bloch/Maxwell 等说明词中文化；
+% 保留 K5、K20、F50、MPB、BZ、Wh 等技术标识与数学符号。
+% Build: xelatex -interaction=nonstopmode -halt-on-error high_fidelity_data_cn.tex
+\documentclass[tikz,border=0pt]{standalone}
+\usepackage[UTF8,fontset=none]{ctex}
+\usepackage{amsmath,amssymb}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,bending,calc,positioning,fit,shadings,backgrounds}
+\IfFontExistsTF{Microsoft YaHei}{%
+  \setCJKmainfont{Microsoft YaHei}
+  \setCJKsansfont{Microsoft YaHei}
+}{%
+  \setCJKmainfont{FandolHei-Regular}[BoldFont=FandolHei-Bold]
+  \setCJKsansfont{FandolHei-Regular}[BoldFont=FandolHei-Bold]
+}
+\setsansfont{TeX Gyre Heros}
+\renewcommand{\familydefault}{\sfdefault}
+\definecolor{navy}{HTML}{072C65}
+\definecolor{blue}{HTML}{076CC8}
+\definecolor{teal}{HTML}{008CA2}
+\definecolor{orange}{HTML}{F87618}
+\definecolor{deep}{HTML}{084D92}
+\definecolor{light}{HTML}{E6F5FC}
+\definecolor{line}{HTML}{87C6E9}
+\definecolor{pale}{HTML}{BCDFFA}
+\definecolor{red}{HTML}{C63A47}
+\definecolor{dotblue}{HTML}{0454BF}
+\tikzset{
+  every node/.style={text=navy,inner sep=0pt,outer sep=0pt,align=center,font=\fontsize{7.7}{10}\selectfont},
+  heading/.style={font=\bfseries\fontsize{11.8}{14}\selectfont,anchor=west},
+  body/.style={anchor=north west,align=left,font=\fontsize{7.5}{10}\selectfont},
+  small/.style={font=\fontsize{7.0}{9}\selectfont},
+  formula/.style={font=\fontsize{9.0}{11}\selectfont},
+  title/.style={font=\bfseries\fontsize{18}{21}\selectfont},
+  subtitle/.style={font=\fontsize{11.2}{14}\selectfont},
+  cardtitle/.style={font=\bfseries\fontsize{7.8}{9.3}\selectfont,text=white},
+  zone/.style={draw=line,line width=.55pt,rounded corners=2pt,fill=white},
+  arrow/.style={-{Stealth[length=5pt 1.5,width'=0pt .6,sep=0pt .5]},line width=1pt,shorten >=2pt,shorten <=1pt,draw=navy},
+  arrow short/.style={-{Stealth[length=3pt 1,width'=0pt .5,sep=0pt .3]},line width=.8pt,shorten >=1pt,shorten <=0pt,draw=navy},
+  fanstub/.style={arrow,shorten <=0pt},
+  step/.style={rounded corners=2pt,fill=light,minimum height=17pt,font=\bfseries\fontsize{9.3}{11}\selectfont},
+}
+% Native PDF radial shadings: smooth vector fields, never embedded raster images.
+\pgfdeclareradialshading{softhole}{\pgfpointorigin}{%
+ color(0bp)=(white);color(15bp)=(white);color(28bp)=(pale);
+ color(40bp)=(deep);color(50bp)=(deep)}
+\pgfdeclareradialshading{softcore}{\pgfpointorigin}{%
+ color(0bp)=(deep);color(20bp)=(deep);color(35bp)=(pale);color(50bp)=(white)}
+% Tile coordinates are normalized. Clip the periodic copies at the unit-cell boundary.
+\newcommand{\BinaryTile}[3]{%
+ \begin{scope}[shift={(#1,#2)},xscale=#3,yscale=#3]
+ \path[fill=deep] (0,0) rectangle (1,1);
+ \begin{scope}
+ \clip (0,0) rectangle (1,1);
+ \foreach \xx in {0,.5,1}{\foreach \yy in {0,.5,1}{
+   \path[fill=white] (\xx,\yy) circle[radius=.122];}}
+ \foreach \xx in {.25,.75}{\foreach \yy in {.25,.75}{
+   \path[fill=white] (\xx,\yy) circle[radius=.078];}}
+ \end{scope}
+ \path[draw=deep,line width=.6pt] (0,0) rectangle (1,1);
+ \end{scope}}
+\newcommand{\GradedTile}[3]{%
+ \begin{scope}[shift={(#1,#2)},xscale=#3,yscale=#3]
+ \path[fill=deep] (0,0) rectangle (1,1);
+ \begin{scope}
+ \clip (0,0) rectangle (1,1);
+ \foreach \xx in {0,.5,1}{\foreach \yy in {0,.5,1}{
+   \shade[inner color=white,outer color=deep] (\xx,\yy) circle[radius=.23];}}
+ \foreach \xx in {.25,.75}{\foreach \yy in {.25,.75}{
+   \shade[inner color=white,outer color=deep] (\xx,\yy) circle[radius=.17];}}
+ \end{scope}
+ \path[draw=deep,line width=.6pt] (0,0) rectangle (1,1);
+ \end{scope}}
+\newcommand{\Clover}[3]{%
+ \path[fill=#3] plot[domain=0:360,samples=73,smooth cycle]
+ ({#1+(.30+.057*cos(4*\x))*cos(\x)},
+  {#2+(.30+.057*cos(4*\x))*sin(\x)});}
+\newcommand{\LowTile}[3]{%
+ \begin{scope}[shift={(#1,#2)},xscale=#3,yscale=#3]
+ \path[fill=white] (0,0) rectangle (1,1);
+ \begin{scope}
+ \clip (0,0) rectangle (1,1);
+ \Clover{.5}{.5}{deep}
+ \foreach \xx in {0,1}{\foreach \yy in {0,1}{
+ \path[fill=deep] (\xx,\yy) circle[radius=.18];}}
+ \end{scope}
+ \path[draw=deep,line width=.6pt] (0,0) rectangle (1,1);
+ \end{scope}}
+\newcommand{\HighTile}[3]{%
+ \begin{scope}[shift={(#1,#2)},xscale=#3,yscale=#3]
+ \path[fill=deep] (0,0) rectangle (1,1);
+ \begin{scope}
+ \clip (0,0) rectangle (1,1);
+ \foreach \xx in {.23,.77}{\foreach \yy in {.23,.77}{
+ \path[fill=white] (\xx,\yy) ellipse[x radius=.20,y radius=.21];}}
+ \foreach \xx in {.24,.76}{
+ \path[fill=white] (\xx,0) circle[radius=.105];
+ \path[fill=white] (\xx,1) circle[radius=.105];}
+ \foreach \yy in {.25,.75}{
+ \path[fill=white] (0,\yy) circle[radius=.105];
+ \path[fill=white] (1,\yy) circle[radius=.105];}
+ \Clover{.5}{.5}{deep}
+ \end{scope}
+ \path[draw=deep,line width=.6pt] (0,0) rectangle (1,1);
+ \end{scope}}
+% Cards follow stage-container / formula-box patterns, adapted to measured source geometry.
+\newcommand{\DomainCard}[5]{%
+ \path[draw=#4,line width=.6pt,fill=#4!4,rounded corners=3pt]
+ (#1,186) rectangle (#2,665);
+ \path[fill=#4,rounded corners=3pt] (#1,186) rectangle (#2,242);
+ \path[fill=white] (#1+1,234) rectangle (#2-1,664);
+ \node[cardtitle,align=center,text width=3.1cm] at ({(#1+#2)/2},211) {#3};
+ \path[fill=#4!10,rounded corners=4pt] (#1+7,586) rectangle (#2-7,650);
+ \node[formula,font=\bfseries\fontsize{13}{15}\selectfont] at ({(#1+#2)/2},609) {#5};
+}
+\newcommand{\Bullet}[3]{%
+ \node[anchor=north west,text=#3] at (#1,#2) {$\bullet$};}
+\newcommand{\drawAxis}[2]{%
+  \draw[->,line width=.55pt,draw=navy] (#1,#2) -- ++(55,0);
+  \draw[->,line width=.55pt,draw=navy] (#1,#2) -- ++(0,-55);}
+\newcommand{\LeftPanel}{%
+  \path[zone] (16,128) rectangle (575,770);
+  \path[fill=light] (17,129) rectangle (574,177);
+  \node[heading] at (30,153) {1. 周期结构生成与材料映射};
+  % Periodic structure and Fourier representation.
+  \BinaryTile{53}{216}{137}
+  \draw[dashed,navy,line width=.45pt,->] (52,205) -- (191,205);
+  \draw[dashed,navy,line width=.45pt,->] (191,205) -- (52,205);
+  \node[small] at (121,194) {周期边界};
+  \draw[dashed,navy,line width=.45pt,->] (43,216) -- (43,350);
+  \draw[dashed,navy,line width=.45pt,->] (202,350) -- (202,216);
+  \draw[->,line width=.6pt] (48,360) -- (95,360) node[below=2pt,small] {$x$};
+  \draw[->,line width=.6pt] (48,360) -- (48,313) node[left=2pt,small] {$y$};
+  \node[small] at (121,377) {周期傅里叶表示};
+  \node[anchor=north west,font=\fontsize{8.0}{10}\selectfont] at (218,219) {$\displaystyle f(x,y)=\sum_{m\in\mathcal{M}_K}\bigl[a_m\cos(2\pi m\cdot r)+b_m\sin(2\pi m\cdot r)\bigr]$};
+  \node[small,anchor=north west,align=left] at (220,280) {$r=(x,y)$};
+  \node[small,anchor=north west,align=left] at (220,306) {$m=(m_x,m_y)$};
+  \node[small,anchor=north west,align=left] at (220,332) {$K$ 控制可表达的空间频率范围\\傅里叶基函数保证结构具有周期性。};
+  \draw[navy,line width=.8pt] (284,391) -- (284,407) -- (153,407) -- (153,422);
+  \draw[navy,line width=.8pt] (284,407) -- (438,407) -- (438,422);
+  \path[fill=light,rounded corners=3pt] (31,426) rectangle (273,459);
+  \path[fill=light,rounded corners=3pt] (297,426) rectangle (538,459);
+  \node[font=\bfseries\fontsize{7.4}{9}\selectfont] at (152,443) {二值：阈值化后的二值介质};
+  \node[font=\bfseries\fontsize{7.4}{9}\selectfont] at (418,443) {渐变：连续平滑的介电权重};
+  \node[small,anchor=north west] at (51,470) {$w_B(x,y)=\mathbf{1}\{f(x,y)\ge \tau\}$};
+  \node[small,anchor=north west] at (308,470) {$w_G(x,y)=\displaystyle\frac{1}{1+\exp[-(f(x,y)-b)/T]}$};
+  \BinaryTile{95}{510}{112}
+  \GradedTile{382}{510}{112}
+  \draw[navy,line width=.65pt] (151,625) -- (151,650) -- (284,650);
+  \draw[navy,line width=.65pt] (438,625) -- (438,650) -- (284,650);
+  \draw[navy,line width=.65pt,->] (284,650) -- (284,662);
+  \path[fill=light,rounded corners=4pt] (110,665) rectangle (474,710);
+  \node[formula] at (292,686) {$\varepsilon(x,y)=\varepsilon_{air}+(\varepsilon_{mat}-\varepsilon_{air})w(x,y)$};
+  \node[small] at (292,728) {$\varepsilon_{air}\approx1.0,\qquad \varepsilon_{mat}\approx8.9$};
+  \node[small] at (292,750) {傅里叶参数决定结构形状，二值/渐变映射决定材料分布。};
+}
+\newcommand{\CenterPanel}{%
+  \path[zone] (583,128) rectangle (1145,770);
+  \path[fill=light] (584,129) rectangle (1144,177);
+  \node[heading] at (595,153) {2. 不同数据域：覆盖不同结构分布};
+  \DomainCard{591}{759}{K5：低频基础\\结构域}{blue}{$K=5$}
+  \DomainCard{767}{939}{K20：高频复杂\\结构域}{teal}{$K=20$}
+  \DomainCard{947}{1137}{F50：旧版 5 万\\混合约束路线}{orange}{$\color{orange}F50\ne K=50$}
+  \LowTile{609}{250}{132}
+  \HighTile{786}{250}{135}
+  \begin{scope}[shift={(955,260)},xscale=53,yscale=60]\path[fill=deep,draw=deep,line width=.5pt] (0,0) rectangle (1,1);\path[fill=white] (.5,.5) circle[radius=.25];\end{scope}
+  \begin{scope}[shift={(1016,260)},xscale=53,yscale=60]\path[fill=white] (0,0) rectangle (1,1);\shade[inner color=deep,outer color=white] (.5,.5) circle[radius=.5];\path[draw=deep,line width=.5pt] (0,0) rectangle (1,1);\end{scope}
+  \begin{scope}[shift={(1077,260)},xscale=53,yscale=60]\path[fill=white,draw=deep,line width=.5pt] (0,0) rectangle (1,1);\Clover{.5}{.5}{deep}\end{scope}
+  \node[small,align=center] at (982,346) {空气孔\\（二值）};
+  \node[small,align=center] at (1043,346) {渐变\\（连续）};
+  \node[small,align=center,text width=1.15cm,font=\fontsize{6.7}{8}\selectfont] at (1100,346) {阈值化\\（自由形状）};
+  \Bullet{598}{399}{blue}\node[body,text width=2.75cm] at (613,399) {傅里叶截断较低};
+  \Bullet{598}{428}{blue}\node[body,text width=2.75cm] at (613,428) {结构变化相对平缓};
+  \Bullet{598}{457}{blue}\node[body,text width=2.75cm] at (613,457) {基础训练与低复杂度\\结构验证};
+  \Bullet{598}{510}{blue}\node[body,text width=2.75cm] at (613,510) {模型学习周期介质\\规律的基础域};
+  \Bullet{774}{399}{teal}\node[body,text width=2.75cm] at (790,399) {傅里叶截断较高};
+  \Bullet{774}{428}{teal}\node[body,text width=2.75cm] at (790,428) {可表达更丰富的局部\\空间变化};
+  \Bullet{774}{480}{teal}\node[body,text width=2.75cm] at (790,480) {用于测试复杂结构和\\分布迁移};
+  \Bullet{774}{532}{teal}\node[body,text width=2.75cm] at (790,532) {不改变最终 MPB\\标签定义};
+  \Bullet{953}{397}{orange}\node[body,text width=3.1cm] at (968,397) {“50”表示 5 万条样本};
+  \Bullet{953}{427}{orange}\node[body,text width=3.1cm] at (968,427) {旧版混合生成谱系};
+  \Bullet{953}{457}{orange}\node[body,text width=3.1cm] at (968,457) {结构受人工规则\\和几何约束};
+  \Bullet{953}{498}{orange}\node[body,text width=3.1cm] at (968,498) {包含空气孔、渐变、\\阈值化等子路线};
+  \Bullet{953}{539}{orange}\node[body,text width=3.1cm] at (968,539) {用于大规模数据\\和跨谱系验证};
+  \node[small] at (675,635) {低空间频率 / 平滑结构};
+  \node[small] at (853,635) {高空间频率 / 复杂界面};
+  \path[fill=light,rounded corners=3pt] (592,681) rectangle (1135,757);
+  \node[font=\fontsize{7.5}{11}\selectfont,align=center,text width=10.2cm] at (863.5,719) {K5 与 K20 通过傅里叶截断控制结构复杂度；F50 属于旧版混合约束数据谱系。\\三者结构分布不同，但共享统一的真实物理标签出口。};
+}
+\newcommand{\RightPanel}{%
+  \path[zone] (1152,128) rectangle (1656,770);
+  \path[fill=light] (1153,129) rectangle (1655,177);
+  \node[heading] at (1164,153) {3. 真实物理求解与高保真标签};
+  \node[font=\bfseries\fontsize{9.4}{11}\selectfont] at (1378,196) {完整 BZ，不只是高对称路径};
+  % Full Brillouin-zone grid.
+  \draw[draw=navy,line width=.65pt] (1245,232) rectangle (1425,402);
+  \foreach \i in {0,...,8}{\foreach \j in {0,...,8}{\fill[dotblue] ({1258+19.5*\i},{240+19.1*\j}) circle[radius=2.1pt];}}
+  \fill[red] (1425,232) circle[radius=2.7pt];\fill[red] (1425,316.4) circle[radius=2.7pt];\fill[red] (1336,316.4) circle[radius=2.7pt];
+  \node[formula,anchor=west] at (1433,232) {$M$};\node[formula,anchor=west] at (1433,316.4) {$X$};\node[formula,anchor=north west] at (1342,323) {$\Gamma$};
+  \draw[->,line width=.6pt] (1224,420) -- (1460,420) node[right=2pt,formula] {$k_x$};
+  \draw[->,line width=.6pt] (1224,420) -- (1224,194) node[above=2pt,formula] {$k_y$};
+  \path[fill=light,rounded corners=3pt] (1470,242) rectangle (1635,392);
+  \fill[dotblue] (1484,266) circle[radius=3pt];\node[small,anchor=west] at (1497,266) {布洛赫波矢 $k$（$9\times9$）};
+  \node[small,anchor=north west] at (1482,292) {$\Gamma:(0,0)$};
+  \node[small,anchor=north west] at (1482,326) {$X:(1/2,0)$};
+  \node[small,anchor=north west] at (1482,360) {$M:(1/2,1/2)$};
+  \node[formula,anchor=north west] at (1176,457) {$\nabla\times\left(\frac{1}{\varepsilon_r(r)}\nabla\times E_k\right)=\left(\frac{\omega}{c}\right)^2E_k$};
+  \draw[line width=.45pt,draw=line] (1440,455) -- (1440,536);
+  \node[small,anchor=north west,align=left] at (1460,456) {输入：周期介电函数 $\varepsilon(r)$\\条件：布洛赫波矢 $k$\\输出：本征频率 $\omega$ 和本征场 $E_k$};
+  \path[fill=light,rounded corners=3pt] (1167,544) rectangle (1641,685);
+  \node[font=\bfseries\fontsize{8.2}{10}\selectfont,anchor=north west] at (1180,559) {输出张量与标签生成};
+  \node[small,anchor=north west] at (1180,585) {$k_{ij}=(i/9,j/9),\quad i,j\in\{-4,\ldots,4\}$};
+  \node[small,anchor=north west] at (1180,611) {$9\times9=81$ 个完整 BZ $k$ 点};
+  \node[small,anchor=north west] at (1180,634) {$Wh[N,81,10]$};
+  \node[small,anchor=north west] at (1180,658) {每个样本对应 81 个布洛赫波矢和 10 条本征能带。};
+  \path[fill=deep,rounded corners=4pt] (1167,705) rectangle (1641,758);
+  \node[text=white,font=\bfseries\fontsize{11}{13}\selectfont] at (1404,731) {真实 MPB 标签：本征频率与能带结构};
+}
+\newcommand{\AuditBar}{%
+  \path[draw=line,line width=.55pt,rounded corners=2pt,fill=white] (16,780) rectangle (1656,876);
+  \node[heading] at (31,807) {高保真数据验收闭环};
+  \foreach \x in {310,500,700,900,1100,1300,1500}{\fill[blue] (\x,816) circle[radius=11pt];}
+  \fill[deep] (1500,816) circle[radius=11pt];
+  \foreach \a/\b in {323/487,513/687,713/887,913/1087,1113/1287,1313/1487}{\draw[arrow short] (\a,816) -- (\b,816);}
+  \node[font=\bfseries\fontsize{7.4}{9}\selectfont,anchor=south] at (310,794) {周期晶胞};
+  \node[font=\bfseries\fontsize{7.4}{9}\selectfont,anchor=south] at (500,794) {结构哈希};
+  \node[font=\bfseries\fontsize{7.4}{9}\selectfont,anchor=south] at (700,794) {多分辨率栅格};
+  \node[font=\bfseries\fontsize{7.4}{9}\selectfont,anchor=south] at (900,794) {real-MPB};
+  \node[font=\bfseries\fontsize{7.4}{9}\selectfont,anchor=south] at (1100,794) {有限值检查};
+  \node[font=\bfseries\fontsize{7.4}{9}\selectfont,anchor=south] at (1300,794) {能带排序检查};
+  \node[font=\bfseries\fontsize{7.4}{9}\selectfont,anchor=south] at (1500,794) {标签入库};
+  \foreach \x/\w/\txt in {386/230/周期边界一致,645/190/结构可回放,890/190/完整 BZ 覆盖,1138/280/本征频率有限且排序一致}{\path[fill=light,rounded corners=3pt] (\x,835) rectangle ++(\w,29);\node[small] at ({\x+.5*\w},849) {\txt};}
+}
+\newcommand{\BottomMessage}{%
+  \path[fill=deep,rounded corners=2pt] (16,884) rectangle (1656,932);
+  \node[text=white,font=\bfseries\fontsize{13}{16}\selectfont] at (836,908) {不同数据域负责覆盖不同结构分布，但所有高保真标签都必须由同一个周期麦克斯韦本征问题产生。};
+}
+\begin{document}
+\begin{tikzpicture}[x=.01913876cm,y=-.01913876cm]
+  \path[fill=white] (0,0) rectangle (1672,941);
+  \node[title] at (836,31) {高保真数据线：统一物理合同下的多数据域生成};
+  \node[subtitle] at (836,83) {周期结构生成 $\rightarrow$ 介电函数构造 $\rightarrow$ real-MPB 本征求解 $\rightarrow$ 完整 BZ 能带标签};
+  \draw[line width=1.1pt,draw=line] (16,108) -- (1656,108);
+  \LeftPanel
+  \CenterPanel
+  \RightPanel
+  \AuditBar
+  \BottomMessage
+\end{tikzpicture}
+\end{document}
