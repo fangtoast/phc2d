@@ -30,4 +30,4 @@ export PHC2D_CASE_COUNT=1200
 export PHC2D_NODE_TIER=1
 export PHC2D_AUTHORIZE_FORMAL=YES
 
-exec "$PHC2D_ROOT/jobs/hpc_submit_physics_campaign.sh"
+exec bash "$PHC2D_ROOT/jobs/hpc_submit_physics_campaign.sh"
