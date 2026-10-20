@@ -1,0 +1,74 @@
+# Analytic single-hole transfer test contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+experiment_id: EXP-DAT-007
+status: geometry_plan_only_pending_solver_admission
+families:
+- circle
+- ellipse
+- triangle
+- square
+- rectangle
+- hexagon
+samples_per_family: 200
+sample_count: 1200
+air_fraction_range:
+- 0.1
+- 0.2
+aspect_ratios:
+- 1.25
+- 1.5
+- 2.0
+- 3.0
+lattice: square
+lattice_constant: 1.0
+epsilon_air: 1.0
+epsilon_material: 8.9
+polarization: TE
+input:
+  master_resolution: 256
+  target_resolution: 64
+  binary_field: material_area_fraction_grid_64
+  raster_method: master_block_mean_v1
+solver:
+  resolution: 64
+  validation_resolutions:
+  - 64
+  - 96
+  - 128
+  num_bands: 10
+  band_guard_count: 4
+  eigensolver_tolerance: 1.0e-07
+  mesh_size: 3
+k_grid:
+  n_side: 9
+  endpoint_policy: centered_unique_no_boundary_duplicates
+selection:
+  test_only: true
+  normalizer_refit: false
+  fine_tuning: false
+  sample_iid_claim: false
+  aggregation: equal_family_macro_plus_per_family
+gates:
+  wsl_environment: Ubuntu/meep_env
+  pilot_structures: 32
+  formal_generation_authorized: false
+  full_gap_claim: false
+literature:
+- doi: 10.1063/1.3247544
+  supports:
+  - circle
+  - square
+  - hexagon
+  scope: 2d_lattice_band_gap_map
+- doi: 10.1103/PhysRevB.73.235114
+  supports:
+  - triangle
+  scope: finite_thickness_slab_shape_reference_only
+- doi: 10.12693/APhysPolA.138.421
+  supports:
+  - ellipse
+  - rectangle
+  - hexagon
+  scope: finite_thickness_slab_shape_reference_only

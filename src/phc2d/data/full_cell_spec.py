@@ -23,6 +23,7 @@ from phc2d.data.full_cell_hashing import (
     hash_structure_parameters,
     jsonable_full_cell_value,
 )
+from phc2d.data.single_hole import evaluate_single_hole
 
 
 FULL_CELL_SCHEMA_VERSION = "phc2d.full_cell.v1"
@@ -134,6 +135,7 @@ def _unified_fourier_graded_weight(
 MaterialWeightEvaluator = Callable[[np.ndarray, np.ndarray, Mapping[str, Any]], np.ndarray]
 MATERIAL_EVALUATORS: Mapping[str, MaterialWeightEvaluator] = MappingProxyType(
     {
+        "analytic_single_hole_v1": evaluate_single_hole,
         "graded_rbf_fourier": _graded_rbf_weight,
         "binary_polar_holes": _binary_polar_weight,
         "binary_spectral_threshold": _binary_spectral_weight,
