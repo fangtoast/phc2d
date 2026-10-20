@@ -53,7 +53,7 @@ plan_state: active
 
 CPU生产复用星仪一节点64个单线程worker。正式标签须待pilot、求解器合同、WSL Ubuntu + meep_env小样本复算过门后再提交；不静默换分辨率或重采样。原81点结果不作完整带隙证明。[MPB官方带边说明](https://mpb.readthedocs.io/en/stable/Python_Tutorial/)。
 
-冻结checkpoint与normalizer后比较三个核心模型，先做无微调直接迁移。报告Band1、Bands2–10、Bands1–10 MRE、逐结构P95、MAE、逐band与参数误差分布；代表样本按预定面积/轴比/角度层与最差例规则选择。角点误差要与标签数值误差分别记录。不得根据该测试重新挑模型或拟合normalizer。
+冻结checkpoint与normalizer后比较三个核心模型，先做无微调直接迁移。主表报告Band 1–10 MRE；Band 2–10与Band 1单独指标保留在原始制品，默认不单列。逐结构P95按Band 1–10误差计算，另保留MAE、逐band与参数误差分布；代表样本按预定面积/轴比/角度层与最差例规则选择。角点误差要与标签数值误差分别记录。不得根据该测试重新挑模型或拟合normalizer。
 
 配置：[EXP-DAT-007](../../configs/research/full_cell_single_hole_exp_dat_007_v1.yaml)。几何接口为 `phc2d.data.single_hole.build_single_hole_test_plan` 与 `analytic_single_hole_v1`。数据输出遵守标准run制品、解析参数、样本计划、配置和solver版本/耗时/hash，不将配置就绪标为标签完成。
 
