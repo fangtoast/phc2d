@@ -231,5 +231,6 @@ def test_repository_platform_profiles_and_slurm_pipeline_are_consistent() -> Non
     )
     assert "PHC2D_NODE_TIER=1" in bingxing_exp_dat_007
     assert "PHC2D_CASE_COUNT=1200" in bingxing_exp_dat_007
+    assert "PHC2D_SUBMIT_PYTHON=python3" in bingxing_exp_dat_007
     assert "workers: 256" in bingxing_exp_dat_007
     assert "automatic_retry_authorized: false" in bingxing_exp_dat_007
