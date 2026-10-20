@@ -184,7 +184,12 @@ def prepare_full_cell_hpc_plan(
     plan_manifest = _read_json(out / "sample_plan_manifest.json")
     plan_sha256 = str(plan_manifest["sample_plan_sha256"])
     dataset_protocol = str(dict(cfg["dataset"]).get("protocol", "full_cell_v1"))
-    output_schema = "phc2d.full_cell.fourier_v2" if dataset_protocol == "full_cell_fourier_v2" else "phc2d.full_cell.v1"
+    output_schemas = {
+        "full_cell_v1": "phc2d.full_cell.v1",
+        "full_cell_fourier_v2": "phc2d.full_cell.fourier_v2",
+        "full_cell_single_hole_v1": "phc2d.full_cell.single_hole_v1",
+    }
+    output_schema = output_schemas[dataset_protocol]
     physical = PhysicalPlanManifest(
         adapter_id="full_cell_band",
         case_count=int(dict(cfg["dataset"])["sample_count"]),

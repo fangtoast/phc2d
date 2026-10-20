@@ -77,6 +77,9 @@ if [[ -n "$partition" ]]; then
   partition_args=(-p "$partition")
 fi
 common_export="ALL,PHC2D_ROOT=$PHC2D_ROOT,PHC2D_PLATFORM_ID=$platform_id,PHC2D_ADAPTER=$PHC2D_ADAPTER,PHC2D_CONFIG=$PHC2D_CONFIG,PHC2D_RUN_DIR=$PHC2D_RUN_DIR,PHC2D_SHARD_COUNT=$nodes,PHC2D_AUTHORIZE_FORMAL=YES"
+if [[ -n "${PHC2D_EXPECTED_COMMIT:-}" ]]; then
+  common_export="$common_export,PHC2D_EXPECTED_COMMIT=$PHC2D_EXPECTED_COMMIT"
+fi
 stage_script="$PHC2D_ROOT/jobs/hpc_physics_stage.sh"
 
 if [[ "$PHC2D_SUBMIT_MODE" == "dry-run" ]]; then

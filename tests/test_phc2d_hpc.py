@@ -219,3 +219,9 @@ def test_repository_platform_profiles_and_slurm_pipeline_are_consistent() -> Non
     assert "PHC2D_SUBMIT_MODE:-dry-run" in submit
     assert "PHC2D_NODE_TIER" in submit
     assert "when PHC2D_NODE_TIER is unset" in submit
+    assert "PHC2D_EXPECTED_COMMIT" in submit
+
+    exp_dat_007 = (root / "jobs/xingyi_submit_exp_dat_007.sh").read_text(encoding="utf-8")
+    assert "PHC2D_NODE_TIER=1" in exp_dat_007
+    assert "PHC2D_CASE_COUNT=1200" in exp_dat_007
+    assert "automatic_retry_authorized: false" in exp_dat_007

@@ -21,7 +21,7 @@ plan_state: active
 <a id="single-hole-transfer"></a>
 # 单孔形状迁移测试协议
 
-**选取圆孔、椭圆孔、等边三角孔、方孔、矩形孔、正六边形孔六族，每族200个确定参数点，共1200个。** 目前只冻结几何及求解准入协议；解析结构已接入现有接口不表示MPB标签已生成或已物理验收。正式CPU生成保持未提交，先完成32结构数值pilot。
+**选取圆孔、椭圆孔、等边三角孔、方孔、矩形孔、正六边形孔六族，每族200个确定参数点，共1200个。** 解析结构和确定性参数计划已冻结。2026-10-20 用户明确授权先生成数据，并豁免32结构r64/r96/r128数值pilot作为提交前置门；该豁免不等于数值收敛通过，正式数据仍须保留 `generation_only_no_label_accuracy_or_model_claim` 边界，集群生成后继续执行传输哈希与WSL验收。
 
 ## 一、孔形依据与适用范围
 
@@ -51,10 +51,10 @@ plan_state: active
 
 输入沿用256主网格面积平均至64的Binary表示；MPB直接读取同一解析几何。目标严格保持原81点顺序、10条TE能带、4条guard、mesh_size=3、tolerance=1e-7。先比较32个覆盖六族与参数边界的结构在r64/r96/r128下的差异，另用原生circle接口检查解析接口。r128只是数值参考；随机结构的历史分辨率门不自动覆盖尖角孔。
 
-CPU生产复用星仪一节点64个单线程worker。正式标签须待pilot、求解器合同、WSL Ubuntu + meep_env小样本复算过门后再提交；不静默换分辨率或重采样。原81点结果不作完整带隙证明。[MPB官方带边说明](https://mpb.readthedocs.io/en/stable/Python_Tutorial/)。
+CPU生产复用星仪一节点64个单线程worker，不静默换分辨率、重采样、扩容或自动重试。32结构数值pilot已由用户从提交前置门中豁免；求解器仍固定为r64、真实MPB、81点、10条TE能带加4条guard。原81点结果不作完整带隙证明。[MPB官方带边说明](https://mpb.readthedocs.io/en/stable/Python_Tutorial/)。
 
 冻结checkpoint与normalizer后比较三个核心模型，先做无微调直接迁移。主表报告Band 1–10 MRE；Band 2–10与Band 1单独指标保留在原始制品，默认不单列。逐结构P95按Band 1–10误差计算，另保留MAE、逐band与参数误差分布；代表样本按预定面积/轴比/角度层与最差例规则选择。角点误差要与标签数值误差分别记录。不得根据该测试重新挑模型或拟合normalizer。
 
 配置：[EXP-DAT-007](../../configs/research/full_cell_single_hole_exp_dat_007_v1.yaml)。几何接口为 `phc2d.data.single_hole.build_single_hole_test_plan` 与 `analytic_single_hole_v1`。数据输出遵守标准run制品、解析参数、样本计划、配置和solver版本/耗时/hash，不将配置就绪标为标签完成。
 
-数值pilot预定失败条件：任一solver失败、非有限值、目标shape错误或256 raster面积误差超过0.01均停止；相对r128的Bands2–10 MRE要求总体median≤0.10%、P95≤0.50%、每族P95≤0.75%。这些沿用历史数值门作为pilot准入，32结构不能证明所有参数点已收敛；若未通过，保留失败证据并重新审阅分辨率合同，不自动升档。
+原数值pilot阈值保留供生成后的标签质量诊断：任一solver失败、非有限值、目标shape错误或256 raster面积误差超过0.01均应记录；相对r128的Bands2–10 MRE参考阈值为总体median≤0.10%、P95≤0.50%、每族P95≤0.75%。当前状态是 `waived_by_user`，不是 `passed`；因此在补做数值诊断前，不得据此宣称r64标签已对尖角孔完成收敛验证。
