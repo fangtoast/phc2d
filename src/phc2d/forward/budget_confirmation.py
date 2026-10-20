@@ -10,6 +10,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -209,6 +210,8 @@ def run_bundle(campaign: Path, slot: int, slots: int, admission: bool = False) -
         if output.exists():
             raise FileExistsError(f"refusing to retry or overwrite {output}")
         run_full_cell_forward(row["config"], model_name=row["model"], seed=int(row["seed"]), run_dir=output, admission_probe=admission)
+    if not admission:
+        finish_native_when_complete(campaign, slot, slots)
 
 
 def freeze_native_test(campaign: Path) -> None:
@@ -245,6 +248,75 @@ def run_test_bundle(campaign: Path, slot: int, slots: int) -> None:
     rows = list(csv.DictReader(path.open(encoding="utf-8")))
     for row in rows[slot::slots]:
         run_test_task(path, task_index=int(row["task_index"]))
+
+
+def summarize_native_test(campaign: Path) -> None:
+    """Write bounded seed-level native results after all expected tests finish."""
+    manifest = list(csv.DictReader((campaign / "test_manifest.csv").open(encoding="utf-8")))
+    cells = []
+    for row in manifest:
+        path = Path(row["result_dir"])
+        result = json.loads((path / "results.json").read_text(encoding="utf-8"))
+        metrics = json.loads((path / "metrics.json").read_text(encoding="utf-8"))
+        if not result["test_executed"] or result["checkpoint_sha256"] != row["checkpoint_sha256"]:
+            raise ValueError("test evidence identity mismatch")
+        values = metrics["evaluations"][0]
+        per_sample = list(csv.DictReader((path / "per_sample_metrics.csv").open(encoding="utf-8")))
+        per_band = list(csv.DictReader((path / "per_band_metrics.csv").open(encoding="utf-8")))
+        config = yaml.safe_load((Path(row["source_run_dir"]) / "config.resolved.yaml").read_text(encoding="utf-8"))
+        cells.append({"source_domain": config["experiment"]["source_domain"], "model": row["model"], "seed": int(row["seed"]),
+                      "band1_mre_pct": float(per_band[0]["mre_pct"]),
+                      "bands_2_10_mre_pct": values["test_bands_2_10_mre_pct"],
+                      "bands_1_10_mre_pct": values["test_full_matrix_mre_pct"],
+                      "p95_sample_bands_2_10_mre_pct": float(np.percentile([float(r["bands_2_10_mre_pct"]) for r in per_sample], 95)),
+                      "mae": values["test_mae"], "checkpoint_sha256": row["checkpoint_sha256"]})
+    write_table(campaign / "native_test_cells.csv", cells)
+    summaries = []
+    for domain, model in sorted({(r["source_domain"], r["model"]) for r in cells}):
+        group = [r for r in cells if r["source_domain"] == domain and r["model"] == model]
+        if {r["seed"] for r in group} != {0, 1, 2} or len(group) != 3:
+            raise ValueError("native summary requires exactly three distinct seeds")
+        item: dict[str, Any] = {"source_domain": domain, "model": model, "seed_count": 3}
+        for metric in ("band1_mre_pct", "bands_2_10_mre_pct", "bands_1_10_mre_pct", "p95_sample_bands_2_10_mre_pct", "mae"):
+            item[metric + "_mean"] = float(np.mean([r[metric] for r in group]))
+            item[metric + "_seed_sd"] = float(np.std([r[metric] for r in group], ddof=1))
+        summaries.append(item)
+    write_table(campaign / "native_test_summary.csv", summaries)
+    write_json(campaign / "results.json", {"status": "fixed300_native_surrogate_evaluation_complete", "training_task_count": len(cells),
+               "test_cell_count": len(cells), "seed_count": 3, "historical_test_previously_viewed": True,
+               "convergence_is_not_implied": True, "physical_claim": False, "model_promotion": False})
+
+
+def finish_native_when_complete(campaign: Path, slot: int, slots: int) -> None:
+    """Let the last successful bundle freeze and test all models once, without retries."""
+    profile = yaml.safe_load((campaign / "config.resolved.yaml").read_text(encoding="utf-8"))
+    if profile["experiment_id"] != "EXP-FWD-024":
+        return
+    identity = json.loads((campaign / "freeze.json").read_text(encoding="utf-8"))["manifest_sha256"]
+    marker = campaign / f"bundle_completed_{slot}.json"
+    temporary = marker.with_suffix(".tmp")
+    with temporary.open("x", encoding="utf-8") as handle:
+        json.dump({"slot": slot, "slots": slots, "manifest_sha256": identity}, handle)
+    try:
+        os.link(temporary, marker)
+    finally:
+        temporary.unlink()
+    for index in range(slots):
+        marker = campaign / f"bundle_completed_{index}.json"
+        if not marker.is_file():
+            return
+        record = json.loads(marker.read_text(encoding="utf-8"))
+        if record != {"slot": index, "slots": slots, "manifest_sha256": identity}:
+            raise ValueError("bundle completion identity mismatch")
+    try:
+        claim = (campaign / "native_test_finalizer_claim.json").open("x", encoding="utf-8")
+    except FileExistsError:
+        return
+    with claim:
+        json.dump({"slot": slot, "status": "finalization_intent_no_automatic_retry"}, claim)
+    freeze_native_test(campaign)
+    run_test_bundle(campaign, 0, 1)
+    summarize_native_test(campaign)
 
 
 def main() -> None:
