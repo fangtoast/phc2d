@@ -102,3 +102,20 @@ def test_execution_overlay_preserves_scientific_contract(tmp_path):
     assert result["training"] == base["training"] and result["models"] == base["models"]
     assert result["seeds"] == [0, 1, 2] and result["platform"]["host"] == "paracloud-n40"
     assert result["base_profile_sha256"] == file_digest(tmp_path / "base.yaml")
+
+
+def test_native_test_waits_for_every_bundle_and_finalizes_once(tmp_path, monkeypatch):
+    import phc2d.forward.budget_confirmation as module
+    (tmp_path / "config.resolved.yaml").write_text("experiment_id: EXP-FWD-024\n")
+    (tmp_path / "freeze.json").write_text(json.dumps({"manifest_sha256": "frozen"}))
+    calls = []
+    monkeypatch.setattr(module, "freeze_native_test", lambda p: calls.append("freeze"))
+    monkeypatch.setattr(module, "run_test_bundle", lambda *args: calls.append("test"))
+    monkeypatch.setattr(module, "summarize_native_test", lambda p: calls.append("summary"))
+    module.finish_native_when_complete(tmp_path, 0, 2)
+    assert calls == []
+    module.finish_native_when_complete(tmp_path, 1, 2)
+    assert calls == ["freeze", "test", "summary"]
+    assert (tmp_path / "native_test_finalizer_claim.json").is_file()
+    with pytest.raises(FileExistsError):
+        module.finish_native_when_complete(tmp_path, 1, 2)
