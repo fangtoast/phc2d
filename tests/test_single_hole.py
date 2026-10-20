@@ -88,3 +88,38 @@ def test_exp_dat_007_config_builds_exact_frozen_production_plan(tmp_path: Path):
         for row in rows
     ]
     assert max(area_errors) <= 0.01
+
+
+def test_exp_dat_007_bingxing_overlay_preserves_scientific_contract():
+    root = Path(__file__).resolve().parents[1]
+    xingyi = yaml.safe_load(
+        (root / "configs/research/full_cell_single_hole_exp_dat_007_v1.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    bingxing = yaml.safe_load(
+        (
+            root
+            / "configs/research/full_cell_single_hole_exp_dat_007_bingxing_v1.yaml"
+        ).read_text(encoding="utf-8")
+    )
+
+    for key in ("experiment", "solver", "k_grid", "acceptance"):
+        assert bingxing[key] == xingyi[key]
+    for key in ("protocol", "lane", "sample_count", "split", "seed", "raster_resolutions", "raster_contract"):
+        assert bingxing["dataset"][key] == xingyi["dataset"][key]
+    for key in (
+        "algorithm_version",
+        "parameter_plan",
+        "families",
+        "samples_per_family",
+        "air_fraction_range",
+        "aspect_ratios",
+        "epsilon_air",
+        "epsilon_material",
+        "audit_resolution",
+    ):
+        assert bingxing["generator"][key] == xingyi["generator"][key]
+    assert bingxing["workers"]["workers"] == 256
+    assert bingxing["workers"]["max_workers"] == 256
+    assert bingxing["authorization"]["resource_change_authorized"] is True
