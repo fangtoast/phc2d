@@ -1,0 +1,100 @@
+# Authorized Bingxing M9 production contract for the expanded deterministic six-family dataset.
+# The 12,000 structures densify air-fraction levels while preserving shapes, axes, and angles.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+
+experiment:
+  experiment_id: EXP-DAT-007
+  family: research
+  stage: dataset_generation
+
+dataset:
+  protocol: full_cell_single_hole_v1
+  lane: single_hole_six_family
+  output_path: data/exp_dat_007_single_hole_six_family_bz9_12000_bingxing_v1.h5
+  sample_count: 12000
+  split: {train: 0, val: 0, test: 12000}
+  seed: 0
+  raster_resolutions: [32, 64, 128, 256]
+  raster_contract:
+    method: master_block_mean_v1
+    source_resolution: 256
+    content_hash_algorithm: phc2d.full_cell.content_hash.v1
+    content_hash_quantization_levels: 65536
+    binary_source_field: material_binary_grid_256
+    binary_downsampled_field_prefix: material_area_fraction_grid_
+
+generator:
+  algorithm_version: phc2d.analytic_single_hole.v1
+  parameter_plan: build_single_hole_test_plan_v2_2000_per_family
+  families: [circle, ellipse, triangle, square, rectangle, hexagon]
+  samples_per_family: 2000
+  air_fraction_range: [0.10, 0.20]
+  aspect_ratios: [1.25, 1.5, 2.0, 3.0]
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  audit_resolution: 256
+  plan_workers: 64
+
+solver:
+  backend: mpb
+  environment: native_linux_conda_meep_env
+  expected_meep_version: 1.33.0-beta
+  expected_mpb_version: 1.12.0
+  use_proxy: false
+  lattice: square
+  lattice_constant: 1.0
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  resolution: 64
+  resolution_status: pilot_waived_by_user_resolution_64
+  resolution_evidence: user_authorization_2026-10-20_generate_before_resolution_pilot
+  mesh_size: 3
+  polarization: TE
+  num_bands: 10
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+  eigensolver_tolerance: 1.0e-7
+
+k_grid:
+  family: square_full_bz
+  n_side: 9
+  coordinate_system: mpb_reduced_reciprocal_coordinates
+  endpoint_policy: centered_unique_no_boundary_duplicates
+
+workers:
+  workers: 64
+  min_workers: 1
+  max_workers: 64
+  worker_backend: processpool
+  fail_fast: false
+  suppress_solver_output: true
+  worker_thread_env:
+    OMP_NUM_THREADS: "1"
+    OPENBLAS_NUM_THREADS: "1"
+    MKL_NUM_THREADS: "1"
+    NUMEXPR_NUM_THREADS: "1"
+
+authorization:
+  formal_generation_authorized: true
+  authorized_by: user
+  authorized_date: "2026-10-20"
+  solver_resolution_pilot_status: waived_by_user
+  waiver_scope: generation_only_no_label_accuracy_or_model_claim
+  automatic_retry_authorized: false
+  sample_expansion_authorized: true
+  sample_expansion_scope: six_families_200_to_2000_each
+  resource_change_authorized: true
+  resource_change_scope: bingxing_m9_four_shards_64_cpu_each
+  model_evaluation_authorized: false
+
+acceptance:
+  cluster_generation_is_not_wsl_acceptance: true
+  required_wsl_environment: Ubuntu/meep_env
+  transfer_hash_match_required: true
+  full_gap_claim: false
+  pilot_is_not_population_acceptance: true
+
+output:
+  runs_dir: runs

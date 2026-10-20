@@ -12,7 +12,10 @@ import numpy as np
 import pytest
 import yaml
 
-from phc2d.data.full_cell_generation import prepare_full_cell_sample_plan
+from phc2d.data.full_cell_generation import (
+    load_full_cell_generation_config,
+    prepare_full_cell_sample_plan,
+)
 from phc2d.data.single_hole import build_single_hole_test_plan, evaluate_single_hole
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 
@@ -123,3 +126,44 @@ def test_exp_dat_007_bingxing_overlay_preserves_scientific_contract():
     assert bingxing["workers"]["workers"] == 256
     assert bingxing["workers"]["max_workers"] == 256
     assert bingxing["authorization"]["resource_change_authorized"] is True
+
+
+def test_exp_dat_007_bingxing_12k_plan_is_balanced_and_deterministic():
+    root = Path(__file__).resolve().parents[1]
+    path = (
+        root
+        / "configs/research/full_cell_single_hole_exp_dat_007_bingxing_12k_v1.yaml"
+    )
+    payload = load_full_cell_generation_config(path)
+
+    assert payload["dataset"]["sample_count"] == 12_000
+    assert payload["dataset"]["split"] == {"train": 0, "val": 0, "test": 12_000}
+    assert payload["generator"]["samples_per_family"] == 2_000
+    assert payload["workers"]["workers"] == 64
+    assert payload["authorization"]["sample_expansion_authorized"] is True
+
+    rows = build_single_hole_test_plan(samples_per_family=2_000)
+    assert len(rows) == 12_000
+    assert len({row["sample_id"] for row in rows}) == 12_000
+    assert len(
+        {json.dumps(row["parameters"], sort_keys=True) for row in rows}
+    ) == 12_000
+    assert collections.Counter(row["parameters"]["shape"] for row in rows) == {
+        shape: 2_000
+        for shape in ("circle", "ellipse", "triangle", "square", "rectangle", "hexagon")
+    }
+    assert rows[0]["sample_id"] == "single_circle_0000"
+    assert rows[-1]["sample_id"] == "single_hexagon_1999"
+
+    by_shape = {
+        shape: [row["parameters"] for row in rows if row["parameters"]["shape"] == shape]
+        for shape in ("circle", "ellipse", "triangle", "square", "rectangle", "hexagon")
+    }
+    assert len({row["air_fraction"] for row in by_shape["circle"]}) == 2_000
+    for shape in ("ellipse", "rectangle"):
+        assert len({row["air_fraction"] for row in by_shape[shape]}) == 100
+        assert {row["aspect_ratio"] for row in by_shape[shape]} == {1.25, 1.5, 2.0, 3.0}
+        assert len({row["angle_deg"] for row in by_shape[shape]}) == 5
+    for shape in ("triangle", "square", "hexagon"):
+        assert len({row["air_fraction"] for row in by_shape[shape]}) == 200
+        assert len({row["angle_deg"] for row in by_shape[shape]}) == 10

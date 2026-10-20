@@ -72,20 +72,23 @@ def evaluate_single_hole(x: Any, y: Any, parameters: Mapping[str, Any]) -> np.nd
     return (~air).astype(np.float64)
 
 
-def build_single_hole_test_plan() -> list[dict[str, Any]]:
-    """Return 200 deterministic parameter points per family, without resampling."""
+def build_single_hole_test_plan(*, samples_per_family: int = 200) -> list[dict[str, Any]]:
+    """Return a deterministic balanced plan, densifying only air-fraction levels."""
+    samples = int(samples_per_family)
+    if samples <= 0 or samples % 20 != 0:
+        raise ValueError("samples_per_family must be a positive multiple of 20")
     rows: list[dict[str, Any]] = []
     # Angle ranges quotient shape rotations and square-lattice D4 symmetry.
     # They define a parameter scan, not an iid population of manufactured devices.
     for shape in SINGLE_HOLE_FAMILIES:
         if shape == "circle":
-            combinations = [(f, 1.0, 0.0) for f in np.linspace(.10, .20, 200)]
+            combinations = [(f, 1.0, 0.0) for f in np.linspace(.10, .20, samples)]
         elif shape in {"ellipse", "rectangle"}:
-            combinations = [(f, q, angle) for f in np.linspace(.10, .20, 10)
+            combinations = [(f, q, angle) for f in np.linspace(.10, .20, samples // 20)
                             for q in [1.25, 1.5, 2.0, 3.0] for angle in np.linspace(0, 45, 5)]
         else:
             maximum_angle = 15 if shape in {"triangle", "hexagon"} else 45
-            combinations = [(f, 1.0, angle) for f in np.linspace(.10, .20, 20)
+            combinations = [(f, 1.0, angle) for f in np.linspace(.10, .20, samples // 10)
                             for angle in np.linspace(0, maximum_angle, 10)]
         for index, (fraction, ratio, angle) in enumerate(combinations):
             parameters = {"shape": shape, "air_fraction": float(fraction), "aspect_ratio": float(ratio),
