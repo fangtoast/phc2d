@@ -32,6 +32,7 @@ from phc2d.data.full_cell import (
     hash_raster_content,
     write_full_cell_hdf5,
 )
+from phc2d.data.single_hole import build_single_hole_test_plan
 from phc2d.generators.full_cell import (
     build_full_cell_structure_spec,
     generate_binary_polar_holes,
@@ -234,9 +235,17 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
     if stage not in {"solver_preflight", "dataset_generation"}:
         problems.append("experiment.stage must be solver_preflight or dataset_generation")
     if stage == "dataset_generation":
-        if protocol not in {"full_cell_v1", "full_cell_fourier_v2"}:
-            problems.append("dataset.protocol must be full_cell_v1 or full_cell_fourier_v2")
-        allowed_lanes = {"graded_medium", "binary_air_holes"} if protocol == "full_cell_v1" else {"graded_fourier", "binary_fourier"}
+        allowed_lanes_by_protocol = {
+            "full_cell_v1": {"graded_medium", "binary_air_holes"},
+            "full_cell_fourier_v2": {"graded_fourier", "binary_fourier"},
+            "full_cell_single_hole_v1": {"single_hole_six_family"},
+        }
+        if protocol not in allowed_lanes_by_protocol:
+            problems.append(
+                "dataset.protocol must be full_cell_v1, full_cell_fourier_v2, "
+                "or full_cell_single_hole_v1"
+            )
+        allowed_lanes = allowed_lanes_by_protocol.get(protocol, set())
         if dataset.get("lane") not in allowed_lanes:
             problems.append("dataset.lane does not match the selected full-cell protocol")
         if int(dataset.get("sample_count", 0)) <= 0:
@@ -246,17 +255,24 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
             problems.append("dataset split counts must sum to sample_count")
         if not dataset.get("output_path"):
             problems.append("dataset.output_path is required")
-        expected_rasters = [32, 64, 128] if protocol == "full_cell_v1" else [32, 64, 128, 256]
+        expected_rasters = (
+            [32, 64, 128]
+            if protocol == "full_cell_v1"
+            else [32, 64, 128, 256]
+        )
         if [int(value) for value in dataset.get("raster_resolutions", [])] != expected_rasters:
             problems.append(f"dataset.raster_resolutions must be exactly {expected_rasters}")
-        if protocol == "full_cell_fourier_v2":
+        if protocol in {"full_cell_fourier_v2", "full_cell_single_hole_v1"}:
             raster_contract = dict(dataset.get("raster_contract") or {})
             if raster_contract.get("method") != MASTER_BLOCK_MEAN_V1:
-                problems.append("full_cell_fourier_v2 requires master_block_mean_v1")
+                problems.append(f"{protocol} requires master_block_mean_v1")
             if int(raster_contract.get("source_resolution", 0)) != 256:
-                problems.append("full_cell_fourier_v2 raster source_resolution must be 256")
+                problems.append(f"{protocol} raster source_resolution must be 256")
+        if protocol == "full_cell_fourier_v2":
             if str(solver.get("resolution_status", "")) != "frozen_resolution_64":
-                problems.append("full_cell_fourier_v2 requires solver.resolution_status=frozen_resolution_64")
+                problems.append(
+                    "full_cell_fourier_v2 requires solver.resolution_status=frozen_resolution_64"
+                )
             if not str(solver.get("resolution_evidence", "")).strip():
                 problems.append("full_cell_fourier_v2 requires solver.resolution_evidence")
             paired_single = generator.get("paired_coefficient_seed")
@@ -272,6 +288,28 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
                     int(paired_cohort)
                 except (TypeError, ValueError):
                     problems.append("generator.paired_cohort_seed must be an integer")
+        if protocol == "full_cell_single_hole_v1":
+            authorization = dict(cfg.get("authorization") or {})
+            if str(solver.get("resolution_status", "")) != "pilot_waived_by_user_resolution_64":
+                problems.append(
+                    "full_cell_single_hole_v1 requires "
+                    "solver.resolution_status=pilot_waived_by_user_resolution_64"
+                )
+            if not bool(authorization.get("formal_generation_authorized", False)):
+                problems.append(
+                    "full_cell_single_hole_v1 requires "
+                    "authorization.formal_generation_authorized=true"
+                )
+            if str(authorization.get("solver_resolution_pilot_status", "")) != "waived_by_user":
+                problems.append(
+                    "full_cell_single_hole_v1 requires an explicit waived_by_user pilot status"
+                )
+            if int(dataset.get("sample_count", 0)) != 1200:
+                problems.append("full_cell_single_hole_v1 sample_count must be 1200")
+            if dict(dataset.get("split") or {}) != {"train": 0, "val": 0, "test": 1200}:
+                problems.append(
+                    "full_cell_single_hole_v1 is test-only and requires split 0/0/1200"
+                )
         plan_workers = generator.get("plan_workers", 1)
         if not (isinstance(plan_workers, str) and plan_workers.lower() == "auto"):
             try:
@@ -486,6 +524,16 @@ def _require_unique_full_cell_hashes(
 
 def _structure_schedule(lane: str, count: int) -> list[tuple[str, Any, str]]:
     rows: list[tuple[str, Any, str]] = []
+    if lane == "single_hole_six_family":
+        plan = build_single_hole_test_plan()
+        if count != len(plan):
+            raise ValueError(
+                f"single_hole_six_family requires the frozen {len(plan)}-case plan; got {count}"
+            )
+        return [
+            ("analytic_single_hole_v1", row, str(row["parameters"]["shape"]))
+            for row in plan
+        ]
     if lane == "graded_medium":
         for index in range(count):
             core_count = 1 if index % 2 == 0 else 2
@@ -522,13 +570,57 @@ def _structure_schedule(lane: str, count: int) -> list[tuple[str, Any, str]]:
     return [cycle[index % len(cycle)] for index in range(count)]
 
 
+def _build_single_hole_structure(
+    *,
+    sample_id: str,
+    parameters: Mapping[str, Any],
+    epsilon_air: float,
+    epsilon_material: float,
+    schema_version: str = "phc2d.full_cell.v1",
+    metadata: Mapping[str, Any] | None = None,
+) -> FullCellStructureSpec:
+    names = ("air_fraction", "aspect_ratio", "angle_deg")
+    return FullCellStructureSpec(
+        sample_id=sample_id,
+        generator_family="analytic_single_hole_v1",
+        material_kind="binary",
+        parameters=dict(parameters),
+        parameter_names=names,
+        parameter_vector=tuple(float(parameters[name]) for name in names),
+        parameter_mask=(True, True, True),
+        epsilon_air=float(epsilon_air),
+        epsilon_material=float(epsilon_material),
+        schema_version=schema_version,
+        metadata=dict(metadata or {}),
+    )
+
+
 def _generate_structure_task(
     task: tuple[int, str, Any, str, int, str, dict[str, Any]],
 ) -> tuple[FullCellStructureSpec, str]:
     index, family, variant, stratum, seed, sample_id_prefix, generator_cfg = task
-    sample_id = f"{sample_id_prefix}_{index:06d}"
+    sample_id = (
+        str(variant["sample_id"])
+        if family == "analytic_single_hole_v1"
+        else f"{sample_id_prefix}_{index:06d}"
+    )
     pairing_key = sample_id if "paired_cohort_seed" in generator_cfg else None
-    if family == "graded_rbf_fourier":
+    if family == "analytic_single_hole_v1":
+        parameters = dict(variant["parameters"])
+        structure = _build_single_hole_structure(
+            sample_id=sample_id,
+            parameters=parameters,
+            epsilon_air=float(generator_cfg["epsilon_air"]),
+            epsilon_material=float(generator_cfg["epsilon_material"]),
+            metadata={
+                "stats": {
+                    "shape": parameters["shape"],
+                    "air_fraction": float(parameters["air_fraction"]),
+                },
+                "parameter_plan": "build_single_hole_test_plan_v1",
+            },
+        )
+    elif family == "graded_rbf_fourier":
         structure = generate_graded_rbf_fourier(
             sample_id,
             master_seed=seed,
@@ -698,7 +790,11 @@ def _load_frozen_sample_plan(
     strata: list[str] = []
     splits: list[str] = []
     for index, (row, (expected_family, _variant, expected_stratum)) in enumerate(zip(rows, expected_schedule)):
-        sample_id = f"{sample_id_prefix}_{index:06d}"
+        sample_id = (
+            str(_variant["sample_id"])
+            if expected_family == "analytic_single_hole_v1"
+            else f"{sample_id_prefix}_{index:06d}"
+        )
         if int(row.get("sample_index", -1)) != index or str(row.get("sample_id")) != sample_id:
             raise ValueError(f"Frozen sample plan identity mismatch at row {index}")
         family = str(row.get("generator_family"))
@@ -708,20 +804,36 @@ def _load_frozen_sample_plan(
         split = str(row.get("split"))
         if split not in {"train", "val", "test"}:
             raise ValueError(f"Frozen sample plan split mismatch at row {index}")
-        structure = build_full_cell_structure_spec(
-            sample_id=sample_id,
-            family=family,
-            material_kind="continuous" if "graded" in family else "binary",
-            payload=dict(row.get("parameters") or {}),
-            metadata={
-                "stats": dict(row.get("stats") or {}),
-                "pairing": dict(row.get("pairing") or {}),
-                "resumed_from_sample_plan": True,
-            },
-            epsilon_air=epsilon_air,
-            epsilon_material=epsilon_material,
-            schema_version=str(row.get("schema_version", "phc2d.full_cell.v1")),
-        )
+        if family == "analytic_single_hole_v1":
+            parameters = dict(row.get("parameters") or {})
+            structure = _build_single_hole_structure(
+                sample_id=sample_id,
+                parameters=parameters,
+                epsilon_air=epsilon_air,
+                epsilon_material=epsilon_material,
+                schema_version=str(row.get("schema_version", "phc2d.full_cell.v1")),
+                metadata={
+                    "stats": dict(row.get("stats") or {}),
+                    "pairing": dict(row.get("pairing") or {}),
+                    "parameter_plan": "build_single_hole_test_plan_v1",
+                    "resumed_from_sample_plan": True,
+                },
+            )
+        else:
+            structure = build_full_cell_structure_spec(
+                sample_id=sample_id,
+                family=family,
+                material_kind="continuous" if "graded" in family else "binary",
+                payload=dict(row.get("parameters") or {}),
+                metadata={
+                    "stats": dict(row.get("stats") or {}),
+                    "pairing": dict(row.get("pairing") or {}),
+                    "resumed_from_sample_plan": True,
+                },
+                epsilon_air=epsilon_air,
+                epsilon_material=epsilon_material,
+                schema_version=str(row.get("schema_version", "phc2d.full_cell.v1")),
+            )
         if structure.geometry_hash != str(row.get("geometry_hash")):
             raise ValueError(f"Frozen sample plan geometry hash mismatch at row {index}")
         structures.append(structure)

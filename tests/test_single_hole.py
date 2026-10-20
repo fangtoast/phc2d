@@ -5,9 +5,14 @@ Email: fangtoast@foxmail.com
 Copyright (c) 2026 fangtoast. All rights reserved.
 """
 import collections
+import json
+from pathlib import Path
+
 import numpy as np
 import pytest
+import yaml
 
+from phc2d.data.full_cell_generation import prepare_full_cell_sample_plan
 from phc2d.data.single_hole import build_single_hole_test_plan, evaluate_single_hole
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 
@@ -34,3 +39,52 @@ def test_plan_balances_families_and_preserves_exact_limiting_geometries():
     assert np.array_equal(evaluate_single_hole(x, y, {**base, "shape": "square"}), evaluate_single_hole(x, y, {**base, "shape": "rectangle"}))
     structure = FullCellStructureSpec("test", "analytic_single_hole_v1", "binary", {**base, "shape": "triangle"}, (), (), ())
     assert structure.rasterize((64, 64)).shape == (64, 64)
+
+
+def test_exp_dat_007_config_builds_exact_frozen_production_plan(tmp_path: Path):
+    root = Path(__file__).resolve().parents[1]
+    config = root / "configs/research/full_cell_single_hole_exp_dat_007_v1.yaml"
+    payload = yaml.safe_load(config.read_text(encoding="utf-8"))
+
+    assert payload["authorization"] == {
+        "formal_generation_authorized": True,
+        "authorized_by": "user",
+        "authorized_date": "2026-10-20",
+        "solver_resolution_pilot_status": "waived_by_user",
+        "waiver_scope": "generation_only_no_label_accuracy_or_model_claim",
+        "automatic_retry_authorized": False,
+        "resource_change_authorized": False,
+        "model_evaluation_authorized": False,
+    }
+    assert payload["dataset"]["split"] == {"train": 0, "val": 0, "test": 1200}
+
+    run_dir = tmp_path / "EXP-DAT-007_plan"
+    out = prepare_full_cell_sample_plan(config, run_dir=run_dir, workers=1)
+    results = json.loads((out / "results.json").read_text(encoding="utf-8"))
+    rows = [
+        json.loads(line)
+        for line in (out / "sample_plan.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+
+    assert results["status"] == "full_cell_sample_plan_ready"
+    assert len(rows) == 1200
+    assert rows[0]["sample_id"] == "single_circle_0000"
+    assert rows[-1]["sample_id"] == "single_hexagon_0199"
+    assert {row["split"] for row in rows} == {"test"}
+    assert collections.Counter(row["stratum"] for row in rows) == {
+        shape: 200 for shape in ("circle", "ellipse", "triangle", "square", "rectangle", "hexagon")
+    }
+    expected = build_single_hole_test_plan()
+    assert [
+        (row["sample_id"], row["parameters"]) for row in rows
+    ] == [
+        (row["sample_id"], row["parameters"]) for row in expected
+    ]
+
+    axis = (np.arange(256) + 0.5) / 256 - 0.5
+    x, y = np.meshgrid(axis, axis, indexing="ij")
+    area_errors = [
+        abs(float(np.mean(1.0 - evaluate_single_hole(x, y, row["parameters"]))) - row["parameters"]["air_fraction"])
+        for row in rows
+    ]
+    assert max(area_errors) <= 0.01
