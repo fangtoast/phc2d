@@ -32,7 +32,7 @@ from phc2d.data.full_cell import (
     hash_raster_content,
     write_full_cell_hdf5,
 )
-from phc2d.data.single_hole import build_single_hole_test_plan
+from phc2d.data.single_hole import SINGLE_HOLE_FAMILIES, build_single_hole_test_plan
 from phc2d.generators.full_cell import (
     build_full_cell_structure_spec,
     generate_binary_polar_holes,
@@ -304,11 +304,21 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
                 problems.append(
                     "full_cell_single_hole_v1 requires an explicit waived_by_user pilot status"
                 )
-            if int(dataset.get("sample_count", 0)) != 1200:
-                problems.append("full_cell_single_hole_v1 sample_count must be 1200")
-            if dict(dataset.get("split") or {}) != {"train": 0, "val": 0, "test": 1200}:
+            samples_per_family = int(generator.get("samples_per_family", 0))
+            expected_count = len(SINGLE_HOLE_FAMILIES) * samples_per_family
+            if samples_per_family <= 0 or samples_per_family % 20 != 0:
                 problems.append(
-                    "full_cell_single_hole_v1 is test-only and requires split 0/0/1200"
+                    "full_cell_single_hole_v1 samples_per_family must be a positive multiple of 20"
+                )
+            if int(dataset.get("sample_count", 0)) != expected_count:
+                problems.append(
+                    "full_cell_single_hole_v1 sample_count must equal "
+                    "six times generator.samples_per_family"
+                )
+            expected_split = {"train": 0, "val": 0, "test": expected_count}
+            if dict(dataset.get("split") or {}) != expected_split:
+                problems.append(
+                    "full_cell_single_hole_v1 is test-only and requires all samples in test"
                 )
         plan_workers = generator.get("plan_workers", 1)
         if not (isinstance(plan_workers, str) and plan_workers.lower() == "auto"):
@@ -522,10 +532,15 @@ def _require_unique_full_cell_hashes(
         raise RuntimeError(f"full-cell hash collision detected; generation is fail-closed: {first['hash_type']} {first['hash']}")
 
 
-def _structure_schedule(lane: str, count: int) -> list[tuple[str, Any, str]]:
+def _structure_schedule(
+    lane: str,
+    count: int,
+    generator_cfg: Mapping[str, Any] | None = None,
+) -> list[tuple[str, Any, str]]:
     rows: list[tuple[str, Any, str]] = []
     if lane == "single_hole_six_family":
-        plan = build_single_hole_test_plan()
+        samples_per_family = int(dict(generator_cfg or {}).get("samples_per_family", 200))
+        plan = build_single_hole_test_plan(samples_per_family=samples_per_family)
         if count != len(plan):
             raise ValueError(
                 f"single_hole_six_family requires the frozen {len(plan)}-case plan; got {count}"
@@ -617,7 +632,9 @@ def _generate_structure_task(
                     "shape": parameters["shape"],
                     "air_fraction": float(parameters["air_fraction"]),
                 },
-                "parameter_plan": "build_single_hole_test_plan_v1",
+                "parameter_plan": str(
+                    generator_cfg.get("parameter_plan", "build_single_hole_test_plan_v1")
+                ),
             },
         )
     elif family == "graded_rbf_fourier":
@@ -706,7 +723,12 @@ def _generate_structures(
     seed = int(dataset["seed"])
     experiment_id = str(dict(cfg["experiment"])["experiment_id"])
     sample_id_prefix = str(dataset.get("sample_id_prefix", experiment_id))
-    tasks = [(index, family, variant, stratum, seed, sample_id_prefix, generator_cfg) for index, (family, variant, stratum) in enumerate(_structure_schedule(lane, effective_count))]
+    tasks = [
+        (index, family, variant, stratum, seed, sample_id_prefix, generator_cfg)
+        for index, (family, variant, stratum) in enumerate(
+            _structure_schedule(lane, effective_count, generator_cfg)
+        )
+    ]
     resolved_workers = max(1, min(int(workers), max(effective_count, 1)))
     if progress_fn is not None:
         progress_fn(0, effective_count)
@@ -785,7 +807,11 @@ def _load_frozen_sample_plan(
     generator_cfg = dict(cfg.get("generator") or {})
     epsilon_air = float(generator_cfg.get("epsilon_air", 1.0))
     epsilon_material = float(generator_cfg.get("epsilon_material", 8.9))
-    expected_schedule = _structure_schedule(str(dict(cfg["dataset"])["lane"]), effective_count)
+    expected_schedule = _structure_schedule(
+        str(dict(cfg["dataset"])["lane"]),
+        effective_count,
+        generator_cfg,
+    )
     structures: list[FullCellStructureSpec] = []
     strata: list[str] = []
     splits: list[str] = []
@@ -815,7 +841,11 @@ def _load_frozen_sample_plan(
                 metadata={
                     "stats": dict(row.get("stats") or {}),
                     "pairing": dict(row.get("pairing") or {}),
-                    "parameter_plan": "build_single_hole_test_plan_v1",
+                    "parameter_plan": str(
+                        generator_cfg.get(
+                            "parameter_plan", "build_single_hole_test_plan_v1"
+                        )
+                    ),
                     "resumed_from_sample_plan": True,
                 },
             )
