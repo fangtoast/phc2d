@@ -14,18 +14,19 @@ PHC2D_ROOT="${PHC2D_ROOT:-$PWD}"
 : "${PHC2D_CASE_COUNT:?Set PHC2D_CASE_COUNT.}"
 
 PHC2D_SUBMIT_MODE="${PHC2D_SUBMIT_MODE:-dry-run}"
+PHC2D_SUBMIT_PYTHON="${PHC2D_SUBMIT_PYTHON:-python}"
 PHC2D_NODE_TIER="${PHC2D_NODE_TIER:-}"
 if [[ -n "$PHC2D_NODE_TIER" ]]; then
   selection=""
 else
   : "${PHC2D_BENCHMARK_EVIDENCE:?Set PHC2D_BENCHMARK_EVIDENCE when PHC2D_NODE_TIER is unset.}"
-  selection="$(python -m phc2d.cli hpc benchmark \
+  selection="$("$PHC2D_SUBMIT_PYTHON" -m phc2d.cli hpc benchmark \
     --platform-profile "$PHC2D_PLATFORM_PROFILE" \
     --evidence "$PHC2D_BENCHMARK_EVIDENCE" \
     --case-count "$PHC2D_CASE_COUNT")"
 fi
 
-readarray -t profile_values < <(python - "$PHC2D_PLATFORM_PROFILE" "$selection" "$PHC2D_NODE_TIER" <<'PY'
+readarray -t profile_values < <("$PHC2D_SUBMIT_PYTHON" - "$PHC2D_PLATFORM_PROFILE" "$selection" "$PHC2D_NODE_TIER" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -50,7 +51,7 @@ nodes="${profile_values[4]}"
 target_met="${profile_values[5]}"
 
 if [[ -n "$PHC2D_NODE_TIER" ]]; then
-  python - "$PHC2D_PLATFORM_PROFILE" "$nodes" <<'PY'
+  "$PHC2D_SUBMIT_PYTHON" - "$PHC2D_PLATFORM_PROFILE" "$nodes" <<'PY'
 import sys
 from pathlib import Path
 import yaml
@@ -109,7 +110,7 @@ finalize_job="$(sbatch --parsable --dependency="afterok:$solve_job" "${partition
   --output="$PHC2D_RUN_DIR/slurm/finalize_%j.log" \
   --export="$common_export,PHC2D_STAGE=finalize" "$stage_script")"
 
-python - "$PHC2D_RUN_DIR/submission_manifest.json" "$plan_job" "$solve_job" "$finalize_job" "$nodes" <<'PY'
+"$PHC2D_SUBMIT_PYTHON" - "$PHC2D_RUN_DIR/submission_manifest.json" "$plan_job" "$solve_job" "$finalize_job" "$nodes" <<'PY'
 import json
 import sys
 from pathlib import Path

@@ -23,6 +23,7 @@ grep -q '^  automatic_retry_authorized: false$' "$config"
 grep -q '^  workers: 256$' "$config"
 
 export PHC2D_ROOT PHC2D_SUBMIT_MODE PHC2D_EXPECTED_COMMIT
+export PHC2D_SUBMIT_PYTHON=python3
 export PHC2D_ADAPTER=full_cell_band
 export PHC2D_CONFIG="$config"
 export PHC2D_RUN_DIR="$run_dir"
