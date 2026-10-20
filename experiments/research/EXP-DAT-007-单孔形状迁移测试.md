@@ -21,7 +21,7 @@ plan_state: active
 <a id="single-hole-transfer"></a>
 # 单孔形状迁移测试协议
 
-**选取圆孔、椭圆孔、等边三角孔、方孔、矩形孔、正六边形孔六族，每族200个确定参数点，共1200个。** 解析结构和确定性参数计划已冻结。2026-10-20 用户明确授权先生成数据，并豁免32结构r64/r96/r128数值pilot作为提交前置门；该豁免不等于数值收敛通过，正式数据仍须保留 `generation_only_no_label_accuracy_or_model_claim` 边界，集群生成后继续执行传输哈希与WSL验收。
+**选取圆孔、椭圆孔、等边三角孔、方孔、矩形孔、正六边形孔六族，每族2000个确定参数点，共12000个。** 解析结构和确定性参数计划已冻结。2026-10-20 用户先授权生成1200结构，随后明确扩展为每族2000，并豁免32结构r64/r96/r128数值pilot作为提交前置门；该豁免不等于数值收敛通过，正式数据仍须保留 `generation_only_no_label_accuracy_or_model_claim` 边界，集群生成后继续执行传输哈希与WSL验收。
 
 ## 一、孔形依据与适用范围
 
@@ -39,9 +39,9 @@ plan_state: active
 
 | 形状 | 参数数目 | 数量 |
 |---|---|---:|
-| 圆 | 200个面积比例 | 200 |
-| 椭圆、矩形 | 各10个面积比例 × 4个轴比[1.25,1.5,2,3] × 5个角度[0,45°] | 各200 |
-| 三角、方、六边形 | 各20个面积比例 × 10个角度 | 各200 |
+| 圆 | 2000个面积比例 | 2000 |
+| 椭圆、矩形 | 各100个面积比例 × 4个轴比[1.25,1.5,2,3] × 5个角度[0,45°] | 各2000 |
+| 三角、方、六边形 | 各200个面积比例 × 10个角度 | 各2000 |
 
 圆与椭圆半轴按 `sqrt(f*q/pi)`、`sqrt(f/(pi*q))`；矩形半边长按 `sqrt(f*q)/2`、`sqrt(f/q)/2`；正n边形外接圆半径按 `sqrt(2*f/(n*sin(2*pi/n)))`。角度按方晶格D4与孔本身旋转对称性取基本区间：方孔0–45°，三角/六边形0–15°。孔形类型和面积比例、轴比、角度全部写入解析参数，不用随机极坐标近似多边形。
 
@@ -51,10 +51,10 @@ plan_state: active
 
 输入沿用256主网格面积平均至64的Binary表示；MPB直接读取同一解析几何。目标严格保持原81点顺序、10条TE能带、4条guard、mesh_size=3、tolerance=1e-7。先比较32个覆盖六族与参数边界的结构在r64/r96/r128下的差异，另用原生circle接口检查解析接口。r128只是数值参考；随机结构的历史分辨率门不自动覆盖尖角孔。
 
-CPU生产原计划复用星仪一节点64个单线程worker，但账号组无权使用冻结的 `xyfree` 分区，未创建任务。2026-10-20 用户授权改投并行 Bingxing M9，以 `amd_m9_768` 单节点256个单线程worker执行；只改变平台与并行度，不改变分辨率、参数计划、采样或求解器合同，也不自动重试。32结构数值pilot已由用户从提交前置门中豁免；求解器仍固定为r64、真实MPB、81点、10条TE能带加4条guard。原81点结果不作完整带隙证明。[MPB官方带边说明](https://mpb.readthedocs.io/en/stable/Python_Tutorial/)。
+CPU生产原计划复用星仪，后因分区权限改投Bingxing M9。单节点256核方案等待完整空闲节点时，用户授权扩展至12000结构并改为4个独立shard；每个shard固定3000结构、64个单线程worker和64 GB内存，总并行度最多256核。该拆分只改变参数密度与执行拓扑，不改变r64、真实MPB、81点、10条TE能带加4条guard的求解器合同，也不自动重试或resume。32结构数值pilot已由用户从提交前置门中豁免。原81点结果不作完整带隙证明。[MPB官方带边说明](https://mpb.readthedocs.io/en/stable/Python_Tutorial/)。
 
 冻结checkpoint与normalizer后比较三个核心模型，先做无微调直接迁移。主表报告Band 1–10 MRE；Band 2–10与Band 1单独指标保留在原始制品，默认不单列。逐结构P95按Band 1–10误差计算，另保留MAE、逐band与参数误差分布；代表样本按预定面积/轴比/角度层与最差例规则选择。角点误差要与标签数值误差分别记录。不得根据该测试重新挑模型或拟合normalizer。
 
-配置：[EXP-DAT-007基础合同](../../configs/research/full_cell_single_hole_exp_dat_007_v1.yaml)及[并行Bingxing覆盖](../../configs/research/full_cell_single_hole_exp_dat_007_bingxing_v1.yaml)。运行时代码提交为 `b8d9114`；正式任务 `6258384`（plan）、`6258385`（solve）、`6258386`（finalize）已提交，冻结目录为 `/publicfs10/fs10-m9/home/m9s005801/runs/20261020/EXP-DAT-007_20261020_bingxing_formal_v1`。几何接口为 `phc2d.data.single_hole.build_single_hole_test_plan` 与 `analytic_single_hole_v1`。数据输出遵守标准run制品、解析参数、样本计划、配置和solver版本/耗时/hash；任务已提交不等于标签生成完成，集群生成完成也不等于下载、哈希审计和WSL验收完成。
+配置：[EXP-DAT-007基础合同](../../configs/research/full_cell_single_hole_exp_dat_007_v1.yaml)及[Bingxing 12k覆盖](../../configs/research/full_cell_single_hole_exp_dat_007_bingxing_12k_v1.yaml)。运行时代码提交为 `88a621d`；旧1200结构的solve/finalize任务在零标签状态取消，旧目录保留。新正式任务为 `6259235`（plan）、`6259236_[0-3]`（solve）、`6259237`（finalize），冻结目录为 `/publicfs10/fs10-m9/home/m9s005801/runs/20261020/EXP-DAT-007_12000_20261020_bingxing_4x64_v1`。plan已验证12000行、六族各2000、零哈希碰撞和4分片合同。几何接口为 `phc2d.data.single_hole.build_single_hole_test_plan` 与 `analytic_single_hole_v1`。数据输出遵守标准run制品、解析参数、样本计划、配置和solver版本/耗时/hash；任务已提交不等于标签生成完成，集群生成完成也不等于下载、哈希审计和WSL验收完成。
 
 原数值pilot阈值保留供生成后的标签质量诊断：任一solver失败、非有限值、目标shape错误或256 raster面积误差超过0.01均应记录；相对r128的Bands2–10 MRE参考阈值为总体median≤0.10%、P95≤0.50%、每族P95≤0.75%。当前状态是 `waived_by_user`，不是 `passed`；因此在补做数值诊断前，不得据此宣称r64标签已对尖角孔完成收敛验证。
