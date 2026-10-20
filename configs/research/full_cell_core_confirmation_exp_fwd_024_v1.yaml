@@ -144,6 +144,9 @@ platform:
   memory_policy: scheduler_default
   environment: /data/run01/scxl892/envs/phc2d_gpu_cu128_torch271_r1
 evaluation:
+  primary_reporting_metric: bands_1_10_mre_pct
+  auxiliary_reporting_metric: bands_2_10_mre_pct
+  display_auxiliary_metric_by_default: false
   split: existing_idx_test
   selection_frozen_before_test: true
   historical_test_previously_viewed: true

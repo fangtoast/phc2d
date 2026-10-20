@@ -45,6 +45,9 @@ k_grid:
   n_side: 9
   endpoint_policy: centered_unique_no_boundary_duplicates
 selection:
+  primary_reporting_metric: bands_1_10_mre_pct
+  auxiliary_reporting_metric: bands_2_10_mre_pct
+  display_auxiliary_metric_by_default: false
   test_only: true
   normalizer_refit: false
   fine_tuning: false

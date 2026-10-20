@@ -285,6 +285,8 @@ def summarize_native_test(campaign: Path) -> None:
     write_json(campaign / "results.json", {"status": "fixed300_native_surrogate_evaluation_complete", "training_task_count": len(cells),
                "test_cell_count": len(cells), "seed_count": 3, "historical_test_previously_viewed": True,
                "convergence_is_not_implied": True, "physical_claim": False, "model_promotion": False})
+    from phc2d.forward.native_test_reporting import export_primary_reports
+    export_primary_reports(campaign)
 
 
 def finish_native_when_complete(campaign: Path, slot: int, slots: int) -> None:

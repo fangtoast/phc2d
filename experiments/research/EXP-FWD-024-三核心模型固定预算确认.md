@@ -67,3 +67,9 @@ plan_state: active
 N56隔离部署写入发生文件系统阻塞，GPU作业尚未提交。依据用户此前明确允许N40或N56，024改用[N40执行覆盖配置](../../configs/research/full_cell_core_confirmation_exp_fwd_024_n40_v1.yaml)：继承全部科学合同与数据SHA，仅替换同哈希数据路径、环境与资源。024最多4并发、6个数组slot；与025最多3并发合计7GPU，数组上限6+10=16。025既有作业不改资源。两平台环境不同，因此时间只作为执行成本，不从跨平台历史耗时解释架构因果。
 
 024的最后一个成功训练bundle在全部bundle完成标记与完整训练审计闭合后，独占冻结54个validation-best checkpoint并执行54个native test；不用额外排队作业，不在其他训练尚未完成时提前读test。finalizer失败保留独占意向记录，不自动重试。测试输出逐样本、逐band、每seed cell和三seed均值/样本SD；不把样本P95或seed SD解释为置信区间。
+
+## 六、测试展示口径修订
+
+用户在训练开始后、test尚未执行时明确：测试主指标为Band 1–10 MRE；Band 2–10完整保留在原始制品供查询，默认主表不单列，Band 1也不单列。默认读取 `native_test_primary_summary.csv`，其每seed明细为 `native_test_primary_cells.csv`；原 `native_test_summary.csv`、`native_test_cells.csv` 与逐band/逐样本文件仍保留全部辅助指标。
+
+本修订仅涉及L3测试展示，不修改已冻结训练配置、validation checkpoint选择、收敛判据、数据或运行资源。已经启动的Python进程保留原版本；对该campaign追加独立、版本记录的汇总步骤，等原测试全部完成后导出主表，不重跑训练或测试。
