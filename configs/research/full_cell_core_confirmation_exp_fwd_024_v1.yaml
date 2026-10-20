@@ -1,0 +1,156 @@
+# Fixed-budget confirmation contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+experiment_id: EXP-FWD-024
+authorization_id: user-2026-10-20-core-three-model-six-domain-8k-300epoch
+seeds:
+- 0
+- 1
+- 2
+initialization: from_scratch
+datasets:
+  k5_binary:
+    path: /data/run01/scxl892/data/exp_fwd_020/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5
+    sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6
+    grid_field: material_area_fraction_grid_64
+    lane: binary
+  k5_graded:
+    path: /data/run01/scxl892/data/exp_fwd_020/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5
+    sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20
+    grid_field: material_weight_grid_64
+    lane: graded
+  k20_binary:
+    path: /data/run01/scxl892/data/exp_fwd_020/full_cell_binary_fourier_bz9_10000_xingyi_v1.h5
+    sha256: 2661eb1e9e3b398a7b69c4083daefa761ea9c26a1081c478b968fd6a951d6b56
+    grid_field: material_area_fraction_grid_64
+    lane: binary
+  k20_graded:
+    path: /data/run01/scxl892/data/exp_fwd_020/full_cell_graded_fourier_bz9_10000_xingyi_v1.h5
+    sha256: 96b127b43f2c31fb7591e9634317a7ed35332ceae1077b2277de15058902fd72
+    grid_field: material_weight_grid_64
+    lane: graded
+  f50_binary:
+    path: /data/run01/scxl892/data/exp_fwd_020/full_cell_binary_bz9_50000_xingyi_v1.h5
+    sha256: e2d99e0c59c3bf5dfebc507e756dbcd18c8623f331ad6193832d774df5213f00
+    grid_field: material_weight_grid_64
+    lane: binary
+  f50_graded:
+    path: /data/run01/scxl892/data/exp_fwd_020/full_cell_graded_bz9_50000_xingyi_v1.h5
+    sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46
+    grid_field: material_weight_grid_64
+    lane: graded
+models:
+  global_local_band_operator_v1:
+    width: 64
+    depth: 6
+    modes:
+    - 12
+    - 12
+    factorization_rank: 0.75
+    norm_groups: 8
+    channel_expansion: 4
+    local_kernel: 3
+    drop_path: 0.1
+    head_kind: dense
+    head_hidden_dim: 256
+    band_embedding_dim: 32
+    fourier_frequencies:
+    - 1
+    - 2
+    - 4
+    - 8
+    dropout: 0.05
+  tfno2d_band_v3:
+    width: 64
+    depth: 6
+    modes:
+    - 12
+    - 12
+    factorization_rank: 0.75
+    norm_groups: 8
+    channel_expansion: 2
+    local_kernel: 3
+    drop_path: 0.1
+    head_hidden_dim: 256
+    band_embedding_dim: 32
+    fourier_frequencies:
+    - 1
+    - 2
+    - 4
+    - 8
+    dropout: 0.05
+  convnext_band_v1:
+    stage_dims:
+    - 48
+    - 96
+    - 192
+    stage_depths:
+    - 2
+    - 3
+    - 6
+    stem_stride: 4
+    kernel_size: 7
+    channel_expansion: 4
+    drop_path: 0.1
+    layer_scale_init: 1.0e-06
+    head_hidden_dim: 256
+    band_embedding_dim: 32
+    fourier_frequencies:
+    - 1
+    - 2
+    - 4
+    - 8
+    dropout: 0.05
+training:
+  train_size: 8000
+  train_subset_salt: exp-fwd-021-domain-ranking-v1
+  max_epochs: 300
+  required_stop_epoch: 300
+  optimizer: adamw
+  weight_decay: 1.0e-05
+  micro_batch_size: 64
+  effective_batch_size: 64
+  loss: normalized_full_matrix_mse
+  early_stopping_patience: 0
+  epoch_100_continue_gate: false
+  require_terminal_checkpoint: true
+  checkpoint_selection: validation_bands_2_10_mre
+  convergence_window:
+  - 281
+  - 300
+  convergence_metric: validation_bands_2_10_mre
+  convergence_relative_threshold: 0.005
+  learning_rates:
+    global_local_band_operator_v1: 0.0005
+    tfno2d_band_v3: 0.0005
+    convnext_band_v1: 0.001
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  num_workers: 4
+  pin_memory: true
+  non_blocking_transfer: true
+platform:
+  host: paracloud-n56
+  partition: gpu_5090
+  cpus_per_task: 8
+  gpus_per_task: 1
+  max_concurrent: 7
+  bundle_slots: 16
+  memory_policy: scheduler_default
+  environment: /data/run01/scxl892/envs/phc2d_gpu_cu128_torch271_r1
+evaluation:
+  split: existing_idx_test
+  selection_frozen_before_test: true
+  historical_test_previously_viewed: true
+  native_cells: 54
+  physical_claim: false
+prohibited:
+- automatic_retry
+- weight_warm_start
+- automatic_500_epoch_extension
+- test_based_model_selection
