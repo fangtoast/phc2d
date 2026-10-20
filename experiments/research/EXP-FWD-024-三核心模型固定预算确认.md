@@ -60,7 +60,7 @@ plan_state: active
 
 ## 四、实现边界审计
 
-配置校验从既有Full-Wh runner抽离到独立合同模块，兼容导入保留；原runner约1190行降至1010行，569行训练函数本轮未增加逻辑。旧单元仍超结构警戒线，进一步拆训练循环会扩大checkpoint兼容范围，本轮停在配置边界。新campaign模块小于300行、函数均小于300行；模型factory、参数与state schema不改。
+配置校验从既有Full-Wh runner抽离到独立合同模块，兼容导入保留；原runner约1190行降至1010行，569行训练函数本轮未增加逻辑。旧单元仍超结构警戒线，进一步拆训练循环会扩大checkpoint兼容范围，本轮停在配置边界。新campaign模块保持在800行内，函数均小于300行；模型factory、参数与state schema不改。
 
 ## 五、执行平台调整
 
