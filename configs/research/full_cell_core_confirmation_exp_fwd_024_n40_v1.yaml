@@ -1,0 +1,16 @@
+# Execution-only N40 overlay; the scientific 8k/300-epoch contract is inherited.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+base_profile: full_cell_core_confirmation_exp_fwd_024_v1.yaml
+execution_platform_basis: user_authorized_n40_or_n56_before_submission_n56_storage_blocked
+dataset_path_root: /HOME/scw6g7a/run/phc2d/data
+platform:
+  host: paracloud-n40
+  partition: gpu_4090
+  cpus_per_task: 6
+  gpus_per_task: 1
+  max_concurrent: 4
+  bundle_slots: 6
+  memory_policy: scheduler_default
+  environment: /HOME/scw6g7a/run/envs/phc2d_gpu_cu118

@@ -85,3 +85,20 @@ def test_branch_test_remains_locked(tmp_path):
     (tmp_path / "config.resolved.yaml").write_text("experiment_id: EXP-FWD-025\n")
     with pytest.raises(ValueError, match="not authorized"):
         freeze_native_test(tmp_path)
+
+
+def test_execution_overlay_preserves_scientific_contract(tmp_path):
+    spec = make_dataset(tmp_path)
+    base = yaml.safe_load(Path("configs/research/full_cell_core_confirmation_exp_fwd_024_v1.yaml").read_text())
+    base["training"]["train_size"] = 6
+    base["datasets"] = {key: spec for key in base["datasets"]}
+    (tmp_path / "base.yaml").write_text(yaml.safe_dump(base))
+    overlay = {"base_profile": "base.yaml", "dataset_path_root": str(tmp_path),
+               "execution_platform_basis": "explicit_n40_or_n56_authorization", "platform": {"host": "paracloud-n40"}}
+    path = tmp_path / "overlay.yaml"
+    path.write_text(yaml.safe_dump(overlay))
+    freeze_campaign(path, tmp_path / "campaign")
+    result = yaml.safe_load((tmp_path / "campaign/config.resolved.yaml").read_text())
+    assert result["training"] == base["training"] and result["models"] == base["models"]
+    assert result["seeds"] == [0, 1, 2] and result["platform"]["host"] == "paracloud-n40"
+    assert result["base_profile_sha256"] == file_digest(tmp_path / "base.yaml")

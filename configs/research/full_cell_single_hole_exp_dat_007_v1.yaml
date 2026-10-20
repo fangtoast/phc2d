@@ -55,6 +55,13 @@ gates:
   pilot_structures: 32
   formal_generation_authorized: false
   full_gap_claim: false
+  reference_resolution: 128
+  r64_median_mre_pct_max: 0.1
+  r64_p95_mre_pct_max: 0.5
+  per_family_p95_mre_pct_max: 0.75
+  solver_failures_max: 0
+  raster_air_fraction_abs_error_max: 0.01
+  pilot_is_not_population_acceptance: true
 literature:
 - doi: 10.1063/1.3247544
   supports:

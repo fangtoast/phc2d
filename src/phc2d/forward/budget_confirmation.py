@@ -80,6 +80,17 @@ def inspect_dataset(spec: dict[str, Any], train_size: int, salt: str) -> dict[st
 def freeze_campaign(profile_path: Path, campaign: Path) -> None:
     """Create a new campaign; historical configs and runs remain immutable."""
     profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
+    if "base_profile" in profile:
+        override = profile
+        base = profile_path.parent / override["base_profile"]
+        profile = yaml.safe_load(base.read_text(encoding="utf-8"))
+        if "base_profile" in profile:
+            raise ValueError("nested execution profile inheritance is unsupported")
+        profile["base_profile_sha256"] = file_digest(base)
+        profile["platform"] = override["platform"]
+        profile["execution_platform_basis"] = override["execution_platform_basis"]
+        for spec in profile["datasets"].values():
+            spec["path"] = str(Path(override["dataset_path_root"]) / Path(spec["path"]).name)
     if campaign.exists():
         raise FileExistsError(campaign)
     if not profile.get("authorization_id") or profile["seeds"] != [0, 1, 2]:
