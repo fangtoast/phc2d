@@ -210,6 +210,41 @@ experiments:
       summary: 生产与 Xingyi/本地/N40 三端交付已完成；两份数据保持 cluster_generated_pending_wsl_acceptance，用户仅豁免其对 surrogate 训练的阻断，未完成 WSL acceptance 或物理验证。
     tags: [full-cell, fourier, k5, dataset-10k, xingyi, dual-delivery]
 
+  - id: EXP-DAT-006
+    title: 全胞 Fourier K8/K10/K15 B/G 配对数据生产
+    task: data
+    status: planned
+    mapping_status: complete
+    research_question: 在同 lane 的样本身份、材料目标、温度和共享低频系数严格固定时，K8/K10/K15 全胞 B/G 各 10k 数据能否通过 Xingyi 生产审计与 WSL real-MPB 验收？
+    spec:
+      - experiments/research/EXP-DAT-006-K8-K10-K15配对数据生产.md
+    config:
+      - configs/research/full_cell_binary_fourier_k8_bz9_10000_xingyi_v1.yaml
+      - configs/research/full_cell_binary_fourier_k10_bz9_10000_xingyi_v1.yaml
+      - configs/research/full_cell_binary_fourier_k15_bz9_10000_xingyi_v1.yaml
+      - configs/research/full_cell_graded_fourier_k8_bz9_10000_xingyi_v1.yaml
+      - configs/research/full_cell_graded_fourier_k10_bz9_10000_xingyi_v1.yaml
+      - configs/research/full_cell_graded_fourier_k15_bz9_10000_xingyi_v1.yaml
+      - configs/research/full_cell_binary_fourier_k8_bz9_10000_wsl_acceptance_v1.yaml
+      - configs/research/full_cell_binary_fourier_k10_bz9_10000_wsl_acceptance_v1.yaml
+      - configs/research/full_cell_binary_fourier_k15_bz9_10000_wsl_acceptance_v1.yaml
+      - configs/research/full_cell_graded_fourier_k8_bz9_10000_wsl_acceptance_v1.yaml
+      - configs/research/full_cell_graded_fourier_k10_bz9_10000_wsl_acceptance_v1.yaml
+      - configs/research/full_cell_graded_fourier_k15_bz9_10000_wsl_acceptance_v1.yaml
+    runs:
+      local: []
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments:
+      - EXP-DAT-003
+      - EXP-DAT-004
+      - EXP-DAT-005
+    decision:
+      state: config_ready
+      summary: 配对合同、六份生产配置、六份 WSL 验收配置与分段调度已登记；正式 60k 求解仍需新的明确计费授权。
+    tags: [full-cell, fourier, k8, k10, k15, paired, dataset-10k, xingyi]
+
   - id: EXP-FWD-001
     title: A1 V2 10k Full-Wh 公平对照
     task: forward

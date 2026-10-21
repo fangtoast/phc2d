@@ -134,14 +134,10 @@ def _full_cell_jobs(
     cfg = load_full_cell_generation_config(config_path)
     root = Path(run_dir)
     count = int(dict(cfg["dataset"])["sample_count"])
-    structures, strata, split_labels = _load_frozen_sample_plan(
-        root / "sample_plan.jsonl", cfg, effective_count=count
-    )
+    structures, strata, split_labels = _load_frozen_sample_plan(root / "sample_plan.jsonl", cfg, effective_count=count)
     split_counts = _effective_split_counts(dict(cfg["dataset"])["split"], count, count)
     sample_ids = [item.sample_id for item in structures]
-    idx_train, idx_val, idx_test, expected_labels = _stable_stratified_splits(
-        sample_ids, strata, split_counts
-    )
+    idx_train, idx_val, idx_test, expected_labels = _stable_stratified_splits(sample_ids, strata, split_counts)
     if split_labels != expected_labels:
         raise ValueError("Frozen sample plan split assignments changed")
     from phc2d.data.full_cell import build_full_bz_grid
@@ -188,18 +184,12 @@ def prepare_full_cell_hpc_plan(
     plan_manifest = _read_json(out / "sample_plan_manifest.json")
     plan_sha256 = str(plan_manifest["sample_plan_sha256"])
     dataset_protocol = str(dict(cfg["dataset"]).get("protocol", "full_cell_v1"))
-    output_schema = (
-        "phc2d.full_cell.fourier_v2"
-        if dataset_protocol == "full_cell_fourier_v2"
-        else "phc2d.full_cell.v1"
-    )
+    output_schema = "phc2d.full_cell.fourier_v2" if dataset_protocol == "full_cell_fourier_v2" else "phc2d.full_cell.v1"
     physical = PhysicalPlanManifest(
         adapter_id="full_cell_band",
         case_count=int(dict(cfg["dataset"])["sample_count"]),
         plan_sha256=plan_sha256,
-        solver_fingerprint=sha256_payload(
-            {"solver": dict(cfg["solver"]), "k_grid": dict(cfg["k_grid"])}
-        ),
+        solver_fingerprint=sha256_payload({"solver": dict(cfg["solver"]), "k_grid": dict(cfg["k_grid"])}),
         output_schema=output_schema,
         case_plan="sample_plan.jsonl",
     ).to_mapping()
@@ -241,9 +231,7 @@ def solve_full_cell_hpc_shard(
         raise ValueError("shard_count differs from the frozen physical plan")
     if sha256_file(root / str(physical["case_plan"])) != str(physical["plan_sha256"]):
         raise ValueError("Frozen case plan SHA-256 mismatch")
-    cfg, _structures, _strata, _labels, _points, _grid, jobs = _full_cell_jobs(
-        config_path, root
-    )
+    cfg, _structures, _strata, _labels, _points, _grid, jobs = _full_cell_jobs(config_path, root)
     if not skip_environment_check:
         problems, _profile = _validate_execution_boundary(dict(cfg["solver"]))
         if problems:
@@ -266,9 +254,7 @@ def solve_full_cell_hpc_shard(
         "adapter_id": "full_cell_band",
         "solver_fingerprint": physical["solver_fingerprint"],
         "deployed_git_commit": os.environ.get("PHC2D_DEPLOYED_GIT_COMMIT", "unknown"),
-        "real_mpb_generation_eligible": bool(
-            not skip_environment_check and solver_fn is solve_bands_for_full_cell_mpb
-        ),
+        "real_mpb_generation_eligible": bool(not skip_environment_check and solver_fn is solve_bands_for_full_cell_mpb),
     }
     summary = run_mpb_worker_partition(
         jobs[spec.case_start : spec.case_end],
@@ -282,9 +268,7 @@ def solve_full_cell_hpc_shard(
     atomic_write_json(shard_root / "shard_manifest.json", {**identity, "summary": summary})
     collect_campaign_status(root, write=True)
     if not summary["partition_complete"]:
-        raise RuntimeError(
-            f"Full-cell shard {spec.shard_index} failed with {summary['failed_count']} cases"
-        )
+        raise RuntimeError(f"Full-cell shard {spec.shard_index} failed with {summary['failed_count']} cases")
     return shard_root
 
 
@@ -307,18 +291,10 @@ def finalize_full_cell_hpc(
 
     started = time.perf_counter()
     root = Path(run_dir)
-    cfg, structures, strata, split_labels, k_points, k_grid_index, jobs = _full_cell_jobs(
-        config_path, root
-    )
+    cfg, structures, strata, split_labels, k_points, k_grid_index, jobs = _full_cell_jobs(config_path, root)
     physical = _read_json(root / "physical_plan_manifest.json")
     shard_count = int(physical["shard_count"])
-    workers = (
-        len(os.sched_getaffinity(0))
-        if str(raster_workers).lower() == "auto" and hasattr(os, "sched_getaffinity")
-        else int(os.cpu_count() or 1)
-        if str(raster_workers).lower() == "auto"
-        else int(raster_workers)
-    )
+    workers = len(os.sched_getaffinity(0)) if str(raster_workers).lower() == "auto" and hasattr(os, "sched_getaffinity") else int(os.cpu_count() or 1) if str(raster_workers).lower() == "auto" else int(raster_workers)
     atomic_write_json(
         root / "finalize_progress.json",
         {"status": "finalizing", "started_unix_s": time.time(), "raster_workers": workers},
@@ -366,13 +342,9 @@ def finalize_full_cell_hpc(
             raise ValueError("Partition HDF5 files do not cover the complete plan")
         merge_validation_time = float(time.perf_counter() - merge_started)
 
-        split_counts = _effective_split_counts(
-            dict(cfg["dataset"])["split"], len(jobs), len(jobs)
-        )
+        split_counts = _effective_split_counts(dict(cfg["dataset"])["split"], len(jobs), len(jobs))
         sample_ids = [item.sample_id for item in structures]
-        idx_train, idx_val, idx_test, expected_labels = _stable_stratified_splits(
-            sample_ids, strata, split_counts
-        )
+        idx_train, idx_val, idx_test, expected_labels = _stable_stratified_splits(sample_ids, strata, split_counts)
         if split_labels != expected_labels:
             raise ValueError("Frozen split labels changed during finalization")
         metadata = {
@@ -385,13 +357,16 @@ def finalize_full_cell_hpc(
             "solver": dict(cfg["solver"]),
             "config_path": _relative(Path(config_path)),
             "config_hash": sha256_payload(cfg),
-            "validation_boundary": (
-                "native_cluster_real_mpb_pending_wsl_acceptance"
-                if real_eligible
-                else "unaccepted_test_only_injected_or_unchecked_solver"
-            ),
+            "validation_boundary": ("native_cluster_real_mpb_pending_wsl_acceptance" if real_eligible else "unaccepted_test_only_injected_or_unchecked_solver"),
             "physical_plan_sha256": physical["plan_sha256"],
             "shard_count": shard_count,
+            "pairing": {
+                "contract": "cutoff_paired_cohort_v1",
+                "sample_id_prefix": dict(cfg["dataset"]).get("sample_id_prefix"),
+                "paired_cohort_seed": dict(cfg.get("generator") or {}).get("paired_cohort_seed"),
+            }
+            if dict(cfg.get("generator") or {}).get("paired_cohort_seed") is not None
+            else {},
         }
         output_name = Path(str(dict(cfg["dataset"])["output_path"])).name
         dataset_path = root / "data" / output_name
@@ -466,10 +441,9 @@ def finalize_full_cell_hpc(
                             "geometry_hash": structure.geometry_hash,
                             "Wh_hash": _decode(handle["Wh_hash"][row]),
                             "mpb_solve_time_s": float(handle["solve_time_s"][row]),
-                            "solver_metadata": json.loads(
-                                _decode(handle["solver_metadata_json"][row]) or "{}"
-                            ),
+                            "solver_metadata": json.loads(_decode(handle["solver_metadata_json"][row]) or "{}"),
                             "structure_stats": structure.metadata.get("stats", {}),
+                            "pairing": structure.metadata.get("pairing", {}),
                         },
                         ensure_ascii=False,
                         sort_keys=True,
@@ -478,16 +452,9 @@ def finalize_full_cell_hpc(
                 )
     (root / "failed_case_ledger.jsonl").write_text("", encoding="utf-8")
     dataset_hash = _file_hash(dataset_path)
-    partition_hashes = {
-        str(path.relative_to(root)).replace("\\", "/"): sha256_file(path)
-        for path in partition_paths
-    }
+    partition_hashes = {str(path.relative_to(root)).replace("\\", "/"): sha256_file(path) for path in partition_paths}
     metadata_time = float(time.perf_counter() - metadata_started)
-    status = (
-        "cluster_generated_pending_wsl_acceptance"
-        if real_eligible
-        else "test_solver_smoke_only"
-    )
+    status = "cluster_generated_pending_wsl_acceptance" if real_eligible else "test_solver_smoke_only"
     provenance = {
         "backend": "meep.mpb.ModeSolver" if real_eligible else "injected_or_unchecked_solver",
         "execution_boundary": metadata["validation_boundary"],
@@ -499,6 +466,7 @@ def finalize_full_cell_hpc(
         "dataset_file_hash": dataset_hash,
         "solver": dict(cfg["solver"]),
         "k_grid": dict(cfg["k_grid"]),
+        "pairing": metadata["pairing"],
     }
     atomic_write_json(root / "solver_provenance.json", provenance)
     manifest = {
@@ -517,6 +485,7 @@ def finalize_full_cell_hpc(
         "failed_case_ledger": "failed_case_ledger.jsonl",
         "physical_plan_manifest": "physical_plan_manifest.json",
         "next_gate": "download_hash_content_audit_then_wsl_cross_environment_acceptance",
+        "pairing": metadata["pairing"],
     }
     _write_yaml(root / "dataset_manifest.yaml", manifest)
     elapsed = float(time.perf_counter() - started)
@@ -559,7 +528,11 @@ def finalize_full_cell_hpc(
         writer.writerows(
             [
                 {"stage": "sample_plan", "status": "passed", "reason": "frozen plan"},
-                {"stage": "solver_shards", "status": "passed", "reason": f"{shard_count} partitions"},
+                {
+                    "stage": "solver_shards",
+                    "status": "passed",
+                    "reason": f"{shard_count} partitions",
+                },
                 {"stage": "finalize", "status": status, "reason": "atomic streaming HDF5"},
             ]
         )

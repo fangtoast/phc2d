@@ -20,7 +20,7 @@ case "$stage" in
     job_id="$(sbatch --parsable -p gpu_5090 --gres=gpu:1 -c 8 -t 02:00:00 -J fwd020_g3_preflight \
       -o "$campaign/slurm_preflight_%j.out" -e "$campaign/slurm_preflight_%j.err" \
       --export="ALL,PHC2D_ROOT=$PHC2D_ROOT,PHC2D_ENV=$PHC2D_ENV,PHC2D_G3_CAMPAIGN=$campaign,PHC2D_G3_STAGE=preflight" \
-      "$PHC2D_ROOT/jobs/paracloud_exp_fwd_020_g3.sh)"
+      "$PHC2D_ROOT/jobs/paracloud_exp_fwd_020_g3.sh")"
     printf 'authorization_id=%s\ndeployed_git_commit=%s\njob_id=%s\nstage=preflight\n' "$PHC2D_FWD020_AUTHORIZATION_ID" "$PHC2D_EXPECTED_COMMIT" "$job_id" > "$campaign/preflight_submission.env"
     ;;
   submit)
@@ -30,7 +30,7 @@ case "$stage" in
     job_id="$(sbatch --parsable -p gpu_5090 --gres=gpu:1 -c 8 -t 08:00:00 --array=0-7%8 -J fwd020_g3 \
       -o "$campaign/slurm_%A_%a.out" -e "$campaign/slurm_%A_%a.err" \
       --export="ALL,PHC2D_ROOT=$PHC2D_ROOT,PHC2D_ENV=$PHC2D_ENV,PHC2D_G3_CAMPAIGN=$campaign,PHC2D_G3_STAGE=shard" \
-      "$PHC2D_ROOT/jobs/paracloud_exp_fwd_020_g3.sh)"
+      "$PHC2D_ROOT/jobs/paracloud_exp_fwd_020_g3.sh")"
     printf 'authorization_id=%s\ndeployed_git_commit=%s\njob_id=%s\narray=0-7%%8\nstage=evaluation\n' "$PHC2D_FWD020_AUTHORIZATION_ID" "$PHC2D_EXPECTED_COMMIT" "$job_id" > "$campaign/array_submission.env"
     ;;
   status)

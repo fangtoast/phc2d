@@ -59,7 +59,17 @@ G1 共 12 个 seed0、20 epoch validation-only 任务，以 `%8` 数组执行；
 
 ### G3：六域与最终 test
 
-仅 G2 通过后冻结 checkpoint 身份，执行同一材料 lane 的 K5/K20/F50 原生与跨数据集 held-out 评估；满额为 108 个 checkpoint-target 单元。held-out test 在模型、阈值和报告模板全部冻结后至多读取一次。real-MPB/Meep 仍是独立物理验证任务。
+G3 是一项独立冻结的、探索性 held-out surrogate 观察：先冻结 36 个 checkpoint 的身份（包括 G2 收敛通过 checkpoint 与固定 epoch 300、validation-only 续训 checkpoint），再分别推理到 K5/K20/F50 的 Binary/Graded 六个 held-out target。它不覆盖 G2 的收敛状态，也不构成 model promotion。
+
+| 内容 | 冻结合同 |
+|---|---|
+| 矩阵 | 6 个 source domain $\times$ 2 个 kernel $\times$ 3 个 seed $\times$ 6 个 target domain = 216 cells |
+| 关系 | native 36、同数据集跨 lane 36、跨数据集同 lane 72、跨数据集且跨 lane 72 |
+| 一次性 test | 六域 validation preflight 通过后，`idx_test` 与标签仅各读一次并写入只读 cache；后续 8 个 shard 只读 cache |
+| 比较 | 每个 checkpoint 对其唯一 native cell 生成 180 条非配对退化记录；同 source/target/seed 的 $3\times3\leftrightarrow7\times7$ 使用 10,000 次 paired bootstrap，共 108 条 |
+| 边界 | 仅为 `exploratory_held_out_surrogate_only`，保留 `g2_formal_status=not_passed`；没有 real-MPB/Meep 或物理结论 |
+
+G3 仅在 216 个唯一 cell、8 个 shard、checkpoint/dataset/cache/plan manifests 与全部有限指标齐全后运行 finalizer。带隙比较按 Band 2--9 的最大相邻带隙选对，不能以简单 band-order 替代。real-MPB/Meep 仍是独立物理验证任务。
 
 ## 证据与非目标
 

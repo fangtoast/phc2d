@@ -1,5 +1,6 @@
 # Local editor overrides
 .vscode/settings.local.json
+.vscode/launch.json
 
 # Environment secrets
 .env
@@ -54,6 +55,8 @@ wandb/
 /reference/
 /tmp/
 /site/
+/.codex_tmp/
+/tmp_pdf_text.txt
 
 # Keep the local data catalog versioned while datasets remain ignored.
 !data/

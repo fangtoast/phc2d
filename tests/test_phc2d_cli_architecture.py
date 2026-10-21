@@ -18,6 +18,7 @@ from phc2d.cli.main import main as modular_main
 
 
 EXPECTED_COMMANDS = {
+    "data audit-fourier-pairing",
     "data accept-cluster",
     "data converge",
     "data convert",
