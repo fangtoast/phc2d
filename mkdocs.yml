@@ -159,6 +159,7 @@ nav:
           - Post-Repair pilot: results/inverse/a2_inverse_surrogate_postrepair_validation_v2_20260802.md
       - 新全胞数据 [N,81,10]:
           - 全胞数据总览: results/全胞数据正式结果.md
+          - 形状数据计算耗时: results/data-provenance/MPB形状数据计算耗时汇总.md
           - 数据构建与验收: results/data-provenance/full_cell_dual_lane_pilot_20260803.md
           - MPB 分辨率收敛验证: results/data-provenance/全胞MPB分辨率收敛验证_20260817.md
           - Fourier 64+64 星仪试点: results/data-provenance/全胞Fourier_64加64星仪试点_20260817.md

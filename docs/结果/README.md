@@ -27,6 +27,7 @@ primary_layer: L3
 
 | Experiment ID | 证据层级 | 状态 | 当前结论 | 阅读入口 |
 |---|---|---|---|---|
+| `EXP-DAT-007/008` | real-MPB generation runtime | generated and delivered, acceptance pending | 36000结构、18族、失败0；旧/新批次求解工期11分53秒/21分02秒，WSL正式复算待完成 | [耗时汇总](../results/data-provenance/MPB形状数据计算耗时汇总.md) |
 | `EXP-PHY-001` | physical validation | completed | r64 满足当前 B/G 分布的预注册误差门并完成 WSL 交叉验收 | [短结果](EXP-PHY-001-MPB分辨率.md) · [详细证据](../results/data-provenance/全胞MPB分辨率收敛验证_20260817.md) |
 | `EXP-FWD-004` | surrogate held-out | completed | ConvNeXt 是 B/G native 三 seed 最优候选，但跨路线和分辨率迁移仍退化 | [短结果](EXP-FWD-004-全胞升级模型.md) · [详细证据](../results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md) |
 | `EXP-FWD-005` | surrogate held-out | completed, seed 0 | K20 B/G 单路线与跨路线评估完成；本域明显优于跨路线 | [详细证据](../results/forward/full_cell_k20_b_g_seed0_cross_eval_20260820.md) |
