@@ -1027,13 +1027,14 @@ experiments:
     runs:
       local:
         - runs/20261021/EXP-DAT-008_20261021_geometry_admission_v2
+        - runs/20261021/EXP-DAT-008_202610211514
       referenced_not_local: []
     result: []
     report: []
     related_experiments: []
     decision:
       state: continue
-      summary: 用户已确认图谱并授权M9求解及N40交付；数值标签质量、生成完成、WSL验收和传输完成分别记录。
+      summary: M9 plan6284297已完成，solve6284298四片运行，finalize6284299等待；源提交f3f7360，后续验收和N40交付仍未完成，不自动重试。
     tags: [pcsel, mpb, test-only, geometry-transfer, bingxing, n40]
 
 deferred_history:
