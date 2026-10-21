@@ -108,6 +108,7 @@ def test_formal_results_navigation_is_an_explicit_whitelist() -> None:
         "results/forward/EXP-FWD-019-组件归因三种子确认.md",
         "results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
         "results/forward/EXP-FWD-023-十二域交叉测试.md",
+        "results/forward/EXP-FWD-023-七种训练制度十二域完整结果.md",
         "results/forward/EXP-FWD-023-多域与历史单域模型对比.md",
         "results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md",
         "results/field-physics/代理选频与真实响应差异_20260825.md",
