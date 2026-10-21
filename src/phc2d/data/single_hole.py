@@ -127,4 +127,3 @@ def build_single_hole_structure(
         schema_version=schema_version,
         metadata=dict(metadata or {}),
     )
-
