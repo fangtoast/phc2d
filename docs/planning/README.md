@@ -21,6 +21,11 @@ primary_layer: L4
 
 `planning/` 是过渡中的协议与历史决策库，不是当前状态页。计划不能证明实验完成；先看[项目地图](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md)和[当前结果](../结果/README.md)，再回到这里核查实验原本如何设计。
 
+## 截稿前补充实验
+
+- [三核心模型与分支消融固定预算确认](https://github.com/fangtoast/phc2d/blob/master/experiments/research/EXP-FWD-024-%E4%B8%89%E6%A0%B8%E5%BF%83%E6%A8%A1%E5%9E%8B%E5%9B%BA%E5%AE%9A%E9%A2%84%E7%AE%97%E7%A1%AE%E8%AE%A4.md)：2026-10-20授权；状态以run为准。
+- [单孔形状迁移测试](https://github.com/fangtoast/phc2d/blob/master/experiments/research/EXP-DAT-007-%E5%8D%95%E5%AD%94%E5%BD%A2%E7%8A%B6%E8%BF%81%E7%A7%BB%E6%B5%8B%E8%AF%95.md)：六种代表孔形，先完成MPB数值pilot。
+
 ## 仍可能约束后续工作的入口
 
 | 范围 | 入口 | 使用边界 |

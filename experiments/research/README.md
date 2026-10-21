@@ -9,6 +9,11 @@
 
 本目录描述研究实验的输入、非目标、执行入口和 gate，不承诺当前结果。公共实现进入 [`../../src/phc2d`](../../src/phc2d)，结果统一从 [`../../docs/results/README.md`](../../docs/results/README.md) 读取。
 
+## 本轮补充协议
+
+- [三核心模型与分支消融固定预算确认](EXP-FWD-024-三核心模型固定预算确认.md)：EXP-FWD-024/025，54项核心比较和30项分支重训。
+- [单孔形状迁移测试](EXP-DAT-007-单孔形状迁移测试.md)：六族1200参数点，正式生成待求解准入。
+
 ## 数据与表征
 
 - [`full_cell_k5_dual_lane_xingyi.md`](full_cell_k5_dual_lane_xingyi.md)：EXP-DAT-005 K=5 binary/graded 各 10k 的 Xingyi 生成、审计与本地/N40 交付合同。

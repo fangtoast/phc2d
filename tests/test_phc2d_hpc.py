@@ -219,3 +219,32 @@ def test_repository_platform_profiles_and_slurm_pipeline_are_consistent() -> Non
     assert "PHC2D_SUBMIT_MODE:-dry-run" in submit
     assert "PHC2D_NODE_TIER" in submit
     assert "when PHC2D_NODE_TIER is unset" in submit
+    assert "PHC2D_EXPECTED_COMMIT" in submit
+    assert "PHC2D_CPUS_PER_TASK" in submit
+    assert "PHC2D_MEMORY_GB_PER_TASK" in submit
+    assert '"cpus_per_task": int(sys.argv[6])' in submit
+    assert '"memory_gb_per_task": int(sys.argv[7])' in submit
+
+    exp_dat_007 = (root / "jobs/xingyi_submit_exp_dat_007.sh").read_text(encoding="utf-8")
+    assert "PHC2D_NODE_TIER=1" in exp_dat_007
+    assert "PHC2D_CASE_COUNT=1200" in exp_dat_007
+    assert "automatic_retry_authorized: false" in exp_dat_007
+
+    bingxing_exp_dat_007 = (root / "jobs/bingxing_submit_exp_dat_007.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "PHC2D_NODE_TIER=1" in bingxing_exp_dat_007
+    assert "PHC2D_CASE_COUNT=1200" in bingxing_exp_dat_007
+    assert "PHC2D_SUBMIT_PYTHON=python3" in bingxing_exp_dat_007
+    assert "workers: 256" in bingxing_exp_dat_007
+    assert "automatic_retry_authorized: false" in bingxing_exp_dat_007
+
+    bingxing_exp_dat_007_12k = (
+        root / "jobs/bingxing_submit_exp_dat_007_12k.sh"
+    ).read_text(encoding="utf-8")
+    assert "PHC2D_CASE_COUNT=12000" in bingxing_exp_dat_007_12k
+    assert "PHC2D_NODE_TIER=4" in bingxing_exp_dat_007_12k
+    assert "PHC2D_CPUS_PER_TASK=64" in bingxing_exp_dat_007_12k
+    assert "PHC2D_MEMORY_GB_PER_TASK=64" in bingxing_exp_dat_007_12k
+    assert "workers: 64" in bingxing_exp_dat_007_12k
+    assert "automatic_retry_authorized: false" in bingxing_exp_dat_007_12k

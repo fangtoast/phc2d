@@ -1,0 +1,38 @@
+# Fixed-budget confirmation contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+experiment_id: EXP-FWD-025
+authorization_id: user-2026-10-20-n40-branch-confirmation-300epoch
+seeds:
+- 0
+- 1
+- 2
+initialization: from_scratch
+source_campaign: /data/run01/scw6g7a/phc2d/runs/20260917/EXP-FWD-022_capability_202609171226
+training:
+  max_epochs: 300
+  required_stop_epoch: 300
+  convergence_window:
+  - 281
+  - 300
+runtime:
+  num_workers: 4
+platform:
+  host: paracloud-n40
+  partition: gpu_4090
+  cpus_per_task: 6
+  gpus_per_task: 1
+  max_concurrent: 3
+  bundle_slots: 10
+  memory_policy: scheduler_default
+  environment: /HOME/scw6g7a/run/envs/phc2d_gpu_cu118
+evaluation:
+  split: validation_only
+  test_authorized: false
+  physical_claim: false
+prohibited:
+- automatic_retry
+- weight_warm_start
+- automatic_500_epoch_extension
+- test_evaluation

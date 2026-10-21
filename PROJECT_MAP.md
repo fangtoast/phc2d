@@ -5,6 +5,8 @@
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
+> 2026-10-20 补充实验：六单域各8k、三个核心模型、三个seed、从零300epoch的 EXP-FWD-024 的18项 admission 已通过；N56部署出现文件系统延迟，依据既有N40/N56授权，54项核心训练改在N40独立部署提交（5506475），最多4并发；EXP-FWD-025 的 N40 十项 admission 已通过，30项分支重训已提交（5506441），尚无完成或新性能结论。EXP-DAT-007 的正式参数计划已由用户扩展为六类孔形各2000、共12000结构；r64/r96/r128数值pilot仍是 `waived_by_user` 而非收敛通过。星仪权限失败和Bingxing旧1200计划目录均保留；旧solve `6258385` 与finalize `6258386` 在未求解任何标签前取消。新运行时代码提交 `88a621d` 部署至Bingxing M9，冻结目录为 `/publicfs10/fs10-m9/home/m9s005801/runs/20261020/EXP-DAT-007_12000_20261020_bingxing_4x64_v1`，采用4个独立shard、每shard 64 CPU/64 GB。plan任务 `6259235` 已完成：12000行、六族各2000、0哈希碰撞；solve array `6259236_[0-3]` 与finalize `6259237` 已提交。当前只可称“参数计划完成、求解已提交”，集群生成、传输哈希与WSL验收仍须分别记录。详见[固定预算确认](experiments/research/EXP-FWD-024-三核心模型固定预算确认.md)与[单孔形状迁移协议](experiments/research/EXP-DAT-007-单孔形状迁移测试.md)。
+
 > 2026-09-20 EXP-FWD-022 状态：1,080 个冻结 validation 干预单元与 30/30 独立训练均保持完整，终态与哈希审计已通过。联合对照限定 K5/K20、Binary/Graded、3×3：按三 seed 均值为 2 域同向、2 域反向；加入 seed 方向门后为 1 域稳定同向、2 域稳定反向、1 域冻结排序不稳定。重训能力在两 lane 均稳定表现为 K5 的 G-only 更好、K20 的 L-only 更好；Full 在固定 200 epoch mixed 主指标上仍优于普通及参数量控制单支，但仅 11/30 通过末段收敛门。结论保持 validation-only、capability_complete_pending_human_review，不作 test/physical、充分优化能力或 promotion 主张；下一 gate 为人工审阅联合判读。详见[分支依赖与独立能力 Draft](docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md)。
 
 > 2026-08-07 工程状态：通用超算物理 campaign 控制面与 `full_cell_band` 参考适配器已实现；query/k-path、field-eigen、resolution-convergence 与 inverse replay 仅完成适配器登记，尚未完成多节点迁移。详见 [`docs/hpc_physics_campaigns.md`](docs/hpc_physics_campaigns.md)。这不是新的物理验证结论。
