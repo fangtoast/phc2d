@@ -1,0 +1,10 @@
+{
+  "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+  "aggregation": "two kernels x three seeds; domain-direction means",
+  "evidence": "exploratory surrogate held-out; historical comparisons not paired significance",
+  "visible_contract_annotations": false,
+  "style": "retained historical comparison layouts; no paired cross-campaign significance",
+  "metric": "Bands 2-10 MRE (%)",
+  "source_seed_contract": "Historical descriptive comparison: K5/K20 seed0 native specialists; F50 three-seed native mean; Global-Local two kernels x three seeds native mean",
+  "excluded_superseded_drafts": "early all-model and NN/operator charts mixed K5-source cross-domain values with native specialists; replaced by provenance-checked bold/grouped native figures"
+}

@@ -1,0 +1,6 @@
+{
+  "K5": "EXP-FWD-009: corresponding native column",
+  "K20": "source_data_seed0_shift_cells.csv: native cells",
+  "F50": "native_test_summary.csv: three-seed native means",
+  "Global–Local": "EXP-FWD-020: native means across two kernels and three seeds"
+}

@@ -1,0 +1,372 @@
+{
+  "schema_version": "phc2d.figure_package.v1",
+  "status": "draft_pending_human_review",
+  "files": [
+    {
+      "path": "docs/reports/assets/b1_b2_prior_band_diagram_20260831/b1_b2_prior_real_mpb_band_diagram.pdf",
+      "bytes": 76259,
+      "sha256": "4f27b0a955561499fe1d74c75def47ede3b997529b158f372a3fd497ef79e4c3",
+      "source": "docs/reports/工作频率与带隙探索总结_20260831.md",
+      "scope": "export_of_existing_frequency_gap_or_physics_result"
+    },
+    {
+      "path": "docs/reports/assets/b1_b2_prior_band_diagram_20260831/b1_b2_prior_real_mpb_band_diagram.tiff",
+      "bytes": 55840574,
+      "sha256": "6b100ba0c67e38746892555040990f3fdcdb040a90aba27809d02793f6514a09",
+      "source": "docs/reports/工作频率与带隙探索总结_20260831.md",
+      "scope": "export_of_existing_frequency_gap_or_physics_result"
+    },
+    {
+      "path": "docs/reports/assets/b1_b2_prior_band_diagram_20260831/b1_single_photonic_band_diagram.png",
+      "bytes": 124721,
+      "sha256": "a5fe8ff11b479f4d6a03030d4d761e594058ad8e9906976cfce3cb4c43b5b784",
+      "source": "docs/reports/工作频率与带隙探索总结_20260831.md",
+      "scope": "export_of_existing_frequency_gap_or_physics_result"
+    },
+    {
+      "path": "docs/reports/assets/effective_index_gamma_slope_validation_20260831/near_gamma_linear_dispersion_vs_te_scalar_formula.pdf",
+      "bytes": 62054,
+      "sha256": "40b532cfb54cf6dcbd2d6741ee775a7c177fc55825e76c841817595c041029be",
+      "source": "docs/reports/工作频率与带隙探索总结_20260831.md",
+      "scope": "export_of_existing_frequency_gap_or_physics_result"
+    },
+    {
+      "path": "docs/reports/assets/effective_index_gamma_slope_validation_20260831/near_gamma_linear_dispersion_vs_te_scalar_formula.png",
+      "bytes": 476547,
+      "sha256": "92399457c9892b98ca9818b3f0add79cdacd2d0c269de6e9a7b46989d15ae57f",
+      "source": "docs/reports/工作频率与带隙探索总结_20260831.md",
+      "scope": "export_of_existing_frequency_gap_or_physics_result"
+    },
+    {
+      "path": "docs/reports/assets/gap_aware_scheme_change_20260831/gap_aware_scheme_change_with_physical_reference.pdf",
+      "bytes": 75405,
+      "sha256": "759785af18b5625e9a89dda464d9e4df778cb9ffda0fa57dfeaeb647d3b23cb8",
+      "source": "docs/reports/工作频率与带隙探索总结_20260831.md",
+      "scope": "export_of_existing_frequency_gap_or_physics_result"
+    },
+    {
+      "path": "docs/reports/assets/gap_aware_scheme_change_20260831/gap_aware_scheme_change_with_physical_reference.tiff",
+      "bytes": 77246606,
+      "sha256": "57de8f162164df2bd4ed77b4f8ec689dc8863d6fc353660ba04d6702b37f5611",
+      "source": "docs/reports/工作频率与带隙探索总结_20260831.md",
+      "scope": "export_of_existing_frequency_gap_or_physics_result"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/binary_native_bold.pdf",
+      "bytes": 42428,
+      "sha256": "314a8300c5562c573a3e75b3a5d95a006ee4a63c5563900be3e129dafe4ed318",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/binary_native_bold.png",
+      "bytes": 606405,
+      "sha256": "203c70b7b4b1db73f8c42007f4e68eec84f05b7648f971d5a99afeaa4d6ed991",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/binary_native_bold.svg",
+      "bytes": 39639,
+      "sha256": "de72b51af4a6cb86105668f888479e7d0ca4a35297b907a6a7cf2cd3c37d4860",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/binary_native_bold_source.csv",
+      "bytes": 490,
+      "sha256": "d16c2e137ba2b10b70b4a956b59410b58bc2c2623b8d9857f3e15c7176d76eb1",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/binary_native_grouped_average.pdf",
+      "bytes": 33637,
+      "sha256": "11a30bf8c6e720d55d3639a15eab8c66bd4830d4c5e57249fe887b9f724588ab",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/binary_native_grouped_average.png",
+      "bytes": 542892,
+      "sha256": "e9ea3b13b8630dc964c55861dd6a41e9f23229fb4cf637ccbe25c903d609541f",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/binary_native_grouped_average.svg",
+      "bytes": 45274,
+      "sha256": "997d5e03a71891fbbe8ec5c0d9bf3bc294fe0d159ef01289c7426e8771f9d1aa",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/binary_native_grouped_average_source.csv",
+      "bytes": 444,
+      "sha256": "36b6ac1fb9b1d088aecfc4e90319c06c09beadd12dc6a8dd709e19e157931f7c",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/global_local_native_dumbbell.png",
+      "bytes": 200246,
+      "sha256": "9cd7ec6f6b630c3c15c0956b2867c2a98a93bdd1f28f10318f365a999cbc43fe",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/global_local_native_dumbbell.svg",
+      "bytes": 20922,
+      "sha256": "ebc1376981217636a2c5a351a094085f828dae360db719ac28184d6f066d56c0",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/global_local_native_panels.pdf",
+      "bytes": 18306,
+      "sha256": "5fea3fc20873dd0952d24ca288d4b2fc9eecbc592b40bc04b81b3b8f90f796b5",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/global_local_native_panels.png",
+      "bytes": 138340,
+      "sha256": "ea72f4b464c3db42afc9186783faff0636c27295b11d37c68853d381c488dfdd",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/global_local_native_panels.svg",
+      "bytes": 17050,
+      "sha256": "b10f33c19c9d5e3e33e794ff1f5943f9e73d4bc333e625367e78efe8da357692",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/global_local_six_domain_heatmap.png",
+      "bytes": 274596,
+      "sha256": "635c238d589f582b2f70c4c63299c6210de584d70140525d30474a9776e4bf4e",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/global_local_six_domain_heatmap.svg",
+      "bytes": 49051,
+      "sha256": "dd001cd922e35b4a69f0eca4a35db77281df49172f89cf24c8ddbc9666063203",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/graded_native_bold.pdf",
+      "bytes": 42294,
+      "sha256": "e73a50cac230ba8d4378d8f8705ff9c70356c64147e4106a5c73c76f03d7b2aa",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/graded_native_bold.png",
+      "bytes": 569109,
+      "sha256": "064b1f46acfce5696ba2e2bd2eed45873be30f9dd0eb10334329ffbf69ad3913",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/graded_native_bold.svg",
+      "bytes": 37825,
+      "sha256": "2667a94c3cbe929438735051b1cd68c9e78da867f22144c4438a04bfb6425874",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/graded_native_bold_source.csv",
+      "bytes": 495,
+      "sha256": "a18173bddbeb7c70d0f9174da5a0e39a3142a04d681284d055e5bbbe44a1c036",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/graded_native_grouped_average.pdf",
+      "bytes": 33403,
+      "sha256": "7ad70fd3bece00d39e731838cabfbea01e576a7f1614d1ab5c46c951753b0c93",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/graded_native_grouped_average.png",
+      "bytes": 479937,
+      "sha256": "cd76844779a6f2cd10d54b4bbc4e224a244985951d7c455a0dab48e9f92b05aa",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/graded_native_grouped_average.svg",
+      "bytes": 40837,
+      "sha256": "badd578458d10fb678f1a12b7970ba086ed5dff8370338b68f5983339ee941d8",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/graded_native_grouped_average_source.csv",
+      "bytes": 444,
+      "sha256": "3486adb2da8668761a093642baf4ce889045ac6af040bb741aa53eccc810f6f1",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/source_data_native.csv",
+      "bytes": 231,
+      "sha256": "cced21dffc34ac5506d40f6fc57b0a5f30b0751ca8ff56cc78831bc11923c61d",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/global_local_native_comparison_20261012/source_data_six_domain.csv",
+      "bytes": 646,
+      "sha256": "c87a5e150568581c91450ecec3ebd204bafea5313745ed1126cdab3bdd876b56",
+      "source": "docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md",
+      "scope": "historical_descriptive_surrogate_Bands_2_10_native_or_six_domain"
+    },
+    {
+      "path": "docs/reports/assets/work_frequency_band_comparison_20260831/work_frequency_band_prediction_vs_truth.pdf",
+      "bytes": 69513,
+      "sha256": "a4b7398b39eae57639c43b10316f630e32ffdb86c7f9e352ceac997f2910485a",
+      "source": "docs/reports/工作频率与带隙探索总结_20260831.md",
+      "scope": "export_of_existing_frequency_gap_or_physics_result"
+    },
+    {
+      "path": "docs/reports/assets/work_frequency_band_comparison_20260831/work_frequency_band_prediction_vs_truth.tiff",
+      "bytes": 75473450,
+      "sha256": "e8c67998100c258b1000dfab7946eaa586a7a6f91563d55fcefd8facb65354d5",
+      "source": "docs/reports/工作频率与带隙探索总结_20260831.md",
+      "scope": "export_of_existing_frequency_gap_or_physics_result"
+    },
+    {
+      "path": "docs/results/forward/assets/dataset_structure_gallery_20261008/f50_3maps.png",
+      "bytes": 39208,
+      "sha256": "274c48d3fd7f3b3d508725fced9085841ba9f3e38035857088d69e217cb47071",
+      "source": "docs/results/全胞数据正式结果.md",
+      "scope": "schematic_or_representative_structure_not_performance_evidence"
+    },
+    {
+      "path": "docs/results/forward/assets/dataset_structure_gallery_20261008/k10_3maps.png",
+      "bytes": 80621,
+      "sha256": "b2d802de2da0ff317272944d532441ae5fd556c8873b35341df59192a8f573dd",
+      "source": "docs/results/全胞数据正式结果.md",
+      "scope": "schematic_or_representative_structure_not_performance_evidence"
+    },
+    {
+      "path": "docs/results/forward/assets/dataset_structure_gallery_20261008/k15_3maps.png",
+      "bytes": 95811,
+      "sha256": "235d9e3659172efd828d745536815e825524ec0cb5115cc5ce0d170e00c8f7c6",
+      "source": "docs/results/全胞数据正式结果.md",
+      "scope": "schematic_or_representative_structure_not_performance_evidence"
+    },
+    {
+      "path": "docs/results/forward/assets/dataset_structure_gallery_20261008/k20_3maps.png",
+      "bytes": 109742,
+      "sha256": "ac71fa7f1a16f3de2870326b9fccf723b0b7a50392f8d14f2db9b6438971aef9",
+      "source": "docs/results/全胞数据正式结果.md",
+      "scope": "schematic_or_representative_structure_not_performance_evidence"
+    },
+    {
+      "path": "docs/results/forward/assets/dataset_structure_gallery_20261008/k5_3maps.png",
+      "bytes": 60540,
+      "sha256": "58f7f4365ce843e7e6deabf8e0514660d4622e04a32290653b1fe804f669a334",
+      "source": "docs/results/全胞数据正式结果.md",
+      "scope": "schematic_or_representative_structure_not_performance_evidence"
+    },
+    {
+      "path": "docs/results/forward/assets/dataset_structure_gallery_20261008/k5_k8_k10_k15_k20_f50_18maps_overview.png",
+      "bytes": 470935,
+      "sha256": "f2b8f6d3a7af67f7ee550182173350d07d27f965f7719d704500185bdc92b282",
+      "source": "docs/results/全胞数据正式结果.md",
+      "scope": "schematic_or_representative_structure_not_performance_evidence"
+    },
+    {
+      "path": "docs/results/forward/assets/dataset_structure_gallery_20261008/k8_3maps.png",
+      "bytes": 73810,
+      "sha256": "8d063df221648c11264d2d31af1bfa3c7d51aaeb94cd5ebc306e46c04a087099",
+      "source": "docs/results/全胞数据正式结果.md",
+      "scope": "schematic_or_representative_structure_not_performance_evidence"
+    },
+    {
+      "path": "docs/results/forward/assets/dataset_structure_gallery_20261008/phc2d_第三页_二维光子晶体及其物理计算对象.png",
+      "bytes": 269788,
+      "sha256": "9f4fd7b06705595fdee9eeba67d3a04b9f39f64898b06f33ea354186950d9c2b",
+      "source": "docs/参考/公式与指标/结构与MPB.md",
+      "scope": "schematic_or_representative_structure_not_performance_evidence"
+    },
+    {
+      "path": "docs/results/forward/assets/dataset_structure_gallery_20261008/phc2d_第三页_二维光子晶体及其物理计算对象.svg",
+      "bytes": 21534,
+      "sha256": "ada00edf2a52439447264dc85af0b52f05a43ad84957b3ace27add618f212d18",
+      "source": "docs/参考/公式与指标/结构与MPB.md",
+      "scope": "schematic_or_representative_structure_not_performance_evidence"
+    },
+    {
+      "path": "docs/results/forward/assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_full_bz_81_with_dielectric.png",
+      "bytes": 1412964,
+      "sha256": "299197794fe7c7f8d64defe4ff2a66e862b7a5432294737a925ef75648c50329",
+      "source": "docs/results/forward/EXP-FWD-007-K5训练与六域验证.md",
+      "scope": "frozen_81_point_surrogate_example"
+    },
+    {
+      "path": "docs/results/forward/assets/exp_fwd_007_six_domain_20260831/exp_fwd_007_k5_full_bz_81_with_dielectric.svg",
+      "bytes": 1517850,
+      "sha256": "1493c55ba53694be0cb990997b7c59996dff2ac5ae6a8a924f68f1f8cbee8af5",
+      "source": "docs/results/forward/EXP-FWD-007-K5训练与六域验证.md",
+      "scope": "frozen_81_point_surrogate_example"
+    },
+    {
+      "path": "docs/results/forward/assets/exp_fwd_007_six_domain_20260831/unit_cell_dielectric_crop.png",
+      "bytes": 3782,
+      "sha256": "c16654d40162fbedeeed55c603529e012c0e55685fb91557794c60122b403ee5",
+      "source": "docs/results/forward/EXP-FWD-007-K5训练与六域验证.md",
+      "scope": "frozen_81_point_surrogate_example"
+    },
+    {
+      "path": "manuscript/bison_kdd2027/figures/high_fidelity_data_cn/high_fidelity_data_cn.tex",
+      "bytes": 17202,
+      "sha256": "f663d23f4b9fcb8657998c108ace80beedf3f50e93ce139364532b40bf06008e",
+      "source": "manuscript/bison_kdd2027/figures/high_fidelity_data_cn/high_fidelity_data_cn.tex",
+      "scope": "conceptual_diagram_not_new_capability_or_acceptance"
+    },
+    {
+      "path": "manuscript/bison_kdd2027/figures/high_fidelity_data_cn/高保真数据线_可编辑.pdf",
+      "bytes": 197212,
+      "sha256": "f0df6512dbacdd7863a79b37b822337858763f31997869b20d79c69c199e9682",
+      "source": "manuscript/bison_kdd2027/figures/high_fidelity_data_cn/high_fidelity_data_cn.tex",
+      "scope": "conceptual_diagram_not_new_capability_or_acceptance"
+    },
+    {
+      "path": "manuscript/bison_kdd2027/figures/neural_operator_comparison_cn/neural_operator_comparison_cn.tex",
+      "bytes": 18834,
+      "sha256": "c6be1dc4df1b420d43f2237466a216327abe6993b9bc9f1dd8be9d7536570293",
+      "source": "manuscript/bison_kdd2027/figures/neural_operator_comparison_cn/neural_operator_comparison_cn.tex",
+      "scope": "conceptual_diagram_not_new_capability_or_acceptance"
+    },
+    {
+      "path": "manuscript/bison_kdd2027/figures/neural_operator_comparison_cn/两图_神经网络与神经算子_可编辑.pdf",
+      "bytes": 87834,
+      "sha256": "45355af7162b3a51e15a92b302fa90db801639de560ea3184d6457c08511713b",
+      "source": "manuscript/bison_kdd2027/figures/neural_operator_comparison_cn/neural_operator_comparison_cn.tex",
+      "scope": "conceptual_diagram_not_new_capability_or_acceptance"
+    },
+    {
+      "path": "manuscript/bison_kdd2027/figures/neural_operator_comparison_cn/图1_神经网络与神经算子_可编辑.pdf",
+      "bytes": 81782,
+      "sha256": "603f3c9d0bbd5337c4f26a5de50daa7ecebb007fc068dd605718f6e7ad35f74b",
+      "source": "manuscript/bison_kdd2027/figures/neural_operator_comparison_cn/neural_operator_comparison_cn.tex",
+      "scope": "conceptual_diagram_not_new_capability_or_acceptance"
+    },
+    {
+      "path": "manuscript/bison_kdd2027/figures/neural_operator_comparison_cn/图2_传统神经网络与神经算子_可编辑.pdf",
+      "bytes": 87545,
+      "sha256": "29356706b3ebc4c5615f08cee3615744b486dce16beacb092e90533ad274a0f7",
+      "source": "manuscript/bison_kdd2027/figures/neural_operator_comparison_cn/neural_operator_comparison_cn.tex",
+      "scope": "conceptual_diagram_not_new_capability_or_acceptance"
+    }
+  ],
+  "source_runs_not_distributed": true,
+  "hash_scope": "git_blob_content"
+}

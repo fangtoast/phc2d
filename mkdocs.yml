@@ -95,6 +95,7 @@ not_in_nav: |
   results/inverse/README.md
   reports/assets/*/figure_index.md
 
+  reports/图件索引.md
 nav:
   - 首页: index.md
   - 开始使用:

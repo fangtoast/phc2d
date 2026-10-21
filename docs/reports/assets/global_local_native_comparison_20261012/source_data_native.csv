@@ -1,0 +1,7 @@
+﻿domain,global_local_mre_pct,historical_best_mre_pct,historical_best_model
+K5-B,0.555,0.601,TFNO v3
+K5-G,0.404,0.409,TFNO v3
+K20-B,0.2,0.288,TFNO v3
+K20-G,0.141,0.272,TFNO v3
+F50-B,0.387,0.321,ConvNeXt
+F50-G,0.0949,0.05,ConvNeXt

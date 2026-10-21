@@ -66,3 +66,10 @@ data/*
 
 .cursor
 .agent/
+
+# Reviewed vector figure exports; datasets and run outputs remain ignored.
+!docs/reports/assets/global_local_native_comparison_20261012/*.pdf
+!docs/reports/assets/b1_b2_prior_band_diagram_20260831/b1_b2_prior_real_mpb_band_diagram.pdf
+!docs/reports/assets/gap_aware_scheme_change_20260831/gap_aware_scheme_change_with_physical_reference.pdf
+!docs/reports/assets/work_frequency_band_comparison_20260831/work_frequency_band_prediction_vs_truth.pdf
+!docs/reports/assets/effective_index_gamma_slope_validation_20260831/near_gamma_linear_dispersion_vs_te_scalar_formula.pdf
