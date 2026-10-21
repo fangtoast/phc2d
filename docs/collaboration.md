@@ -29,7 +29,7 @@ primary_layer: L4
 | Last reviewed | 2026-08-13 |
 | Reading time | 6 minutes |
 
-本文规定项目知识如何分层、证据如何定级，以及 AI 产出怎样经过人工接受。代码、运行、测试和 Git 的固定约束见 [`AGENTS.md`](https://github.com/fangtoast/phc2d/blob/master/AGENTS.md)；目录与文件约定见 [`conventions.md`](conventions.md)。
+本文规定项目知识如何分层、证据如何定级，以及 AI 产出怎样经过人工接受。代码、运行、测试和 Git 的固定约束见 [`AGENTS.md`](https://github.com/fangtoast/phc2d/blob/main/AGENTS.md)；目录与文件约定见 [`conventions.md`](conventions.md)。
 
 ## 责任与完成定义
 
@@ -57,8 +57,8 @@ primary_layer: L4
 
 | 文档 | 主要职责 |
 |---|---|
-| [`README.md`](https://github.com/fangtoast/phc2d/blob/master/README.md) | 稳定项目入口 |
-| [`PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md) | 当前状态、阻塞和最近 gate |
+| [`README.md`](https://github.com/fangtoast/phc2d/blob/main/README.md) | 稳定项目入口 |
+| [`PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/main/PROJECT_MAP.md) | 当前状态、阻塞和最近 gate |
 | [`docs/index.md`](index.md) | 发布站首页与受众入口 |
 | [`docs/README.md`](index.md) | 完整站点地图与维护入口 |
 | [`docs/概念/`](概念/README.md) | 跨实验稳定的解释与证据等级 |
@@ -66,7 +66,7 @@ primary_layer: L4
 | [`docs/指南/`](指南/README.md) | 面向任务的可执行步骤 |
 | [`docs/参考/`](参考/README.md) | CLI、schema、模型和指标契约 |
 | [`planning/README.md`](planning/README.md) | 规划与协议路由 |
-| [`experiments/`](https://github.com/fangtoast/phc2d/blob/master/experiments/README.md) | 可执行实验合同 |
+| [`experiments/`](https://github.com/fangtoast/phc2d/blob/main/experiments/README.md) | 可执行实验合同 |
 | [`results/README.md`](results/README.md) | 实际结果和证据边界 |
 | [`reports/README.md`](reports/README.md) | 带日期的综合叙述 |
 

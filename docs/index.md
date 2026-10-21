@@ -21,14 +21,14 @@ primary_layer: L4
 
 `phc2d` 是二维光子晶体的统一研究工具链：从周期结构与 MPB 数据生成，经过正向代理、查询与逆向候选生成，最终回到真实求解器复核。这里先回答“项目是什么、做到哪里、结论是什么、证据在哪里”，再进入方法或执行细节。
 
-> **证据边界：** 计划、代码实现、smoke、surrogate 指标、solver replay 与物理验证是不同层级。文档存在不等于实验完成，当前任务优先级以[项目地图](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md)为准。
+> **证据边界：** 计划、代码实现、smoke、surrogate 指标、solver replay 与物理验证是不同层级。文档存在不等于实验完成，当前任务优先级以[项目地图](https://github.com/fangtoast/phc2d/blob/main/PROJECT_MAP.md)为准。
 
 ## 五分钟阅读路径
 
 | 顺序 | 入口 | 读完后应知道什么 |
 |---|---|---|
 | 1. Overview | 本页 | 项目对象、研究闭环与证据层级 |
-| 2. Current State | [项目地图](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md) | 当前主线、阻塞项和下一道研究 gate |
+| 2. Current State | [项目地图](https://github.com/fangtoast/phc2d/blob/main/PROJECT_MAP.md) | 当前主线、阻塞项和下一道研究 gate |
 | 3. Results | [当前结果](结果/README.md) | 主要实验、当前结论、状态与 Experiment ID |
 | 4. Evidence | [实验与证据库](results/README.md) | 数据身份、指标、run、solver 与原始制品入口 |
 

@@ -49,8 +49,8 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 | item | value |
 |---|---|
 | date | 2026-06-21 |
-| generation config | [`../../configs/research/query_dataset_v2_pilot_1000.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/query_dataset_v2_pilot_1000.yaml) |
-| validation config | [`../../configs/research/k_path_physical_validation_v2_1000.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/k_path_physical_validation_v2_1000.yaml) |
+| generation config | [`../../configs/research/query_dataset_v2_pilot_1000.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/query_dataset_v2_pilot_1000.yaml) |
+| validation config | [`../../configs/research/k_path_physical_validation_v2_1000.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/k_path_physical_validation_v2_1000.yaml) |
 | dataset | `data/query_dataset_v2_pilot_1000_mpb.npz` |
 | manifest | `data/metadata/query_dataset_v2_pilot_1000_mpb.manifest.yaml` |
 | k-path sidecar | `data/metadata/query_dataset_v2_pilot_1000_mpb.kpath.v1.json` |

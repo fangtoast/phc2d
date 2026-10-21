@@ -40,7 +40,7 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 - seeds：`0/1/2`；
 - job count：`2 × 3 × 3 = 18`；
 - concurrency：`9`；
-- config：[`full_cell_inverse_stage_a_n40_preflight_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml)；
+- config：[`full_cell_inverse_stage_a_n40_preflight_v1.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml)；
 - dry-run manifest：`runs/20260806/inverse_stage_a_r1_dryrun_v2_probe_20260806173951/submission_manifest.csv`（ignored run artifact，不进入 Git）。
 
 演练前重新计算并核对了 binary/graded 两份 10k HDF5 SHA-256。配置 loader 同时验证 N40 的 batch 64、`64×64` soft raster、FP32、AMP/TF32 off 和三类网络宽度合同。

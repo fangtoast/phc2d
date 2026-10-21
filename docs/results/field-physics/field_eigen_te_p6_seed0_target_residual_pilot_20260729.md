@@ -45,7 +45,7 @@ P6A 和 P6B 的 seed0 均未通过固定 64×64 的 target-residual 校准，因
 | bootstrap | 1,000 次 |
 | 候选 | P6A seed0、P6B seed0 |
 
-配置为 [`field_eigen_te_p6_seed0_target_residual_pilot_64.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/field_eigen_te_p6_seed0_target_residual_pilot_64.yaml)，正式 artifacts 位于本地 `runs/20260729/field_eigen_te_p6_seed0_target_residual_pilot_64_202607291023`。
+配置为 [`field_eigen_te_p6_seed0_target_residual_pilot_64.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/field_eigen_te_p6_seed0_target_residual_pilot_64.yaml)，正式 artifacts 位于本地 `runs/20260729/field_eigen_te_p6_seed0_target_residual_pilot_64_202607291023`。
 
 ## 准入结果
 

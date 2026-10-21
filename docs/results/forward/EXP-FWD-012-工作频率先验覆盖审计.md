@@ -51,4 +51,4 @@ complete gap 占比仅为 Binary `20.7%`、Graded `5.8%`，但 complete/pseudo �
 
 原始证据：`runs/20260827/EXP-FWD-012_202608271707/`。该 run 保存 resolved config、数据与子集 hash、`work_frequency_prior.json`、`work_frequency_metrics.json`、标准 metrics/results/meta；`test_targets_loaded=false`，未启动训练或 real solver。
 
-实验合同：[EXP-FWD-012 协议](https://github.com/fangtoast/phc2d/blob/master/experiments/research/EXP-FWD-012-%E5%B7%A5%E4%BD%9C%E9%A2%91%E7%8E%87%E5%85%88%E9%AA%8C%E8%A6%86%E7%9B%96%E5%AE%A1%E8%AE%A1.md)。
+实验合同：[EXP-FWD-012 协议](https://github.com/fangtoast/phc2d/blob/main/experiments/research/EXP-FWD-012-%E5%B7%A5%E4%BD%9C%E9%A2%91%E7%8E%87%E5%85%88%E9%AA%8C%E8%A6%86%E7%9B%96%E5%AE%A1%E8%AE%A1.md)。

@@ -70,8 +70,8 @@ r128 是本轮数值参考。r64 的 B/G P95 MRE 分别为 **0.071935%/0.004751%
 
 ## 证据入口
 
-- experiment spec：[分辨率收敛协议](https://github.com/fangtoast/phc2d/blob/master/experiments/research/full_cell_resolution_convergence_xingyi.md)
-- config：[Stage A](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_resolution_convergence_xingyi_stage_a_v1.yaml) · [Stage B](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_resolution_convergence_xingyi_stage_b_v1.yaml)
+- experiment spec：[分辨率收敛协议](https://github.com/fangtoast/phc2d/blob/main/experiments/research/full_cell_resolution_convergence_xingyi.md)
+- config：[Stage A](https://github.com/fangtoast/phc2d/blob/main/configs/research/full_cell_resolution_convergence_xingyi_stage_a_v1.yaml) · [Stage B](https://github.com/fangtoast/phc2d/blob/main/configs/research/full_cell_resolution_convergence_xingyi_stage_b_v1.yaml)
 - runs：[求解与交叉验收索引](../results/data-provenance/全胞MPB分辨率收敛验证_20260817.md)，源目录包括 `runs/20260817/full_cell_resolution_convergence_xingyi_stage_b_retry1_202608171428/` 与 `runs/20260817/full_cell_resolution_convergence_wsl_cross_acceptance_v1_202608171505/`
 - raw metrics：[收敛、耗时与 WSL 指标说明](../results/data-provenance/全胞MPB分辨率收敛验证_20260817.md)，包括 `convergence_metrics.json`、`timing.csv` 与交叉验收 `metrics.json`
 - figures：[图件与 source index](../reports/assets/full_cell_mpb_resolution_convergence_20260817/source_index.csv)

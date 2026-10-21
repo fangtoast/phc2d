@@ -40,9 +40,9 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 >
 > 非目标：本文不把 threshold proxy、CPU preflight、Stage-B 计划或 surrogate 指标写成 real-MPB inverse 验证，也不展开 MaxwellNet、cINN、diffusion 等参考模型。
 
-本文回答的是“一个解析周期结构如何变成可训练数据、模型优化的量是什么、最终又由什么物理证据复核”。公式按当前源码、全胞 50k 冻结配置与 V2 专用分支逐项回链；通用定义与当前配置常数严格分开。模型清单和结果状态仍以 [`phc2d_model_inventory_v1.yaml`](phc2d_model_inventory_v1.yaml)、[全胞模型报告](全胞双路线正向与逆向模型报告_20260810.md)及 [`PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md) 为准。
+本文回答的是“一个解析周期结构如何变成可训练数据、模型优化的量是什么、最终又由什么物理证据复核”。公式按当前源码、全胞 50k 冻结配置与 V2 专用分支逐项回链；通用定义与当前配置常数严格分开。模型清单和结果状态仍以 [`phc2d_model_inventory_v1.yaml`](phc2d_model_inventory_v1.yaml)、[全胞模型报告](全胞双路线正向与逆向模型报告_20260810.md)及 [`PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/main/PROJECT_MAP.md) 为准。
 
-[项目地图](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md) · [文档目录](../index.md) · [完整项目报告](phc2d_project_full_introduction_20260724.md#project-report-home) · [当前实验进展](../results/README.md)
+[项目地图](https://github.com/fangtoast/phc2d/blob/main/PROJECT_MAP.md) · [文档目录](../index.md) · [完整项目报告](phc2d_project_full_introduction_20260724.md#project-report-home) · [当前实验进展](../results/README.md)
 
 > 本手册冻结公式、数据与评价定义，不把历史数值自动升级为修正后结果。当前可引用结果和阻塞状态仍以结果索引及源 artifacts 为准。
 
@@ -122,7 +122,7 @@ $$
 后的 canonical JSON 求 SHA-256。相同 $S$ 同时驱动解析材料回调、32/64/128 栅格、inverse codec
 和 replay；PNG、某个 raster 或 padding 后的参数数组都不是结构真值。
 
-- **来源**：[`data/full_cell.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell.py)、[全胞模型报告](全胞双路线正向与逆向模型报告_20260810.md)。
+- **来源**：[`data/full_cell.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/full_cell.py)、[全胞模型报告](全胞双路线正向与逆向模型报告_20260810.md)。
 - **状态**：数据合同已实现；B/G 50k real-MPB 数据已冻结并用于正式正向评估，但本轮不新增
   50k WSL 跨环境物理验收主张。仓库明确通过固定 WSL 验收的是两份 full-cell 10k 数据。
 
@@ -273,7 +273,7 @@ largest-remainder 修正精确总数；三组索引必须互斥且恰好覆盖�
 | `Wh` | `[N,81,10]` | real-MPB TE Full-Wh 标签 |
 | `idx_train/val/test` | 一维索引 | 冻结且互斥的数据划分 |
 
-- **来源**：[`generators/full_cell.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/generators/full_cell.py)、[`data/full_cell.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell.py)、[`data/full_cell_generation.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell_generation.py)、[`forward/full_cell.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/full_cell.py)。
+- **来源**：[`generators/full_cell.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/generators/full_cell.py)、[`data/full_cell.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/full_cell.py)、[`data/full_cell_generation.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/full_cell_generation.py)、[`forward/full_cell.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/full_cell.py)。
 - **状态**：B/G 50k HDF5 与正式正向评估已完成；数据通过物理门不等于 inverse replay 已完成。
 
 ### 2.8 历史 p4m：Bernoulli wedge 采样
@@ -287,7 +287,7 @@ $$
 
 - **含义**：先只在 p4m 独立楔区产生二值材料变量。
 - **当前配置**：$p_{\rm high}=0.32$，seed 为 `20260619`；这是数据分布参数，不是物理常数。
-- **来源**：[`query_dataset_v2_pilot_10000.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/query_dataset_v2_pilot_10000.yaml)。
+- **来源**：[`query_dataset_v2_pilot_10000.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/query_dataset_v2_pilot_10000.yaml)。
 - **状态**：已实现的历史 p4m V2 数据生成流程。
 
 ### 2.9 历史 p4m：wedge 长度、半边尺寸与完整网格
@@ -315,7 +315,7 @@ $$
 所有像素轨道赋同一 $\rho_i$，得到完整占据网格 $\chi=\operatorname{Lift}_{p4m}(\rho)$。边界或对称轴上的重复坐标自然合并。
 
 - **归一化/单位**：纯索引映射，无物理单位。
-- **来源**：[`data/lift.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/lift.py)。
+- **来源**：[`data/lift.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/lift.py)。
 - **状态**：已实现的 p4m lifting；不是当前 full-cell 解析结构生成器。
 
 ### 2.11 历史 p4m：从占据量到介电常数
@@ -327,7 +327,7 @@ $$
 
 当前配置为 $\varepsilon_{\rm air}=1.0$、$\varepsilon_{\rm material}=8.9$。$\chi=0$ 对应空气，$\chi=1$ 对应材料；连续候选则对应两者之间的插值，送入 MPB replay 前仍需按 replay 协议二值化。
 
-- **来源**：[`data/lift.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/lift.py)、[`query_dataset_v2_pilot_10000.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/query_dataset_v2_pilot_10000.yaml)。
+- **来源**：[`data/lift.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/lift.py)、[`query_dataset_v2_pilot_10000.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/query_dataset_v2_pilot_10000.yaml)。
 - **状态**：通用映射已实现；材料数值属于当前配置。
 
 ### 2.12 历史 p4m：MPB 像素块的尺寸、中心与填充率
@@ -351,7 +351,7 @@ $$
 
 源码只为高介电像素建立材料块，空气是背景介质。当前 V2 的 $16\times16$ 是配置派生尺寸，MPB `resolution=64` 是每晶格常数的求解离散率，二者不是同一个网格概念。
 
-- **来源**：[`solvers/mpb.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/solvers/mpb.py)。
+- **来源**：[`solvers/mpb.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/solvers/mpb.py)。
 - **状态**：real MPB 数据与 replay 共用的几何构造。
 
 ### 2.13 通用候选健康度与距离
@@ -373,7 +373,7 @@ A=\sum_u b_u,
 P_{\rm TV}=\sum_{(u,v)\in\mathcal E_{\rm internal}}|b_u-b_v|.
 $$
 
-其中 $\mathcal E_{\rm internal}$ 只包含网格内部的水平和垂直邻接边；当前字段名是 `total_variation`，不含外边界项，因此不能误称为完整几何周长。连通域数 $C$ 由值为 1 的像素四连通分量计数，并报告最大连通域占材料面积比例 $A_{\max}/\max(A,1)$、最小连通域像素数和孤立像素数。这些是结构描述量或筛选量，不是 Maxwell 方程。具体统计以 [`inverse/morphology.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/inverse/morphology.py) 和 [`inverse/candidates.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/inverse/candidates.py) 的实现字段为准。
+其中 $\mathcal E_{\rm internal}$ 只包含网格内部的水平和垂直邻接边；当前字段名是 `total_variation`，不含外边界项，因此不能误称为完整几何周长。连通域数 $C$ 由值为 1 的像素四连通分量计数，并报告最大连通域占材料面积比例 $A_{\max}/\max(A,1)$、最小连通域像素数和孤立像素数。这些是结构描述量或筛选量，不是 Maxwell 方程。具体统计以 [`inverse/morphology.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/inverse/morphology.py) 和 [`inverse/candidates.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/inverse/candidates.py) 的实现字段为准。
 
 ### 2.14 历史 p4m V2 数据划分
 
@@ -451,7 +451,7 @@ $$
 因此跨单位胞相位仍是 $e^{i2\pi k_x}$、$e^{i2\pi k_y}$。$9\times9$ 网格覆盖完整方形
 第一 BZ 的离散内部代表点，不是 $\Gamma-X-M-\Gamma$ 高对称路径，也不应按路径累计弧长绘图。
 
-- **来源**：[`data/full_cell.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell.py)、两条 50k 冻结数据合同。
+- **来源**：[`data/full_cell.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/full_cell.py)、两条 50k 冻结数据合同。
 - **状态**：当前 full-cell `Wh[81,10]` 的物理坐标合同。
 
 ### 3.4 历史 p4m：$\Gamma-X-M-\Gamma$ 路径与累计弧长
@@ -476,7 +476,7 @@ $e^{i2\pi k_x}$、$e^{i2\pi k_y}$ 一致。
 
 当前 V2 每段共享端点，总计 $N_k=31$，segment index 为 $0$–$10$、$10$–$20$、$20$–$30$。首尾都是 $\Gamma$，但它们是路径上两个不同位置：索引 $0$ 和 $30$；不能因坐标相同而去重。
 
-- **来源**：[`query_dataset_v2_pilot_10000.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/query_dataset_v2_pilot_10000.yaml)、[`query_dataset_v2_pilot_10000_mpb.kpath.v1.json`](https://github.com/fangtoast/phc2d/blob/master/data/metadata/query_dataset_v2_pilot_10000_mpb.kpath.v1.json)。
+- **来源**：[`query_dataset_v2_pilot_10000.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/query_dataset_v2_pilot_10000.yaml)、[`query_dataset_v2_pilot_10000_mpb.kpath.v1.json`](https://github.com/fangtoast/phc2d/blob/main/data/metadata/query_dataset_v2_pilot_10000_mpb.kpath.v1.json)。
 - **状态**：已实现的 p4m V2/Field 专用 k-path 约定。
 
 ### 3.5 MPB 无量纲频率
@@ -512,7 +512,7 @@ $N_k=81$，p4m V2 路径的 $N_k=31$；两者不能按相同行号或 k 索引�
 和场标签的物理本征求解器；Full-Wh、Query 和 field 网络只是从有限数据学习的近似代理，
 不能替代 real-MPB 证据。
 
-- **来源**：[`solvers/mpb.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/solvers/mpb.py)、[`query_dataset_v2_pilot_10000.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/query_dataset_v2_pilot_10000.yaml)。
+- **来源**：[`solvers/mpb.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/solvers/mpb.py)、[`query_dataset_v2_pilot_10000.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/query_dataset_v2_pilot_10000.yaml)。
 - **状态**：full-cell 与 p4m 的 10+4 band 求解均已实现；具体几何入口和 k 集合按各自合同区分。
 
 <a id="formula-representation"></a>
@@ -555,7 +555,7 @@ $$
 validation/test 不参与 $\mu,\sigma$ 拟合。dual-lane 模型仍分别保存 B/G 两套统计量；共享参数
 不等于共享 normalization。
 
-- **来源**：[`forward/full_cell.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/full_cell.py)、[`forward/full_cell_dual_lane.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/full_cell_dual_lane.py)。
+- **来源**：[`forward/full_cell.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/full_cell.py)、[`forward/full_cell_dual_lane.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/full_cell_dual_lane.py)。
 - **状态**：50k 正向训练与评估的当前数据接口。
 
 ### 4.2 历史 p4m：Full-Wh 与 Query 样本
@@ -616,7 +616,7 @@ $$
 
 $\mu_{\log f}$ 和 $\sigma_{\log f}$ 必须由训练集统计得到，并随 checkpoint/metadata 保存；不能从验证或测试集重新估计。
 
-- **来源**：[`forward/field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_v2.py)、[`field_eigen_te_pino_b4_repair_validation_9216.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/field_eigen_te_pino_b4_repair_validation_9216.yaml)。
+- **来源**：[`forward/field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/field_eigen_v2.py)、[`field_eigen_te_pino_b4_repair_validation_9216.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/field_eigen_te_pino_b4_repair_validation_9216.yaml)。
 - **状态**：当前 field 数据制度已实现。
 
 <a id="formula-field-pino"></a>
@@ -732,7 +732,7 @@ anchor。
 无论采用单场 anchor 还是两场最大重叠，H 都不独立归一化或独立定相；它沿用由 E 得到的缩放
 和相位，以保留 E/H 的相对相位及 Maxwell 关系。
 
-- **来源**：[`data/field_eigen.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/field_eigen.py)、[`forward/field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_v2.py)、[`physics/eigen_residual.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/physics/eigen_residual.py)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md)。
+- **来源**：[`data/field_eigen.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/field_eigen.py)、[`forward/field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/field_eigen_v2.py)、[`physics/eigen_residual.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/physics/eigen_residual.py)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md)。
 - **状态**：单场最大模长 anchor 与两场最大重叠比较均已实现；沿 $\mathbf k$ 路径的连续规范及简并子空间对齐尚未实现。
 
 ### 5.3 带 Bloch 相位回绕的中心差分
@@ -978,12 +978,12 @@ $$
 
 $\Delta_m>0$ 表示退化，$\Delta_m<0$ 表示改善。当前阈值是 frequency MRE 退化不超过 $2\%$、residual median 退化不超过 $20\%$。
 
-- **来源**：[`forward/field_eigen_b4.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_b4.py)、[`field_eigen_te_b4_dense_k_gate.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/field_eigen_te_b4_dense_k_gate.yaml)、[`field_eigen_te_b4_dense_k_admission_20260722.md`](../results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md)。
+- **来源**：[`forward/field_eigen_b4.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/field_eigen_b4.py)、[`field_eigen_te_b4_dense_k_gate.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/field_eigen_te_b4_dense_k_gate.yaml)、[`field_eigen_te_b4_dense_k_admission_20260722.md`](../results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md)。
 - **状态**：校准与跨分辨率公式已实现；当前准入结果仍为 blocked。旧场度规下的 B3/B4 数值只能保留为历史诊断，不能自动升级为修正后结论。
 
 > **证据边界**：仓库中的 adapted PINO 是 `fno_field_v2` 的训练制度，不是另一套 faithful PINO 架构。它当前不能进入 inverse reranking。physics residual 下降只表明预测场更符合该离散残差；它不等于 inverse-design 收益，也不等于 real-MPB replay 通过。
 
-- **来源**：[`forward/field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_v2.py)、[`physics/torch_eigen_residual.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/physics/torch_eigen_residual.py)、[`field_eigen_te_pino_b4_repair_validation_9216.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/field_eigen_te_pino_b4_repair_validation_9216.yaml)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md)。
+- **来源**：[`forward/field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/field_eigen_v2.py)、[`physics/torch_eigen_residual.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/physics/torch_eigen_residual.py)、[`field_eigen_te_pino_b4_repair_validation_9216.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/field_eigen_te_pino_b4_repair_validation_9216.yaml)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md)。
 - **状态**：已实现的训练/验证制度；inverse 使用状态为 blocked。
 
 <a id="formula-forward-metrics"></a>
@@ -1471,9 +1471,9 @@ $$
 \end{aligned}
 $$
 
-当前每个条件用于目标计算的候选数为 16；连续 diversity、二值 diversity、latent response 和最近邻 Hamming 目标分别为 $0.05$、$0.08$、$0.04$、$0.05$。这些都是 [`a2_inverse_objective_bridge_seed0_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/a2_inverse_objective_bridge_seed0_v1.yaml) 的当前配置常数。
+当前每个条件用于目标计算的候选数为 16；连续 diversity、二值 diversity、latent response 和最近邻 Hamming 目标分别为 $0.05$、$0.08$、$0.04$、$0.05$。这些都是 [`a2_inverse_objective_bridge_seed0_v1.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/a2_inverse_objective_bridge_seed0_v1.yaml) 的当前配置常数。
 
-- **来源**：[`inverse/objective.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/inverse/objective.py)、[`inverse/candidates.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/inverse/candidates.py)。
+- **来源**：[`inverse/objective.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/inverse/objective.py)、[`inverse/candidates.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/inverse/candidates.py)。
 - **状态**：p4m Objective-Bridge 已执行并保留为历史证据。`fno2d_band_v2` 是该合同的 primary frozen surrogate/ranker，`fno2d_query_v2` 是 consistency gate；它不是尚未执行的 full-cell Stage B。
 - **排除项**：MPB replay 不属于 $\mathcal L_{\rm obj}$，也不通过训练图反向传播；adapted PINO 当前不是 inverse ranker。
 
@@ -1528,7 +1528,7 @@ $$
 p4m Objective-Bridge 评估配置使用 `requested_k=128`，并对筛选后的 top 5 做 replay；这些是该历史
 实验预算，不是公式中的固定 $K$。full-cell inverse 计划也为 single/mixture 每目标生成 $K=128$
 并保留 Top-5，但尚未形成正式候选池或 replay 结果。评估配置见
-[`a2_inverse_objective_bridge_seed0_test625_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/a2_inverse_objective_bridge_seed0_test625_v1.yaml)，
+[`a2_inverse_objective_bridge_seed0_test625_v1.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/a2_inverse_objective_bridge_seed0_test625_v1.yaml)，
 full-cell 边界见[解析逆向扩展计划](../planning/full_cell_forward_inverse_training/full_cell_inverse_design_extension_plan.md)。
 
 <a id="formula-source-index"></a>
@@ -1537,22 +1537,22 @@ full-cell 边界见[解析逆向扩展计划](../planning/full_cell_forward_inve
 
 | 公式组 | 主要来源 | 归一化/当前配置 | 当前状态 |
 |---|---|---|---|
-| full-cell 解析结构、raster 与 HDF5 | [`generators/full_cell.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/generators/full_cell.py)、[`data/full_cell.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell.py)、[`data/full_cell_generation.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell_generation.py) | B/G；32/64/128；`Wh[81,10]` | 50k 已生成并用于正向评估；10k 有 WSL 验收 |
-| full-cell 训练、标准化与 dual-lane | [`forward/full_cell.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/full_cell.py)、[`forward/full_cell_dual_lane.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/full_cell_dual_lane.py) | 分 lane train-only z-score；normalized MSE | 50k 正式评估完成 |
-| Mixer、Gated ResMLP、ConvNeXt、TFNO、lane FiLM | [`models/full_cell_upgrades.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/models/full_cell_upgrades.py) | dense/k-conditioned heads | 五模型已正式评估；dense 获选 |
-| full-cell analytic codec 与 Stage A | [`inverse/full_cell_codec.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/inverse/full_cell_codec.py)、[`inverse/full_cell_training.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/inverse/full_cell_training.py) | 五变体；810 维条件；codec/raster/circle loss | codec/CPU/WSL preflight；正式训练未执行 |
-| 历史 wedge、$D_4$/p4m 与 $\varepsilon(\chi)$ | [`data/lift.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/lift.py) | V2 `16×16`、$\varepsilon\in[1.0,8.9]$ | 已实现历史/专用分支 |
-| MPB 几何与频带求解 | [`solvers/mpb.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/solvers/mpb.py) | resolution 64、TE、10+4 bands | 已实现 |
-| 历史 V2 采样和 k-path | [`query_dataset_v2_pilot_10000.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/query_dataset_v2_pilot_10000.yaml) | $p=0.32$、$N_k=31$ | 已实现历史/专用分支 |
-| 复场数据规范化与度规 | [`data/field_eigen.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/field_eigen.py)、[`forward/field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_v2.py)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md) | 单场最大模长 anchor；两场介电加权最大重叠；公共 E/H 相位 | 比较度规已实现；$\mathbf k$ 路径连续规范未实现；旧数值属历史诊断 |
-| NumPy 场残差 | [`physics/eigen_residual.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/physics/eigen_residual.py) | Bloch finite difference | 已实现诊断 |
-| Torch/PINO 场残差 | [`physics/torch_eigen_residual.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/physics/torch_eigen_residual.py) | solver-floor scaled | 已实现训练项 |
-| field 编码和训练制度 | [`forward/field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_v2.py) | 5+3 输入、6 输出、log-$f$ | 已实现；inverse blocked |
-| residual–frequency 与分辨率诊断 | [`forward/field_eigen_b4.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_b4.py) | 1000 次 structure bootstrap、64/96/128 | 已实现；准入 blocked |
-| 历史 p4m 前向/Query 指标 | [`forward/runner.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/runner.py)、[`query/runner.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/query/runner.py) | band 2–$N_b$ MRE | 已实现 |
-| 历史 p4m 逆向目标 | [`inverse/objective.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/inverse/objective.py) | Objective-Bridge 权重 | 已执行；不等于 full-cell Stage B |
-| 历史 p4m 候选去重和健康度 | [`inverse/candidates.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/inverse/candidates.py) | threshold 0.5、Hamming | 已实现；full-cell 候选冻结未执行 |
-| 历史 p4m real-MPB replay | [`replay/runner.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/replay/runner.py)、[`solvers/mpb.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/solvers/mpb.py) | same-pool/same-budget | 已实现并有历史结果；full-cell replay 未执行 |
+| full-cell 解析结构、raster 与 HDF5 | [`generators/full_cell.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/generators/full_cell.py)、[`data/full_cell.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/full_cell.py)、[`data/full_cell_generation.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/full_cell_generation.py) | B/G；32/64/128；`Wh[81,10]` | 50k 已生成并用于正向评估；10k 有 WSL 验收 |
+| full-cell 训练、标准化与 dual-lane | [`forward/full_cell.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/full_cell.py)、[`forward/full_cell_dual_lane.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/full_cell_dual_lane.py) | 分 lane train-only z-score；normalized MSE | 50k 正式评估完成 |
+| Mixer、Gated ResMLP、ConvNeXt、TFNO、lane FiLM | [`models/full_cell_upgrades.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/models/full_cell_upgrades.py) | dense/k-conditioned heads | 五模型已正式评估；dense 获选 |
+| full-cell analytic codec 与 Stage A | [`inverse/full_cell_codec.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/inverse/full_cell_codec.py)、[`inverse/full_cell_training.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/inverse/full_cell_training.py) | 五变体；810 维条件；codec/raster/circle loss | codec/CPU/WSL preflight；正式训练未执行 |
+| 历史 wedge、$D_4$/p4m 与 $\varepsilon(\chi)$ | [`data/lift.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/lift.py) | V2 `16×16`、$\varepsilon\in[1.0,8.9]$ | 已实现历史/专用分支 |
+| MPB 几何与频带求解 | [`solvers/mpb.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/solvers/mpb.py) | resolution 64、TE、10+4 bands | 已实现 |
+| 历史 V2 采样和 k-path | [`query_dataset_v2_pilot_10000.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/query_dataset_v2_pilot_10000.yaml) | $p=0.32$、$N_k=31$ | 已实现历史/专用分支 |
+| 复场数据规范化与度规 | [`data/field_eigen.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/field_eigen.py)、[`forward/field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/field_eigen_v2.py)、[电场度规勘误](../results/field-physics/field_electric_metric_correction_20260803.md) | 单场最大模长 anchor；两场介电加权最大重叠；公共 E/H 相位 | 比较度规已实现；$\mathbf k$ 路径连续规范未实现；旧数值属历史诊断 |
+| NumPy 场残差 | [`physics/eigen_residual.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/physics/eigen_residual.py) | Bloch finite difference | 已实现诊断 |
+| Torch/PINO 场残差 | [`physics/torch_eigen_residual.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/physics/torch_eigen_residual.py) | solver-floor scaled | 已实现训练项 |
+| field 编码和训练制度 | [`forward/field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/field_eigen_v2.py) | 5+3 输入、6 输出、log-$f$ | 已实现；inverse blocked |
+| residual–frequency 与分辨率诊断 | [`forward/field_eigen_b4.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/field_eigen_b4.py) | 1000 次 structure bootstrap、64/96/128 | 已实现；准入 blocked |
+| 历史 p4m 前向/Query 指标 | [`forward/runner.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/runner.py)、[`query/runner.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/query/runner.py) | band 2–$N_b$ MRE | 已实现 |
+| 历史 p4m 逆向目标 | [`inverse/objective.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/inverse/objective.py) | Objective-Bridge 权重 | 已执行；不等于 full-cell Stage B |
+| 历史 p4m 候选去重和健康度 | [`inverse/candidates.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/inverse/candidates.py) | threshold 0.5、Hamming | 已实现；full-cell 候选冻结未执行 |
+| 历史 p4m real-MPB replay | [`replay/runner.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/replay/runner.py)、[`solvers/mpb.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/solvers/mpb.py) | same-pool/same-budget | 已实现并有历史结果；full-cell replay 未执行 |
 
 ## 10. 维护与证据边界检查表
 

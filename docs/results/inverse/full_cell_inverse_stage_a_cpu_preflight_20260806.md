@@ -48,11 +48,11 @@ Full-cell inverse 已具备独立的 Stage-A 数据与单 batch 训练 preflight
 
 实现入口：
 
-- [`src/phc2d/inverse/full_cell_training.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/inverse/full_cell_training.py)：按变体加载、route-train-only `Wh` normalization、三种无界 analytic 输出网络、15-case preflight 与标准 run 制品；
-- [`configs/smoke/full_cell_inverse_stage_a_cpu_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/smoke/full_cell_inverse_stage_a_cpu_v1.yaml)：本次 CPU 合同配置；
-- [`configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml)：待授权 N40 配置，强制 `cuda:0`、FP32、batch 64、`64x64` soft raster、禁用 AMP/TF32；
-- [`jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh`](https://github.com/fangtoast/phc2d/blob/master/jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh)：N40 allocation 内的冻结执行入口；要求显式标准 run 目录；
-- [`tests/test_phc2d_full_cell_inverse_training.py`](https://github.com/fangtoast/phc2d/blob/master/tests/test_phc2d_full_cell_inverse_training.py)：数据泄漏、15-case artifact、CLI 和正式配置 fail-closed 测试。
+- [`src/phc2d/inverse/full_cell_training.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/inverse/full_cell_training.py)：按变体加载、route-train-only `Wh` normalization、三种无界 analytic 输出网络、15-case preflight 与标准 run 制品；
+- [`configs/smoke/full_cell_inverse_stage_a_cpu_v1.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/smoke/full_cell_inverse_stage_a_cpu_v1.yaml)：本次 CPU 合同配置；
+- [`configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/full_cell_inverse_stage_a_n40_preflight_v1.yaml)：待授权 N40 配置，强制 `cuda:0`、FP32、batch 64、`64x64` soft raster、禁用 AMP/TF32；
+- [`jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh`](https://github.com/fangtoast/phc2d/blob/main/jobs/paracloud_gpu_full_cell_inverse_stage_a_preflight.sh)：N40 allocation 内的冻结执行入口；要求显式标准 run 目录；
+- [`tests/test_phc2d_full_cell_inverse_training.py`](https://github.com/fangtoast/phc2d/blob/main/tests/test_phc2d_full_cell_inverse_training.py)：数据泄漏、15-case artifact、CLI 和正式配置 fail-closed 测试。
 
 CLI：
 

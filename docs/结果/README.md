@@ -40,8 +40,8 @@ primary_layer: L3
 | `EXP-FWD-020` | exploratory held-out surrogate | completed, G2 not passed, Draft review | 36 个冻结 checkpoint 的六域 216-cell 已完成；native MRE 0.297%，双重跨域为 5.409%，7x7 没有全局一致优势；无 promotion 或物理结论 | [Draft 结果页](../results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md) |
 | `EXP-FWD-021/023` | seed0 exploratory surrogate | 756/756 cells complete, Draft | 七种制度 × 九模型 × 十二域；K8/K10/K15 未参与训练或选模，数据仍待 WSL 验收 | [完整表](../results/forward/EXP-FWD-023-七种训练制度十二域完整结果.md) |
 | `EXP-FWD-022` | validation-only | capability complete, Draft | 冻结依赖不等于独立能力；30 项重训仅 11 项过末窗收敛门，无 test | [联合判读](../results/forward/EXP-FWD-022-分支依赖与独立能力.md) |
-| `EXP-FWD-024/025` | implementation + partial training | active | 2026-10-21 核验终态记录分别为 44/54、9/30；不代表全训练完成或测试结论 | [当前 gate](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md) |
-| `EXP-DAT-007` | cluster generation | pending WSL acceptance | 六类孔形共 12,000 条、零失败；pilot 为用户豁免，尚无数值收敛或模型迁移结论 | [合同](https://github.com/fangtoast/phc2d/blob/master/experiments/research/EXP-DAT-007-%E5%8D%95%E5%AD%94%E5%BD%A2%E7%8A%B6%E8%BF%81%E7%A7%BB%E6%B5%8B%E8%AF%95.md) |
+| `EXP-FWD-024/025` | implementation + partial training | active | 2026-10-21 核验终态记录分别为 44/54、9/30；不代表全训练完成或测试结论 | [当前 gate](https://github.com/fangtoast/phc2d/blob/main/PROJECT_MAP.md) |
+| `EXP-DAT-007` | cluster generation | pending WSL acceptance | 六类孔形共 12,000 条、零失败；pilot 为用户豁免，尚无数值收敛或模型迁移结论 | [合同](https://github.com/fangtoast/phc2d/blob/main/experiments/research/EXP-DAT-007-%E5%8D%95%E5%AD%94%E5%BD%A2%E7%8A%B6%E8%BF%81%E7%A7%BB%E6%B5%8B%E8%AF%95.md) |
 | `EXP-INV-004` | solver replay | completed, seed 0 | Objective-Bridge 完成 Test625 real-MPB replay，但尚无跨 seed 结论 | [短结果](EXP-INV-004-Objective-Bridge.md) · [详细证据](../results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md) |
 | `EXP-PHY-003` | admission gate | blocked | Field/adapted PINO 三项准入未通过，不进入当前正式 inverse 主线 | [详细证据](../results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md) |
 | `EXP-PHY-004` | physical sensitivity | completed | K5 全量 MRE 较低，但代表样本最大带隙选择失配可显著改变真实 Meep 响应 | [详细证据](../results/field-physics/代理选频与真实响应差异_20260825.md) |
@@ -60,7 +60,7 @@ primary_layer: L3
 
 | 想核查什么 | 入口 |
 |---|---|
-| 正式 Experiment ID、状态与跨层映射 | [`experiments/registry.yaml`](https://github.com/fangtoast/phc2d/blob/master/experiments/registry.yaml) |
+| 正式 Experiment ID、状态与跨层映射 | [`experiments/registry.yaml`](https://github.com/fangtoast/phc2d/blob/main/experiments/registry.yaml) |
 | V2 数据上的正向、查询与 inverse | [V2 10k 证据集合](../results/V2-10k正式结果.md) |
 | 全胞数据验收、正向与物理验证 | [全胞数据证据集合](../results/全胞数据正式结果.md) |
 | 完整 evidence 页面与历史兼容入口 | [实验与证据库](../results/README.md) |
