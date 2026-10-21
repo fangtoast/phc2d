@@ -23,6 +23,12 @@
 
 ## Forward、Query 与 Field
 
+- [EXP-FWD-008-K5固定200轮训练与六域验证](EXP-FWD-008-K5固定200轮训练与六域验证.md)：历史冻结协议，当前状态以对应结果页为准。
+- [EXP-FWD-009-K5权重热启动收敛续训](EXP-FWD-009-K5权重热启动收敛续训.md)：历史冻结协议，当前状态以对应结果页为准。
+- [EXP-FWD-010-Joint各4k公平训练与六域验证](EXP-FWD-010-Joint各4k公平训练与六域验证.md)：历史冻结协议，当前状态以对应结果页为准。
+- [EXP-FWD-011-Joint各4k续训至300轮](EXP-FWD-011-Joint各4k续训至300轮.md)：历史冻结协议，当前状态以对应结果页为准。
+- [EXP-FWD-012-工作频率先验覆盖审计](EXP-FWD-012-工作频率先验覆盖审计.md)：历史冻结协议，当前状态以对应结果页为准。
+
 - [`a1_fair_forward_query.md`](a1_fair_forward_query.md)：A1 Full-Wh / Query 公平对照。
 - [`full_cell_k20_forward_seed0.md`](full_cell_k20_forward_seed0.md)：K=20 B/G 单 seed 正向训练、34-cell native/cross-lane 评估与 N40 分波提交合同。
 - [`EXP-FWD-007-K5训练与六域验证.md`](EXP-FWD-007-K5训练与六域验证.md)：K5 全模型训练、K5/K20/F50 六域 510-cell 评估与 N40 授权门。
@@ -31,7 +37,7 @@
 - [`EXP-FWD-016-gap排序与完整带隙短预算筛选.md`](EXP-FWD-016-gap排序与完整带隙短预算筛选.md)：一个待授权的 N40 ranked-v2 seed0 短筛任务；通过前不进入多 seed 或 test。
 - [`EXP-FWD-018-K5理论频率加权全谱训练.md`](EXP-FWD-018-K5理论频率加权全谱训练.md)：已登记但不属于本次授权范围的 K5 理论频率加权配对训练合同。
 - [`EXP-FWD-019-FNO-TFNO-ConvNeXt组件归因.md`](EXP-FWD-019-FNO-TFNO-ConvNeXt组件归因.md)：已授权的 F50 validation-only 冻结诊断、组件删除 seed0 漏斗、三 seed 配对确认与六域冻结评估合同。
-- [`EXP-FWD-020-全局局部带隙算子桥接.md`](EXP-FWD-020-全局局部带隙算子桥接.md)：由 EXP-FWD-019 推导的固定融合频谱—周期大核桥接模型；已实现但训练未授权。
+- [`EXP-FWD-020-全局局部带隙算子桥接.md`](EXP-FWD-020-全局局部带隙算子桥接.md)：由 EXP-FWD-019 推导的固定融合频谱—周期大核桥接模型；G3 六域评估完成，G2 未通过，结果保持探索性 surrogate 边界。
 - [`full_cell_forward_upgrade_10k.md`](full_cell_forward_upgrade_10k.md)：五个 Full-Wh 升级模型在 N40 的 admission 与 10k 七波训练合同。
 - [`field_eigen_te.md`](field_eigen_te.md)：TE Bloch eigenfield、Field FNO 与 adapted PINO。
 - [`near_field_surrogate.md`](near_field_surrogate.md)：near-field、NeurOLight 与 Maxwell residual 可行性边界。

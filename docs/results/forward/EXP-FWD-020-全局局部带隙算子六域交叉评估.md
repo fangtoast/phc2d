@@ -53,7 +53,7 @@ source_artifacts:
 | 非配对退化 | 每个 checkpoint 相对自身 native cell，共 180 条 |
 | 科学边界 | `exploratory_held_out_surrogate_only`；无训练调参、无 test-driven rerun、无真实求解器结论 |
 
-上游实验合同见 [EXP-FWD-020 合同](../../../experiments/research/EXP-FWD-020-全局局部带隙算子桥接.md)。G2 的正式收敛门仍未通过；把未收敛的 epoch-300 validation-best 纳入本评估只用于检验探索性泛化，不构成对 G2 的追溯通过。
+上游实验合同见 [EXP-FWD-020 合同](https://github.com/fangtoast/phc2d/blob/master/experiments/research/EXP-FWD-020-%E5%85%A8%E5%B1%80%E5%B1%80%E9%83%A8%E5%B8%A6%E9%9A%99%E7%AE%97%E5%AD%90%E6%A1%A5%E6%8E%A5.md)。G2 的正式收敛门仍未通过；把未收敛的 epoch-300 validation-best 纳入本评估只用于检验探索性泛化，不构成对 G2 的追溯通过。
 
 ## 交叉域主结果
 
