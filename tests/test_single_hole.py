@@ -167,3 +167,32 @@ def test_exp_dat_007_bingxing_12k_plan_is_balanced_and_deterministic():
     for shape in ("triangle", "square", "hexagon"):
         assert len({row["air_fraction"] for row in by_shape[shape]}) == 200
         assert len({row["angle_deg"] for row in by_shape[shape]}) == 10
+
+
+@pytest.mark.parametrize("shape", ["circle", "ellipse", "triangle", "square", "rectangle", "hexagon"])
+def test_single_hole_structure_extraction_preserves_identity_and_raster(shape):
+    from phc2d.data.single_hole import build_single_hole_structure
+    from phc2d.data.full_cell_generation import _build_single_hole_structure
+
+    ratio = 1.5 if shape in {"ellipse", "rectangle"} else 1.0
+    parameters = {"shape": shape, "air_fraction": .17, "aspect_ratio": ratio,
+                  "angle_deg": 11.0, "center": [0.0, 0.0]}
+    names = ("air_fraction", "aspect_ratio", "angle_deg")
+    expected = FullCellStructureSpec(
+        sample_id="single_fixture", generator_family="analytic_single_hole_v1",
+        material_kind="binary", parameters=parameters, parameter_names=names,
+        parameter_vector=(.17, ratio, 11.0), parameter_mask=(True, True, True),
+        epsilon_air=1.0, epsilon_material=8.9, metadata={"resumed_from_sample_plan": True},
+    )
+    actual = build_single_hole_structure(
+        sample_id="single_fixture", parameters=parameters, epsilon_air=1.0,
+        epsilon_material=8.9, metadata={"resumed_from_sample_plan": True},
+    )
+    assert _build_single_hole_structure is build_single_hole_structure
+    assert actual.geometry_hash == expected.geometry_hash
+    assert actual.parameter_hash == expected.parameter_hash
+    assert actual.parameter_names == expected.parameter_names
+    assert actual.parameter_vector == expected.parameter_vector
+    assert actual.schema_version == expected.schema_version
+    assert actual.metadata == expected.metadata
+    assert np.array_equal(actual.rasterize((32, 32)), expected.rasterize((32, 32)))

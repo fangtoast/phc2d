@@ -32,7 +32,11 @@ from phc2d.data.full_cell import (
     hash_raster_content,
     write_full_cell_hdf5,
 )
-from phc2d.data.single_hole import SINGLE_HOLE_FAMILIES, build_single_hole_test_plan
+from phc2d.data.single_hole import (
+    SINGLE_HOLE_FAMILIES,
+    build_single_hole_structure as _build_single_hole_structure,
+    build_single_hole_test_plan,
+)
 from phc2d.generators.full_cell import (
     build_full_cell_structure_spec,
     generate_binary_polar_holes,
@@ -585,29 +589,6 @@ def _structure_schedule(
     return [cycle[index % len(cycle)] for index in range(count)]
 
 
-def _build_single_hole_structure(
-    *,
-    sample_id: str,
-    parameters: Mapping[str, Any],
-    epsilon_air: float,
-    epsilon_material: float,
-    schema_version: str = "phc2d.full_cell.v1",
-    metadata: Mapping[str, Any] | None = None,
-) -> FullCellStructureSpec:
-    names = ("air_fraction", "aspect_ratio", "angle_deg")
-    return FullCellStructureSpec(
-        sample_id=sample_id,
-        generator_family="analytic_single_hole_v1",
-        material_kind="binary",
-        parameters=dict(parameters),
-        parameter_names=names,
-        parameter_vector=tuple(float(parameters[name]) for name in names),
-        parameter_mask=(True, True, True),
-        epsilon_air=float(epsilon_air),
-        epsilon_material=float(epsilon_material),
-        schema_version=schema_version,
-        metadata=dict(metadata or {}),
-    )
 
 
 def _generate_structure_task(

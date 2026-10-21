@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from phc2d.data.full_cell_fourier import wrapped_periodic_delta
+
+if TYPE_CHECKING:
+    from phc2d.data.full_cell_spec import FullCellStructureSpec
 
 SINGLE_HOLE_FAMILIES = ("circle", "ellipse", "triangle", "square", "rectangle", "hexagon")
 
@@ -96,3 +99,32 @@ def build_single_hole_test_plan(*, samples_per_family: int = 200) -> list[dict[s
             single_hole_dimensions(parameters)
             rows.append({"sample_id": f"single_{shape}_{index:04d}", "parameters": parameters})
     return rows
+
+
+def build_single_hole_structure(
+    *,
+    sample_id: str,
+    parameters: Mapping[str, Any],
+    epsilon_air: float,
+    epsilon_material: float,
+    schema_version: str = "phc2d.full_cell.v1",
+    metadata: Mapping[str, Any] | None = None,
+) -> FullCellStructureSpec:
+    """Build the stable structure contract for fresh and resumed single-hole plans."""
+    from phc2d.data.full_cell_spec import FullCellStructureSpec
+
+    names = ("air_fraction", "aspect_ratio", "angle_deg")
+    return FullCellStructureSpec(
+        sample_id=sample_id,
+        generator_family="analytic_single_hole_v1",
+        material_kind="binary",
+        parameters=dict(parameters),
+        parameter_names=names,
+        parameter_vector=tuple(float(parameters[name]) for name in names),
+        parameter_mask=(True, True, True),
+        epsilon_air=float(epsilon_air),
+        epsilon_material=float(epsilon_material),
+        schema_version=schema_version,
+        metadata=dict(metadata or {}),
+    )
+
