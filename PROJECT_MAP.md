@@ -33,6 +33,8 @@
 
 > 2026-09-12 EXP-FWD-020 状态：36 个冻结 checkpoint（7 个原 G2 validation-best、29 个 epoch-300 continuation validation-best）已完成 K5/K20/F50 Binary/Graded 的 216-cell held-out surrogate 交叉评估。native Bands 2--10 MRE 均值为 `0.297%`，同数据集跨 lane、跨数据集同 lane、双重跨域依次为 `2.703%`、`3.295%`、`5.409%`；7x7 对 3x3 没有跨域一致优势。G2 仍为 `not_passed`，结果仅为探索性 surrogate 证据，不作 promotion、real-MPB/Meep 或物理结论。详见[六域交叉评估 Draft](docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md)。
 
+> 2026-09-20 EXP-FWD-021/023 状态：九模型、七种固定 8k 制度的 63/63 个 seed0 训练任务已完成，其中 23 个通过末窗收敛门、40 个未通过；固定 checkpoint 在 K5/K8/K10/K15/K20/F50 双路线的 756/756 个 held-out surrogate cell 与 7,560 条逐 Band 记录均已闭合。十二域等权最低为 `S3-BG/tfno2d_band_v3`，Bands 2--10 / Bands 1--10 MRE 为 `0.505587% / 0.500344%`。结果只属 seed0 探索性 surrogate 证据；K8/K10/K15 数据仍待 WSL 物理验收，不作 promotion 或物理结论。详见[十二域交叉测试 Draft](docs/results/forward/EXP-FWD-023-十二域交叉测试.md)。
+
 # PROJECT MAP
 
 | Metadata | Value |
@@ -82,6 +84,7 @@
 8. Full-Wh 升级 50k held-out test 中，ConvNeXt 的 B/G MRE 为约 `0.321%/0.050%`；Mixer 的 32/128 直接输入诊断总体最稳。Gated ResMLP 负结果和 dual-lane 未通过替代门必须保留。
 9. K5 Full-Wh 的整体 test MRE 不能替代最大带隙选择审计；EXP-PHY-004 的 6 条代表结构中，ConvNeXt 仅 1/6、joint 仅 4/6 同时保持 real-MPB band 与 k 选择，选频差异可显著改变冻结 real-Meep 响应。
 10. EXP-FWD-019在F50 validation上支持ConvNeXt大核的稳定贡献信号，并确认FNO/Joint频谱分支不可无损删除；后两者仍有显著容量混杂，TFNO channel不具备两路线一致证据。
+11. EXP-FWD-023 的十二域等权比较中，S3-BG/TFNO 与 S3-BG/Global-Local 分列前二，Bands 2--10 MRE 仅差 `0.003608` 个百分点；尚无两者直接配对区间或多 seed 证据，不能据此完成模型 promotion。
 
 ## 当前最重要的未解决问题
 
@@ -93,6 +96,7 @@
 - N50R5 登录仍被平台 `loginCluster` 权限拒绝；N40 已部署当前 inverse Stage-A runner/orchestrator（`b93cc2d`），但当前正式训练只能以既有三卡分配证据为下限，9/18 卡仍需真实 admission 作业证明。
 - Full-cell 50k forward 计算和自动审计已完成，但 AI 整理的 Draft 报告仍需人工接受；inverse 仍未在全胞、多形态、全 BZ 数据上完成正式 45-run Stage-A 或 soft-surrogate Stage B。
 - EXP-FWD-019的42项三种子确认已完成，但23项未满足末窗收敛门，FNO/Joint缺parameter-matched control，六域冻结评估尚未执行；当前需人工决定哪些候选可进入下一门，不能直接宣布完整组件因果归因。
+- EXP-FWD-021/023 已完成 63 个训练身份和十二域交叉测试，但 40/63 个训练身份未通过末窗收敛门，K8/K10/K15 数据仍待 WSL 物理验收；正式选择 TFNO 或 Global-Local 还缺直接配对比较与多 seed。
 - Full-Wh 升级 native/cross-lane/resolution 主评估已完成，但 `k_conditioned` 头未被选择，threshold proxy 尚无作业或结果；这些 surrogate 结果尚未进入 full-cell inverse Stage B 或 real-MPB replay。
 - inverse 缺 seeds 1/2 和满足 candidate-health/Top-5 coverage 的中立候选池。
 - adapted PINO 尚未通过修正指标、residual–frequency、dense-k 与跨分辨率门。
@@ -107,6 +111,7 @@
 5. **P1：汇总 OOD / cross-dataset / cross-surrogate**；统一报告统计量、运行时间、失败案例和 surrogate–replay gap。
 6. **P1：冻结 full-cell inverse 的 forward ranker 与数据版本**；决定继续 10k 还是迁移 50k，更新 Stage-B admission、normalization 和 checkpoint manifests 后再单独授权训练/replay。
 7. **P1：把 gap-selection 纳入 forward→inverse gate**；先对完整 test split 做低成本 band/k/gap 一致率审计，再决定是否按失配类型扩大 real-MPB/Meep replay。
+8. **P1：人工审阅 EXP-FWD-023**；核对逐域退化、收敛状态和 bootstrap 边界；如需 promotion，另行冻结 TFNO/Global-Local 的直接配对多 seed 合同。
 
 ## 详细内容去哪里查看
 

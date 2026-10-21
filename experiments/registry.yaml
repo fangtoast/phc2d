@@ -613,6 +613,54 @@ experiments:
       summary: 新损失显著改善对应 k 点与多数 gap 指标，但两条 lane 的全谱 MRE 安全门失败，且 complete-gap 状态命中仍为 0；停止自动三 seed 扩展。
     tags: [forward, full-cell, k5, joint, fair-total-data, gap-aware, work-frequency, short-screen, no-test]
 
+  - id: EXP-FWD-021
+    title: 8k 公平多域训练与六域验证
+    task: forward
+    status: completed_seed0_exploratory_surrogate
+    mapping_status: complete
+    research_question: 固定每个 checkpoint 使用 8,000 条训练样本时，跨 K、跨路线与六域联合训练能否改善九个标准 Full-Wh 模型的六域泛化？
+    spec:
+      - experiments/research/EXP-FWD-021-8k公平多域训练与六域验证.md
+    config:
+      - configs/research/full_cell_multidomain_exp_fwd_021_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+        - runs/EXP-FWD-021/20260915/EXP-FWD-021_20260915194709
+    result:
+      - docs/results/forward/EXP-FWD-023-十二域交叉测试.md
+    report: []
+    related_experiments:
+      - EXP-FWD-010
+      - EXP-FWD-020
+    decision:
+      state: completed_pending_human_review
+      summary: 63/63 个固定 200 epoch 训练任务与原六域 378/378 个 cell 已完成；23 个通过末窗收敛门、40 个未通过，结论限 seed0 exploratory surrogate。
+    tags: [forward, full-cell, multidomain, fair-8k, seed0, six-domain, surrogate-only]
+
+  - id: EXP-FWD-023
+    title: 固定模型十二域交叉测试
+    task: forward
+    status: completed_seed0_exploratory_surrogate
+    mapping_status: complete
+    research_question: EXP-FWD-021 的 63 个冻结模型在 K5/K8/K10/K15/K20/F50 两路线上的 held-out surrogate 泛化如何？
+    spec:
+      - experiments/research/EXP-FWD-023-固定模型十二域交叉测试.md
+    config:
+      - configs/research/full_cell_transfer_exp_fwd_023_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+        - runs/20260917/EXP-FWD-023_202609171354
+    result:
+      - docs/results/forward/EXP-FWD-023-十二域交叉测试.md
+    report: []
+    related_experiments: [EXP-FWD-021, EXP-DAT-006]
+    decision:
+      state: completed_pending_human_review
+      summary: 756/756 个十二域 cell 与 7,560 条逐 Band 记录完成；S3-BG/TFNO 十二域等权最低，仍限 seed0 surrogate，K8/K10/K15 待 WSL 物理验收。
+    tags: [forward, full-cell, twelve-domain, fixed-checkpoint, seed0, surrogate-only]
+
   - id: EXP-QRY-001
     title: A1 V2 10k Continuous Query 公平对照
     task: query
