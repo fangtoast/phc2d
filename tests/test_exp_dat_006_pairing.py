@@ -78,8 +78,9 @@ def _mode_map(structure) -> dict[tuple[int, int], tuple[float, float]]:
 def test_exp_dat_006_configs_and_registry_freeze_the_contract() -> None:
     registry = yaml.safe_load((ROOT / "experiments/registry.yaml").read_text(encoding="utf-8"))
     entry = next(item for item in registry["experiments"] if item["id"] == "EXP-DAT-006")
-    assert entry["status"] == "planned"
-    assert entry["decision"]["state"] == "config_ready"
+    assert entry["status"] == "active"
+    assert entry["decision"]["state"] == "pending"
+    assert entry["decision"]["qualification"] == "cluster_audited_pending_wsl_acceptance"
     assert len(entry["config"]) == 12
 
     for lane, seed, prefix, cohort_seed in (

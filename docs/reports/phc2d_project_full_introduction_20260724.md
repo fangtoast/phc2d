@@ -21,6 +21,8 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 
 <a id="project-report-home"></a>
 
+> 当前模型证据入口：[模型目录](../参考/模型目录.md)。本报告主体保留日期快照；`global_local_band_operator_v1` 后续的探索性 surrogate 与 validation-only 结果请从当前目录核对，不追溯改写为本报告的历史完成项。
+
 # phc2d：二维光子晶体神经算子快速仿真与回放校准生成式逆向设计
 
 !!! warning "历史综合材料"
