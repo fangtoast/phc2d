@@ -117,6 +117,6 @@ seed0 通过后，每个家族最多保留一个候选补 seeds 1/2。只有“�
 
 ## 当前执行决定
 
-正式执行合同登记为 [`EXP-FWD-019`](https://github.com/fangtoast/phc2d/blob/master/experiments/research/EXP-FWD-019-FNO-TFNO-ConvNeXt组件归因.md)。C0、每家族最多两个 seed0 候选、过门候选 seeds 1/2 与六域冻结评估均已获 N40 提交授权；仍按停止条件逐门推进。
+正式执行合同登记为 [`EXP-FWD-019`](https://github.com/fangtoast/phc2d/blob/main/experiments/research/EXP-FWD-019-FNO-TFNO-ConvNeXt组件归因.md)。C0、每家族最多两个 seed0 候选、过门候选 seeds 1/2 与六域冻结评估均已获 N40 提交授权；仍按停止条件逐门推进。
 
 截至2026-09-08，C0、21项seed0接受谱系和42项三种子validation-only确认均已完成，详见[三种子确认结果](../results/forward/EXP-FWD-019-组件归因三种子确认.md)。计划仍为`active`：23/42项终态未满足收敛门，TFNO `no_channel`未通过Graded三种子方向门，六域冻结评估和held-out test尚未执行。

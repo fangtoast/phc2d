@@ -75,7 +75,7 @@ Graded：8 个 solve shard 节点 × 64 CPU
 
 全部 32 个节点在该快照时刻都处于 `allocated`，因此 16 个 solve task 提交后很可能先排队。这里的“最大化性能”指资源一旦获得就以 16 节点并行求解，不代表能够立即启动，也不承诺排队时间。
 
-仓库当前 [`hpc_platform_xingyi_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/hpc_platform_xingyi_v1.yaml) 规定：
+仓库当前 [`hpc_platform_xingyi_v1.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/hpc_platform_xingyi_v1.yaml) 规定：
 
 ```text
 cores_per_node: 64
@@ -137,7 +137,7 @@ configs/research/full_cell_graded_fourier_bz9_10000_xingyi_v1.yaml
 
 ## 五、正式前唯一必要的实现门
 
-仓库已有 `plan → solve-shard → finalize` 的 `full_cell_band` 控制面，但当前 [`full_cell_hpc.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell_hpc.py) 的 plan/finalizer 仍把部分 schema/protocol 固定为 `full_cell_v1`。直接对 Fourier v2 使用会产生错误元数据。
+仓库已有 `plan → solve-shard → finalize` 的 `full_cell_band` 控制面，但当前 [`full_cell_hpc.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/full_cell_hpc.py) 的 plan/finalizer 仍把部分 schema/protocol 固定为 `full_cell_v1`。直接对 Fourier v2 使用会产生错误元数据。
 
 为获得 8+8 节点性能，只做以下最小改造：
 

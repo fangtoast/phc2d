@@ -4,7 +4,7 @@
 # Copyright (c) 2026 fangtoast. All rights reserved.
 
 version: 1
-updated_at: "2026-09-09"
+updated_at: "2026-10-21"
 authority:
   registry_command: phc2d models list
   master_report: docs/reports/phc2d_project_full_introduction_20260724.md
@@ -470,16 +470,20 @@ entries:
     input_output: material_weight_grid -> Wh
     registry_status: registered
     implementation_status: implemented
-    evidence_status: no_result
-    report_scope: future
+    evidence_status: historical
+    report_scope: appendix
     report_tokens: ["`global_local_band_operator_v1`"]
     implementation: src/phc2d/models/full_cell_operators.py
     configs: [configs/research/full_cell_global_local_bridge_exp_fwd_020_v1.yaml]
-    result_report: null
-    data: {records_per_lane: 50000, split_per_lane: "40000/5000/5000", seeds: []}
+    result_report: docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md
+    data: {dataset_scope: "K5/K20/F50 Binary/Graded with source-specific sample and split contracts", seeds: [0, 1, 2], local_kernels: [3, 7]}
     headline_metrics: {}
-    source_artifacts: []
-    claim_boundary: EXP-FWD-019-derived architecture candidate; implementation tests exist, but no training, validation, test, cross-domain, or physical evidence exists.
+    source_artifacts:
+      - {path: runs/20260917/EXP-FWD-023_202609171354/evaluation/combined/cell_matrix.csv, sha256: f6901232667a5e6edf5f526086686aefc01bf5d6e1939dd3ef193ec8d2ac73d3}
+    related_result_reports:
+      - docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md
+      - docs/results/forward/EXP-FWD-023-七种训练制度十二域完整结果.md
+    claim_boundary: Historical exploratory surrogate evidence from EXP-FWD-020 (two kernels and three seeds; G2 not_passed), validation-only EXP-FWD-022 (11/30 converged), and seed0 EXP-FWD-023; no model promotion or physical validation. Data and seed fields describe EXP-FWD-020; EXP-FWD-023 uses separate seed0 checkpoints, not a pooled twelve-domain training result.
 
   - id: fno2d_band_component_v1
     display_name: fno2d_band_component_v1

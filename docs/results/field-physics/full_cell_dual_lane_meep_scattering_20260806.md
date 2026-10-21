@@ -93,4 +93,4 @@ source_artifacts:
 
 二值数据保留既有 `wsl_cross_environment_acceptance_pass`；渐变数据继续保持 `cluster_generated_pending_wsl_acceptance`。本次 32 个真实 Meep 响应证明的是该散射合同可执行且结果收敛，不提升任何源数据集的验收状态。
 
-[← 返回实验合同](https://github.com/fangtoast/phc2d/blob/master/experiments/research/full_cell_dual_lane_meep_scattering.md)
+[← 返回实验合同](https://github.com/fangtoast/phc2d/blob/main/experiments/research/full_cell_dual_lane_meep_scattering.md)

@@ -57,7 +57,7 @@ related_results:
 
 本计划把项目目标从“替换一个固定 `rho/p4m -> Wh` 网络”升级为“统一 `phc2d` 架构下的多输入表征、多输出物理目标、多模型家族、多候选逆向设计和 MPB replay 验证平台”。
 
-当前项目不再以旧 `legacy/reproduction` 或 `research/ai4phc` 目录作为活跃后端。公共能力进入 [`../../src/phc2d`](https://github.com/fangtoast/phc2d/tree/master/src/phc2d)，实验组合由 [`../../configs`](https://github.com/fangtoast/phc2d/tree/master/configs) 和 [`../../experiments/research`](https://github.com/fangtoast/phc2d/tree/master/experiments/research) 描述，结果分析进入 [`../results`](../results/README.md)。历史代码只作为 Git history 中的算法来源，需要时恢复并迁入 `src/phc2d`。
+当前项目不再以旧 `legacy/reproduction` 或 `research/ai4phc` 目录作为活跃后端。公共能力进入 [`../../src/phc2d`](https://github.com/fangtoast/phc2d/tree/main/src/phc2d)，实验组合由 [`../../configs`](https://github.com/fangtoast/phc2d/tree/main/configs) 和 [`../../experiments/research`](https://github.com/fangtoast/phc2d/tree/main/experiments/research) 描述，结果分析进入 [`../results`](../results/README.md)。历史代码只作为 Git history 中的算法来源，需要时恢复并迁入 `src/phc2d`。
 
 执行进度使用 [`research_todo_20260617.md`](research_todo_20260617.md) 跟踪。后续完成任务时，优先更新该 checklist，再同步结果报告。
 
@@ -75,9 +75,9 @@ related_results:
 
 | 区域 | 路径 | 当前职责 |
 |---|---|---|
-| 公共包 | [`../../src/phc2d`](https://github.com/fangtoast/phc2d/tree/master/src/phc2d) | data、generators、models、training、inverse、surrogates、replay、plot、runs、cli |
-| 配置入口 | [`../../configs`](https://github.com/fangtoast/phc2d/tree/master/configs) | `reproduction`、`research`、`smoke`、`formal` |
-| 研究 profile | [`../../experiments/research`](https://github.com/fangtoast/phc2d/tree/master/experiments/research) | forward、query、near-field、generative inverse、MPB replay |
+| 公共包 | [`../../src/phc2d`](https://github.com/fangtoast/phc2d/tree/main/src/phc2d) | data、generators、models、training、inverse、surrogates、replay、plot、runs、cli |
+| 配置入口 | [`../../configs`](https://github.com/fangtoast/phc2d/tree/main/configs) | `reproduction`、`research`、`smoke`、`formal` |
+| 研究 profile | [`../../experiments/research`](https://github.com/fangtoast/phc2d/tree/main/experiments/research) | forward、query、near-field、generative inverse、MPB replay |
 | 规划与审计 | [`../planning`](README.md) | 本计划、文献调研、repo/data audit、里程碑 |
 | 结果报告 | [`../results`](../results/README.md) | 人工整理后的结果分析，不放原始 run 产物 |
 | 本地产物 | `data/`、`runs/`、`checkpoints/` | 大数据、运行输出、权重，Git ignored |
@@ -316,7 +316,7 @@ Task A: band matrix surrogate
 | output | `Wh`，shape from metadata |
 | models | MLP、POD-MLP、CNN、FNO、U-FNO |
 | metrics | MSE、MAE、RMSE、avg_MRE_pct、avg_MRE_bands_2_10_pct、per-band、ordering violation、gap_f1、train/eval/inference runtime |
-| config | [`../../configs/research/representation_ablation.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/representation_ablation.yaml)、[`../../configs/research/fno_benchmark.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/fno_benchmark.yaml) |
+| config | [`../../configs/research/representation_ablation.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/representation_ablation.yaml)、[`../../configs/research/fno_benchmark.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/fno_benchmark.yaml) |
 
 Task B: query-form band surrogate
 
@@ -326,7 +326,7 @@ Task B: query-form band surrogate
 | output | selected frequency or band vector |
 | models | DeepONet、FNO query、MLP query、NeurOLight-inspired query encoder |
 | metrics | query MAE/RMSE、k interpolation/extrapolation、band continuity、ordering violation、query inference latency |
-| config | [`../../configs/research/query_band_benchmark.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/query_band_benchmark.yaml) |
+| config | [`../../configs/research/query_band_benchmark.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/query_band_benchmark.yaml) |
 
 ## 9. Near-field / operator surrogate 实验矩阵
 
@@ -338,7 +338,7 @@ Task C: near-field surrogate
 | output | TE/TM field maps |
 | models | FNO field、U-Net field、NeurOLight adapted、MaxwellNet/PINO pilot |
 | metrics | relative L2 field error、amplitude/phase error、physics residual if feasible、boundary/source consistency、field inference runtime |
-| config | [`../../configs/research/near_field_surrogate.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/near_field_surrogate.yaml) |
+| config | [`../../configs/research/near_field_surrogate.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/near_field_surrogate.yaml) |
 
 已知 near-field run 支持 feasibility：`runs/20260608/plot_dataset_near_fields_202606081551`。该 run 显示 TE/TM 可视化成功，`n_ok=100`，TE frequency check mean relative error 约 `2.40e-08`。下一步不是直接训练大模型，而是把 field HDF5 schema、field target spec、field metrics 和 optional loader 打通。
 
@@ -352,7 +352,7 @@ Task D: inverse candidate generation
 | output | K candidate `rho_wedge` or `rho_grid` |
 | models | conditional VAE、conditional GAN、diffusion、surrogate-guided diffusion |
 | metrics | validity_rate、unique_rate、diversity_hamming、morphology_score、best_of_k_surrogate_mre、best_of_k_replay_mre、surrogate_replay_gap、candidate/replay runtime |
-| config | [`../../configs/research/generative_inverse_cvae.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/generative_inverse_cvae.yaml)、[`../../configs/research/generative_inverse_diffusion_pilot.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/generative_inverse_diffusion_pilot.yaml) |
+| config | [`../../configs/research/generative_inverse_cvae.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/generative_inverse_cvae.yaml)、[`../../configs/research/generative_inverse_diffusion_pilot.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/generative_inverse_diffusion_pilot.yaml) |
 
 当前最小协议：
 

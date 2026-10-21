@@ -8,7 +8,7 @@ site_description: 二维光子晶体数据、神经代理、逆向设计与真�
 site_author: fangtoast
 repo_url: https://github.com/fangtoast/phc2d
 repo_name: fangtoast/phc2d
-edit_uri: blob/master/docs/
+edit_uri: blob/main/docs/
 docs_dir: docs
 site_dir: site
 use_directory_urls: false

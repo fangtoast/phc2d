@@ -46,7 +46,7 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 
 ## 二、实现范围
 
-实现位于 [`src/phc2d/inverse/full_cell_codec.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/inverse/full_cell_codec.py)，包括：
+实现位于 [`src/phc2d/inverse/full_cell_codec.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/inverse/full_cell_codec.py)，包括：
 
 - 五变体身份识别、固定字段/辅助字段/学习字段分离；
 - train-only robust/log transform，周期中心与 angle 的 sin/cos 编码；
@@ -57,7 +57,7 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 - production physical-width fail-closed 检查。
 - train-only 冻结物理范围与 hard decode 越界拒绝。
 
-对应测试位于 [`tests/test_phc2d_full_cell_inverse_codec.py`](https://github.com/fangtoast/phc2d/blob/master/tests/test_phc2d_full_cell_inverse_codec.py)。
+对应测试位于 [`tests/test_phc2d_full_cell_inverse_codec.py`](https://github.com/fangtoast/phc2d/blob/main/tests/test_phc2d_full_cell_inverse_codec.py)。
 
 ## 三、真实数据合同结果
 

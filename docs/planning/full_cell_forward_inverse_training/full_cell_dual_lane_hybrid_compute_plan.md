@@ -82,11 +82,11 @@ related_results:
 
 ### 2.1 二值路线
 
-使用 [`data/full_cell_binary_bz9_10000_xingyi_v1.h5`](https://github.com/fangtoast/phc2d/blob/master/data/README.md) 对应的本地数据。当前状态为已通过 WSL real-MPB 跨环境验收，可以进入训练准备。
+使用 [`data/full_cell_binary_bz9_10000_xingyi_v1.h5`](https://github.com/fangtoast/phc2d/blob/main/data/README.md) 对应的本地数据。当前状态为已通过 WSL real-MPB 跨环境验收，可以进入训练准备。
 
 ### 2.2 渐进路线
 
-使用 `data/full_cell_graded_bz9_10000_paracloud_m9_v1.h5`。该数据已通过 [固定 WSL acceptance 配置](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_graded_paracloud_m9_wsl_acceptance_v1.yaml)，状态为：
+使用 `data/full_cell_graded_bz9_10000_paracloud_m9_v1.h5`。该数据已通过 [固定 WSL acceptance 配置](https://github.com/fangtoast/phc2d/blob/main/configs/research/full_cell_graded_paracloud_m9_wsl_acceptance_v1.yaml)，状态为：
 
 ```text
 wsl_cross_environment_acceptance_pass

@@ -23,9 +23,9 @@ primary_layer: L4
 
 ## Code Boundaries
 
-- 公共接口放在 [`../src/phc2d`](https://github.com/fangtoast/phc2d/tree/master/src/phc2d)：data、generators、models、training、inverse、replay、plotting、runs、cli。
-- 论文复现作为 [`../experiments/reproduction/wang2026`](https://github.com/fangtoast/phc2d/tree/master/experiments/reproduction/wang2026) profile 维护。
-- 后续研究作为 [`../experiments/research`](https://github.com/fangtoast/phc2d/tree/master/experiments/research) profile 维护。
+- 公共接口放在 [`../src/phc2d`](https://github.com/fangtoast/phc2d/tree/main/src/phc2d)：data、generators、models、training、inverse、replay、plotting、runs、cli。
+- 论文复现作为 [`../experiments/reproduction/wang2026`](https://github.com/fangtoast/phc2d/tree/main/experiments/reproduction/wang2026) profile 维护。
+- 后续研究作为 [`../experiments/research`](https://github.com/fangtoast/phc2d/tree/main/experiments/research) profile 维护。
 - 旧 `legacy/reproduction` 与 `research/ai4phc` 已退出活跃目录；需要旧逻辑时从 Git history 恢复并迁入 `src/phc2d`。
 - 新模型通过 `phc2d.models` registry 接入，新数据源通过 `phc2d.data` / `phc2d.generators` / `phc2d.solvers` 接入，新图表通过 `phc2d.plot` 接入。
 
@@ -84,7 +84,7 @@ Windows `.venv` 只作为编辑期临时调试便利，不再作为测试验收�
 - `docs/` 页面以 YAML front matter 开头，并包含 `title`、`summary`、`page_type`、`status`、`audience`、`owner`、`last_reviewed`、`reading_time` 和 `primary_layer`；evidence 与 archive 另加日期和范围。
 - 新建或大改 Markdown 应在 front matter 后包含 HTML 注释文件头。
 - 站内页面与资产使用相对链接；站外仓库文件使用可在发布站访问的仓库 URL。
-- 根 README 是面向外部读者的项目首页，只保留稳定定义、主要能力、最小 quick start 和文档入口；易变化状态进入 [`../PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md)。
+- 根 README 是面向外部读者的项目首页，只保留稳定定义、主要能力、最小 quick start 和文档入口；易变化状态进入 [`../PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/main/PROJECT_MAP.md)。
 - 一个文档只承担一种主要角色；长细节通过链接下沉，不在多个权威文件中复制。
 - 日期化报告、计划与历史记录的原正文只增补元数据、状态、导航和回链，不因重构而改写成当前结论。
 - 新建或重命名正式文档后，更新 `mkdocs.yml` 或 `not_in_nav`，并运行文档审计和 MkDocs strict build。

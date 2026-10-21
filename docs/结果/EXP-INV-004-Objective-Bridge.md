@@ -67,8 +67,8 @@ Objective-Bridge 的 seed0 single-mode 和 mixture 已完成完整 Test625 real-
 
 ## 证据入口
 
-- experiment spec：[100-target 协议](https://github.com/fangtoast/phc2d/blob/master/experiments/research/a2_inverse_objective_bridge_seed0_v1.md) · [Test625 扩展](https://github.com/fangtoast/phc2d/blob/master/experiments/research/a2_inverse_objective_bridge_seed0_test625_v1.md)
-- config：[100-target](https://github.com/fangtoast/phc2d/blob/master/configs/research/a2_inverse_objective_bridge_seed0_v1.yaml) · [Test625](https://github.com/fangtoast/phc2d/blob/master/configs/research/a2_inverse_objective_bridge_seed0_test625_v1.yaml)
+- experiment spec：[100-target 协议](https://github.com/fangtoast/phc2d/blob/main/experiments/research/a2_inverse_objective_bridge_seed0_v1.md) · [Test625 扩展](https://github.com/fangtoast/phc2d/blob/main/experiments/research/a2_inverse_objective_bridge_seed0_test625_v1.md)
+- config：[100-target](https://github.com/fangtoast/phc2d/blob/main/configs/research/a2_inverse_objective_bridge_seed0_v1.yaml) · [Test625](https://github.com/fangtoast/phc2d/blob/main/configs/research/a2_inverse_objective_bridge_seed0_test625_v1.yaml)
 - runs：[run 与 replay 产物索引](../results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md)，源目录为 `runs/20260727/a2_inverse_objective_bridge_seed0_v1_202607271804/` 与 `runs/20260728/a2_inverse_objective_bridge_seed0_test625_v1_202607280842/`
 - raw metrics：[aggregate 指标说明](../results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md)，核心文件为各 run 的 `aggregate/metrics.json`、`main_table.csv` 与 `paired_comparisons.csv`
 - figures：[当前对照图及 provenance](../reports/assets/phc2d_project_full_introduction_20260724/figure_index.md)

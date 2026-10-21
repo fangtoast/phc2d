@@ -49,7 +49,7 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 | item | value |
 |---|---|
 | date | 2026-06-21 |
-| config | [`../../configs/research/data_scaling_benchmark_v2_1000_full.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/data_scaling_benchmark_v2_1000_full.yaml) |
+| config | [`../../configs/research/data_scaling_benchmark_v2_1000_full.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/data_scaling_benchmark_v2_1000_full.yaml) |
 | dataset | `data/query_dataset_v2_pilot_1000_mpb.npz` |
 | parent run | `runs/20260621/query_data_scaling_v2_1000_full_202606211920` |
 | child run | `runs/20260621/query_data_scaling_v2_1000_full_N1000_202606211920` |

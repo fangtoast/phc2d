@@ -4,7 +4,7 @@
 # Copyright (c) 2026 fangtoast. All rights reserved.
 
 schema_version: 1
-last_reviewed: 2026-08-29
+last_reviewed: 2026-10-21
 
 registry_scope:
   policy: >-
@@ -61,6 +61,8 @@ schema:
     - pending
     - blocked
   field_contracts:
+    status_qualification: Optional fine-grained evidence state retained beside the controlled lifecycle status.
+    decision_qualification: Optional fine-grained decision label retained under decision.qualification.
     spec: Repository-relative experiment-protocol paths; empty when no exact protocol is confirmed.
     config: Repository-relative formal configuration paths.
     runs: Run paths grouped by local availability; seeds and reruns belong here.
@@ -213,8 +215,8 @@ experiments:
   - id: EXP-DAT-006
     title: 全胞 Fourier K8/K10/K15 B/G 配对数据生产
     task: data
-    status: planned
-    mapping_status: complete
+    status: active
+    mapping_status: partial
     research_question: 在同 lane 的样本身份、材料目标、温度和共享低频系数严格固定时，K8/K10/K15 全胞 B/G 各 10k 数据能否通过 Xingyi 生产审计与 WSL real-MPB 验收？
     spec:
       - experiments/research/EXP-DAT-006-K8-K10-K15配对数据生产.md
@@ -234,15 +236,17 @@ experiments:
     runs:
       local: []
       referenced_not_local: []
-    result: []
+    result:
+      - docs/results/forward/EXP-FWD-023-十二域交叉测试.md
     report: []
     related_experiments:
       - EXP-DAT-003
       - EXP-DAT-004
       - EXP-DAT-005
     decision:
-      state: config_ready
-      summary: 配对合同、六份生产配置、六份 WSL 验收配置与分段调度已登记；正式 60k 求解仍需新的明确计费授权。
+      state: pending
+      qualification: cluster_audited_pending_wsl_acceptance
+      summary: 十二域测试保留六份新数据的集群哈希、schema 与配对审计；独立 WSL 物理验收及精确生产 run 映射尚待闭合。
     tags: [full-cell, fourier, k8, k10, k15, paired, dataset-10k, xingyi]
 
   - id: EXP-FWD-001
@@ -449,14 +453,16 @@ experiments:
       - EXP-FWD-005
       - EXP-FWD-006
     decision:
-      state: pending_human_review
+      state: pending
+      qualification: pending_human_review
       summary: 17 个 K5 checkpoint 与 510-cell held-out surrogate 评估已完成，旧 272-cell 回归通过；paired-bootstrap/resource 汇总缺失，禁止 promotion，且结果不得提升为 real-MPB 或物理验证。
     tags: [forward, full-cell, k5, k20, dataset-50k, six-domain, surrogate-only]
 
   - id: EXP-FWD-008
     title: K5 全模型固定 200 Epoch 训练与六域交叉验证
     task: forward
-    status: completed_with_convergence_waiver
+    status: completed
+    status_qualification: completed_with_convergence_waiver
     mapping_status: complete
     research_question: 在不改写 EXP-FWD-007 的前提下，固定 K5 17 个 seed0 任务完整训练 200 epoch 后，收敛门与六域 held-out surrogate 迁移诊断是否闭合？
     spec:
@@ -478,14 +484,16 @@ experiments:
       - EXP-DAT-005
       - EXP-FWD-007
     decision:
-      state: superseded_by_exp_fwd_009_evaluation
+      state: blocked
+      qualification: superseded_by_exp_fwd_009_evaluation
       summary: 17 个任务均完成 200 epoch，但仅 5/17 通过原主收敛门；用户豁免阻断后，其中五个指定身份进入 EXP-FWD-009 续训，最终六域评估不得解释为 EXP-FWD-008 的 17/17 收敛通过。
     tags: [forward, full-cell, k5, fixed-200, six-domain, surrogate-only]
 
   - id: EXP-FWD-009
     title: K5 epoch-200 权重热启动收敛续训与六域验证
     task: forward
-    status: completed_with_convergence_waiver
+    status: completed
+    status_qualification: completed_with_convergence_waiver
     mapping_status: complete
     research_question: 五个指定身份从 EXP-FWD-008 epoch-200 权重热启动并重置 AdamW 后能否达到滚动收敛门，并与其余 12 个 K5 身份共同完成 EXP-FWD-007 同合同的六域评估？
     spec:
@@ -507,14 +515,16 @@ experiments:
       - EXP-FWD-007
       - EXP-FWD-008
     decision:
-      state: pending_human_review
+      state: pending
+      qualification: pending_human_review
       summary: 五个续训任务通过主收敛门，510-cell、408/272 回归与 102-cell bootstrap 完成；最终 17 身份仅 9 个满足主收敛门，另 8 个依据人工豁免纳入，禁止写成 17/17 收敛或物理验证。
     tags: [forward, full-cell, k5, weight-only-warm-start, six-domain, convergence-waiver, surrogate-only]
 
   - id: EXP-FWD-010
     title: Joint 各 4k 公平训练与六域验证
     task: forward
-    status: completed_with_convergence_not_met
+    status: completed
+    status_qualification: completed_with_convergence_not_met
     mapping_status: complete
     research_question: dual-lane joint 从零训练时仅使用 Binary 4,000 与 Graded 4,000 条、总训练样本量与单一路线模型一致后，在冻结六域 held-out 测试集上的表现如何？
     spec:
@@ -533,14 +543,16 @@ experiments:
       - EXP-FWD-008
       - EXP-FWD-009
     decision:
-      state: negative_control_pending_human_review
+      state: pending
+      qualification: negative_control_pending_human_review
       summary: seed0 各 lane 4,000 条从零完成 200 epoch 与六域 6-cell 评估；Binary 末窗收敛门略未过，且六域均未击败最佳 K5 单路线，不支持 joint promotion。
     tags: [forward, full-cell, k5, joint, fair-total-data, six-domain, convergence-not-met, negative-control, surrogate-only]
 
   - id: EXP-FWD-011
     title: Joint 各 4k 权重续训至 300 轮
     task: forward
-    status: completed_with_convergence_not_met
+    status: completed
+    status_qualification: completed_with_convergence_not_met
     mapping_status: complete
     research_question: EXP-FWD-010 的公平 4k+4k joint 从 epoch-200 权重重置 AdamW 并固定续训至总 epoch 300 后，三条 validation 曲线能否同时收敛，并改善六域 held-out 表现？
     spec:
@@ -558,14 +570,16 @@ experiments:
     related_experiments:
       - EXP-FWD-010
     decision:
-      state: negative_control_pending_human_review
+      state: pending
+      qualification: negative_control_pending_human_review
       summary: Binary/Graded 均续训至总 epoch 300；Binary 收敛通过，Graded 与等权未通过。六域相对 epoch-200 为五域改善、一域退化，只在 K5 Binary 超过最佳单路线，不支持 joint 全域 promotion。
     tags: [forward, full-cell, k5, joint, fair-total-data, weight-only-warm-start, fixed-epoch300, convergence-not-met, surrogate-only]
 
   - id: EXP-FWD-012
     title: 工作频率先验覆盖审计
     task: forward
-    status: completed_negative_gate
+    status: completed
+    status_qualification: completed_negative_gate
     mapping_status: complete
     research_question: 公平 4k+4k K5 train/validation 上，由输入材料场计算的 X 方向 Bragg 频率窗口是否比同宽 train-only 固定中心更能覆盖真实频率坐标与最大 gap center？
     spec:
@@ -583,7 +597,8 @@ experiments:
       - EXP-FWD-010
       - EXP-FWD-011
     decision:
-      state: negative_gate_stop_loss_training
+      state: blocked
+      qualification: negative_gate_stop_loss_training
       summary: Binary/Graded validation 的 X 窗口谱坐标覆盖率通过，但 X/M 最大 gap-center 命中均为 0；相对固定中心改善门失败，EXP-FWD-013 不准入。
     tags: [forward, full-cell, k5, joint, fair-total-data, work-frequency, prior-audit, no-test, no-training]
 
@@ -616,7 +631,8 @@ experiments:
   - id: EXP-FWD-021
     title: 8k 公平多域训练与六域验证
     task: forward
-    status: completed_seed0_exploratory_surrogate
+    status: completed
+    status_qualification: completed_seed0_exploratory_surrogate
     mapping_status: complete
     research_question: 固定每个 checkpoint 使用 8,000 条训练样本时，跨 K、跨路线与六域联合训练能否改善九个标准 Full-Wh 模型的六域泛化？
     spec:
@@ -634,14 +650,16 @@ experiments:
       - EXP-FWD-010
       - EXP-FWD-020
     decision:
-      state: completed_pending_human_review
+      state: pending
+      qualification: completed_pending_human_review
       summary: 63/63 个固定 200 epoch 训练任务与原六域 378/378 个 cell 已完成；23 个通过末窗收敛门、40 个未通过，结论限 seed0 exploratory surrogate。
     tags: [forward, full-cell, multidomain, fair-8k, seed0, six-domain, surrogate-only]
 
   - id: EXP-FWD-023
     title: 固定模型十二域交叉测试
     task: forward
-    status: completed_seed0_exploratory_surrogate
+    status: completed
+    status_qualification: completed_seed0_exploratory_surrogate
     mapping_status: complete
     research_question: EXP-FWD-021 的 63 个冻结模型在 K5/K8/K10/K15/K20/F50 两路线上的 held-out surrogate 泛化如何？
     spec:
@@ -657,7 +675,8 @@ experiments:
     report: []
     related_experiments: [EXP-FWD-021, EXP-DAT-006]
     decision:
-      state: completed_pending_human_review
+      state: pending
+      qualification: completed_pending_human_review
       summary: 756/756 个十二域 cell 与 7,560 条逐 Band 记录完成；S3-BG/TFNO 十二域等权最低，仍限 seed0 surrogate，K8/K10/K15 待 WSL 物理验收。
     tags: [forward, full-cell, twelve-domain, fixed-checkpoint, seed0, surrogate-only]
 
@@ -1011,7 +1030,8 @@ experiments:
       - EXP-DAT-005
       - EXP-FWD-012
     decision:
-      state: stop
+      state: blocked
+      qualification: stop
       summary: 192 结构正式 real-MPB 终态为 scalar_anisotropy_fail，且 TE 调和候选在两条 lane 均显著劣于旧公式；EXP-FWD-017 不解锁。
     tags: [physical-validation, effective-index, near-gamma, bandgap, te, full-cell]
 
@@ -1035,6 +1055,11 @@ experiments:
     related_experiments:
       - EXP-DAT-005
 
+    decision:
+      state: blocked
+      summary: 局部加密 pilot 揭示粗网格标签风险；不解锁训练，后续 validation 标签门见 EXP-PHY-007。
+    tags: [physical-validation, adaptive-k, bandgap, pilot]
+
   - id: EXP-PHY-007
     title: K5 validation 带隙标签门
     task: physical_validation
@@ -1056,11 +1081,238 @@ experiments:
       - EXP-PHY-006
       - EXP-FWD-016
       - EXP-PHY-005
-      - EXP-FWD-016
     decision:
       state: blocked
-      summary: 四结构 pilot 证实 9x9 标签存在实质 gap 高估和 complete-to-pseudo 翻转风险；现有粗网格 gap 标签不得直接解锁训练，下一步需人工决定是否授权扩大验证。
+      summary: 自适应 validation 标签门未通过，EXP-FWD-016 保持锁定；完整判据与结果见专属结果页。
     tags: [physical-validation, adaptive-k, bandgap, te, full-cell, validation-only, pilot]
+
+  - id: EXP-FWD-020
+    title: 全局局部带隙算子桥接与六域探索评估
+    task: forward
+    status: completed
+    mapping_status: complete
+    research_question: 固定桥接模型的核大小与来源域能否支持六域泛化？
+    spec:
+    - experiments/research/EXP-FWD-020-全局局部带隙算子桥接.md
+    config:
+    - configs/research/full_cell_global_local_bridge_exp_fwd_020_g3_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+      - runs/EXP-FWD-020/20260912/EXP-FWD-020_g3_cache_reuse_20260912123541
+    result:
+    - docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md
+    report: []
+    related_experiments:
+    - EXP-FWD-019
+    decision:
+      state: pending
+      summary: 216-cell 完成，G2 not_passed；探索性 held-out surrogate，Draft 待人工接受，无 promotion 或 physical claim。
+    tags:
+    - forward
+    - six-domain
+    - exploratory
+    - surrogate-only
+
+  - id: EXP-FWD-022
+    title: 冻结分支依赖与独立训练能力
+    task: forward
+    status: completed
+    mapping_status: complete
+    research_question: 冻结关断依赖与固定预算单支独立能力是否给出相同排序？
+    spec:
+    - experiments/research/EXP-FWD-022-全局局部分支归因.md
+    config:
+    - configs/research/full_cell_global_local_branch_attribution_exp_fwd_022_v1.yaml
+    - configs/research/full_cell_branch_capability_exp_fwd_022_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+      - runs/20260916/EXP-FWD-022_g1_validation_202609161602
+      - runs/20260917/EXP-FWD-022_capability_202609171226
+    result:
+    - docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md
+    report: []
+    related_experiments:
+    - EXP-FWD-020
+    decision:
+      state: pending
+      summary: 1080 冻结干预与 30 项重训完成；仅 11/30 过收敛门，validation-only，不作 test 或能力上限结论。
+    tags:
+    - forward
+    - branch-attribution
+    - fixed-budget
+    - validation-only
+
+  - id: EXP-FWD-024
+    title: 三核心模型固定预算确认
+    task: forward
+    status: active
+    mapping_status: complete
+    research_question: 相同六单域 8k 与三个 seed、300 epoch 下核心模型如何比较？
+    spec:
+    - experiments/research/EXP-FWD-024-三核心模型固定预算确认.md
+    config:
+    - configs/research/full_cell_core_confirmation_exp_fwd_024_v1.yaml
+    - configs/research/full_cell_core_confirmation_exp_fwd_024_n40_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+      - runs/20261020/EXP-FWD-024_202610201920
+    result: []
+    report: []
+    related_experiments:
+    - EXP-FWD-021
+    - EXP-FWD-023
+    decision:
+      state: pending
+      summary: 2026-10-21 只读核验 44/54 个训练终态、4/6 bundle 标记；未见 test manifest，完整训练审计后才可 native test。
+    tags:
+    - forward
+    - fixed-budget
+    - three-seed
+    - partial-training
+
+  - id: EXP-FWD-025
+    title: 分支结构固定预算确认
+    task: forward
+    status: active
+    mapping_status: complete
+    research_question: 300 epoch 统一预算下 Full 与单支及参数量控制如何比较？
+    spec:
+    - experiments/research/EXP-FWD-024-三核心模型固定预算确认.md
+    config:
+    - configs/research/full_cell_branch_confirmation_exp_fwd_025_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+      - runs/20261020/EXP-FWD-025_202610201920
+    result: []
+    report: []
+    related_experiments:
+    - EXP-FWD-022
+    - EXP-FWD-024
+    decision:
+      state: pending
+      summary: 2026-10-21 只读核验 9/30 个训练终态；test 保持锁定，不借用旧 200 epoch 结果宣称完成。
+    tags:
+    - forward
+    - branch-capability
+    - fixed-budget
+    - partial-training
+
+  - id: EXP-DAT-007
+    title: 单孔六形状迁移测试数据
+    task: data
+    status: active
+    mapping_status: complete
+    research_question: 六种代表单孔形状的数据能否经独立验收支持冻结模型的几何迁移测试？
+    spec:
+    - experiments/research/EXP-DAT-007-单孔形状迁移测试.md
+    config:
+    - configs/research/full_cell_single_hole_exp_dat_007_v1.yaml
+    - configs/research/full_cell_single_hole_exp_dat_007_bingxing_v1.yaml
+    - configs/research/full_cell_single_hole_exp_dat_007_bingxing_12k_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+      - runs/20261020/EXP-DAT-007_12000_20261020_bingxing_4x64_v1
+    result: []
+    report: []
+    related_experiments:
+    - EXP-FWD-024
+    decision:
+      state: pending
+      summary: 12000/12000 集群生成、零失败；cluster_generated_pending_wsl_acceptance。分辨率 pilot waived_by_user，不是收敛通过；尚无模型迁移结果。
+    tags:
+    - data
+    - single-hole
+    - six-family
+    - pending-wsl-acceptance
+
+  - id: EXP-FWD-016
+    title: gap 排序与完整带隙短预算筛选
+    task: forward
+    status: blocked
+    mapping_status: complete
+    research_question: 排序与完整带隙约束能否改善 gap 决策且守住全谱误差门？
+    spec:
+    - experiments/research/EXP-FWD-016-gap排序与完整带隙短预算筛选.md
+    config:
+    - configs/research/full_cell_k5_gap_ranked_exp_fwd_016_seed0_v2.yaml
+    runs:
+      local: []
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments:
+    - EXP-FWD-015
+    - EXP-PHY-007
+    decision:
+      state: blocked
+      summary: 标签门未通过；配置登记不能证明训练执行，不自动解锁。
+    tags:
+    - forward
+    - gap-ranking
+    - blocked
+    - not-executed
+  - id: EXP-FWD-019
+    title: FNO TFNO ConvNeXt 组件归因
+    task: forward
+    status: completed
+    status_qualification: validation_confirmation_completed_attribution_partial
+    mapping_status: complete
+    research_question: 预注册组件删除是否给出稳定归因信号并排除容量混杂？
+    spec:
+    - experiments/research/EXP-FWD-019-FNO-TFNO-ConvNeXt组件归因.md
+    config:
+    - configs/research/full_cell_component_attribution_exp_fwd_019_v1.yaml
+    runs:
+      local: []
+      referenced_not_local:
+      - runs/20260902/EXP-FWD-019_C0_accepted_20260902173322
+      - runs/20260905/EXP-FWD-019_seed0_accepted_20260905201533
+      - runs/20260905/EXP-FWD-019_confirmation_20260905201622
+    result:
+    - docs/results/forward/EXP-FWD-019-组件归因三种子确认.md
+    report: []
+    related_experiments:
+    - EXP-FWD-020
+    decision:
+      state: pending
+      summary: 三 seed validation-only 确认已有结果；归因仍受容量与收敛限制，六域评估与 test 未执行。
+    tags:
+    - forward
+    - component-attribution
+    - validation-only
+    - partial-attribution
+
+  - id: EXP-FWD-015
+    title: gap 决策近简并审计
+    task: forward
+    status: completed
+    mapping_status: partial
+    research_question: 低命中率主要来自近简并评价还是模型候选排序？
+    spec:
+    - experiments/research/EXP-FWD-015-gap决策近简并审计.md
+    config: []
+    runs:
+      local: []
+      referenced_not_local:
+      - runs/20260828/EXP-FWD-015_gap_margin_audit_20260828150000_wsl
+    result:
+    - docs/results/forward/EXP-FWD-015-gap决策近简并审计.md
+    report: []
+    related_experiments:
+    - EXP-FWD-014
+    decision:
+      state: pending
+      summary: validation-only 无训练审计；低命中主要来自模型决策，不通过容差修改指标或解锁训练；精确独立配置映射未确认。
+    tags:
+    - forward
+    - gap-decision
+    - validation-only
+    - audit
 
 deferred_history:
   - scope: 2026-05 至 2026-06 初期的 legacy reproduction、FEM/MPB 与 smoke runs

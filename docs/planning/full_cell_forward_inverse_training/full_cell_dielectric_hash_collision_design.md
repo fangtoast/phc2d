@@ -29,9 +29,9 @@ primary_layer: L3
 
 相关代码：
 
-- [随机结构生成](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/generators/full_cell.py)
-- [材料场与现有 geometry hash](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell.py)
-- [样本计划与 split](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell_generation.py)
+- [随机结构生成](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/generators/full_cell.py)
+- [材料场与现有 geometry hash](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/full_cell.py)
+- [样本计划与 split](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/full_cell_generation.py)
 
 ## 一、碰撞为什么不可忽略
 

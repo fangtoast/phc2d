@@ -72,8 +72,8 @@ ConvNeXt 相对其直接 CNN 基线 `lifted_cnn`，B/G 误差分别降低 **77.7
 
 ## 证据入口
 
-- experiment spec：[升级实验协议](https://github.com/fangtoast/phc2d/blob/master/experiments/research/full_cell_forward_upgrade_10k.md)
-- config：[B 50k](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_forward_upgrade_binary_50k_v1.yaml) · [G 50k](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_forward_upgrade_graded_50k_v1.yaml) · [双路线 50k](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_forward_upgrade_dual_lane_50k_v1.yaml)
+- experiment spec：[升级实验协议](https://github.com/fangtoast/phc2d/blob/main/experiments/research/full_cell_forward_upgrade_10k.md)
+- config：[B 50k](https://github.com/fangtoast/phc2d/blob/main/configs/research/full_cell_forward_upgrade_binary_50k_v1.yaml) · [G 50k](https://github.com/fangtoast/phc2d/blob/main/configs/research/full_cell_forward_upgrade_graded_50k_v1.yaml) · [双路线 50k](https://github.com/fangtoast/phc2d/blob/main/configs/research/full_cell_forward_upgrade_dual_lane_50k_v1.yaml)
 - runs：[主 campaign 与产物索引](../results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md)，源目录 `runs/20260810/full_cell_upgrade_50k_evaluation_20260810085944/`
 - raw metrics：[指标与 promotion 复核入口](../results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md)，包括 `metrics.json`、`native_test_summary.csv` 与 `paired_bootstrap_comparisons.csv`
 - figures：[原始 figures 目录说明](../results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md) · [当前图件 provenance](../reports/assets/full_cell_forward_inverse_report_20260810/figure_index.md)

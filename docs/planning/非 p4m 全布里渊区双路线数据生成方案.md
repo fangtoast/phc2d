@@ -33,7 +33,7 @@ evidence_scope: "日期化证据或历史记录；正文未因站点重构而改
 | Last reviewed | 2026-08-10 |
 | Reading time | 8 minutes |
 
-> 阅读边界：本文保留历史方案正文，不证明当前任务仍停留在 64+64 pilot，也不证明模型训练或 inverse replay 已完成。当前完成状态以 [`PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/master/PROJECT_MAP.md) 和[全胞双路线 pilot 结果](../results/data-provenance/full_cell_dual_lane_pilot_20260803.md)为准。
+> 阅读边界：本文保留历史方案正文，不证明当前任务仍停留在 64+64 pilot，也不证明模型训练或 inverse replay 已完成。当前完成状态以 [`PROJECT_MAP.md`](https://github.com/fangtoast/phc2d/blob/main/PROJECT_MAP.md) 和[全胞双路线 pilot 结果](../results/data-provenance/full_cell_dual_lane_pilot_20260803.md)为准。
 
 ## 总体设计
 

@@ -32,7 +32,7 @@ source_artifacts:
 | 元数据 | 值 |
 |---|---|
 | 日期 | 2026-08-02 |
-| 协议 | [`configs/research/a2_inverse_surrogate_postrepair_validation_v2.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/a2_inverse_surrogate_postrepair_validation_v2.yaml) |
+| 协议 | [`configs/research/a2_inverse_surrogate_postrepair_validation_v2.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/a2_inverse_surrogate_postrepair_validation_v2.yaml) |
 | 运行 | `runs/20260802/a2_inverse_surrogate_postrepair_validation_v2_202608021718` |
 | 环境 | WSL `Ubuntu` + conda `meep_env`；checkpoint 选择与候选生成使用 `cuda:0`，物理 replay 使用 real MPB |
 | 证据状态 | `single_seed_20_target_pilot` |

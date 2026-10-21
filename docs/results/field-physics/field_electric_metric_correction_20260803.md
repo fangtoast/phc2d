@@ -93,11 +93,11 @@ $H$ 没有被独立归一化；生成链路对 $E/H$ 使用同一个由 $E$ 得�
 
 ## 实现范围
 
-- [`field_eigen.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/field_eigen.py)：新数据按 $\int E^*\varepsilon E\,dV=1$ 归一化，并将 schema 升为 `phc2d.field_eigen.v2`。
-- [`field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_v2.py)：训练相位、E loss 与评估 E relative $L_2$ 改用介电加权度规。
-- [`field_eigen_b4.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_b4.py)：seen-$k$ 场对照使用相同度规。
-- [`torch_eigen_residual.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/physics/torch_eigen_residual.py)：PINO 场归一化项改为 $\|E\|_\varepsilon$；Rayleigh 商改为 $\langle E,\nabla\times\nabla\times E\rangle/\langle E,\varepsilon E\rangle$。
-- [`field_eigen_te_contract.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/field_eigen_te_contract.yaml)：冻结新的归一化和内积契约。
+- [`field_eigen.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/field_eigen.py)：新数据按 $\int E^*\varepsilon E\,dV=1$ 归一化，并将 schema 升为 `phc2d.field_eigen.v2`。
+- [`field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/field_eigen_v2.py)：训练相位、E loss 与评估 E relative $L_2$ 改用介电加权度规。
+- [`field_eigen_b4.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/field_eigen_b4.py)：seen-$k$ 场对照使用相同度规。
+- [`torch_eigen_residual.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/physics/torch_eigen_residual.py)：PINO 场归一化项改为 $\|E\|_\varepsilon$；Rayleigh 商改为 $\langle E,\nabla\times\nabla\times E\rangle/\langle E,\varepsilon E\rangle$。
+- [`field_eigen_te_contract.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/field_eigen_te_contract.yaml)：冻结新的归一化和内积契约。
 
 ---
 

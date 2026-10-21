@@ -40,7 +40,7 @@ related_results:
 |---|---|---|
 | B3 data-only FNO v2 | `formal_completed` | `runs/20260720/field_eigen_te_v2_baseline_9216_202607201723` |
 | B3 adapted PINO | `pilot_pass` | `runs/20260721/field_eigen_te_pino_9216_202607210812`；residual median 降低 37.48%，但 frequency MRE 高于 matched FNO |
-| B4 训练/审计实现 | `implemented` | [`field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/forward/field_eigen_v2.py) |
+| B4 训练/审计实现 | `implemented` | [`field_eigen_v2.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/forward/field_eigen_v2.py) |
 | B4 validation 消融与冻结三 seed | `formal_completed` | `runs/20260721/field_eigen_te_pino_frequency_guard_9216_202607211039/frozen_candidate_manifest.json` |
 | dense-k 与 resolution transfer | `formal_completed` | `runs/20260722/field_eigen_te_b4_dense_k_gate_202607220819` |
 

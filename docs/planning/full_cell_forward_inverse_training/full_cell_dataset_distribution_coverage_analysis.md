@@ -29,11 +29,11 @@ primary_layer: L3
 
 相关依据：
 
-- [B 50k 配置](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_binary_bz9_50000_xingyi_v1.yaml)
-- [G 50k 配置](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_graded_bz9_50000_xingyi_v1.yaml)
-- [随机结构生成](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/generators/full_cell.py)
-- [材料场计算](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell.py)
-- [样本调度与 split](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell_generation.py)
+- [B 50k 配置](https://github.com/fangtoast/phc2d/blob/main/configs/research/full_cell_binary_bz9_50000_xingyi_v1.yaml)
+- [G 50k 配置](https://github.com/fangtoast/phc2d/blob/main/configs/research/full_cell_graded_bz9_50000_xingyi_v1.yaml)
+- [随机结构生成](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/generators/full_cell.py)
+- [材料场计算](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/full_cell.py)
+- [样本调度与 split](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/full_cell_generation.py)
 - [碰撞与介电常数内容哈希](full_cell_dielectric_hash_collision_design.md)
 
 ## 一、本文边界

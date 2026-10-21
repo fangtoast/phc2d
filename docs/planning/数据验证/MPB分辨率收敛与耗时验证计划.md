@@ -31,7 +31,7 @@ primary_layer: L3
 
 ## 二、已有能力与本轮增量
 
-仓库已有 [`full_cell_resolution_convergence_v1.yaml`](https://github.com/fangtoast/phc2d/blob/master/configs/research/full_cell_resolution_convergence_v1.yaml) 和 [`full_cell_convergence.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/data/full_cell_convergence.py)，当前合同使用 B/G 各 8 个结构、9 个代表性 k 点比较 64/96/128。它适合作为小型准入门，但没有回答以下问题：
+仓库已有 [`full_cell_resolution_convergence_v1.yaml`](https://github.com/fangtoast/phc2d/blob/main/configs/research/full_cell_resolution_convergence_v1.yaml) 和 [`full_cell_convergence.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/data/full_cell_convergence.py)，当前合同使用 B/G 各 8 个结构、9 个代表性 k 点比较 64/96/128。它适合作为小型准入门，但没有回答以下问题：
 
 - 100 个结构上的误差尾部、结构族差异和失败分布；
 - 各 resolution 在同一星仪节点上的可比计算时间；
@@ -92,7 +92,7 @@ resolution = [32, 48, 64, 96, 128]
 
 ## 六、两阶段星仪执行
 
-本机只使用已有 SSH 别名 `xingyi`。账号、IP、端口和私钥位置保留在用户本机 SSH 配置，不复制进版本库。星仪部署遵守 [`xingyi_common.sh`](https://github.com/fangtoast/phc2d/blob/master/jobs/xingyi_common.sh) 的当前根目录、环境、`DEPLOYED_GIT_COMMIT`、Meep/MPB 版本和单线程约束。
+本机只使用已有 SSH 别名 `xingyi`。账号、IP、端口和私钥位置保留在用户本机 SSH 配置，不复制进版本库。星仪部署遵守 [`xingyi_common.sh`](https://github.com/fangtoast/phc2d/blob/main/jobs/xingyi_common.sh) 的当前根目录、环境、`DEPLOYED_GIT_COMMIT`、Meep/MPB 版本和单线程约束。
 
 ### 6.1 阶段 A：16 个结构资源 pilot
 

@@ -193,4 +193,4 @@ K20/F50 的既有 68 个 checkpoint 对应其余 408 个 cells；逐 checkpoint�
 2. 缺少计划中的 10,000 次 paired-bootstrap 和资源汇总制品；在补齐且审计通过前，不发布显著性、总体排名或 promotion 结论。
 3. 训练/评估已完成并保留原始证据；任何后续修复必须使用新的 derivative run，不覆盖本次 510-cell 结果或旧 272-cell 证据。
 
-相关协议：[EXP-FWD-007](https://github.com/fangtoast/phc2d/blob/master/experiments/research/EXP-FWD-007-K5%E8%AE%AD%E7%BB%83%E4%B8%8E%E5%85%AD%E5%9F%9F%E9%AA%8C%E8%AF%81.md)。
+相关协议：[EXP-FWD-007](https://github.com/fangtoast/phc2d/blob/main/experiments/research/EXP-FWD-007-K5%E8%AE%AD%E7%BB%83%E4%B8%8E%E5%85%AD%E5%9F%9F%E9%AA%8C%E8%AF%81.md)。

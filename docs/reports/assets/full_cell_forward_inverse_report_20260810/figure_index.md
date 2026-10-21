@@ -34,4 +34,4 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 | 50k native 九模型对照 | [PNG](figure_6_1_native_50k_model_comparison.png) | [SVG](figure_6_1_native_50k_model_comparison.svg) | 同一 held-out test 的 surrogate MRE；不是组件消融或 real-MPB replay |
 | Inverse Stage-A 网络 | [PNG](figure_7_1_inverse_stage_a_models.png) | [SVG](figure_7_1_inverse_stage_a_models.svg) | 已实现结构合同；不代表正式 45-run、Stage B 或 replay 完成 |
 
-全部十张图由 [`src/phc2d/plot/full_cell_model_architectures.py`](https://github.com/fangtoast/phc2d/blob/master/src/phc2d/plot/full_cell_model_architectures.py) 生成；图中的数据流、模型名称与参数对应 2026-08-10 的配置、registry 和实现快照。
+全部十张图由 [`src/phc2d/plot/full_cell_model_architectures.py`](https://github.com/fangtoast/phc2d/blob/main/src/phc2d/plot/full_cell_model_architectures.py) 生成；图中的数据流、模型名称与参数对应 2026-08-10 的配置、registry 和实现快照。
