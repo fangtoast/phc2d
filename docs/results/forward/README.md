@@ -23,6 +23,7 @@ primary_layer: L3
 
 | 结果页面 | 主要内容与边界 |
 |---|---|
+| [EXP-FWD-024：训练集与新几何迁移测试](EXP-FWD-024-训练集与新几何迁移测试.md) | 54 个冻结 checkpoint 的训练重叠、原生 held-out、DAT-007 12k 与 DAT-008 24k 评估；162 个新评估单元完成，新几何分辨率待验证，Draft |
 | [EXP-FWD-022：分支依赖与独立能力](EXP-FWD-022-分支依赖与独立能力.md) | 1,080 冻结干预与 30 项独立训练完成；均值排序两同两反，按 seed 为一同向、两反向、一不稳定；固定预算 Full 领先但仅 11/30 通过收敛门，Draft |
 | [A1 Forward/Query 公平对照](a1_forward_query_fair_v1_20260726.md) | 10k V2、三 seed 的公平协议比较 |
 | [全胞双路线 10k](full_cell_dual_lane_forward_training_20260806.md) | 4 models × 3 seeds × 7 表征、交叉评估和分辨率实验；threshold real-MPB 尚未执行 |
