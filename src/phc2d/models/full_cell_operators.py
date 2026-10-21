@@ -46,6 +46,7 @@ def _build_factorized_band_operator(
     enabled_branches: Any,
     local_operator_kind: str,
     branch_fusion: str,
+    dense_head_hidden_dim: int | None = None,
 ) -> Any:
     torch, nn, functional = require_torch(model_name, need_functional=True)
     in_shape, in_channels = image_contract(input_shape, model_name=model_name)
@@ -202,6 +203,7 @@ def _build_factorized_band_operator(
             self.film = nn.Linear(lane_dim, 2 * model_width) if lane_conditioned else None
             self.active_branches = active_branches
             self.runtime_disabled_branches: set[str] = set()
+            self.branch_intervention: str | None = None
             self.spectral = TuckerSpectralConv2d() if "spectral" in active_branches else None
             self.local = make_local_branch() if "local" in active_branches else None
             self.channel = nn.Sequential(
@@ -223,10 +225,25 @@ def _build_factorized_band_operator(
                     raise ValueError("lane-conditioned operator block requires lane features")
                 gamma, beta = self.film(lane_features).chunk(2, dim=-1)
                 normalized = normalized * (1.0 + gamma[:, :, None, None]) + beta[:, :, None, None]
+            disabled_branches = set(self.runtime_disabled_branches)
+            fixed_denominator: int | None = None
+            if self.branch_intervention is not None:
+                intervention = self.branch_intervention
+                if intervention == "full":
+                    disabled_branches = set()
+                    fixed_denominator = 2
+                elif intervention in {"g_off_raw", "g_off_renorm"}:
+                    disabled_branches = {"spectral"}
+                    fixed_denominator = 2 if intervention.endswith("raw") else 1
+                elif intervention in {"l_off_raw", "l_off_renorm"}:
+                    disabled_branches = {"local"}
+                    fixed_denominator = 2 if intervention.endswith("raw") else 1
+                else:  # pragma: no cover - guarded by the public setter
+                    raise RuntimeError(f"unsupported branch intervention: {intervention}")
             branches = []
             weights = []
             for gate_index, branch_name in enumerate(self.active_branches):
-                if branch_name in self.runtime_disabled_branches:
+                if branch_name in disabled_branches:
                     continue
                 branch_module = getattr(self, branch_name)
                 branches.append(branch_module(normalized))
@@ -236,7 +253,8 @@ def _build_factorized_band_operator(
                 update = torch.zeros_like(x)
             else:
                 if self.gates is None:
-                    update = sum(branches) / len(branches)
+                    denominator = fixed_denominator or len(branches)
+                    update = sum(branches) / denominator
                 else:
                     weight_sum = torch.stack(weights).sum()
                     update = sum(
@@ -273,6 +291,7 @@ def _build_factorized_band_operator(
                 band_embedding_dim=int(band_embedding_dim),
                 fourier_frequencies=fourier_frequencies,
                 dropout=float(dropout),
+                dense_hidden_dim=dense_head_hidden_dim,
             )
 
         def set_component_mask(self, disabled_branches: Any = ()) -> None:
@@ -282,7 +301,29 @@ def _build_factorized_band_operator(
             if any(value not in branch_order for value in disabled):
                 raise ValueError(f"disabled branches must be a subset of {branch_order}")
             for block in self.blocks:
+                block.branch_intervention = None
                 block.runtime_disabled_branches = disabled.intersection(block.active_branches)
+
+        def set_branch_intervention(self, mode: str = "full") -> None:
+            """Apply a frozen Global/Local intervention without changing parameters."""
+
+            normalized = str(mode).strip().lower()
+            allowed = {
+                "full",
+                "g_off_raw",
+                "l_off_raw",
+                "g_off_renorm",
+                "l_off_renorm",
+            }
+            if normalized not in allowed:
+                raise ValueError(f"branch intervention must be one of {sorted(allowed)}")
+            if active_branches != ("spectral", "local") or fusion_kind != "fixed_mean":
+                raise ValueError(
+                    "branch intervention requires fixed-mean spectral/local branches"
+                )
+            for block in self.blocks:
+                block.runtime_disabled_branches = set()
+                block.branch_intervention = normalized
 
         def _lane_features(self, lane_id: Any | None, *, batch: int, device: Any) -> Any | None:
             if not self.lane_conditioned:
@@ -446,6 +487,8 @@ def build_global_local_band_operator_v1(
     band_embedding_dim: int = 32,
     fourier_frequencies: Any = (1, 2, 4, 8),
     dropout: float = 0.05,
+    enabled_branches: Any = ("spectral", "local"),
+    dense_head_hidden_dim: int | None = None,
 ) -> Any:
     """Build the fixed-fusion spectral and periodic large-kernel bridge."""
 
@@ -470,7 +513,8 @@ def build_global_local_band_operator_v1(
         lane_conditioned=False,
         num_lanes=2,
         lane_embedding_dim=16,
-        enabled_branches=("spectral", "local"),
+        enabled_branches=enabled_branches,
         local_operator_kind="convnext",
         branch_fusion="fixed_mean",
+        dense_head_hidden_dim=dense_head_hidden_dim,
     )

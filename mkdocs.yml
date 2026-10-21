@@ -177,6 +177,7 @@ nav:
           - EXP-FWD-015 gap 决策近简并审计: results/forward/EXP-FWD-015-gap决策近简并审计.md
           - EXP-FWD-019 组件归因三种子确认: results/forward/EXP-FWD-019-组件归因三种子确认.md
           - EXP-FWD-020 全局局部六域交叉评估: results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md
+          - EXP-FWD-022 分支依赖与独立能力: results/forward/EXP-FWD-022-分支依赖与独立能力.md
           - EXP-FWD-023 固定模型十二域交叉测试: results/forward/EXP-FWD-023-十二域交叉测试.md
           - EXP-FWD-023 七种训练制度十二域完整结果: results/forward/EXP-FWD-023-七种训练制度十二域完整结果.md
           - EXP-FWD-023 多域与历史单域对比: results/forward/EXP-FWD-023-多域与历史单域模型对比.md

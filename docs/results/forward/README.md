@@ -23,6 +23,7 @@ primary_layer: L3
 
 | 结果页面 | 主要内容与边界 |
 |---|---|
+| [EXP-FWD-022：分支依赖与独立能力](EXP-FWD-022-分支依赖与独立能力.md) | 1,080 冻结干预与 30 项独立训练完成；均值排序两同两反，按 seed 为一同向、两反向、一不稳定；固定预算 Full 领先但仅 11/30 通过收敛门，Draft |
 | [A1 Forward/Query 公平对照](a1_forward_query_fair_v1_20260726.md) | 10k V2、三 seed 的公平协议比较 |
 | [全胞双路线 10k](full_cell_dual_lane_forward_training_20260806.md) | 4 models × 3 seeds × 7 表征、交叉评估和分辨率实验；threshold real-MPB 尚未执行 |
 | [全胞双路线 50k](full_cell_dual_lane_50000_forward_training_20260808.md) | 50k 波次、held-out test、跨路线和分辨率辨别；final-fit 仅作 monitor |
