@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from phc2d.forward.budget_confirmation import file_digest
-from phc2d.forward.frozen_checkpoint_evaluation import _external_contract, _indices_and_families
+from phc2d.forward.frozen_checkpoint_evaluation import _external_contract, _indices_and_families, summarize_campaign
 
 
 def test_external_data_requires_identical_k_order_and_grid_shape(tmp_path):
@@ -32,3 +32,10 @@ def test_external_data_requires_identical_k_order_and_grid_shape(tmp_path):
     reference["k_points_sha256"] = "incorrect"
     with pytest.raises(ValueError, match="k-point order"):
         _external_contract(path, digest, reference, "material_area_fraction_grid_64")
+
+
+def test_summary_refuses_incomplete_checkpoint_inventory(tmp_path):
+    manifest = tmp_path / "test_manifest.csv"
+    manifest.write_text("task_id,checkpoint_sha256\none,abc\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="54 unique"):
+        summarize_campaign(manifest, tmp_path)

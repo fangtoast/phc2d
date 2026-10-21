@@ -150,15 +150,80 @@ def evaluate_case(row: dict[str, str], *, split: str, output: Path,
     return result
 
 
+def summarize_campaign(manifest_path: Path, output_root: Path) -> None:
+    """Require every frozen cell, then report seed cells and equal-family transfer means."""
+    with manifest_path.open(encoding="utf-8", newline="") as handle:
+        manifest = list(csv.DictReader(handle))
+    if len(manifest) != 54 or len({row["task_id"] for row in manifest}) != 54:
+        raise ValueError("expected 54 unique frozen checkpoint identities")
+    cells = []
+    family_cells = []
+    for dataset in ("train", "dat007_12000", "dat008_24000"):
+        for row in manifest:
+            out = output_root / dataset / row["task_id"]
+            result = json.loads((out / "results.json").read_text(encoding="utf-8"))
+            if result["checkpoint_sha256"] != row["checkpoint_sha256"] or result["sample_count"] <= 0:
+                raise ValueError("evaluation identity or count mismatch")
+            expected_count = 8000 if dataset == "train" else (12000 if dataset == "dat007_12000" else 24000)
+            if result["sample_count"] != expected_count:
+                raise ValueError("evaluation sample count mismatch")
+            with (out / "per_sample_metrics.csv").open(encoding="utf-8", newline="") as handle:
+                samples = list(csv.DictReader(handle))
+            if len(samples) != expected_count or not np.isfinite([float(s["full_matrix_mre_pct"]) for s in samples]).all():
+                raise ValueError("incomplete or nonfinite per-sample metrics")
+            by_family: dict[str, list[float]] = {}
+            for sample in samples:
+                by_family.setdefault(sample["family"], []).append(float(sample["full_matrix_mre_pct"]))
+            if len(by_family) != (1 if dataset == "train" else (6 if dataset == "dat007_12000" else 12)):
+                raise ValueError("unexpected geometry family count")
+            for family, values in by_family.items():
+                family_cells.append({"dataset": dataset, "source_domain": result["source_domain"],
+                                     "model": result["model"], "seed": result["seed"], "family": family,
+                                     "sample_count": len(values), "bands_1_10_mre_pct": float(np.mean(values)),
+                                     "p95_sample_mre_pct": float(np.percentile(values, 95))})
+            cells.append({"dataset": dataset, "source_domain": result["source_domain"],
+                          "model": result["model"], "seed": result["seed"], "lane": result["lane"],
+                          "sample_count": expected_count, "bands_1_10_mre_pct": result["bands_1_10_mre_pct"],
+                          "bands_2_10_mre_pct": result["bands_2_10_mre_pct"],
+                          "equal_family_bands_1_10_mre_pct": float(np.mean([np.mean(v) for v in by_family.values()])),
+                          "cross_lane_input": result["cross_lane_input"],
+                          "checkpoint_sha256": result["checkpoint_sha256"]})
+    _write_csv(output_root / "evaluation_cells.csv", cells)
+    _write_csv(output_root / "family_cells.csv", family_cells)
+    summaries = []
+    for dataset, domain, model in sorted({(r["dataset"], r["source_domain"], r["model"]) for r in cells}):
+        group = [r for r in cells if (r["dataset"], r["source_domain"], r["model"]) == (dataset, domain, model)]
+        if {r["seed"] for r in group} != {0, 1, 2}:
+            raise ValueError("three-seed summary identity mismatch")
+        values = [r["bands_1_10_mre_pct"] for r in group]
+        summaries.append({"dataset": dataset, "source_domain": domain, "model": model,
+                          "seed_count": 3, "bands_1_10_mre_pct_mean": float(np.mean(values)),
+                          "bands_1_10_mre_pct_seed_sd": float(np.std(values, ddof=1)),
+                          "cross_lane_input": group[0]["cross_lane_input"]})
+    _write_csv(output_root / "evaluation_summary.csv", summaries)
+    (output_root / "results.json").write_text(json.dumps({"status": "frozen_evaluation_complete",
+                                                       "checkpoint_count": 54, "evaluation_cell_count": len(cells),
+                                                       "family_cell_count": len(family_cells),
+                                                       "training_overlap_separate": True,
+                                                       "new_geometry_resolution_verified": False,
+                                                       "physical_claim": False}, indent=2) + "\n", encoding="utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
-    parser.add_argument("--task-index", type=int, required=True)
-    parser.add_argument("--split", choices=["train", "test"], required=True)
+    parser.add_argument("--task-index", type=int)
+    parser.add_argument("--split", choices=["train", "test"])
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--external-path", type=Path)
     parser.add_argument("--external-sha256")
+    parser.add_argument("--summarize", action="store_true")
     args = parser.parse_args()
+    if args.summarize:
+        summarize_campaign(args.manifest, args.output_root)
+        return
+    if args.task_index is None or args.split is None:
+        parser.error("--task-index and --split are required for evaluation")
     with args.manifest.open(encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
     matches = [row for row in rows if int(row["task_index"]) == args.task_index]
