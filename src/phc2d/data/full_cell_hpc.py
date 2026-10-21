@@ -188,6 +188,7 @@ def prepare_full_cell_hpc_plan(
         "full_cell_v1": "phc2d.full_cell.v1",
         "full_cell_fourier_v2": "phc2d.full_cell.fourier_v2",
         "full_cell_single_hole_v1": "phc2d.full_cell.single_hole_v1",
+        "full_cell_pcsel_v1": "phc2d.full_cell.pcsel_v1",
     }
     output_schema = output_schemas[dataset_protocol]
     physical = PhysicalPlanManifest(

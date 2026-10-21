@@ -25,6 +25,7 @@ primary_layer: L4
 
 - [三核心模型与分支消融固定预算确认](../../experiments/research/EXP-FWD-024-三核心模型固定预算确认.md)：2026-10-20授权；状态以run为准。
 - [单孔形状迁移测试](../../experiments/research/EXP-DAT-007-单孔形状迁移测试.md)：六种代表孔形，先完成MPB数值pilot。
+- [PCSEL多晶格测试数据](../../experiments/research/EXP-DAT-008-PCSEL多晶格测试数据.md)：2026-10-21确认十二族各2000结构；授权M9生成及N40交付，保留generation-only边界。
 
 ## 仍可能约束后续工作的入口
 

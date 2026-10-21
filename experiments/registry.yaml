@@ -1014,6 +1014,28 @@ experiments:
       summary: 四结构 pilot 证实 9x9 标签存在实质 gap 高估和 complete-to-pseudo 翻转风险；现有粗网格 gap 标签不得直接解锁训练，下一步需人工决定是否授权扩大验证。
     tags: [physical-validation, adaptive-k, bandgap, te, full-cell, validation-only, pilot]
 
+  - id: EXP-DAT-008
+    title: PCSEL多晶格测试数据生成
+    task: data
+    status: active
+    mapping_status: complete
+    research_question: 已确认的十二族解析PCSEL平面几何能否按统一MPB合同生成可追溯测试标签并交付N40？
+    spec:
+      - experiments/research/EXP-DAT-008-PCSEL多晶格测试数据.md
+    config:
+      - configs/research/full_cell_pcsel_exp_dat_008_bingxing_v1.yaml
+    runs:
+      local:
+        - runs/20261021/EXP-DAT-008_20261021_geometry_admission_v2
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments: []
+    decision:
+      state: continue
+      summary: 用户已确认图谱并授权M9求解及N40交付；数值标签质量、生成完成、WSL验收和传输完成分别记录。
+    tags: [pcsel, mpb, test-only, geometry-transfer, bingxing, n40]
+
 deferred_history:
   - scope: 2026-05 至 2026-06 初期的 legacy reproduction、FEM/MPB 与 smoke runs
     reason: 历史价值存在，但不属于当前活跃或论文核心实验，暂不批量登记。

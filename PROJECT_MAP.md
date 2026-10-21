@@ -39,6 +39,8 @@
 
 # PROJECT MAP
 
+> 2026-10-21 数据补充：EXP-DAT-007 的12000条真实MPB标签已完成M9生成并交付N40，三端SHA-256一致；WSL正式验收状态仍须单列。用户已认可新图谱并授权 [EXP-DAT-008 PCSEL十二族](experiments/research/EXP-DAT-008-PCSEL多晶格测试数据.md) 各2000点、共24000结构在M9求解并交付N40。全量几何门通过，427组相同栅格输入保留不同解析身份；12族WSL真实MPB接口准入及74项定向回归通过。沿用4分片各64 CPU/64GB，准备正式提交；不宣称新族r64数值收敛或完整器件复现，不执行模型评价。
+
 | Metadata | Value |
 |---|---|
 | Status | Current state snapshot |
