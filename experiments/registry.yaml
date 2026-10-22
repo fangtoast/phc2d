@@ -1047,7 +1047,7 @@ experiments:
     config: [configs/research/full_cell_convergence_n40_v1.yaml]
     runs:
       local: []
-      referenced_not_local: []
+      referenced_not_local: [runs/20261022/EXP-FWD-026_202610221311]
     result: []
     report: []
     related_experiments: []
@@ -1066,7 +1066,7 @@ experiments:
     config: [configs/research/full_cell_convergence_n40_v1.yaml]
     runs:
       local: []
-      referenced_not_local: []
+      referenced_not_local: [runs/20261022/EXP-FWD-027_202610221311]
     result: []
     report: []
     related_experiments: []
@@ -1085,7 +1085,7 @@ experiments:
     config: [configs/research/full_cell_convergence_n56_v1.yaml]
     runs:
       local: []
-      referenced_not_local: []
+      referenced_not_local: [runs/20261022/EXP-FWD-028_202610221337]
     result: []
     report: []
     related_experiments: []
