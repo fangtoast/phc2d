@@ -65,6 +65,14 @@ plan_state: active
 
 ## 四、验收与证据边界
 
+### N40未领取任务迁移补充（2026-10-22）
+
+用户另行授权将N40部分任务迁往空出的N56八卡。EXP-FWD-026中24项尚未领取的任务按八个完整三seed组迁移：K20 Graded的TFNO/ConvNeXt，以及F50 Binary/Graded的三个核心模型。原N40队列通过同一排他claim机制登记迁移所有权，保留原manifest与已运行任务；不取消或重启运行中的训练。N40继续处理余下核心任务和全部消融，N56最多八个单GPU worker，先对迁移组逐一通过seed0 GPU准入，再执行训练。
+
+迁移保持原EXP-FWD-024 validation-best权重、300轮历史、数据SHA、split、8k子集、normalizer、架构、FP32、micro/effective batch、学习率和停止门。原始来源文件逐件校验并保存，运行副本仅转换dataset和source_run平台路径，转换前后配置差异及哈希另存；不恢复旧AdamW状态。迁移目录为N56的`EXP-FWD-026_202610222110`，来源为N40的`EXP-FWD-026_202610221311`，科学身份仍为同一实验内不同执行分片。
+
+原队列中的迁移claim不得提前标记completed。最终汇总必须依据迁移清单合并两平台、排除重复case并核对全部54项；目标端历史、checkpoint、配置和身份完整审计后才能回填来源队列的完成证据。N56的Torch/CUDA版本与GPU不同，执行平台必须随每项结果保留，不将跨硬件运行解释为位级一致。迁移不授权test或改变持续目标的暂停状态。
+
 机器制品位于`runs/{yyyymmdd}/EXP-FWD-026_{timestamp}/`、027与028对应目录；包括冻结profile、manifest、数据记录、来源哈希、准入、独立训练history/results/metrics、best/terminal/full-state checkpoint和资源观测。训练结果按任务审计连续历史、有限数值、实际停止原因、checkpoint哈希、模型身份、三seed及来源兼容；不能只凭Slurm COMPLETED。
 
 本次只放行训练与validation。027继续validation-only；026/028的后续native测试须在全部训练与checkpoint冻结后单独决定，不用于LR、收敛或选模。历史测试已被查看，不能称全新盲测。正式工程验收在WSL Ubuntu + meep_env；GPU准入和远程产物不替代该验收，也不构成MPB/Meep物理证据。
