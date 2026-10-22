@@ -7,6 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 import os
+import random
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,24 @@ import numpy as np
 import yaml
 
 from phc2d.models import describe_model_identity, get_model_spec
+
+
+def initialize_adaptive_phase(model: Any, optimizer: Any, generator: Any, out: Path, seed: int, torch: Any) -> None:
+    """Uniformly restart every architecture from its selected epoch-300-budget weights."""
+    payload = torch.load(out / "model.pt", map_location="cpu", weights_only=True)
+    model.load_state_dict(payload["state_dict"])
+    optimizer.state.clear()
+    generator.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    import json
+    (out / "adaptive_phase_start.json").write_text(json.dumps(dict(
+        cumulative_epoch=301, selected_weights_epoch=payload["epoch"],
+        optimizer_reset=True, random_states_reset=True,
+        source_role="validation_best_within_first_300_epochs"), indent=2) + "\n", encoding="utf-8")
 
 
 def verify_warm_start_contract(warm_start: dict, resolved: dict, contract: dict, torch: Any) -> None:

@@ -582,6 +582,9 @@ def run_full_cell_forward(
     start_epoch = 1 if warm_start is None else int(warm_start["source_epoch"]) + 1
     for epoch in range(start_epoch, int(training["max_epochs"]) + 1):
         if adaptive is not None:
+            if epoch == int(resolved["adaptive_optimization"]["start_epoch"]) + 1:
+                from phc2d.forward.adaptive_training_evidence import initialize_adaptive_phase
+                initialize_adaptive_phase(model, optimizer, generator, out, seed, torch)
             adaptive.before_epoch(epoch)
         epoch_start = time.perf_counter()
         model.train()

@@ -25,9 +25,11 @@ def submit(root: Path, suite: Path, stage: str, dependency: str | None) -> dict:
     export = dict(PHC2D_ROOT=str(root), PHC2D_SUITE=str(suite), PHC2D_STAGE=stage,
                   PHC2D_GPU_PLATFORM=profile["platform"], PHC2D_ENV=profile["environment"],
                   PYTHONDONTWRITEBYTECODE="1")
-    staged = (root / "deployment_audit.json").is_file() and profile["platform"] == "n56"
+    audit_path = root / "deployment_audit.json"
+    audit = json.loads(audit_path.read_text()) if audit_path.is_file() else {}
+    staged = bool(audit) and (profile["platform"] == "n56" or audit.get("node_local_staging", False))
     if staged:
-        export["PHC2D_ARCHIVE_SHA256"] = json.loads((root / "deployment_audit.json").read_text())["archive_sha256"]
+        export["PHC2D_ARCHIVE_SHA256"] = audit["archive_sha256"]
     args = ["sbatch", "--parsable", "--no-requeue", "-p", profile["partition"],
             "--gres=gpu:1", "-c", str(profile["cpus_per_gpu"]),
             "-t", "01:00:00" if stage == "admission" else "7-00:00:00",

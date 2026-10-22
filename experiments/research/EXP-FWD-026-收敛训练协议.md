@@ -41,7 +41,7 @@ plan_state: active
 
 | 合同项 | 冻结值 |
 |---|---|
-| 自适应阶段 | 301起；028先完成同基础LR的1–300；026/027从来源best开始新优化 |
+| 自适应阶段 | 301起；028先完成同基础LR的1–300；所有任务统一加载前300预算内validation-best权重，重置AdamW、随机状态和数据顺序generator，再开始新优化 |
 | checkpoint选择 | validation Band2–10 MRE最优，精确数值改善才更新；不读test |
 | 起始LR | 原基础LR×0.2 |
 | 降LR | ReduceLROnPlateau，factor 0.5、patience 30、relative threshold 0.001、cooldown 10、下限原LR×0.01 |

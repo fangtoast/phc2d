@@ -205,3 +205,22 @@ def test_scheduler_dependency_and_duplicate_submission_guard(tmp_path, monkeypat
     module.submit(tmp_path, tmp_path, "admission", None)
     assert calls[-1][-1].endswith("paracloud_convergence_staged.sh")
     assert any("PHC2D_ARCHIVE_SHA256=frozen-sha" in arg for arg in calls[-1])
+
+
+def test_epoch301_restarts_best_weights_moments_and_rng_uniformly(tmp_path):
+    torch = pytest.importorskip("torch")
+    from phc2d.forward.adaptive_training_evidence import initialize_adaptive_phase
+    model = torch.nn.Linear(2, 1)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=.001)
+    selected = {name: value.detach().clone() for name, value in model.state_dict().items()}
+    torch.save(dict(state_dict=selected, epoch=27), tmp_path / "model.pt")
+    model(torch.ones(2, 2)).sum().backward()
+    optimizer.step()
+    assert optimizer.state
+    generator = torch.Generator().manual_seed(9)
+    initialize_adaptive_phase(model, optimizer, generator, tmp_path, 2, torch)
+    assert not optimizer.state
+    for name, value in model.state_dict().items():
+        torch.testing.assert_close(value, selected[name], rtol=0, atol=0)
+    assert generator.initial_seed() == 2
+    assert json.loads((tmp_path / "adaptive_phase_start.json").read_text())["selected_weights_epoch"] == 27
