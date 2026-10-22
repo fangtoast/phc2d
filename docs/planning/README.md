@@ -23,6 +23,8 @@ primary_layer: L4
 
 ## 截稿前补充实验
 
+- [同条件三seed收敛训练](../../experiments/research/EXP-FWD-026-收敛训练协议.md)：EXP-FWD-026/027在N40扩展，028在N56对齐六单域与三个seed；每平台最多8GPU，验证停止与1000轮上限。
+
 - [三核心模型与分支消融固定预算确认](../../experiments/research/EXP-FWD-024-三核心模型固定预算确认.md)：2026-10-20授权；状态以run为准。
 - [单孔形状迁移测试](../../experiments/research/EXP-DAT-007-单孔形状迁移测试.md)：六种代表孔形，先完成MPB数值pilot。
 - PCSEL多晶格测试数据（EXP-DAT-008，协议入口见项目实验索引）：2026-10-21确认十二族各2000结构；授权M9生成及N40交付，保留generation-only边界。

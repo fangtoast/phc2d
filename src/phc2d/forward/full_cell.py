@@ -184,6 +184,7 @@ class _FullCellH5Dataset:
         threshold: float | None,
         target_mean: np.ndarray,
         target_std: np.ndarray,
+        cache_in_memory: bool = False,
     ) -> None:
         self.path = Path(path)
         self.indices = np.asarray(indices, dtype=np.int64)
@@ -194,11 +195,24 @@ class _FullCellH5Dataset:
         self.target_mean = np.asarray(target_mean, dtype=np.float32)
         self.target_std = np.asarray(target_std, dtype=np.float32)
         self._handle: Any | None = None
+        self._cached = None
+        if cache_in_memory:
+            import h5py
+            order = np.argsort(self.indices)
+            inverse = np.argsort(order)
+            with h5py.File(self.path, "r") as handle:
+                self._cached = tuple(np.asarray(handle[field][self.indices[order]], dtype=np.float32)[inverse]
+                                     for field in (self.grid_field, "Wh"))
 
     def __len__(self) -> int:
         return int(self.indices.size)
 
     def __getitem__(self, position: int) -> tuple[np.ndarray, np.ndarray]:
+        if self._cached is not None:
+            x, y = (array[int(position)] for array in self._cached)
+            if self.sampling == "deterministic_threshold":
+                x = (x >= float(self.threshold)).astype(np.float32)
+            return (x.reshape(-1, order="C") if self.layout == "flat" else x), (y - self.target_mean) / self.target_std
         if self._handle is None:
             import h5py
 
@@ -497,13 +511,22 @@ def run_full_cell_forward(
             expected_seed=seed,
             torch_module=torch,
             expected_source_experiment=resolved["continuation"].get("source_experiment"),
+            source_epoch=int(resolved["continuation"].get("source_epoch", 200)),
+            checkpoint_role="best_validation" if resolved.get("adaptive_optimization") else "terminal",
         )
         model.load_state_dict(warm_start["terminal_payload"]["state_dict"])
+        if resolved.get("adaptive_optimization"):
+            from phc2d.forward.adaptive_training_evidence import verify_warm_start_contract
+            verify_warm_start_contract(warm_start, resolved, contract, torch)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(training["learning_rate"]),
         weight_decay=float(training.get("weight_decay", 1.0e-5)),
     )
+    adaptive = None
+    if resolved.get("adaptive_optimization"):
+        from phc2d.forward.adaptive_convergence import AdaptiveOptimization
+        adaptive = AdaptiveOptimization(optimizer, resolved["adaptive_optimization"], training["learning_rate"], torch)
     loss_fn = torch.nn.MSELoss()
     dataset_kwargs = {
         "path": contract["path"],
@@ -513,6 +536,7 @@ def run_full_cell_forward(
         "threshold": representation.get("threshold"),
         "target_mean": contract["target_mean"],
         "target_std": contract["target_std"],
+        "cache_in_memory": bool(runtime.get("cache_in_memory", False)),
     }
     train_dataset = _FullCellH5Dataset(indices=contract["selected_train"], **dataset_kwargs)
     val_dataset = _FullCellH5Dataset(indices=contract["idx_val"], **dataset_kwargs)
@@ -522,6 +546,8 @@ def run_full_cell_forward(
         "num_workers": int(device_info.num_workers),
         "pin_memory": bool(device_info.pin_memory),
     }
+    if runtime.get("persistent_workers") and loader_kwargs["num_workers"] > 0:
+        loader_kwargs["persistent_workers"] = True
     train_loader = DataLoader(train_dataset, shuffle=True, generator=generator, **loader_kwargs)
     val_loader = DataLoader(val_dataset, shuffle=False, **loader_kwargs)
     mean_t = torch.as_tensor(contract["target_mean"], dtype=torch.float32, device=device)
@@ -555,6 +581,8 @@ def run_full_cell_forward(
     epoch100_snapshot: Path | None = None
     start_epoch = 1 if warm_start is None else int(warm_start["source_epoch"]) + 1
     for epoch in range(start_epoch, int(training["max_epochs"]) + 1):
+        if adaptive is not None:
+            adaptive.before_epoch(epoch)
         epoch_start = time.perf_counter()
         model.train()
         optimizer.zero_grad(set_to_none=True)
@@ -607,7 +635,7 @@ def run_full_cell_forward(
             "val_band1_mre_pct": val["band1_mre_pct"],
             "val_bands_2_10_mre_pct": val["bands_2_10_mre_pct"],
             "val_bands_1_10_mre_pct": val["bands_1_10_mre_pct"],
-            "learning_rate": float(training["learning_rate"]),
+            "learning_rate": float(optimizer.param_groups[0]["lr"]),
             "epoch_time_s": time.perf_counter() - epoch_start,
             "wall_time_s": wall_time_offset + time.perf_counter() - wall_start,
             "optimizer_steps": optimizer_steps,
@@ -668,7 +696,13 @@ def run_full_cell_forward(
             )
             os.replace(checkpoint_tmp, out / "model.pt")
         _write_history(out / "history.csv", history)
-        if warm_start is not None and epoch % int(resolved["continuation"]["check_interval"]) == 0:
+        if adaptive is not None:
+            stop_adaptive = adaptive.after_epoch(history)
+            if epoch % 20 == 0 or stop_adaptive or epoch == int(training["max_epochs"]) or admission_probe:
+                adaptive.save(out / "training_state.pt", model, generator, history, resolved)
+            if stop_adaptive and not admission_probe:
+                break
+        if adaptive is None and warm_start is not None and epoch % int(resolved["continuation"]["check_interval"]) == 0:
             from phc2d.forward.full_cell_warm_start import rolling_convergence_record
 
             continuation_convergence = rolling_convergence_record(
@@ -734,7 +768,11 @@ def run_full_cell_forward(
     required_stop_epoch = training.get("required_stop_epoch")
     convergence: dict[str, Any] | None = None
     terminal_checkpoint: Path | None = None
-    if required_stop_epoch is not None and not admission_probe:
+    if adaptive is not None and not admission_probe:
+        from phc2d.forward.adaptive_training_evidence import save_adaptive_terminal
+        convergence = dict(adaptive.record, budget_exhausted=stop_epoch >= int(training["max_epochs"]) and not adaptive.record["passed"])
+        terminal_checkpoint = save_adaptive_terminal(out, model, resolved, contract, stop_epoch, convergence, torch)
+    elif required_stop_epoch is not None and not admission_probe:
         required_stop_epoch = int(required_stop_epoch)
         if stop_epoch != required_stop_epoch:
             raise RuntimeError(f"required terminal epoch {required_stop_epoch}, observed {stop_epoch}")
@@ -931,6 +969,8 @@ def run_full_cell_forward(
             "next_gate": (
                 "wave_admission_decision"
                 if admission_probe
+                else "adaptive_training_evidence_audit"
+                if adaptive is not None
                 else "continuation_checkpoint_freeze"
                 if warm_start is not None
                 else "12_job_final_fit_aggregation"

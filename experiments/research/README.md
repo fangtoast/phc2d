@@ -56,3 +56,5 @@
 - [`a2_inverse_surrogate_ablation_v1.md`](a2_inverse_surrogate_ablation_v1.md)：七 surrogate 固定候选池筛选与 promotion gate。
 
 实验 profile 中的 `config_ready`、命令或预期产物不能替代实际运行。正式状态以结果报告和源 artifacts 为准。
+
+- [同条件三seed收敛训练](EXP-FWD-026-收敛训练协议.md)：026/027保留300轮历史并热启动，028同条件从零训练，验证收敛与1000轮上限。

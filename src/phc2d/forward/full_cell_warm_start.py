@@ -57,17 +57,21 @@ def load_weight_only_warm_start(
     expected_seed: int,
     torch_module: Any,
     expected_source_experiment: str | None = None,
+    source_epoch: int = 200,
+    checkpoint_role: str = "terminal",
 ) -> dict[str, Any]:
     """Validate and load an epoch-200 source without claiming optimizer resume."""
+    if source_epoch not in {200, 300} or checkpoint_role not in {"terminal", "best_validation"}:
+        raise ValueError("unsupported warm-start source contract")
     source = Path(source_run).resolve()
-    required = ("history.csv", "results.json", "config.resolved.yaml", "model.pt", "epoch200.pt")
+    required = ("history.csv", "results.json", "config.resolved.yaml", "model.pt", f"epoch{source_epoch}.pt")
     missing = [name for name in required if not (source / name).is_file()]
     if missing:
         raise RuntimeError(f"warm-start source artifacts missing: {missing}")
     result = json.loads((source / "results.json").read_text(encoding="utf-8"))
     if str(result.get("model")) != expected_model or int(result.get("seed", -1)) != int(expected_seed):
         raise RuntimeError("warm-start source model/seed identity mismatch")
-    if int(result.get("stop_epoch", -1)) != 200 or int(result.get("history_epoch_count", -1)) != 200:
+    if int(result.get("stop_epoch", -1)) != source_epoch or int(result.get("history_epoch_count", -1)) != source_epoch:
         raise RuntimeError("warm-start source must be a complete epoch-200 run")
     source_config = yaml.safe_load(
         (source / "config.resolved.yaml").read_text(encoding="utf-8")
@@ -79,17 +83,18 @@ def load_weight_only_warm_start(
     ):
         raise RuntimeError("warm-start source experiment identity mismatch")
     history = _read_history(source / "history.csv")
-    if [row["epoch"] for row in history] != list(range(1, 201)):
+    if [row["epoch"] for row in history] != list(range(1, source_epoch + 1)):
         raise RuntimeError("warm-start source history must cover exactly epochs 1-200")
     model_sha = _sha256(source / "model.pt")
-    terminal_sha = _sha256(source / "epoch200.pt")
+    terminal_sha = _sha256(source / f"epoch{source_epoch}.pt")
     if result.get("checkpoint_sha256") != model_sha or result.get("terminal_checkpoint_sha256") != terminal_sha:
         raise RuntimeError("warm-start source checkpoint hash mismatch")
+    selected = source / ("model.pt" if checkpoint_role == "best_validation" else f"epoch{source_epoch}.pt")
     try:
-        terminal = torch_module.load(source / "epoch200.pt", map_location="cpu", weights_only=True)
+        terminal = torch_module.load(selected, map_location="cpu", weights_only=True)
     except TypeError:
-        terminal = torch_module.load(source / "epoch200.pt", map_location="cpu")
-    if int(terminal.get("epoch", -1)) != 200 or "state_dict" not in terminal:
+        terminal = torch_module.load(selected, map_location="cpu")
+    if int(terminal.get("epoch", -1)) != (int(result["best_epoch"]) if checkpoint_role == "best_validation" else source_epoch) or "state_dict" not in terminal:
         raise RuntimeError("warm-start terminal checkpoint is not an epoch-200 state")
     return {
         "source_run": str(source),
@@ -98,13 +103,15 @@ def load_weight_only_warm_start(
         "terminal_payload": terminal,
         "source_best_checkpoint": str(source / "model.pt"),
         "source_best_checkpoint_sha256": model_sha,
-        "source_terminal_checkpoint": str(source / "epoch200.pt"),
+        "source_terminal_checkpoint": str(source / f"epoch{source_epoch}.pt"),
         "source_terminal_checkpoint_sha256": terminal_sha,
         "source_config_sha256": _sha256(source / "config.resolved.yaml"),
         "source_experiment_id": source_experiment,
-        "source_epoch": 200,
+        "source_epoch": source_epoch,
+        "initial_weights_role": checkpoint_role,
+        "initial_weights_epoch": int(terminal["epoch"]),
         "optimizer_state_restored": False,
-        "optimizer_reset_reason": "source epoch200.pt contains weights but no AdamW state",
+        "optimizer_reset_reason": "source checkpoint contains weights but no AdamW state",
         "data_order_state_restored": False,
     }
 

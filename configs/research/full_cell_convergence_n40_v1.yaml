@@ -1,0 +1,37 @@
+# Bounded validation-only adaptive training campaign.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+authorization_id: user-2026-10-22-start-convergence-n40-n56-eight-gpu
+protocol:
+  start_epoch: 300
+  minimum_extension: 100
+  check_interval: 20
+  improvement_window: 80
+  improvement_threshold: 0.001
+  stability_window: 60
+  stability_threshold: 0.005
+  confirmations: 2
+  initial_lr_factor: 0.2
+  min_lr_factor: 0.01
+  factor: 0.5
+  patience: 30
+  cooldown: 10
+seeds:
+- 0
+- 1
+- 2
+max_concurrent_gpus: 8
+max_total_epoch: 1000
+test_authorized: false
+primary_reporting_metric: bands_1_10_mre_pct
+seed_aggregation: mean_and_sample_standard_deviation
+checkpoint_selection: validation_bands_2_10_mre
+automatic_retry: false
+platform: n40
+source_campaigns:
+  EXP-FWD-026: /data/run01/scw6g7a/phc2d/runs/20261020/EXP-FWD-024_202610201920
+  EXP-FWD-027: /data/run01/scw6g7a/phc2d/runs/20261020/EXP-FWD-025_202610201920
+partition: gpu_4090
+environment: /HOME/scw6g7a/run/envs/phc2d_gpu_cu118
+cpus_per_gpu: 6

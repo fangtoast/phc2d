@@ -1037,6 +1037,63 @@ experiments:
       summary: M9 plan6284297已完成，solve6284298四片运行，finalize6284299等待；源提交f3f7360，后续验收和N40交付仍未完成，不自动重试。
     tags: [pcsel, mpb, test-only, geometry-transfer, bingxing, n40]
 
+  - id: EXP-FWD-026
+    title: 核心模型自适应收敛扩展
+    task: forward
+    status: active
+    mapping_status: complete
+    research_question: 在冻结数据和架构条件下，增加优化预算能否达到预定验证平台期？
+    spec: [experiments/research/EXP-FWD-026-收敛训练协议.md]
+    config: [configs/research/full_cell_convergence_n40_v1.yaml]
+    runs:
+      local: []
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments: []
+    decision:
+      state: continue
+      summary: 用户已授权同条件三seed与每平台8GPU；运行和收敛状态以新campaign原始证据为准，不覆盖固定预算结果。
+    tags: [convergence, validation-only, three-seed, adaptive-optimization]
+
+  - id: EXP-FWD-027
+    title: 分支消融自适应收敛扩展
+    task: forward
+    status: active
+    mapping_status: complete
+    research_question: 在冻结数据和架构条件下，增加优化预算能否达到预定验证平台期？
+    spec: [experiments/research/EXP-FWD-026-收敛训练协议.md]
+    config: [configs/research/full_cell_convergence_n40_v1.yaml]
+    runs:
+      local: []
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments: []
+    decision:
+      state: continue
+      summary: 用户已授权同条件三seed与每平台8GPU；运行和收敛状态以新campaign原始证据为准，不覆盖固定预算结果。
+    tags: [convergence, validation-only, three-seed, adaptive-optimization]
+
+  - id: EXP-FWD-028
+    title: 其他模型同条件三seed收敛训练
+    task: forward
+    status: active
+    mapping_status: complete
+    research_question: 在冻结数据和架构条件下，增加优化预算能否达到预定验证平台期？
+    spec: [experiments/research/EXP-FWD-026-收敛训练协议.md]
+    config: [configs/research/full_cell_convergence_n56_v1.yaml]
+    runs:
+      local: []
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments: []
+    decision:
+      state: continue
+      summary: 用户已授权同条件三seed与每平台8GPU；运行和收敛状态以新campaign原始证据为准，不覆盖固定预算结果。
+    tags: [convergence, validation-only, three-seed, adaptive-optimization]
+
 deferred_history:
   - scope: 2026-05 至 2026-06 初期的 legacy reproduction、FEM/MPB 与 smoke runs
     reason: 历史价值存在，但不属于当前活跃或论文核心实验，暂不批量登记。
