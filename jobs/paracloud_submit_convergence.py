@@ -25,6 +25,9 @@ def submit(root: Path, suite: Path, stage: str, dependency: str | None) -> dict:
     export = dict(PHC2D_ROOT=str(root), PHC2D_SUITE=str(suite), PHC2D_STAGE=stage,
                   PHC2D_GPU_PLATFORM=profile["platform"], PHC2D_ENV=profile["environment"],
                   PYTHONDONTWRITEBYTECODE="1")
+    staged = (root / "deployment_audit.json").is_file() and profile["platform"] == "n56"
+    if staged:
+        export["PHC2D_ARCHIVE_SHA256"] = json.loads((root / "deployment_audit.json").read_text())["archive_sha256"]
     args = ["sbatch", "--parsable", "--no-requeue", "-p", profile["partition"],
             "--gres=gpu:1", "-c", str(profile["cpus_per_gpu"]),
             "-t", "01:00:00" if stage == "admission" else "7-00:00:00",
@@ -33,7 +36,8 @@ def submit(root: Path, suite: Path, stage: str, dependency: str | None) -> dict:
             "--export=ALL," + ",".join(k + "=" + v for k, v in export.items())]
     if dependency:
         args.extend(["--dependency=afterok:" + dependency, "--kill-on-invalid-dep=yes"])
-    args.append(str(root / "jobs/paracloud_convergence.sh"))
+    launcher = "paracloud_convergence_staged.sh" if staged else "paracloud_convergence.sh"
+    args.append(str(root / "jobs" / launcher))
     completed = subprocess.run(args, capture_output=True, text=True, cwd=root)
     record.update(args=args, returncode=completed.returncode, stdout=completed.stdout,
                   stderr=completed.stderr, status="submitted" if completed.returncode == 0 else "submission_failed")

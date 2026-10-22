@@ -201,3 +201,7 @@ def test_scheduler_dependency_and_duplicate_submission_guard(tmp_path, monkeypat
     with pytest.raises(FileExistsError):
         module.submit(tmp_path, tmp_path, "train", "12344")
     assert len(calls) == 1
+    (tmp_path / "deployment_audit.json").write_text(json.dumps(dict(archive_sha256="frozen-sha")))
+    module.submit(tmp_path, tmp_path, "admission", None)
+    assert calls[-1][-1].endswith("paracloud_convergence_staged.sh")
+    assert any("PHC2D_ARCHIVE_SHA256=frozen-sha" in arg for arg in calls[-1])
