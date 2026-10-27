@@ -88,6 +88,37 @@ def tiny_config(tmp_path):
                 runtime=dict(device="cpu", require_accelerator=False, precision="fp32", amp_enabled=False, tf32_enabled=False, num_workers=0, cache_in_memory=True), output={})
 
 
+def test_checkpoint_selection_ignores_band1_10_argmin(monkeypatch, tmp_path):
+    """A lower primary reporting MRE must not replace the Bands 2-10 checkpoint."""
+    torch = pytest.importorskip("torch")
+    from phc2d.forward import full_cell
+
+    config = tiny_config(tmp_path)
+    config.pop("adaptive_optimization")
+    config["training"]["max_epochs"] = 20
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    calls = 0
+
+    def fake_evaluate(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        selected, primary = (1.0, 3.0) if calls == 1 else (2.0, 1.0)
+        return dict(normalized_mse=1.0, band1_mre_pct=primary,
+                    bands_2_10_mre_pct=selected, bands_1_10_mre_pct=primary,
+                    eval_time_s=0.001)
+
+    monkeypatch.setattr(full_cell, "_evaluate", fake_evaluate)
+    out = tmp_path / "selected"
+    run_full_cell_forward(path, model_name="mlp", seed=0, run_dir=out)
+    checkpoint = torch.load(out / "model.pt", weights_only=True)
+    result = json.loads((out / "results.json").read_text())
+    assert checkpoint["epoch"] == result["best_epoch"] == 1
+    with (out / "history.csv").open() as handle:
+        rows = list(csv.DictReader(handle))
+    assert float(rows[1]["val_bands_1_10_mre_pct"]) < float(rows[0]["val_bands_1_10_mre_pct"])
+
+
 def test_cpu_admission_and_epoch300_best_warm_start_without_test_reads(tmp_path):
     torch = pytest.importorskip("torch")
     cfg = tiny_config(tmp_path)
@@ -103,7 +134,8 @@ def test_cpu_admission_and_epoch300_best_warm_start_without_test_reads(tmp_path)
     with (source / "history.csv").open() as handle:
         original = list(csv.DictReader(handle))[0]
     with (source / "history.csv").open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=original.keys()); writer.writeheader()
+        writer = csv.DictWriter(handle, fieldnames=original.keys())
+        writer.writeheader()
         writer.writerows(dict(original, epoch=e) for e in range(1, 301))
     terminal = torch.load(source / "model.pt", weights_only=True)
     terminal["epoch"] = 300

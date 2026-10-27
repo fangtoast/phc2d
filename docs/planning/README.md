@@ -23,6 +23,7 @@ primary_layer: L4
 
 ## 截稿前补充实验
 
+- [官方算子与通道融合对比](../../experiments/research/EXP-FWD-031-官方算子与通道融合对比.md)：四域三模型三种子，从零训练；先核查 12 项准入，训练与 validation 之外的评价另行安排。
 - [同条件三seed收敛训练](../../experiments/research/EXP-FWD-026-收敛训练协议.md)：EXP-FWD-026/027在N40扩展，028在N56对齐六单域与三个seed；每平台最多8GPU，验证停止与1000轮上限。
 
 - [三核心模型与分支消融固定预算确认](../../experiments/research/EXP-FWD-024-三核心模型固定预算确认.md)：2026-10-20授权；状态以run为准。

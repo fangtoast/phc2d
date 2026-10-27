@@ -18,8 +18,8 @@ import numpy as np
 
 def validate_adaptive_contract(config: dict, experiment_id: str, training: dict, continuation: dict) -> None:
     """Keep adaptive optimization separate from immutable fixed-budget experiments."""
-    if experiment_id not in {"EXP-FWD-026", "EXP-FWD-027", "EXP-FWD-028"}:
-        raise ValueError("adaptive optimization requires EXP-FWD-026/027/028")
+    if experiment_id not in {"EXP-FWD-026", "EXP-FWD-027", "EXP-FWD-028", "EXP-FWD-031"}:
+        raise ValueError("adaptive optimization requires EXP-FWD-026/027/028/031")
     expected = dict(start_epoch=300, minimum_extension=100, check_interval=20,
                     improvement_window=80, improvement_threshold=0.001,
                     stability_window=60, stability_threshold=0.005, confirmations=2,
@@ -36,7 +36,7 @@ def validate_adaptive_contract(config: dict, experiment_id: str, training: dict,
             raise ValueError("other-model comparison must start from scratch")
         if continuation.get("mode") != "epoch300_best_weights_optimizer_reset" or int(continuation.get("source_epoch", -1)) != 300:
             raise ValueError("adaptive warm start requires frozen epoch-300 validation-best weights")
-    elif experiment_id != "EXP-FWD-028":
+    elif experiment_id not in {"EXP-FWD-028", "EXP-FWD-031"}:
         raise ValueError("core and branch extensions require a source run")
 
 
@@ -123,3 +123,6 @@ class AdaptiveOptimization:
         (Path(path).parent / "adaptive_progress.json").write_text(json.dumps(dict(
             epoch=history[-1]["epoch"], learning_rate=self.optimizer.param_groups[0]["lr"],
             convergence=self.record, restart_checkpoint=str(path)), indent=2) + "\n", encoding="utf-8")
+        if resolved.get("training", {}).get("record_model_diagnostics", False):
+            from phc2d.forward.training_diagnostics import save_training_diagnostics
+            save_training_diagnostics(path.parent, model, payload, self.torch)
