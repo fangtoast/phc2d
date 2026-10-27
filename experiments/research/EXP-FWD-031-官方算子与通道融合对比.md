@@ -63,4 +63,6 @@ NeuralOperator 固定为 2.0.0，TensorLy 固定为兼容服务器 Python 3.10 �
 
 每项正式运行保留配置、源码/依赖版本及哈希、数据/split/子集/标准化身份、模型指纹、参数元素与实自由度、逐轮 history、日志、validation-best、300 轮终态与阶段内最优、终态和每 20 轮完整训练状态，以及时间、吞吐、显存和门控权重。完成判断须逐项分为通过停止门、预算耗尽和失败。所有运行证据写入 `runs/{yyyymmdd}/EXP-FWD-031_{YYYYMMDDHHmm}/`，本页不复制原始指标。
 
+逐 band validation MRE 在正式训练终态后，从冻结 validation-best checkpoint 只读重算并写入各 run 的 `per_band_validation.json`；该补充计算不访问 held-out test 标签，也不改写训练选模。其处理源码提交须随结果保留，与训练源码身份分开记录。
+
 **下一决策门：**核查 12/12 准入，再核查 36/36 正式终态与 checkpoint 冻结；随后另行决定 held-out test。训练期间不得用 validation 单独宣称门控收益或物理验证通过。
