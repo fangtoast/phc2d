@@ -27,13 +27,14 @@ case "${PHC2D_GPU_PLATFORM:?Set n40 or n56}" in
   *) echo "Unsupported platform" >&2; exit 2 ;;
 esac
 [[ -d "$official_overlay/neuralop" ]] || { echo "Missing isolated official package overlay" >&2; exit 2; }
-(cd "$official_overlay" && sha256sum -c "$task_root/jobs/official_neuraloperator_2_0_0.sha256")
+tr -d '\r' < "$task_root/jobs/official_neuraloperator_2_0_0.sha256" > "$task_root/official_source.sha256"
+(cd "$official_overlay" && sha256sum -c "$task_root/official_source.sha256")
 source "$task_root/jobs/paracloud_gpu_common.sh"
 export PYTHONPATH="$official_overlay:$PYTHONPATH"
 export WANDB_MODE=disabled
 export WANDB_DISABLED=true
 python -c 'import importlib.metadata as m, torch, neuralop; assert m.version("neuraloperator") == "2.0.0"; assert m.version("tensorly") == "0.9.0"; print("runtime", torch.__version__, neuralop.__version__, m.version("tensorly"))'
-cp "$task_root/jobs/official_neuraloperator_2_0_0.sha256" "$PHC2D_SUITE/official_source_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}.sha256"
+cp "$task_root/official_source.sha256" "$PHC2D_SUITE/official_source_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}.sha256"
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv
 nvidia-smi --query-gpu=timestamp,index,uuid,utilization.gpu,memory.used,memory.total,power.draw --format=csv -l 10 > "$PHC2D_SUITE/gpu_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}.csv" &
 monitor_pid=$!
