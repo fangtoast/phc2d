@@ -22,6 +22,7 @@ def _catalog_providers() -> tuple[CatalogProvider, ...]:
         model_specs as full_cell_experimental_specs,
     )
     from phc2d.models.catalog.query import model_specs as query_specs
+    from phc2d.models.catalog.official_comparison import model_specs as official_specs
 
     return (
         field_specs,
@@ -29,6 +30,7 @@ def _catalog_providers() -> tuple[CatalogProvider, ...]:
         query_specs,
         full_cell_specs,
         full_cell_experimental_specs,
+        official_specs,
     )
 
 

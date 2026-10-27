@@ -4,7 +4,7 @@
 # Copyright (c) 2026 fangtoast. All rights reserved.
 
 version: 1
-updated_at: "2026-09-09"
+updated_at: "2026-10-28"
 authority:
   registry_command: phc2d models list
   master_report: docs/reports/phc2d_project_full_introduction_20260724.md
@@ -480,6 +480,63 @@ entries:
     headline_metrics: {}
     source_artifacts: []
     claim_boundary: EXP-FWD-019-derived architecture candidate; implementation tests exist, but no training, validation, test, cross-domain, or physical evidence exists.
+
+  - id: official_fno_band_v1
+    display_name: official_fno_band_v1
+    category: neural_model
+    family: neural_operator
+    task: full_cell_full_band
+    input_output: material_weight_grid -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: no_result
+    report_scope: future
+    report_tokens: ["`official_fno_band_v1`"]
+    implementation: src/phc2d/models/official_band_operators.py
+    configs: [configs/research/official_comparison_exp_fwd_031_v1.yaml]
+    result_report: null
+    data: {records_per_domain: [10000, 50000], seeds: []}
+    headline_metrics: {}
+    source_artifacts: []
+    claim_boundary: EXP-FWD-031 official FNO adapter; construction and tests are not training evidence.
+
+  - id: official_tucker_tfno_band_v1
+    display_name: official_tucker_tfno_band_v1
+    category: neural_model
+    family: neural_operator
+    task: full_cell_full_band
+    input_output: material_weight_grid -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: no_result
+    report_scope: future
+    report_tokens: ["`official_tucker_tfno_band_v1`"]
+    implementation: src/phc2d/models/official_band_operators.py
+    configs: [configs/research/official_comparison_exp_fwd_031_v1.yaml]
+    result_report: null
+    data: {records_per_domain: [10000, 50000], seeds: []}
+    headline_metrics: {}
+    source_artifacts: []
+    claim_boundary: EXP-FWD-031 official Tucker-TFNO adapter at rank 0.1; construction and tests are not training evidence.
+
+  - id: global_local_channel_gate_v1
+    display_name: global_local_channel_gate_v1
+    category: neural_model
+    family: global_local_neural_operator
+    task: full_cell_full_band
+    input_output: material_weight_grid -> Wh
+    registry_status: registered
+    implementation_status: implemented
+    evidence_status: no_result
+    report_scope: future
+    report_tokens: ["`global_local_channel_gate_v1`"]
+    implementation: src/phc2d/models/global_local_channel_gate.py
+    configs: [configs/research/official_comparison_exp_fwd_031_v1.yaml]
+    result_report: null
+    data: {records_per_domain: [10000, 50000], seeds: []}
+    headline_metrics: {}
+    source_artifacts: []
+    claim_boundary: EXP-FWD-031 channel fusion identity; no training, validation, test, or physical result yet.
 
   - id: fno2d_band_component_v1
     display_name: fno2d_band_component_v1

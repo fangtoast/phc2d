@@ -69,6 +69,9 @@ REGISTERED_MODEL_GROUPS: dict[str, tuple[str, ...]] = {
         "tfno2d_band_v3",
         "dual_lane_band_operator_v1",
         "global_local_band_operator_v1",
+        "official_fno_band_v1",
+        "official_tucker_tfno_band_v1",
+        "global_local_channel_gate_v1",
     ),
     "Component-attribution identities": (
         "fno2d_band_component_v1",
@@ -282,7 +285,7 @@ def registry_coverage() -> dict[str, Any]:
 
 def _plot_architecture_poster(output_base: Path, formats: Sequence[str]) -> list[Path]:
     figure, axis = _canvas(
-        "phc2d architecture poster: 27 registered models + inverse generators",
+        "phc2d architecture poster: 30 registered models + inverse generators",
         "Paper-style map of the main computational motifs; each family is expanded in the following atlas figures.",
         (19.0, 12.5),
     )
@@ -290,7 +293,7 @@ def _plot_architecture_poster(output_base: Path, formats: Sequence[str]) -> list
         (2, 52, "1 | Fixed Full-Wh (8)", "baseline", (("vector", "MLP / ResMLP", "baseline"), ("local", "Lifted CNN", "local"), ("spectral", "FNO / BandBlock", "operator"), ("Wh", "fixed matrix", "inverse"))),
         (35, 52, "2 | Continuous query (5)", "operator", (("structure", "grid encoder", "baseline"), ("k query", "MLP / trunk", "local"), ("fusion", "concat / product / gate", "operator"), ("bands", "at queried k", "inverse"))),
         (68, 52, "3 | TE field (4)", "field", (("grid + context", "periodic input", "field"), ("U-Net / FNO", "spatial backbone", "operator"), ("field map", "preserve H,W", "field"), ("frequency", "scalar head", "inverse"))),
-        (2, 10, "4 | Full-cell upgrades (5)", "local", (("tokens", "Mixer", "baseline"), ("large kernel", "ConvNeXt", "local"), ("global op.", "TFNO", "operator"), ("lane FiLM", "conditional", "warning"))),
+        (2, 10, "4 | Full-cell operators (9)", "local", (("tokens", "Mixer", "baseline"), ("large kernel", "ConvNeXt", "local"), ("global op.", "TFNO", "operator"), ("lane FiLM", "conditional", "warning"))),
         (35, 10, "5 | Global-local bridge (1)", "hero", (("Tucker FFT", "global branch", "operator"), ("DWConv 7x7", "periodic local branch", "local"), ("fixed mean", "equal fusion", "hero"), ("Wh[81,10]", "shared head", "inverse"))),
         (68, 10, "6 | Attribution + inverse", "warning", (("frozen masks", "4 registry identities", "warning"), ("target Wh", "condition", "baseline"), ("mode + latent", "generator", "operator"), ("candidates", "analytic decode", "inverse"))),
     )
@@ -310,7 +313,7 @@ def _plot_registry_overview(output_base: Path, formats: Sequence[str]) -> list[P
     specs = _registry_specs()
     figure, axis = _canvas(
         "phc2d model architecture atlas: live registry overview",
-        "27 registered identities grouped by prediction contract. Component-attribution identities are models; inverse recipes and adapted PINO are shown separately.",
+        "30 registered identities grouped by prediction contract. Component-attribution identities are models; inverse recipes and adapted PINO are shown separately.",
         (20.0, 12.5),
     )
     layouts = {
