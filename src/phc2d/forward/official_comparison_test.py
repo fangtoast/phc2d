@@ -30,6 +30,13 @@ def ready_checkpoint(run: Path, completed: Path) -> dict:
     digest = file_digest(run / "model.pt")
     if marker["checkpoint_sha256"] != digest or result["checkpoint_sha256"] != digest:
         raise ValueError("completed marker and checkpoint hashes disagree")
+    validation = json.loads((run / "per_band_validation.json").read_text(encoding="utf-8"))
+    frozen_metrics = json.loads((run / "metrics.json").read_text(encoding="utf-8"))
+    if validation["checkpoint_sha256"] != digest or validation["status"] != "validation_per_band_verified":
+        raise ValueError("selected checkpoint has no matching validation recomputation")
+    for key in ("bands_1_10_mre_pct", "bands_2_10_mre_pct"):
+        if abs(float(validation[key]) - float(frozen_metrics[key])) > 1e-3:
+            raise ValueError("validation recomputation differs from frozen metrics")
     return result
 
 

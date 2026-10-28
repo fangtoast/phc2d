@@ -24,6 +24,11 @@ def test_checkpoint_requires_terminal_marker_and_matching_hash(tmp_path):
     (run / "results.json").write_text(json.dumps(result), encoding="utf-8")
     marker = tmp_path / "completed.json"
     marker.write_text(json.dumps(dict(checkpoint_sha256=digest)), encoding="utf-8")
+    (run / "per_band_validation.json").write_text(json.dumps(dict(
+        status="validation_per_band_verified", checkpoint_sha256=digest,
+        bands_1_10_mre_pct=1.0, bands_2_10_mre_pct=2.0)), encoding="utf-8")
+    (run / "metrics.json").write_text(json.dumps(dict(
+        bands_1_10_mre_pct=1.0, bands_2_10_mre_pct=2.0)), encoding="utf-8")
     assert ready_checkpoint(run, marker)["checkpoint_sha256"] == digest
     result["status"] = "training_running"
     (run / "results.json").write_text(json.dumps(result), encoding="utf-8")
