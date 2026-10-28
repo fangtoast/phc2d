@@ -31,7 +31,8 @@ def gpu_jobs() -> int:
 
 
 def submitted_job_state(claim: Path) -> str:
-    record = json.loads((claim / "submission.json").read_text(encoding="utf-8"))
+    record_path = claim / ("replacement.json" if (claim / "replacement.json").is_file() else "submission.json")
+    record = json.loads(record_path.read_text(encoding="utf-8"))
     job_id = record["stdout"].strip().split(";")[0]
     result = subprocess.run(["sacct", "-j", job_id, "--noheader", "--format=State"],
                             capture_output=True, text=True, check=True)
@@ -59,7 +60,15 @@ def scan(suite: Path, worker: Path, source: Path, deployment: Path,
     if len(rows) != 18 or len({row["case_id"] for row in rows}) != 18:
         raise ValueError("unexpected local training manifest")
     desired = targets(profile, external_root)
-    capacity = max(0, 8 - gpu_jobs())
+    # The independent validation dispatcher can enqueue one GPU job between
+    # our capacity check and sbatch. Keep one slot free until its 18 outputs
+    # and all 18 formal training runs are finished on this server.
+    training_done = sum((suite / "train_claims" / f"{suite.name}_{row['case_id']}" /
+                         "completed.json").is_file() for row in rows)
+    validation_done = sum((suite / "training" / row["case_id"] /
+                           "per_band_validation.json").is_file() for row in rows)
+    local_limit = 8 if training_done == 18 and validation_done == 18 else 7
+    capacity = max(0, local_limit - gpu_jobs())
     submitted = 0
     finished = 0
     blocked = 0
@@ -88,7 +97,8 @@ def scan(suite: Path, worker: Path, source: Path, deployment: Path,
                     reason="submitted job ended without complete test artifacts")) + "\n", encoding="utf-8")
                 blocked += 1
             continue
-        if not completed.is_file() or capacity <= 0:
+        validation_record = suite / "training" / case / "per_band_validation.json"
+        if not completed.is_file() or not validation_record.is_file() or capacity <= 0:
             continue
         training_result = json.loads((suite / "training" / case / "results.json").read_text(encoding="utf-8"))
         if training_result["status"] not in {"formal_training_success", "training_complete_convergence_not_met"}:
