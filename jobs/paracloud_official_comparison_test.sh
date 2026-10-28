@@ -20,6 +20,7 @@ trap 'rm -rf -- "$task_root"' EXIT
 tar -xzf "$PHC2D_DEPLOY_ROOT/deployment.tar.gz" -C "$task_root"
 cp "$PHC2D_DEPLOY_ROOT/DEPLOYED_GIT_COMMIT" "$task_root/DEPLOYED_GIT_COMMIT"
 cp "$PHC2D_TEST_SOURCE" "$task_root/src/phc2d/forward/official_comparison_test.py"
+sha256sum "$task_root/src/phc2d/forward/official_comparison_test.py"
 case "$PHC2D_GPU_PLATFORM" in
   n40)
     export PHC2D_ENV=/HOME/scw6g7a/run/envs/phc2d_gpu_cu118

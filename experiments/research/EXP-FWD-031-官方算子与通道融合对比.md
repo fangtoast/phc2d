@@ -66,3 +66,17 @@ NeuralOperator 固定为 2.0.0，TensorLy 固定为兼容服务器 Python 3.10 �
 逐 band validation MRE 在正式训练终态后，从冻结 validation-best checkpoint 只读重算并写入各 run 的 `per_band_validation.json`；该补充计算不访问 held-out test 标签，也不改写训练选模。其处理源码提交须随结果保留，与训练源码身份分开记录。
 
 **下一决策门：**核查 12/12 准入，再核查 36/36 正式终态与 checkpoint 冻结；随后另行决定 held-out test。训练期间不得用 validation 单独宣称门控收益或物理验证通过。
+
+## 冻结 checkpoint 的增量测试扩展（2026-10-28）
+
+用户已授权在原训练继续期间，按完成状态逐 checkpoint 执行独立测试。原训练配置的 `test_authorized: false` 保持不变；测试入口及其执行源码单独记录。测试只读取 validation-best 冻结权重，不使用 test 调整训练或选模。
+
+| 测试单元 | 目标与证据角色 |
+|---|---|
+| 四域各自 `idx_test` | 每个来源 checkpoint 均测 K5/F50 × Binary/Graded；同源域为 native held-out，其余为跨域 surrogate test |
+| EXP-DAT-007 12k | 六族新几何直接迁移，使用冻结的 Binary 输入表示与现有真实 MPB 标签 |
+| EXP-DAT-008 24k | 十二族新几何直接迁移，角色同上 |
+
+预期为 36 个 checkpoint × 6 个目标＝216 个唯一测试单元；每个来源模型与目标组合齐备三个 seed 后，得到 72 组三 seed 汇总。新几何仍缺正式 WSL MPB 复算及分辨率收敛验收，不将代理误差表述为物理精度。
+
+每项训练必须先有正式 `completed.json`，checkpoint SHA-256 与训练 `results.json` 一致，且逐 band validation 只读重算通过原聚合指标的 `1e-3` 百分点容差。目标数据需核验 SHA-256、输入/标签形状、k 点顺序和 split 不重叠。测试采用 FP32、batch 16，每机训练与测试合计最多八卡；只用训练释放的空闲额度，不自动重试失败单元。各测试输出保留来源与目标哈希、逐样本和逐 band 指标、推理耗时及正式运行日志。通过 216/216 完整性审计后才能称全批测试完成。

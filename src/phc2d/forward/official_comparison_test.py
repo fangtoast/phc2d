@@ -137,7 +137,8 @@ def evaluate(run: Path, completed: Path, dataset: Path, dataset_sha256: str,
     record = dict(status="test_complete", model=result["model"], source_status=result["status"],
                   checkpoint_sha256=result["checkpoint_sha256"], target_sha256=dataset_sha256,
                   target_split_sha256=hashlib.sha256(indices.tobytes()).hexdigest(),
-                  grid_field=grid_field, source_run=str(run), sample_count=len(rows), external=external)
+                  grid_field=grid_field, source_run=str(run), sample_count=len(rows), external=external,
+                  evaluation_source_sha256=file_digest(Path(__file__)))
     (output / "results.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     (output / "config.resolved.yaml").write_text(yaml.safe_dump(dict(source_run=str(run), dataset=str(dataset),
         dataset_sha256=dataset_sha256, grid_field=grid_field, batch_size=16, precision="fp32")), encoding="utf-8")
