@@ -131,6 +131,9 @@ def audit_run(out: Path, row: dict, admission: bool) -> None:
     from phc2d.forward.training_diagnostics import gate_record, parameter_record
     cfg = yaml.safe_load((out / "config.resolved.yaml").read_text())
     payload = torch.load(out / "model.pt", map_location="cpu", weights_only=True)
+    metrics = json.loads((out / "metrics.json").read_text())
+    if admission and int(metrics["optimizer_steps"]) < 1:
+        raise ValueError("admission did not perform an optimizer update")
     model = build_model(row["model"], input_shape=payload["input_shape"], output_shape=payload["output_shape"], **cfg["model"]["params"])
     model.load_state_dict(payload["state_dict"], strict=True)
     gates = gate_record(model)

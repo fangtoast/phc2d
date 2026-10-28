@@ -147,7 +147,7 @@ def test_full_cell_forward_cpu_admission_probe_writes_contract(tmp_path: Path) -
             "weight_decay": 1.0e-5,
             "learning_rates": {"mlp": 3.0e-4, "res_mlp_wide": 3.0e-4, "lifted_cnn": 1.0e-3, "fno2d_band_v2": 1.0e-3, "res_mlp_gated_v2": 3.0e-4},
             "micro_batch_size": 2,
-            "effective_batch_size": 2,
+            "effective_batch_size": 4,
         },
         "runtime": {"device": "cpu", "require_accelerator": False, "precision": "fp32", "amp_enabled": False, "tf32_enabled": False, "num_workers": 0},
         "output": {"runs_dir": str(tmp_path / "runs")},
@@ -168,6 +168,8 @@ def test_full_cell_forward_cpu_admission_probe_writes_contract(tmp_path: Path) -
     assert results["status"] == "full_cell_forward_admission_probe_pass"
     assert results["formal_training_started"] is False
     assert results["test_executed"] is False
+    metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["optimizer_steps"] == 1
 
     final_fit_dir = run_full_cell_forward(
         config_path,

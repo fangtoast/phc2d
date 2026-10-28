@@ -611,7 +611,11 @@ def run_full_cell_forward(
                 for parameter in model.parameters()
             ):
                 raise RuntimeError(f"non-finite training gradient at epoch {epoch}, batch {batch_index}")
-            if batch_index % accumulation == 0 or batch_index == len(train_loader):
+            # A short admission probe ends before the full loader is exhausted.
+            # Flush its final partial accumulation so the probe exercises an
+            # optimizer update, including trainable fusion gates.
+            if (batch_index % accumulation == 0 or batch_index == len(train_loader)
+                    or (max_batches is not None and batch_index >= int(max_batches))):
                 optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
                 optimizer_steps += 1

@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import pytest
 from phc2d.forward.official_comparison_campaign import (
-    task_configs, load_profile, claim_task, audit_global_release,
+    task_configs, load_profile, claim_task, audit_global_release, audit_run,
 )
 
 
@@ -43,6 +43,15 @@ def test_config_drift_and_retry_rejected(tmp_path):
     assert claim_task(tmp_path, "case", {}) is None
     with pytest.raises(FileNotFoundError):
         audit_global_release(tmp_path)
+
+
+def test_admission_rejects_a_probe_without_optimizer_update(tmp_path):
+    torch = pytest.importorskip("torch")
+    (tmp_path / "config.resolved.yaml").write_text("model: {params: {}}\n")
+    (tmp_path / "metrics.json").write_text('{"optimizer_steps": 0}')
+    torch.save({}, tmp_path / "model.pt")
+    with pytest.raises(ValueError, match="optimizer update"):
+        audit_run(tmp_path, {"model": "official_fno_band_v1"}, admission=True)
 
 
 def test_scheduler_uses_bands2_and_reset_loads_selected_weights(tmp_path):
