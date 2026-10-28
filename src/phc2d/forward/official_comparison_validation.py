@@ -32,7 +32,8 @@ def report_per_band_validation(run: Path, *, batch_size: int = 16, device: str =
     result = json.loads((run / "results.json").read_text(encoding="utf-8"))
     metrics = json.loads((run / "metrics.json").read_text(encoding="utf-8"))
     config = yaml.safe_load((run / "config.resolved.yaml").read_text(encoding="utf-8"))
-    if config["experiment"]["experiment_id"] != "EXP-FWD-031":
+    experiment_id = config["experiment"]["experiment_id"]
+    if experiment_id.split("_", 1)[0] != "EXP-FWD-031":
         raise ValueError("per-band validation is restricted to EXP-FWD-031")
     if result["selection_split"] != "validation" or result["test_executed"]:
         raise ValueError("only validation-selected checkpoints are admissible")
@@ -73,7 +74,8 @@ def report_per_band_validation(run: Path, *, batch_size: int = 16, device: str =
                                (excluded_first, metrics["bands_2_10_mre_pct"])):
         if abs(observed - float(expected)) > 1e-3:
             raise ValueError("per-band validation disagrees with frozen aggregate metrics")
-    record = dict(status="validation_per_band_verified", model=payload["model_name"],
+    record = dict(status="validation_per_band_verified", experiment_id=experiment_id,
+                  model=payload["model_name"],
                   checkpoint_sha256=digest, dataset_sha256=config["dataset"]["expected_dataset_sha256"],
                   validation_count=len(indices), per_band_mre_pct=bands,
                   bands_1_10_mre_pct=all_mre, bands_2_10_mre_pct=excluded_first,

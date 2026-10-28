@@ -15,7 +15,8 @@ from phc2d.forward.official_comparison_validation import per_band_mre_sum, repor
 from phc2d.models import build_model
 
 
-def test_report_per_band_validation_agrees_with_aggregates(tmp_path):
+@pytest.mark.parametrize("experiment_id", ["EXP-FWD-031", "EXP-FWD-031_n8000_e1000"])
+def test_report_per_band_validation_agrees_with_aggregates(tmp_path, experiment_id):
     torch = pytest.importorskip("torch")
     h5py = pytest.importorskip("h5py")
     pytest.importorskip("neuralop")
@@ -45,10 +46,11 @@ def test_report_per_band_validation_agrees_with_aggregates(tmp_path):
         bands_1_10_mre_pct=sum(per_band) / 2,
         bands_2_10_mre_pct=per_band[1])), encoding="utf-8")
     (run / "config.resolved.yaml").write_text(yaml.safe_dump(dict(
-        experiment=dict(experiment_id="EXP-FWD-031"),
+        experiment=dict(experiment_id=experiment_id),
         dataset=dict(path=str(data), grid_field="grid", expected_dataset_sha256=file_digest(data)))),
         encoding="utf-8")
     record = report_per_band_validation(run, batch_size=1)
     assert record["validation_count"] == 2 and not record["test_executed"]
+    assert record["experiment_id"] == experiment_id
     assert record["per_band_mre_pct"] == pytest.approx(per_band, abs=1e-4)
     assert (run / "per_band_validation.json").is_file()
