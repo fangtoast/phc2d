@@ -114,8 +114,12 @@ def evaluate(run: Path, completed: Path, dataset: Path, dataset_sha256: str,
                 relative = np.abs(prediction - y) / np.maximum(np.abs(y), 1e-8)
                 sums += relative.sum(axis=(0, 1))
                 for index, sample in zip(batch, relative, strict=True):
+                    family = "native"
+                    if external and "structure_json" in handle:
+                        raw = handle["structure_json"][int(index)]
+                        family = json.loads(raw)["parameters"]["shape"]
                     rows.append(dict(dataset_index=int(index), full_matrix_mre_pct=float(sample.mean() * 100),
-                                     bands_2_10_mre_pct=float(sample[..., 1:].mean() * 100)))
+                                     bands_2_10_mre_pct=float(sample[..., 1:].mean() * 100), family=family))
         torch.cuda.synchronize(device)
         elapsed = (datetime.now(timezone.utc) - start).total_seconds()
         bands = (sums * (100 / (len(indices) * handle["Wh"].shape[1]))).tolist()
@@ -134,11 +138,17 @@ def evaluate(run: Path, completed: Path, dataset: Path, dataset_sha256: str,
         writer = csv.DictWriter(stream, fieldnames=["band_one_based", "mre_pct"])
         writer.writeheader()
         writer.writerows(dict(band_one_based=i + 1, mre_pct=value) for i, value in enumerate(bands))
+    source_domain = config["experiment"]["source_domain"]
+    target_name = output.name
     record = dict(status="test_complete", model=result["model"], source_status=result["status"],
                   checkpoint_sha256=result["checkpoint_sha256"], target_sha256=dataset_sha256,
                   target_split_sha256=hashlib.sha256(indices.tobytes()).hexdigest(),
                   grid_field=grid_field, source_run=str(run), sample_count=len(rows), external=external,
-                  evaluation_source_sha256=file_digest(Path(__file__)))
+                  evaluation_source_sha256=file_digest(Path(__file__)),
+                  evaluation_role="native_test" if target_name == source_domain else
+                                  "new_geometry_transfer" if external else "cross_domain_test",
+                  input_distribution_shift=(source_domain.endswith("graded") and
+                                            (external or target_name.endswith("binary"))))
     (output / "results.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     (output / "config.resolved.yaml").write_text(yaml.safe_dump(dict(source_run=str(run), dataset=str(dataset),
         dataset_sha256=dataset_sha256, grid_field=grid_field, batch_size=16, precision="fp32")), encoding="utf-8")
