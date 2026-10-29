@@ -19,6 +19,15 @@ import yaml
 from phc2d.forward.budget_confirmation import file_digest
 
 
+def restore_split_order(actual_indices: np.ndarray, frozen_indices: np.ndarray) -> np.ndarray:
+    """Return row permutation from sorted HDF5 batches to frozen split order."""
+    if (actual_indices.ndim != 1 or frozen_indices.ndim != 1
+            or len(np.unique(actual_indices)) != len(actual_indices)
+            or not np.array_equal(np.sort(actual_indices), np.sort(frozen_indices))):
+        raise ValueError("export indices differ from frozen split")
+    return np.argsort(actual_indices)[np.searchsorted(np.sort(actual_indices), frozen_indices)]
+
+
 def ready_checkpoint(run: Path, completed: Path) -> dict:
     """Admit only a finished, validation-selected checkpoint."""
     result = json.loads((run / "results.json").read_text(encoding="utf-8"))
@@ -57,7 +66,8 @@ def test_indices(handle, *, external: bool) -> np.ndarray:
 
 
 def evaluate(run: Path, completed: Path, dataset: Path, dataset_sha256: str,
-             grid_field: str, output: Path, *, external: bool = False) -> dict:
+             grid_field: str, output: Path, *, external: bool = False,
+             save_predictions: bool = False) -> dict:
     """Write a new test cell without changing the source training run."""
     import h5py
     import torch
@@ -101,6 +111,7 @@ def evaluate(run: Path, completed: Path, dataset: Path, dataset_sha256: str,
             raise ValueError("k-point order changed")
         sums = np.zeros(int(payload["output_shape"][-1]), dtype=np.float64)
         rows = []
+        prediction_batches, target_batches, index_batches = [], [], []
         torch.cuda.reset_peak_memory_stats(device)
         start = datetime.now(timezone.utc)
         with torch.no_grad():
@@ -112,6 +123,10 @@ def evaluate(run: Path, completed: Path, dataset: Path, dataset_sha256: str,
                 if prediction.shape != y.shape or not np.isfinite(prediction).all() or not np.isfinite(y).all():
                     raise ValueError("nonfinite or shape-mismatched prediction")
                 relative = np.abs(prediction - y) / np.maximum(np.abs(y), 1e-8)
+                if save_predictions:
+                    prediction_batches.append(prediction)
+                    target_batches.append(y)
+                    index_batches.append(batch)
                 sums += relative.sum(axis=(0, 1))
                 for index, sample in zip(batch, relative, strict=True):
                     family = "native"
@@ -129,6 +144,23 @@ def evaluate(run: Path, completed: Path, dataset: Path, dataset_sha256: str,
                    samples=len(rows), inference_seconds=elapsed, samples_per_second=len(rows) / elapsed,
                    peak_gpu_bytes=torch.cuda.max_memory_allocated(device))
     output.mkdir(parents=True)
+    if save_predictions:
+        # HDF5 requires sorted batch indices. Restore frozen split order in the
+        # exported arrays, rather than falsely attaching the original split hash
+        # to arrays stored in sorted-batch order.
+        actual_indices = np.concatenate(index_batches)
+        order = restore_split_order(actual_indices, indices)
+        for name, values in (("predictions", prediction_batches), ("targets", target_batches)):
+            np.save(output / f"{name}.npy", np.concatenate(values)[order])
+        np.save(output / "sample_indices.npy", indices)
+        export = dict(checkpoint_sha256=result["checkpoint_sha256"],
+                      data_sha256=dataset_sha256,
+                      idx_hash=hashlib.sha256(indices.tobytes()).hexdigest(),
+                      k_points_sha256=k_hash, sample_count=len(indices),
+                      coordinate_system="de_normalized_frequency", dtype="float64",
+                      files_sha256={name: file_digest(output / name) for name in
+                                    ("predictions.npy", "targets.npy", "sample_indices.npy")})
+        (output / "prediction_export.json").write_text(json.dumps(export, indent=2) + "\n", encoding="utf-8")
     with (output / "per_sample_metrics.csv").open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
         writer.writeheader()
@@ -164,8 +196,11 @@ def main() -> None:
     parser.add_argument("--dataset-sha256", required=True)
     parser.add_argument("--grid-field", required=True)
     parser.add_argument("--external", action="store_true")
+    parser.add_argument("--save-predictions", action="store_true",
+                        help="Export de-normalized arrays in frozen sample order")
     args = parser.parse_args()
-    evaluate(args.run, args.completed, args.dataset, args.dataset_sha256, args.grid_field, args.output, external=args.external)
+    evaluate(args.run, args.completed, args.dataset, args.dataset_sha256, args.grid_field,
+             args.output, external=args.external, save_predictions=args.save_predictions)
 
 
 if __name__ == "__main__":

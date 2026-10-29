@@ -20,6 +20,86 @@ BAND_GROUPS: Mapping[str, slice] = {
 }
 
 
+def compute_spectral_regression_metrics(
+    prediction: np.ndarray,
+    target: np.ndarray,
+    *,
+    band_groups: Mapping[str, slice] | None = None,
+    norm_tolerance: float = 1.0e-12,
+) -> tuple[dict[str, Any], dict[str, dict[str, np.ndarray]], list[dict[str, Any]]]:
+    """Evaluate de-normalized [sample,k,band] arrays without assuming band count.
+
+    Relative errors are percentages; MAE/RMSE use target units and MSE squared
+    target units. Undefined relative L2 is null in summaries and NaN per sample,
+    never silently dropped. Existing ``compute_band_metrics`` stays unchanged.
+    """
+    pred = np.asarray(prediction, dtype=np.float64)
+    truth = np.asarray(target, dtype=np.float64)
+    if pred.shape != truth.shape or pred.ndim != 3 or any(n == 0 for n in pred.shape):
+        raise ValueError("expected matching nonempty [N,K,B] arrays")
+    if not np.isfinite(pred).all() or not np.isfinite(truth).all():
+        raise ValueError("prediction and target must be finite")
+    if not np.isfinite(norm_tolerance) or norm_tolerance < 0:
+        raise ValueError("norm_tolerance must be finite and nonnegative")
+
+    def calculate(p: np.ndarray, y: np.ndarray) -> tuple[dict, dict]:
+        diff = p - y
+        squared = np.sum(diff * diff, axis=(1, 2))
+        energy = np.sum(y * y, axis=(1, 2))
+        defined = np.sqrt(energy) > norm_tolerance
+        rel = np.full(len(p), np.nan)
+        rel[defined] = 100.0 * np.sqrt(squared[defined] / energy[defined])
+        mse = np.mean(diff * diff, axis=(1, 2))
+        mre = np.mean(np.abs(diff) / np.maximum(np.abs(y), 1.0e-8), axis=(1, 2)) * 100
+        order = (np.any(np.diff(p, axis=2) < 0, axis=2).mean(axis=1)
+                 if p.shape[2] > 1 else np.zeros(len(p)))
+        samples = dict(relative_l2_pct=rel, mre_pct=mre,
+                       mae=np.abs(diff).mean(axis=(1, 2)), mse=mse,
+                       rmse=np.sqrt(mse), band_order_violation_rate=order)
+        r2, r2_status, undefined_r2 = _r2(p, y)
+        valid = bool(defined.all())
+        summary = dict(
+            sample_count=len(p), band_count=p.shape[2], mre_pct=float(mre.mean()),
+            mae=float(samples["mae"].mean()), mse=float(mse.mean()),
+            rmse_global=float(np.sqrt(mse.mean())),
+            rmse_sample_mean=float(samples["rmse"].mean()),
+            relative_l2_mean_pct=float(rel.mean()) if valid else None,
+            relative_l2_median_pct=float(np.median(rel)) if valid else None,
+            relative_l2_p95_pct=float(np.quantile(rel, 0.95)) if valid else None,
+            relative_l2_global_pct=(float(100 * np.sqrt(squared.sum() / energy.sum()))
+                                    if np.sqrt(energy.sum()) > norm_tolerance else None),
+            undefined_relative_l2_count=int((~defined).sum()),
+            status="computed" if valid else "blocked_undefined_relative_l2",
+            r2_variance_weighted=r2, r2_status=r2_status,
+            undefined_r2_coordinates=undefined_r2,
+            band_order_violation_rate=float(order.mean()),
+            band_order_status="defined" if p.shape[2] > 1 else "not_applicable_single_band",
+        )
+        return summary, samples
+
+    groups = dict(band_groups) if band_groups is not None else {
+        "all_bands": slice(None), "band1": slice(0, 1),
+        **({"bands2_last": slice(1, None)} if pred.shape[2] > 1 else {}),
+    }
+    if not groups:
+        raise ValueError("at least one band group is required")
+    summaries, samples = {}, {}
+    for name, selection in groups.items():
+        if not isinstance(selection, slice) or selection.step not in (None, 1):
+            raise ValueError("band groups must be contiguous slices")
+        p, y = pred[:, :, selection], truth[:, :, selection]
+        if not p.shape[2]:
+            raise ValueError(f"empty band group: {name}")
+        summaries[name], samples[name] = calculate(p, y)
+    per_band = [dict(band_one_based=b + 1, **calculate(pred[:, :, b:b+1], truth[:, :, b:b+1])[0])
+                for b in range(pred.shape[2])]
+    result = dict(schema="phc2d.spectral_regression.v1", sample_count=len(pred),
+                  k_count=pred.shape[1], band_count=pred.shape[2],
+                  coordinate_system="de_normalized_frequency", norm_tolerance=norm_tolerance,
+                  groups=summaries)
+    return result, samples, per_band
+
+
 @dataclass(frozen=True)
 class GapEdgeSelection:
     """One complete- or pseudo-gap upper-edge mode selected from a full BZ."""
