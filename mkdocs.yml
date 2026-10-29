@@ -182,6 +182,7 @@ nav:
           - EXP-FWD-024 训练集与新几何迁移测试: results/forward/EXP-FWD-024-训练集与新几何迁移测试.md
           - K5与F50四域论文结果: reports/K5与F50四域论文结果对比_20261027.md
           - 全模型论文测试数据对比表: reports/EXP-FWD-026-028全模型论文数据汇总_20261025.md
+          - 四域全模型测试与消融结果: reports/EXP-FWD-031四域完整测试结果_20261029.md
           - Meep 近远场: results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md
           - K5 代理选频与真实响应差异: results/field-physics/代理选频与真实响应差异_20260825.md
           - EXP-PHY-005 TE 有效折射率校准: results/field-physics/EXP-PHY-005-TE有效折射率与折叠频率校准.md
