@@ -10,7 +10,7 @@ import pytest
 torch = pytest.importorskip('torch')
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
-from phc2d.inverse.fourier_screen import screen_fourier_candidate
+from phc2d.inverse.fourier_screen import screen_fourier_candidate, screen_fourier_geometry
 
 
 class Predictor:
@@ -73,3 +73,18 @@ def test_negative_unrelated_band_does_not_reject_target_pair():
         raster_method='master_block_mean_v1', source_resolution=16, input_resolution=8,
         material_fraction_bounds=(0, 1), lower_band=2, target_frequency=0.5)
     assert result.status == 'surrogate_only'
+
+
+def test_geometry_only_screen_matches_the_surrogate_input_contract():
+    s = generate_unified_fourier_binary('s', master_seed=1, material_fraction_bin=1,
+                                        config={'fourier_cutoff': 2, 'audit_resolution': 16})
+    params = dict(raster_method='master_block_mean_v1', source_resolution=16,
+                  input_resolution=8, material_fraction_bounds=(0, 1))
+    geometry = screen_fourier_geometry(s, **params)
+    p = Predictor([[.2, .8]])
+    scored = screen_fourier_candidate(s, p, **params, lower_band=1, target_frequency=.5)
+    assert geometry.status == 'eligible'
+    assert geometry.material_fraction == scored.material_fraction
+    assert torch.equal(p.inputs[0][0], torch.as_tensor(geometry.raster))
+    rejected = screen_fourier_geometry(s, **{**params, 'material_fraction_bounds': (0, 0)})
+    assert rejected.status == 'material_fraction_rejected'

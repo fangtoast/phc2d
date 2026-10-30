@@ -31,6 +31,47 @@ class CandidateScreen:
     geometry_gate: dict[str, Any] | None = None
 
 
+@dataclass(frozen=True)
+class CandidateGeometry:
+    """Geometry-only screening result and the contract-matched material raster."""
+
+    material_fraction: float
+    status: str
+    raster: np.ndarray
+    geometry_gate: dict[str, Any] | None = None
+
+
+def screen_fourier_geometry(
+    structure: FullCellStructureSpec, *, raster_method: str, source_resolution: int,
+    input_resolution: int, material_fraction_bounds: tuple[float, float],
+    geometry_constraints: dict[str, Any] | None = None,
+) -> CandidateGeometry:
+    """Apply the same geometry contract before surrogate or physical evaluation.
+
+    The returned raster is the named representation used for fraction checks;
+    callers must still establish solver geometry and perturbation consistency.
+    """
+    if structure.generator_family != "unified_fourier_binary" or structure.material_kind != "binary":
+        raise ValueError("expected unified Fourier binary structure")
+    low, high = material_fraction_bounds
+    if not (0 <= low <= high <= 1):
+        raise ValueError("invalid material fraction bounds")
+    raster = build_full_cell_raster_pyramid(
+        structure, resolutions=[input_resolution], source_resolution=source_resolution,
+        method=raster_method,
+    ).grids[input_resolution]
+    fraction = float(np.mean(raster, dtype=np.float64))
+    if not low <= fraction <= high:
+        return CandidateGeometry(fraction, 'material_fraction_rejected', raster)
+    if geometry_constraints is not None:
+        master = structure.rasterize((source_resolution, source_resolution))
+        geometry = periodic_geometry_gate(master, **geometry_constraints)
+        if geometry['status'] != 'passed':
+            return CandidateGeometry(fraction, 'geometry_rejected', raster, geometry)
+        return CandidateGeometry(fraction, 'eligible', raster, geometry)
+    return CandidateGeometry(fraction, 'eligible', raster)
+
+
 def screen_fourier_candidate(
     structure: FullCellStructureSpec, predictor: Any, *,
     raster_method: str, source_resolution: int, input_resolution: int,
@@ -43,28 +84,15 @@ def screen_fourier_candidate(
     perturbations and MPB validity require separate gates.
     The predictor must accept an already contract-matched material raster.
     """
-    if structure.generator_family != "unified_fourier_binary" or structure.material_kind != "binary":
-        raise ValueError("expected unified Fourier binary structure")
-    low, high = material_fraction_bounds
-    if not (0 <= low <= high <= 1):
-        raise ValueError("invalid material fraction bounds")
-    raster = build_full_cell_raster_pyramid(
-        structure, resolutions=[input_resolution], source_resolution=source_resolution,
-        method=raster_method,
-    ).grids[input_resolution]
-    fraction = float(np.mean(raster, dtype=np.float64))
+    screening = screen_fourier_geometry(structure, raster_method=raster_method,
+        source_resolution=source_resolution, input_resolution=input_resolution,
+        material_fraction_bounds=material_fraction_bounds, geometry_constraints=geometry_constraints)
+    raster, fraction, geometry = screening.raster, screening.material_fraction, screening.geometry_gate
     identity = dict(sample_id=structure.sample_id, parameter_hash=structure.parameter_hash,
                     material_fraction=fraction)
-    if not low <= fraction <= high:
-        return CandidateScreen(**identity, status="material_fraction_rejected", predicted_gap=None,
-                               band_order_violations=None)
-    geometry = None
-    if geometry_constraints is not None:
-        master = structure.rasterize((source_resolution, source_resolution))
-        geometry = periodic_geometry_gate(master, **geometry_constraints)
-        if geometry['status'] != 'passed':
-            return CandidateScreen(**identity, status='geometry_rejected', predicted_gap=None,
-                                   band_order_violations=None, geometry_gate=geometry)
+    if screening.status != 'eligible':
+        return CandidateScreen(**identity, status=screening.status, predicted_gap=None,
+                               band_order_violations=None, geometry_gate=geometry)
     import torch
 
     with torch.no_grad():
