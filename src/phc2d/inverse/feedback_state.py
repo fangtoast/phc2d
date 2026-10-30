@@ -28,7 +28,7 @@ class PendingCandidate:
 
 @dataclass(frozen=True)
 class FeedbackState:
-    """Serializable search state; one budget unit is one candidate evaluation."""
+    """One candidate-evaluation budget; the initial incumbent costs are separate."""
 
     incumbent_hash: str
     incumbent_parameters: tuple[float, ...]
@@ -55,7 +55,11 @@ def start_feedback(*, incumbent_hash: str, incumbent_parameters: Sequence[float]
                    incumbent_observation: Mapping[str, Any], target_frequency: float,
                    radius: float, min_radius: float, max_radius: float,
                    candidate_budget: int) -> FeedbackState:
-    """Start from an independently solver-verified incumbent."""
+    """Start from an independently solver-verified incumbent.
+
+    The candidate budget excludes the initial incumbent solve. A campaign's
+    resource ledger must account for that cost and each offset separately.
+    """
     point = _parameters(incumbent_parameters)
     if not incumbent_hash or incumbent_observation.get('provenance', {}).get('parameter_hash') != incumbent_hash:
         raise ValueError('incumbent identity mismatch')
