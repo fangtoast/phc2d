@@ -36,6 +36,9 @@ def _validate_sampled_row(expected: Mapping[str, Any], row: Mapping[str, Any], *
     for key in ('resolution', 'polarization', 'num_bands', 'mesh_size', 'band_guard_count'):
         if metadata.get(key) != config.get(key):
             raise ValueError(f'solver {key} mismatch')
+    for key in ('eigensolver_tolerance', 'epsilon_air', 'epsilon_material'):
+        if key in config and (key not in metadata or metadata[key] != config[key]):
+            raise ValueError(f'solver {key} mismatch')
     bands = np.asarray(row['bands'], dtype=np.float64)
     if bands.shape != (len(points), int(config['num_bands'])):
         raise ValueError('solver band shape mismatch')

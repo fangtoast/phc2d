@@ -76,3 +76,23 @@ def test_solver_only_reconciliation_restores_manifest_order_and_rejects_mismatch
     results[0]['bands'] = [[.35, .75]]
     with pytest.raises(ValueError, match='gap does not reproduce'):
         reconcile_sampled_solver(path, results, expected_manifest_sha256=digest)
+
+
+@pytest.mark.parametrize('field,value', [('eigensolver_tolerance', 1e-7),
+                                        ('epsilon_air', 1.0), ('epsilon_material', 8.9)])
+def test_solver_contract_rejects_missing_or_changed_physical_configuration(tmp_path, field, value):
+    path, _, results, _ = data(tmp_path)
+    manifest = json.loads(path.read_text(encoding='utf8'))
+    manifest['solver_config'][field] = value
+    path.write_text(json.dumps(manifest), encoding='utf8')
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    for row in results:
+        row['manifest_sha256'] = digest
+        row['solver_metadata'] = {**row['solver_metadata'], field: value}
+    assert reconcile_sampled_solver(path, results, expected_manifest_sha256=digest)['status'] == 'sampled_solver_only'
+    results[0]['solver_metadata'][field] = value * 2
+    with pytest.raises(ValueError, match=field):
+        reconcile_sampled_solver(path, results, expected_manifest_sha256=digest)
+    del results[0]['solver_metadata'][field]
+    with pytest.raises(ValueError, match=field):
+        reconcile_sampled_solver(path, results, expected_manifest_sha256=digest)
