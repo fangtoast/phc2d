@@ -41,6 +41,7 @@ EXPECTED_COMMANDS = {
     "inverse design-diagnose",
     "inverse diagnose",
     "inverse eval",
+    "inverse feedback-inspect",
     "inverse full-cell-preflight",
     "inverse full-cell-train",
     "inverse objective-train",

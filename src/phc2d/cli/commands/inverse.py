@@ -23,18 +23,9 @@ def configure(sub: Any) -> None:
     )
     inverse_train.add_argument("--config", type=Path, default=None)
     inverse_train.set_defaults(command="inverse train")
-    feedback_inspect = inverse_sub.add_parser(
-        "feedback-inspect",
-        help="Verify and inspect a robust feedback journal or ordered chain.",
-        description=("Recompute saved feedback receipts without dispatching jobs. "
-                     "The initial incumbent requires independent verification."),
-    )
-    feedback_source = feedback_inspect.add_mutually_exclusive_group(required=True)
-    feedback_source.add_argument("--directory", type=Path, help="Inspect one journal directory.")
-    feedback_source.add_argument("--initial-state", type=Path, help="Initial state for an ordered chain.")
-    feedback_inspect.add_argument("--round", type=Path, action="append", default=[],
-                                  help="Journal directory in chronological order; repeat for each round.")
-    feedback_inspect.set_defaults(command="inverse feedback-inspect")
+    from phc2d.cli.commands.inverse_feedback import configure_feedback_inspect
+
+    configure_feedback_inspect(inverse_sub)
     inverse_full_cell_preflight = inverse_sub.add_parser(
         "full-cell-preflight",
         help="Run the 15-case full-cell analytic Stage-A single-batch gate.",
@@ -165,20 +156,9 @@ def run(ns: Any) -> bool:
     """Run a parsed command when it belongs to this domain."""
 
     if ns.command == "inverse feedback-inspect":
-        import json
+        from phc2d.cli.commands.inverse_feedback import run_feedback_inspect
 
-        from phc2d.inverse.feedback_journal import summarize_robust_chain, summarize_robust_round
-
-        if ns.directory is not None:
-            if ns.round:
-                raise SystemExit("--round requires --initial-state.")
-            summary = summarize_robust_round(ns.directory)
-        else:
-            from phc2d.inverse.feedback_state import restore_feedback
-
-            initial = restore_feedback(json.loads(ns.initial_state.read_bytes()))
-            summary = summarize_robust_chain(initial, ns.round)
-        print(json.dumps(summary, indent=2, allow_nan=False))
+        run_feedback_inspect(ns)
         return True
     if ns.command == "inverse train":
         from phc2d.inverse import run_inverse_train
