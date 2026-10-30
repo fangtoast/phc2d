@@ -224,6 +224,7 @@ nav:
       - 全胞逆向设计:
           - 专题索引: planning/全胞逆向索引.md
           - 鲁棒带隙逆向计划: planning/鲁棒带隙逆向/README.md
+          - 鲁棒逆向探索性审计: results/inverse/鲁棒带隙逆向可用性审计.md
           - 鲁棒逆向研究方法: planning/鲁棒带隙逆向/研究方法.md
           - 鲁棒逆向代码架构: planning/鲁棒带隙逆向/代码架构.md
           - 鲁棒逆向实验与验证: planning/鲁棒带隙逆向/实验与验证.md
