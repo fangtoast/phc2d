@@ -1,0 +1,112 @@
+"""Durable feedback handoff, replay and corruption checks.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
+
+import hashlib
+import json
+
+import numpy as np
+import pytest
+
+from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
+from phc2d.inverse.audit_perturb_refine import run_case
+from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
+from phc2d.inverse.feedback_handoff import build_robust_solver_manifest
+from phc2d.inverse.feedback_journal import create_robust_round, read_robust_round, reconcile_robust_round
+from phc2d.inverse.feedback_state import propose_feedback, start_feedback
+from phc2d.inverse.fourier_design import update_fourier_binary
+from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
+
+
+def setup_attempt(tmp_path):
+    source = generate_unified_fourier_binary('source', master_seed=1, material_fraction_bin=1,
+        config={'fourier_cutoff': 2, 'audit_resolution': 16})
+    config = FullCellMpbBandSolverConfig(num_bands=2, resolution=16, polarization='TE',
+        epsilon_air=source.epsilon_air, epsilon_material=source.epsilon_material, eigensolver_tolerance=1e-7)
+    options = {'verification_resolution': 24, 'initial_spacing': .25, 'min_levels': 2,
+               'max_levels': 2, 'required_stable_levels': 2, 'edge_tolerance': 1,
+               'resolution_tolerance': 1e-6}
+    points = np.array([[0., 0.], [.25, 0.]])
+    offsets = (-.0625, 0., .0625)
+
+    def solver(grid, *, k_points, config):
+        fill = float(grid.mean())
+        metadata = {'grid_sha256': hashlib.sha256(np.ascontiguousarray(grid, dtype=np.uint8).tobytes()).hexdigest(),
+                    'resolution': config.resolution, 'polarization': config.polarization,
+                    'num_bands': config.num_bands, 'mesh_size': config.mesh_size,
+                    'band_guard_count': config.band_guard_count, 'band_order_policy': config.band_order_policy,
+                    'eigensolver_tolerance': config.eigensolver_tolerance, 'epsilon_air': config.epsilon_air,
+                    'epsilon_material': config.epsilon_material, 'solver_backend': 'mock', 'solver_version': '1'}
+        return np.tile([.2 + .1 * fill, .8 - .1 * fill], (len(k_points), 1)), metadata
+
+    anchor = evaluate_feedback_candidate(source, k_points=points, config=config, lower_band=1,
+        refinement=options, offsets=offsets, raster_resolution=16, solver=solver)['observation']
+    state = start_feedback(incumbent_hash=source.parameter_hash, incumbent_parameters=[0.],
+        incumbent_observation=anchor, target_frequency=.5, radius=.2, min_radius=.01,
+        max_radius=.4, candidate_budget=2)
+    candidate = update_fourier_binary(source, sample_id='candidate', coefficients={},
+                                     threshold=source.parameters['threshold'] + .1, max_mode_radius=1)
+    pending = propose_feedback(state, parameter_hash=candidate.parameter_hash, parameters=[.1],
+        predicted_center=.4, predicted_candidate=.5, surrogate_contract_sha256='model')
+    manifest = build_robust_solver_manifest(pending, candidate, k_points=points, config=config,
+                                            lower_band=1, source_index=3)
+    protocol = {'offsets': offsets, 'raster_resolution': 16, 'refinement': options}
+    mp, pp = tmp_path / 'manifest.json', tmp_path / 'protocol.json'
+    mp.write_text(json.dumps(manifest), encoding='utf8')
+    pp.write_text(json.dumps(protocol), encoding='utf8')
+    mh, ph = (hashlib.sha256(path.read_bytes()).hexdigest() for path in (mp, pp))
+    output = run_case(mp, expected_sha256=mh, protocol_path=pp, expected_protocol_sha256=ph,
+                      case_index=0, output_root=tmp_path / 'cases', solver=solver)
+    return pending, mp.read_bytes(), pp.read_bytes(), (output / 'results.json').read_bytes()
+
+
+def test_journal_recovers_pending_and_consumes_identical_result_once(tmp_path):
+    pending, manifest, protocol, raw = setup_attempt(tmp_path)
+    journal = create_robust_round(tmp_path / 'round', pending=pending,
+                                  manifest_bytes=manifest, protocol_bytes=protocol)
+    restored, status = read_robust_round(journal)
+    assert status == 'pending_reconciliation' and restored == pending
+    final = reconcile_robust_round(journal, solver_result_bytes=raw)
+    assert final.remaining_evaluations == 1 and final.pending is None
+    assert reconcile_robust_round(journal, solver_result_bytes=raw) == final
+    restored, status = read_robust_round(journal)
+    assert status == 'completed' and restored == final
+    altered = json.loads(raw)
+    altered['elapsed_s'] = float(altered['elapsed_s']) + 1.
+    with pytest.raises(ValueError, match='conflicting'):
+        reconcile_robust_round(journal, solver_result_bytes=json.dumps(altered).encode())
+    with pytest.raises(FileExistsError):
+        create_robust_round(journal, pending=pending, manifest_bytes=manifest, protocol_bytes=protocol)
+
+
+def test_journal_rejects_changed_request_and_forged_decision(tmp_path):
+    pending, manifest, protocol, raw = setup_attempt(tmp_path)
+    journal = create_robust_round(tmp_path / 'round', pending=pending,
+                                  manifest_bytes=manifest, protocol_bytes=protocol)
+    reconcile_robust_round(journal, solver_result_bytes=raw)
+    receipt_path = journal / 'receipt.json'
+    receipt = json.loads(receipt_path.read_bytes())
+    receipt['completed_state']['remaining_evaluations'] = 2
+    receipt_path.write_text(json.dumps(receipt), encoding='utf8')
+    with pytest.raises(ValueError, match='decision'):
+        read_robust_round(journal)
+    request_path = journal / 'request.json'
+    request = json.loads(request_path.read_bytes())
+    request['manifest_sha256'] = '0' * 64
+    request_path.write_text(json.dumps(request), encoding='utf8')
+    with pytest.raises(ValueError, match='digest'):
+        read_robust_round(journal)
+
+
+def test_incomplete_receipt_fails_closed_instead_of_repeating_attempt(tmp_path):
+    pending, manifest, protocol, raw = setup_attempt(tmp_path)
+    journal = create_robust_round(tmp_path / 'round', pending=pending,
+                                  manifest_bytes=manifest, protocol_bytes=protocol)
+    (journal / 'receipt.json').write_bytes(b'{')
+    with pytest.raises(json.JSONDecodeError):
+        read_robust_round(journal)
+    with pytest.raises(ValueError, match='incomplete'):
+        reconcile_robust_round(journal, solver_result_bytes=raw)

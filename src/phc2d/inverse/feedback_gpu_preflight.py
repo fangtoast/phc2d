@@ -20,6 +20,7 @@ import numpy as np
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.audit_refine import read_checked_json
 from phc2d.inverse.feedback_handoff import build_robust_solver_manifest, validate_robust_observation
+from phc2d.inverse.feedback_journal import create_robust_round
 from phc2d.inverse.feedback_state import propose_feedback, start_feedback
 from phc2d.inverse.fourier_feedback_proposal import propose_fourier_candidate
 from phc2d.inverse.frozen_band_adapter import FrozenBandAdapter
@@ -115,6 +116,11 @@ def run(*, manifest_path: str | Path, manifest_sha256: str, protocol_path: str |
             manifest_raw = json.dumps(solver_manifest, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf8')
             (output/'solver_manifest.json').write_bytes(manifest_raw)
             (output/'pending_state.json').write_text(json.dumps(asdict(pending),indent=2,allow_nan=False),encoding='utf8')
+            protocol_raw = Path(protocol_path).read_bytes()
+            if hashlib.sha256(protocol_raw).hexdigest() != protocol_digest:
+                raise ValueError('protocol changed during proposal')
+            create_robust_round(output/'journal', pending=pending, manifest_bytes=manifest_raw,
+                                protocol_bytes=protocol_raw)
             payload['solver_manifest_sha256'] = hashlib.sha256(manifest_raw).hexdigest()
         (output/'results.json').write_text(json.dumps(payload,indent=2,allow_nan=False),encoding='utf8')
     except Exception as exc:

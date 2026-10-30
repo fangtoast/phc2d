@@ -18,6 +18,7 @@ from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.audit_candidates import local_fourier_audit_candidates
 from phc2d.inverse.audit_perturb_refine import run_case
 from phc2d.inverse.feedback_gpu_preflight import run
+from phc2d.inverse.feedback_journal import read_robust_round
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
@@ -80,3 +81,6 @@ def test_preflight_persists_candidate_request_with_frozen_anchor_and_model(tmp_p
     solver_manifest=json.loads((output/'solver_manifest.json').read_text())
     assert pending['pending']['parameter_hash']==solver_manifest['rows'][0]['parameter_hash']
     assert hashlib.sha256((output/'solver_manifest.json').read_bytes()).hexdigest()==result['solver_manifest_sha256']
+    saved, status = read_robust_round(output/'journal')
+    assert status == 'pending_reconciliation'
+    assert saved.pending.parameter_hash == pending['pending']['parameter_hash']
