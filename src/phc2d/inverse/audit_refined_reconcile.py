@@ -82,7 +82,9 @@ def rank_refinements(proxy_rows: Sequence[Mapping[str, Any]], summary: Mapping[s
     Numerical failures remain in the descriptive ranking and are marked;
     selecting only passing groups can introduce selection bias.
     """
-    if summary.get('status') != 'exploratory_nominal_finite_local_refinement':
+    scope = summary.get('status')
+    if scope not in {'exploratory_nominal_finite_local_refinement',
+                     'exploratory_finite_offsets_and_local_refinement'}:
         raise ValueError('unexpected refinement summary status')
     rows = summary['rows']
     # The shared paired ranking consumes the same signed-margin contract.
@@ -94,5 +96,5 @@ def rank_refinements(proxy_rows: Sequence[Mapping[str, Any]], summary: Mapping[s
         group = [r for r in rows if r['source_index'] == result['source_index']]
         result['numerical_gate_passed_count'] = sum(r['numerical_gate_passed'] is True for r in group)
         result['all_numerical_gates_passed'] = result['numerical_gate_passed_count'] == len(group)
-        result['evidence_scope'] = 'exploratory_nominal_finite_local_refinement'
+        result['evidence_scope'] = scope
     return ranked

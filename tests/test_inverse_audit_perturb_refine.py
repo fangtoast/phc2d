@@ -8,6 +8,7 @@ import pytest
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.audit_perturb_refine import run_case
+from phc2d.inverse.audit_perturb_reconcile import reconcile_perturbations
 
 
 def test_refinement_preserves_all_offset_grids_and_gates(tmp_path):
@@ -15,7 +16,7 @@ def test_refinement_preserves_all_offset_grids_and_gates(tmp_path):
         config={'fourier_cutoff': 2, 'audit_resolution': 16})
     manifest = {'rows': [{'structure': structure.to_mapping(), 'parameter_hash': structure.parameter_hash,
                           'source_index': 3, 'label': 'anchor'}], 'k_points': [[0, 0], [.25, 0]],
-                'lower_band': 1, 'solver_config': {'num_bands': 2, 'resolution': 16, 'polarization': 'TE',
+                'lower_band': 1, 'target_frequency': .5, 'solver_config': {'num_bands': 2, 'resolution': 16, 'polarization': 'TE',
                 'eigensolver_tolerance': 1e-7, 'epsilon_air': structure.epsilon_air,
                 'epsilon_material': structure.epsilon_material}}
     protocol = {'raster_resolution': 16, 'offsets': [-.0625, 0, .0625], 'refinement': {
@@ -37,5 +38,10 @@ def test_refinement_preserves_all_offset_grids_and_gates(tmp_path):
     assert len(result['aggregate']['provenance']['grid_sha256']) == 3
     assert result['aggregate']['status'] == 'numerically_stable'
     assert result['aggregate']['row']['refined_lower_edge_frequency'] == pytest.approx(.2)
+    summary = reconcile_perturbations(mp, [result], manifest_sha256=mh, protocol_path=pp, protocol_sha256=ph)
+    assert summary['numerical_gate_passed_count'] == 1
+    result['observations'][0]['provenance']['initial_solver']['grid_sha256'] = 'wrong'
+    with pytest.raises(ValueError, match='grid identity'):
+        reconcile_perturbations(mp, [result], manifest_sha256=mh, protocol_path=pp, protocol_sha256=ph)
     with pytest.raises(FileExistsError):
         run_case(mp, **args)
