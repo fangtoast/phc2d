@@ -13,7 +13,12 @@ from dataclasses import dataclass, replace
 
 @dataclass(frozen=True)
 class ResourceAmount:
-    """CPU core-seconds and allocated GPU-seconds, measured separately."""
+    """Allocated CPU core-seconds and GPU-seconds, measured separately.
+
+    Settlement should use allocated cores or GPUs multiplied by elapsed job
+    time from a documented scheduler source; utilization time is not the
+    same quantity. Wall time and pretraining costs are tracked separately.
+    """
 
     cpu_core_seconds: float
     gpu_seconds: float
