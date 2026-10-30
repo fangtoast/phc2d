@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
+from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.audit_perturb_refine import run_case
 from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
 from phc2d.inverse.feedback_handoff import build_robust_solver_manifest
@@ -60,11 +61,11 @@ def setup_attempt(tmp_path):
     mh, ph = (hashlib.sha256(path.read_bytes()).hexdigest() for path in (mp, pp))
     output = run_case(mp, expected_sha256=mh, protocol_path=pp, expected_protocol_sha256=ph,
                       case_index=0, output_root=tmp_path / 'cases', solver=solver)
-    return pending, mp.read_bytes(), pp.read_bytes(), (output / 'results.json').read_bytes()
+    return pending, mp.read_bytes(), pp.read_bytes(), (output / 'results.json').read_bytes(), solver
 
 
 def test_journal_recovers_pending_and_consumes_identical_result_once(tmp_path):
-    pending, manifest, protocol, raw = setup_attempt(tmp_path)
+    pending, manifest, protocol, raw, _ = setup_attempt(tmp_path)
     journal = create_robust_round(tmp_path / 'round', pending=pending,
                                   manifest_bytes=manifest, protocol_bytes=protocol)
     restored, status = read_robust_round(journal)
@@ -83,7 +84,7 @@ def test_journal_recovers_pending_and_consumes_identical_result_once(tmp_path):
 
 
 def test_journal_rejects_changed_request_and_forged_decision(tmp_path):
-    pending, manifest, protocol, raw = setup_attempt(tmp_path)
+    pending, manifest, protocol, raw, _ = setup_attempt(tmp_path)
     journal = create_robust_round(tmp_path / 'round', pending=pending,
                                   manifest_bytes=manifest, protocol_bytes=protocol)
     reconcile_robust_round(journal, solver_result_bytes=raw)
@@ -102,7 +103,7 @@ def test_journal_rejects_changed_request_and_forged_decision(tmp_path):
 
 
 def test_incomplete_receipt_fails_closed_instead_of_repeating_attempt(tmp_path):
-    pending, manifest, protocol, raw = setup_attempt(tmp_path)
+    pending, manifest, protocol, raw, _ = setup_attempt(tmp_path)
     journal = create_robust_round(tmp_path / 'round', pending=pending,
                                   manifest_bytes=manifest, protocol_bytes=protocol)
     (journal / 'receipt.json').write_bytes(b'{')
@@ -110,3 +111,35 @@ def test_incomplete_receipt_fails_closed_instead_of_repeating_attempt(tmp_path):
         read_robust_round(journal)
     with pytest.raises(ValueError, match='incomplete'):
         reconcile_robust_round(journal, solver_result_bytes=raw)
+
+
+def test_two_rounds_resume_without_reusing_candidate_or_budget(tmp_path):
+    pending, manifest, protocol, raw, solver = setup_attempt(tmp_path)
+    first = create_robust_round(tmp_path / 'round1', pending=pending,
+                                manifest_bytes=manifest, protocol_bytes=protocol)
+    state = reconcile_robust_round(first, solver_result_bytes=raw)
+    assert state.history[-1]['accepted'] and state.remaining_evaluations == 1
+    original_manifest = json.loads(manifest)
+    source = FullCellStructureSpec.from_mapping(original_manifest['rows'][0]['structure'])
+    candidate = update_fourier_binary(source, sample_id='second', coefficients={},
+                                     threshold=source.parameters['threshold'] + .03, max_mode_radius=1)
+    with pytest.raises(ValueError, match='already evaluated'):
+        propose_feedback(state, parameter_hash=source.parameter_hash, parameters=[.1],
+                         predicted_center=.5, predicted_candidate=.6, surrogate_contract_sha256='model')
+    pending2 = propose_feedback(state, parameter_hash=candidate.parameter_hash, parameters=[.13],
+                               predicted_center=.5, predicted_candidate=.6, surrogate_contract_sha256='model')
+    config = FullCellMpbBandSolverConfig(**original_manifest['solver_config'])
+    manifest2 = build_robust_solver_manifest(pending2, candidate, k_points=original_manifest['k_points'],
+                                             config=config, lower_band=1, source_index=3)
+    raw2 = json.dumps(manifest2).encode()
+    round2 = create_robust_round(tmp_path / 'round2', pending=pending2,
+                                 manifest_bytes=raw2, protocol_bytes=protocol)
+    resumed, status = read_robust_round(round2)
+    assert status == 'pending_reconciliation' and resumed.remaining_evaluations == 1
+    manifest_path = tmp_path / 'manifest2.json'
+    manifest_path.write_bytes(raw2)
+    output = run_case(manifest_path, expected_sha256=hashlib.sha256(raw2).hexdigest(),
+        protocol_path=tmp_path / 'protocol.json', expected_protocol_sha256=hashlib.sha256(protocol).hexdigest(),
+        case_index=0, output_root=tmp_path / 'cases2', solver=solver)
+    final = reconcile_robust_round(round2, solver_result_bytes=(output / 'results.json').read_bytes())
+    assert final.remaining_evaluations == 0 and len(final.history) == 2 and final.pending is None
