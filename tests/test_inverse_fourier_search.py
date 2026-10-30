@@ -15,8 +15,8 @@ from phc2d.inverse.fourier_search import search_fourier
 
 class ToyPredictor:
     def predict_tensor(self, raster):
-        mean = raster.mean()
-        return torch.stack((0.2 + 0.1 * mean, 0.8 - 0.1 * mean)).reshape(1, 1, 2)
+        mean = raster.mean(dim=(1, 2))
+        return torch.stack((0.2 + 0.1 * mean, 0.8 - 0.1 * mean), dim=1).unsqueeze(1)
 
 
 def run(seed, bounds=(0, 1)):
@@ -43,3 +43,17 @@ def test_all_invalid_proposals_are_retained():
     assert result.status == 'no_valid_candidates'
     assert result.best_structure is None
     assert all(row['status'] == 'material_fraction_rejected' for row in result.evaluations)
+
+
+def test_search_can_optimize_perturbation_common_gap():
+    s = generate_unified_fourier_binary('source', master_seed=1, material_fraction_bin=1,
+                                        config={'fourier_cutoff': 2, 'audit_resolution': 16})
+    t = s.parameters['threshold']
+    result = search_fourier(s, ToyPredictor(), coefficient_keys=(), bounds=((t-.2, t+.2),),
+        max_mode_radius=1, seed=42, population_size=5, evaluation_budget=5,
+        raster_method='master_block_mean_v1', source_resolution=16, input_resolution=8,
+        material_fraction_bounds=(0, 1), lower_band=1, target_frequency=.5,
+        perturbation_offsets=(-1/16, 0, 1/16))
+    assert result.status == 'surrogate_only'
+    assert all(len(row['perturbation_grid_sha256']) == 3 for row in result.evaluations)
+    assert result.best_margin == max(row['predicted_gap']['target_margin'] for row in result.evaluations)

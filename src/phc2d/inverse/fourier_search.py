@@ -15,6 +15,7 @@ import numpy as np
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.fourier_design import update_fourier_binary
 from phc2d.inverse.fourier_screen import screen_fourier_candidate
+from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, predict_perturbed_gap
 
 
 @dataclass(frozen=True)
@@ -33,12 +34,15 @@ def search_fourier(
     max_mode_radius: float, seed: int, population_size: int, evaluation_budget: int,
     raster_method: str, source_resolution: int, input_resolution: int,
     material_fraction_bounds: tuple[float, float], lower_band: int, target_frequency: float,
+    perturbation_offsets: tuple[float, ...] | None = None,
 ) -> FourierSearchResult:
     """Maximize sampled surrogate margin; last parameter is the binary threshold.
 
     Equal budgets produce floor(budget/population_size) generations, including
     initialization. The unedited source is always included. Traces include all
     rejected proposals; each invocation is one seeded optimization trajectory.
+    If offsets are supplied, optimize their common sampled gap rather than the
+    nominal gap; the caller must verify the area-averaged checkpoint contract.
     """
     from scipy.optimize import differential_evolution
 
@@ -49,6 +53,8 @@ def search_fourier(
         raise ValueError("bounds must contain finite increasing pairs")
     if population_size < 5 or evaluation_budget < population_size:
         raise ValueError("budget must cover at least five population members")
+    if perturbation_offsets is not None and raster_method != 'master_block_mean_v1':
+        raise ValueError('perturbed search requires master_block_mean_v1')
     modes = source.parameters["modes"]
     try:
         initial = np.asarray([float(modes[i][name]) for i, name in coefficient_keys]
@@ -78,10 +84,18 @@ def search_fourier(
             lower_band=lower_band, target_frequency=target_frequency,
         )
         row = {"candidate_index": index, "parameters": vector.tolist(), **asdict(result)}
+        if result.status == 'surrogate_only' and perturbation_offsets is not None:
+            grids = periodic_perturbation_grids(candidate, resolution=source_resolution,
+                                                offsets=perturbation_offsets)
+            robust = predict_perturbed_gap(grids, predictor, input_resolution=input_resolution,
+                                          lower_band=lower_band, target_frequency=target_frequency)
+            row.update(status=robust['status'], predicted_gap=robust['gap'],
+                       perturbation_offsets=list(perturbation_offsets),
+                       perturbation_grid_sha256=robust['grid_sha256'])
         history.append(row)
-        if result.status != "surrogate_only":
+        if row['status'] != "surrogate_only":
             return float('inf')
-        score = float(result.predicted_gap["target_margin"])
+        score = float(row['predicted_gap']["target_margin"])
         if best_margin is None or score > best_margin:
             best, best_margin = candidate, score
         return -score

@@ -46,14 +46,21 @@ def predict_perturbed_gap(grids: tuple[np.ndarray, ...], predictor: Any, *,
     inputs = np.stack([block_mean_downsample(g, input_resolution) for g in grids]).astype(np.float32)
     with torch.no_grad():
         bands = predictor.predict_tensor(torch.as_tensor(inputs)).detach().cpu().numpy()
-    if bands.ndim != 3 or bands.shape[0] != len(grids) or not np.isfinite(bands).all():
-        raise ValueError('predictor output must be finite [perturbation,k,band]')
-    if not 1 <= lower_band < bands.shape[2] or np.any(np.diff(bands, axis=2) < 0):
-        raise ValueError('invalid target band or predicted band order')
+    if bands.ndim != 3 or bands.shape[0] != len(grids) or any(n == 0 for n in bands.shape):
+        raise ValueError('predictor output must be nonempty [perturbation,k,band]')
+    if not 1 <= lower_band < bands.shape[2]:
+        raise ValueError('invalid target band')
+    hashes = [hashlib.sha256(np.ascontiguousarray(g, dtype=np.uint8).tobytes()).hexdigest() for g in grids]
+    if not np.isfinite(bands).all():
+        return {'status': 'nonfinite_prediction', 'gap': None, 'grid_sha256': hashes}
+    if np.any(np.diff(bands, axis=2) < 0):
+        return {'status': 'band_order_violation', 'gap': None, 'grid_sha256': hashes}
     pair = bands[:, :, lower_band-1:lower_band+1]
+    if np.any(pair < 0):
+        return {'status': 'negative_frequency', 'gap': None, 'grid_sha256': hashes}
     result = common_gap(pair, lower_band=1, target_frequency=target_frequency)
     return {'status': 'surrogate_only', 'gap': asdict(result), 'bands': bands.tolist(),
-            'grid_sha256': [hashlib.sha256(np.ascontiguousarray(g, dtype=np.uint8).tobytes()).hexdigest() for g in grids]}
+            'grid_sha256': hashes}
 
 
 def solve_perturbed_gap(grids: tuple[np.ndarray, ...], *, k_points: np.ndarray,
