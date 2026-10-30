@@ -49,7 +49,7 @@
 
 > 2026-09-12 EXP-FWD-020 状态：36 个冻结 checkpoint（7 个原 G2 validation-best、29 个 epoch-300 continuation validation-best）已完成 K5/K20/F50 Binary/Graded 的 216-cell held-out surrogate 交叉评估。native Bands 2--10 MRE 均值为 `0.297%`，同数据集跨 lane、跨数据集同 lane、双重跨域依次为 `2.703%`、`3.295%`、`5.409%`；7x7 对 3x3 没有跨域一致优势。G2 仍为 `not_passed`，结果仅为探索性 surrogate 证据，不作 promotion、real-MPB/Meep 或物理结论。详见[六域交叉评估 Draft](docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md)。
 
-> 2026-10-31 [非生成式鲁棒带隙逆向长期计划（Draft）](docs/planning/鲁棒带隙逆向/README.md)仍在探索性 P2 审计：[逆向可用性结果](docs/results/inverse/鲁棒带隙逆向可用性审计.md)中，原 B9–B10 开发批在 ±1/256 偏移下 0/60 有正共同区间；B4–B5、512 栅格及 ±1/512 的另一合同下，一个锁定选择的开发候选通过 M9 与 WSL 单样本数值复核。两批目标与扰动合同不同；P2 扩大搜索条件尚未满足，独立开发批与完整候选排序仍待验证，正式验收继续使用 WSL `meep_env`。
+> 2026-10-31 [非生成式鲁棒带隙逆向长期计划（Draft）](docs/planning/鲁棒带隙逆向/README.md)仍在探索性 P2 审计：[逆向可用性结果](docs/results/inverse/鲁棒带隙逆向可用性审计.md)中，原 B9–B10 开发批在 ±1/256 偏移下 0/60 有正共同区间；B4–B5、512 栅格及 ±1/512 的另一开发合同下，60 候选有 45 个过门、4 个过门正裕量，且一个锁定选择的候选通过 M9 与 WSL 单样本复核。两批目标与扰动合同不同；P2 扩大搜索条件尚未满足，独立开发批仍待验证，正式验收继续使用 WSL `meep_env`。
 
 # PROJECT MAP
 
