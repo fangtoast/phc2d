@@ -49,6 +49,8 @@
 
 > 2026-09-12 EXP-FWD-020 状态：36 个冻结 checkpoint（7 个原 G2 validation-best、29 个 epoch-300 continuation validation-best）已完成 K5/K20/F50 Binary/Graded 的 216-cell held-out surrogate 交叉评估。native Bands 2--10 MRE 均值为 `0.297%`，同数据集跨 lane、跨数据集同 lane、双重跨域依次为 `2.703%`、`3.295%`、`5.409%`；7x7 对 3x3 没有跨域一致优势。G2 仍为 `not_passed`，结果仅为探索性 surrogate 证据，不作 promotion、real-MPB/Meep 或物理结论。详见[六域交叉评估 Draft](docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md)。
 
+> 2026-10-30 新增[非生成式鲁棒带隙逆向长期计划（Draft）](docs/planning/鲁棒带隙逆向/README.md)：复用正向算子与 MPB，分阶段验证物理反馈、带边加密和制造扰动。当前仅计划就绪，下一 gate 为 P0 身份与审计协议冻结；无新代码、训练、优化或物理结果。GPU 暂按现有 N40/N56 接口规划，CPU/MPB 用 M9，正式验收继续使用 WSL meep_env。
+
 # PROJECT MAP
 
 > 2026-10-21 耗时证据冻结：EXP-DAT-007/008共36000结构已全部生成、失败0并交付N40；18族逐结构计时已与HDF5样本顺序核对，旧/新批次求解实际工期分别为11分53秒/21分02秒。详见[MPB形状数据计算耗时汇总](docs/results/data-provenance/MPB形状数据计算耗时汇总.md)。下方提交时快照不再代表当前任务状态；正式WSL MPB复算验收仍pending，新几何分辨率收敛未评估。
