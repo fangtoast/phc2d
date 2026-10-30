@@ -35,6 +35,7 @@ def test_refinement_preserves_all_offset_grids_and_gates(tmp_path):
                 case_index=0, output_root=tmp_path / 'out', solver=solver)
     result = json.loads((run_case(mp, **args) / 'results.json').read_text())
     assert [r['offset'] for r in result['observations']] == protocol['offsets']
+    assert len(result['solver_work']) == 3
     assert len(result['aggregate']['provenance']['grid_sha256']) == 3
     assert result['aggregate']['status'] == 'numerically_stable'
     assert result['aggregate']['row']['refined_lower_edge_frequency'] == pytest.approx(.2)

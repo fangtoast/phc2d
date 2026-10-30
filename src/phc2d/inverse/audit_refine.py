@@ -60,6 +60,7 @@ def run_case(manifest_path: str | Path, *, expected_sha256: str,
                    "label": record["label"], "parameter_hash": structure.parameter_hash,
                    "manifest_sha256": digest, "refinement_sha256": options_digest,
                    "elapsed_s": time.monotonic() - start, "rows": results,
+                   "solver_work": evaluated['solver_work'],
                    "arrays": {key: value.tolist() for key, value in arrays.items()},
                    "history": history, "provenance": provenance,
                    "evidence_scope": "exploratory_finite_local_refinement"}

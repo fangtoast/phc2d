@@ -49,6 +49,7 @@ def run_case(manifest_path: str | Path, *, expected_sha256: str, protocol_path: 
         payload = {'case_index': case_index, 'source_index': source['source_index'], 'label': source['label'],
                    'parameter_hash': structure.parameter_hash, 'manifest_sha256': digest,
                    'protocol_sha256': protocol_digest, 'elapsed_s': time.monotonic() - started,
+                   'solver_work': evaluated['solver_work'],
                    'observations': observations, 'aggregate': aggregate,
                    'evidence_scope': 'exploratory_finite_offsets_and_local_refinement'}
         temp = output / 'results.json.tmp'

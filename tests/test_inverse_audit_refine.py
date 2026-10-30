@@ -40,6 +40,7 @@ def test_frozen_refinement_writes_numerical_evidence_and_refuses_overwrite(tmp_p
     assert result['rows'][0]['resolution_stable']
     assert result['provenance']['comparison_contract_sha256']
     assert len(result['arrays']['k_points']) > 2
+    assert result['solver_work'][0]['primary_k_points'] == len(result['arrays']['k_points'])
     # The reconciliation contract also requires the higher-resolution solver's
     # geometry identity; a mock solver supplies the same one for both passes.
     summary = reconcile_refinements(mp, [result], refinement_sha256=oh)
