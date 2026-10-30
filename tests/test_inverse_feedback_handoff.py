@@ -16,7 +16,8 @@ from phc2d.inverse.audit_refine import run_case
 from phc2d.inverse.audit_perturb_refine import run_case as run_offset_case
 from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
 from phc2d.inverse.feedback_handoff import (build_nominal_solver_manifest, consume_nominal_solver_result,
-                                            build_robust_solver_manifest, consume_robust_solver_result)
+                                            build_robust_solver_manifest, consume_robust_solver_result,
+                                            validate_robust_observation)
 from phc2d.inverse.feedback_state import propose_feedback, start_feedback
 from phc2d.inverse.fourier_design import update_fourier_binary
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
@@ -120,6 +121,8 @@ def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
                                predicted_center=.4, predicted_candidate=.5, surrogate_contract_sha256='model')
     manifest = build_robust_solver_manifest(pending, candidate, k_points=points, config=config,
                                             lower_band=1, source_index=3)
+    # Historical manifests can omit the solver's default band-order policy.
+    del manifest['solver_config']['band_order_policy']
     protocol = {'offsets': offsets, 'raster_resolution': 16, 'refinement': options}
     mp, pp = tmp_path/'manifest.json', tmp_path/'protocol.json'
     mp.write_text(json.dumps(manifest), encoding='utf8')
@@ -128,6 +131,10 @@ def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
     output = run_offset_case(mp, expected_sha256=mh, protocol_path=pp, expected_protocol_sha256=ph,
                              case_index=0, output_root=tmp_path/'cases', solver=solver)
     result = json.loads((output/'results.json').read_text())
+    validated = validate_robust_observation(manifest_bytes=mp.read_bytes(), expected_manifest_sha256=mh,
+        protocol_bytes=pp.read_bytes(), protocol_sha256=ph, case_index=0, result=result)
+    assert validated['provenance']['parameter_hash'] == candidate.parameter_hash
+    assert validated['provenance']['solver_identity']['solver_backend'] == 'mock'
     final = consume_robust_solver_result(pending, manifest_bytes=mp.read_bytes(), expected_manifest_sha256=mh,
                                          protocol_bytes=pp.read_bytes(), protocol_sha256=ph, result=result)
     assert final.incumbent_hash == candidate.parameter_hash

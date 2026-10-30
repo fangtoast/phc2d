@@ -118,9 +118,10 @@ def _validate_spectral_trace(row: Mapping[str, Any], arrays: Mapping[str, Any],
             or row.get('adaptive_refinement_converged') is not expected_converged
             or provenance.get('verification_resolution') != refinement['verification_resolution']):
         raise ValueError('solver numerical gate mismatch')
+    resolved_solver_config = asdict(FullCellMpbBandSolverConfig(**manifest['solver_config']))
     for key in ('resolution', 'polarization', 'num_bands', 'mesh_size', 'band_guard_count',
                 'band_order_policy', 'eigensolver_tolerance', 'epsilon_air', 'epsilon_material'):
-        expected = manifest['solver_config'].get(key)
+        expected = resolved_solver_config.get(key)
         if provenance['initial_solver'].get(key) != expected:
             raise ValueError(f'solver {key} mismatch')
         verification_expected = refinement['verification_resolution'] if key == 'resolution' else expected
@@ -183,6 +184,51 @@ def build_robust_solver_manifest(state: FeedbackState, structure: FullCellStruct
     return manifest
 
 
+def validate_robust_observation(*, manifest_bytes: bytes, expected_manifest_sha256: str,
+                                protocol_bytes: bytes, protocol_sha256: str,
+                                case_index: int, result: Mapping[str, Any]) -> dict[str, Any]:
+    """Recompute one immutable offset observation, including solver and gate identity."""
+    digest = hashlib.sha256(manifest_bytes).hexdigest()
+    if digest != expected_manifest_sha256 or hashlib.sha256(protocol_bytes).hexdigest() != protocol_sha256:
+        raise ValueError('manifest or protocol digest mismatch')
+    manifest, protocol = json.loads(manifest_bytes), json.loads(protocol_bytes)
+    rows = manifest['rows']
+    if not isinstance(case_index, int) or isinstance(case_index, bool) or not 0 <= case_index < len(rows):
+        raise ValueError('case index out of bounds')
+    request = rows[case_index]
+    structure = FullCellStructureSpec.from_mapping(request['structure'])
+    if structure.parameter_hash != request['parameter_hash']:
+        raise ValueError('candidate parameter identity mismatch')
+    if (result.get('manifest_sha256') != digest or result.get('protocol_sha256') != protocol_sha256
+            or result.get('case_index') != case_index or result.get('source_index') != request['source_index']
+            or result.get('label') != request['label'] or result.get('parameter_hash') != structure.parameter_hash):
+        raise ValueError('solver result identity mismatch')
+    offsets = tuple(protocol['offsets'])
+    grids = periodic_perturbation_grids(structure, resolution=protocol['raster_resolution'], offsets=offsets)
+    observations = result['observations']
+    if len(observations) != len(offsets) or [o['offset'] for o in observations] != list(offsets):
+        raise ValueError('solver offset identity mismatch')
+    for grid, trace in zip(grids, observations):
+        provenance = trace['provenance']
+        grid_hash = hashlib.sha256(np.ascontiguousarray(grid, dtype=np.uint8).tobytes()).hexdigest()
+        if (provenance.get('parameter_hash') != structure.parameter_hash
+                or provenance.get('evaluated_geometry') != 'periodic_binary_pixel_cells_v1'
+                or provenance.get('evaluated_grid_sha256') != grid_hash
+                or provenance.get('initial_solver', {}).get('grid_sha256') != grid_hash
+                or provenance.get('verification_solver', {}).get('grid_sha256') != grid_hash):
+            raise ValueError('solver offset grid identity mismatch')
+        _validate_spectral_trace(trace['row'], trace['arrays'], trace['history'], provenance,
+                                 manifest, protocol['refinement'])
+    aggregate = aggregate_refined_perturbations(observations, expected_offsets=offsets)
+    if aggregate != result['aggregate']:
+        raise ValueError('solver common-gap aggregate mismatch')
+    identities = [{'solver_backend': o['provenance']['initial_solver']['solver_backend'],
+                   'solver_version': o['provenance']['initial_solver']['solver_version']} for o in observations]
+    if any(identity != identities[0] for identity in identities):
+        raise ValueError('offset solver identities differ')
+    return {'row': aggregate['row'], 'provenance': {**aggregate['provenance'], 'solver_identity': identities[0]}}
+
+
 def consume_robust_solver_result(state: FeedbackState, *, manifest_bytes: bytes,
                                  expected_manifest_sha256: str, protocol_bytes: bytes,
                                  protocol_sha256: str, result: Mapping[str, Any]) -> FeedbackState:
@@ -199,33 +245,9 @@ def consume_robust_solver_result(state: FeedbackState, *, manifest_bytes: bytes,
             or manifest['surrogate_contract_sha256'] != state.pending.surrogate_contract_sha256
             or manifest['target_frequency'] != state.target_frequency):
         raise ValueError('pending candidate or prediction contract mismatch')
-    if (result.get('manifest_sha256') != digest or result.get('protocol_sha256') != protocol_sha256
-            or result.get('case_index') != 0 or result.get('source_index') != request['source_index']
-            or result.get('label') != 'candidate' or result.get('parameter_hash') != structure.parameter_hash):
-        raise ValueError('solver result identity mismatch')
-    offsets = tuple(protocol['offsets'])
-    grids = periodic_perturbation_grids(structure, resolution=protocol['raster_resolution'], offsets=offsets)
-    observations = result['observations']
-    if len(observations) != len(offsets) or [o['offset'] for o in observations] != list(offsets):
-        raise ValueError('solver offset identity mismatch')
-    for offset, grid, trace in zip(offsets, grids, observations):
-        provenance = trace['provenance']
-        grid_hash = hashlib.sha256(np.ascontiguousarray(grid, dtype=np.uint8).tobytes()).hexdigest()
-        if (provenance.get('parameter_hash') != structure.parameter_hash
-                or provenance.get('evaluated_geometry') != 'periodic_binary_pixel_cells_v1'
-                or provenance.get('evaluated_grid_sha256') != grid_hash
-                or provenance.get('initial_solver', {}).get('grid_sha256') != grid_hash
-                or provenance.get('verification_solver', {}).get('grid_sha256') != grid_hash):
-            raise ValueError('solver offset grid identity mismatch')
-        _validate_spectral_trace(trace['row'], trace['arrays'], trace['history'], provenance,
-                                 manifest, protocol['refinement'])
-    aggregate = aggregate_refined_perturbations(observations, expected_offsets=offsets)
-    if aggregate != result['aggregate']:
-        raise ValueError('solver common-gap aggregate mismatch')
-    identities = [{'solver_backend': o['provenance']['initial_solver']['solver_backend'],
-                   'solver_version': o['provenance']['initial_solver']['solver_version']} for o in observations]
-    if (any(identity != identities[0] for identity in identities)
-            or state.incumbent_observation['provenance'].get('solver_identity') != identities[0]):
+    observation = validate_robust_observation(manifest_bytes=manifest_bytes,
+        expected_manifest_sha256=expected_manifest_sha256, protocol_bytes=protocol_bytes,
+        protocol_sha256=protocol_sha256, case_index=0, result=result)
+    if state.incumbent_observation['provenance'].get('solver_identity') != observation['provenance']['solver_identity']:
         raise ValueError('incumbent and candidate solver identity mismatch')
-    provenance = {**aggregate['provenance'], 'solver_identity': identities[0]}
-    return finish_feedback(state, observation={'row': aggregate['row'], 'provenance': provenance})
+    return finish_feedback(state, observation=observation)
