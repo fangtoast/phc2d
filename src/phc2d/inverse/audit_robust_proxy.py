@@ -86,7 +86,8 @@ def run(manifest_path: str | Path, *, manifest_sha256: str, protocol_path: str |
             raise ValueError('master raster identity mismatch')
         row = {'source_index': source['source_index'], 'label': source['label'],
                'parameter_hash': structure.parameter_hash, 'grid_sha256': result['grid_sha256'],
-               'status': result['status'], 'predicted_margin': None}
+               'status': result['status'], 'predicted_margin': None, 'predicted_gap': result['gap'],
+               'predicted_bands': result.get('bands')}
         if result['gap'] is not None:
             row['predicted_margin'] = result['gap']['target_margin']
         rows.append(row)

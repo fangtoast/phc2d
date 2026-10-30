@@ -42,6 +42,8 @@ def test_robust_proxy_keeps_offset_grid_and_candidate_identities(tmp_path, monke
         checkpoint='unused', checkpoint_sha256='test', device='cpu', output=output)
     result = json.loads(output.read_text())
     assert result['rows'][0]['predicted_margin'] == pytest.approx(.8)
+    assert result['rows'][0]['predicted_gap']['lower_edge'] == pytest.approx(.2)
+    assert len(result['rows'][0]['predicted_bands']) == 3
     assert len(result['rows'][0]['grid_sha256']) == 3
     assert result['rows'][0]['grid_sha256'][1] == manifest['rows'][0]['master_grid_sha256']
     row = result['rows'][0]
