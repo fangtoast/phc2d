@@ -9,7 +9,7 @@ import pytest
 torch = pytest.importorskip('torch')
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
-from phc2d.inverse.audit_robust_proxy import run
+from phc2d.inverse.audit_robust_proxy import run, validate_paired_proxy
 
 
 def test_robust_proxy_keeps_offset_grid_and_candidate_identities(tmp_path, monkeypatch):
@@ -44,3 +44,13 @@ def test_robust_proxy_keeps_offset_grid_and_candidate_identities(tmp_path, monke
     assert result['rows'][0]['predicted_margin'] == pytest.approx(.8)
     assert len(result['rows'][0]['grid_sha256']) == 3
     assert result['rows'][0]['grid_sha256'][1] == manifest['rows'][0]['master_grid_sha256']
+    row = result['rows'][0]
+    physical = [{'source_index': row['source_index'], 'label': row['label'], 'parameter_hash': row['parameter_hash'],
+                 'manifest_sha256': mh, 'protocol_sha256': ph,
+                 'observations': [{'offset': offset, 'provenance': {'evaluated_grid_sha256': digest}}
+                                  for offset, digest in zip(protocol['offsets'], row['grid_sha256'])]}]
+    args = dict(manifest_sha256=mh, protocol_sha256=ph, checkpoint_sha256='test', k_points_sha256=k_hash)
+    assert len(validate_paired_proxy(result, physical, **args)) == 1
+    physical[0]['observations'][0]['provenance']['evaluated_grid_sha256'] = 'wrong'
+    with pytest.raises(ValueError, match='grid identity'):
+        validate_paired_proxy(result, physical, **args)

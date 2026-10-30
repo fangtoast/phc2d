@@ -12,6 +12,7 @@ import hashlib
 import json
 import time
 from pathlib import Path
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 
@@ -19,6 +20,39 @@ from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.audit_refine import read_checked_json
 from phc2d.inverse.frozen_band_adapter import FrozenBandAdapter
 from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, predict_perturbed_gap
+
+
+def validate_paired_proxy(proxy: Mapping[str, Any], records: Sequence[Mapping[str, Any]], *,
+                          manifest_sha256: str, protocol_sha256: str,
+                          checkpoint_sha256: str, k_points_sha256: str) -> list[dict[str, Any]]:
+    """Check the surrogate and physical runs use identical candidates and grids."""
+    if (proxy.get('status') != 'exploratory_surrogate_common_gap_only'
+            or proxy.get('manifest_sha256') != manifest_sha256 or proxy.get('protocol_sha256') != protocol_sha256
+            or proxy.get('checkpoint_sha256') != checkpoint_sha256 or proxy.get('k_points_sha256') != k_points_sha256):
+        raise ValueError('proxy provenance mismatch')
+    def key(row: Mapping[str, Any]) -> tuple[Any, Any, Any]:
+        return row['source_index'], row['label'], row['parameter_hash']
+    indexed = {key(item): item for item in records}
+    if len(indexed) != len(records) or len(proxy['rows']) != len(records):
+        raise ValueError('incomplete or duplicate candidate records')
+    paired = []
+    seen = set()
+    for item in proxy['rows']:
+        identity = key(item)
+        if identity in seen or identity not in indexed:
+            raise ValueError('proxy candidate identity mismatch')
+        seen.add(identity)
+        record = indexed[identity]
+        if record.get('manifest_sha256') != manifest_sha256 or record.get('protocol_sha256') != protocol_sha256:
+            raise ValueError('physical provenance mismatch')
+        observations = record['observations']
+        if ([r['offset'] for r in observations] != list(proxy['offsets'])
+                or [r['provenance']['evaluated_grid_sha256'] for r in observations] != item['grid_sha256']):
+            raise ValueError('offset grid identity mismatch')
+        if item.get('status') != 'surrogate_only' or item.get('predicted_margin') is None:
+            raise ValueError('proxy candidate has invalid score')
+        paired.append(dict(item))
+    return paired
 
 
 def run(manifest_path: str | Path, *, manifest_sha256: str, protocol_path: str | Path,
