@@ -28,7 +28,8 @@ def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpe
                               source_resolution: int, input_resolution: int,
                               material_fraction_bounds: tuple[float, float], lower_band: int,
                               surrogate_contract_sha256: str,
-                              perturbation_offsets: tuple[float, ...] | None = None) -> dict[str, Any]:
+                              perturbation_offsets: tuple[float, ...] | None = None,
+                              geometry_constraints: dict[str, Any] | None = None) -> dict[str, Any]:
     """Search a conservative box inside the normalized Euclidean trust region.
 
     Returned proposals remain surrogate-only. The caller persists the trace and
@@ -62,7 +63,7 @@ def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpe
     anchor = screen_fourier_candidate(source, predictor, raster_method=raster_method,
         source_resolution=source_resolution, input_resolution=input_resolution,
         material_fraction_bounds=material_fraction_bounds, lower_band=lower_band,
-        target_frequency=state.target_frequency)
+        target_frequency=state.target_frequency, geometry_constraints=geometry_constraints)
     if anchor.status != 'surrogate_only':
         raise ValueError('incumbent failed surrogate screening')
     anchor_gap = anchor.predicted_gap
@@ -80,7 +81,8 @@ def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpe
         seed=seed, population_size=population_size, evaluation_budget=surrogate_budget,
         raster_method=raster_method, source_resolution=source_resolution, input_resolution=input_resolution,
         material_fraction_bounds=material_fraction_bounds, lower_band=lower_band,
-        target_frequency=state.target_frequency, perturbation_offsets=perturbation_offsets)
+        target_frequency=state.target_frequency, perturbation_offsets=perturbation_offsets,
+        geometry_constraints=geometry_constraints)
     eligible = [row for row in result.evaluations if row['status'] == 'surrogate_only'
                 and row['parameter_hash'] not in state.seen_hashes]
     eligible.sort(key=lambda row: (-float(row['predicted_gap']['target_margin']), row['candidate_index']))

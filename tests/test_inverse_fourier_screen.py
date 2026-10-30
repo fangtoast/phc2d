@@ -47,6 +47,19 @@ def test_illegal_fraction_does_not_call_predictor():
     assert not p.inputs
 
 
+def test_optional_periodic_geometry_gate_rejects_before_prediction():
+    s = generate_unified_fourier_binary('s', master_seed=1, material_fraction_bin=1,
+                                        config={'fourier_cutoff': 2, 'audit_resolution': 16})
+    p = Predictor([[.2, .8]])
+    result = screen_fourier_candidate(s, p, raster_method='master_block_mean_v1',
+        source_resolution=16, input_resolution=8, material_fraction_bounds=(0, 1),
+        lower_band=1, target_frequency=.5, geometry_constraints={'opening_radius_pixels': 1,
+        'min_component_area': .9, 'max_opening_removed_fraction': 1.})
+    assert result.status == 'geometry_rejected'
+    assert result.geometry_gate['status'] == 'rejected'
+    assert not p.inputs
+
+
 def test_band_order_violation_is_not_silently_sorted():
     result = screen(Predictor([[0.6, 0.5]]))
     assert result.status == 'band_order_violation'

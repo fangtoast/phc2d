@@ -35,6 +35,7 @@ def search_fourier(
     raster_method: str, source_resolution: int, input_resolution: int,
     material_fraction_bounds: tuple[float, float], lower_band: int, target_frequency: float,
     perturbation_offsets: tuple[float, ...] | None = None,
+    geometry_constraints: dict[str, Any] | None = None,
 ) -> FourierSearchResult:
     """Maximize sampled surrogate margin; last parameter is the binary threshold.
 
@@ -81,7 +82,7 @@ def search_fourier(
         result = screen_fourier_candidate(
             candidate, predictor, raster_method=raster_method, source_resolution=source_resolution,
             input_resolution=input_resolution, material_fraction_bounds=material_fraction_bounds,
-            lower_band=lower_band, target_frequency=target_frequency,
+            lower_band=lower_band, target_frequency=target_frequency, geometry_constraints=geometry_constraints,
         )
         row = {"candidate_index": index, "parameters": vector.tolist(), **asdict(result)}
         if result.status == 'surrogate_only' and perturbation_offsets is not None:
