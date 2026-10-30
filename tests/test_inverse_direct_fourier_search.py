@@ -12,6 +12,8 @@ from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.direct_fourier_search import search_fourier_physically
 from phc2d.inverse.feedback_loop import SolverAttemptFailed
 from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
+from phc2d.inverse.resource_ledger import (ResourceAmount, ResourceLedger, audit_slurm_ledger,
+                                           reserve_resources, settle_slurm_resources)
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
@@ -112,3 +114,26 @@ def test_direct_search_integrates_with_refined_physical_evaluator():
         after_solve=lambda _event, _outcome: None, **config)
     assert result.status == 'search_complete' and result.best_structure is not None
     assert all(row['status'] in {'numerically_stable', 'duplicate_cached'} for row in result.evaluations)
+
+
+def test_direct_search_hooks_can_reserve_and_settle_each_solver_allocation():
+    source, config = source_and_config()
+    ledger = ResourceLedger(ResourceAmount(300, 0))
+    accounting = {}
+    def before(event):
+        nonlocal ledger
+        task = f"candidate-{event['candidate_index']}"
+        ledger = reserve_resources(ledger, task_id=task, amount=ResourceAmount(30, 0))
+    def after(event, outcome):
+        nonlocal ledger
+        assert outcome['status'] == 'numerically_stable'
+        task = f"candidate-{event['candidate_index']}"
+        job = f"700_{event['candidate_index']}"
+        raw = f'{job}|COMPLETED|2|3|cpu=3,mem=8G\n'.encode()
+        ledger = settle_slurm_resources(ledger, task_id=task, cluster_id='m9',
+                                         accounting_bytes=raw, expected_gpus={job: 0})
+        accounting[task] = {'cluster_id': 'm9', 'raw': raw, 'expected_gpus': {job: 0}}
+    result = search_fourier_physically(source, observed, before_solve=before, after_solve=after, **config)
+    audited = audit_slurm_ledger(ledger, accounting_by_task=accounting, require_settled=True)
+    assert audited['settled_tasks'] == result.solver_attempts
+    assert ledger.totals()['actual'].cpu_core_seconds == 6 * result.solver_attempts
