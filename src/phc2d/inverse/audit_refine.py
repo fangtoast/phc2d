@@ -21,7 +21,8 @@ from phc2d.replay.gap_refinement import refine_inverse_candidate
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
-def _read_checked(path: str | Path, expected: str) -> tuple[dict[str, Any], str]:
+def read_checked_json(path: str | Path, expected: str) -> tuple[dict[str, Any], str]:
+    """Load an immutable JSON object after verifying its declared digest."""
     raw = Path(path).read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
     if digest != expected:
@@ -36,8 +37,8 @@ def run_case(manifest_path: str | Path, *, expected_sha256: str,
              refinement_path: str | Path, expected_refinement_sha256: str,
              case_index: int, output_root: str | Path, solver=None) -> Path:
     """Evaluate one candidate, retaining finite-grid numerical gates and provenance."""
-    manifest, digest = _read_checked(manifest_path, expected_sha256)
-    options, options_digest = _read_checked(refinement_path, expected_refinement_sha256)
+    manifest, digest = read_checked_json(manifest_path, expected_sha256)
+    options, options_digest = read_checked_json(refinement_path, expected_refinement_sha256)
     rows = manifest["rows"]
     if not isinstance(case_index, int) or isinstance(case_index, bool) or not 0 <= case_index < len(rows):
         raise ValueError("case index out of bounds")
