@@ -16,6 +16,81 @@ from typing import Any, Mapping, Sequence
 from phc2d.inverse.trust_region import update_trust_region
 
 
+def assess_refinement_group(
+    observations: Mapping[str, Mapping[str, Any] | None], *,
+    expected_members: Mapping[str, str], comparison_contract_sha256: str,
+    stage_index: int, stage_count: int,
+) -> dict[str, Any]:
+    """Classify a paired group without mixing numerical refinement contracts.
+
+    ``expected_members`` maps stable member IDs to their parameter hashes;
+    repeated hashes are permitted for identical structures in separate arms.
+    An absent member is pending, while ``None`` records a confirmed solver
+    failure. If any numeric gate fails and another stage exists, the caller
+    must evaluate *every* member at that stage before comparing the group.
+
+    This pure policy does not dispatch work, verify raw solver evidence,
+    establish roster fairness, or account for compute. The caller must freeze
+    the roster and stages, independently validate observations and solver
+    failures, and enforce budget and no-automatic-retry rules.
+    """
+    if (not isinstance(expected_members, Mapping) or not expected_members
+            or not all(isinstance(k, str) and k and isinstance(v, str) and v
+                       for k, v in expected_members.items())
+            or not isinstance(observations, Mapping)
+            or not isinstance(comparison_contract_sha256, str) or not comparison_contract_sha256
+            or isinstance(stage_index, bool) or not isinstance(stage_index, int)
+            or isinstance(stage_count, bool) or not isinstance(stage_count, int)
+            or stage_count < 1 or not 0 <= stage_index < stage_count):
+        raise ValueError('valid group roster, contract and stage are required')
+    if not set(observations).issubset(expected_members):
+        raise ValueError('observation is not in the frozen group roster')
+    pending = [member for member in expected_members if member not in observations]
+    failed, unstable, bands = [], [], set()
+    gates = ('last_refinement_stable', 'resolution_stable', 'adaptive_refinement_converged')
+    for member, obs in observations.items():
+        if obs is None:
+            failed.append(member)
+            continue
+        if not isinstance(obs, Mapping) or not isinstance(obs.get('row'), Mapping) or not isinstance(obs.get('provenance'), Mapping):
+            raise ValueError('group observation must include row and provenance')
+        row, provenance = obs['row'], obs['provenance']
+        if (provenance.get('parameter_hash') != expected_members[member]
+                or provenance.get('comparison_contract_sha256') != comparison_contract_sha256):
+            raise ValueError('group candidate identity or numerical contract differs')
+        band = row.get('lower_band_one_based')
+        if isinstance(band, bool) or not isinstance(band, int) or band < 1:
+            raise ValueError('invalid group band pair')
+        bands.add(band)
+        if not all(isinstance(row.get(k), bool) for k in gates):
+            raise ValueError('group numerical gates must be explicit booleans')
+        try:
+            edges = (float(row['refined_lower_edge_frequency']), float(row['refined_upper_edge_frequency']))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError('invalid group edges') from exc
+        if not all(math.isfinite(x) for x in edges):
+            raise ValueError('invalid group edges')
+        if not all(row[k] is True for k in gates):
+            unstable.append(member)
+    if len(bands) > 1:
+        raise ValueError('group band pairs differ')
+    result = {'stage_index': stage_index, 'stage_count': stage_count,
+              'pending_members': pending, 'failed_members': failed, 'unstable_members': unstable,
+              'next_stage': None, 'reevaluate_members': []}
+    if pending:
+        result['status'] = 'pending'
+    elif failed:
+        result['status'] = 'solver_failure'
+    elif not unstable:
+        result['status'] = 'admissible'
+    elif stage_index + 1 < stage_count:
+        result.update(status='group_escalation_required', next_stage=stage_index + 1,
+                      reevaluate_members=list(expected_members))
+    else:
+        result['status'] = 'numerically_unresolved'
+    return result
+
+
 def aggregate_refined_perturbations(
     records: Sequence[Mapping[str, Any]], *, expected_offsets: Sequence[float],
 ) -> dict[str, Any]:
