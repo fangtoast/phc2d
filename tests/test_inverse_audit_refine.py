@@ -116,3 +116,7 @@ def test_eligible_ranking_does_not_hide_unscoreable_anchors_or_missing_candidate
     proxy[1]['predicted_margin'] = 0.0
     with pytest.raises(ValueError, match='explicit failure'):
         rank_eligible_refinements(proxy, summary)
+    proxy[1]['predicted_margin'] = None
+    proxy[1]['predicted_gap'] = {'lower_edge': .4, 'upper_edge': .6}
+    with pytest.raises(ValueError, match='explicit failure'):
+        rank_eligible_refinements(proxy, summary)

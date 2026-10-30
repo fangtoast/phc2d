@@ -131,7 +131,7 @@ def rank_eligible_refinements(proxy_rows: Sequence[Mapping[str, Any]],
             if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score):
                 raise ValueError('scoreable candidate needs a finite prediction')
         elif (prediction.get('status') not in {'band_order_violation', 'nonfinite_prediction', 'negative_frequency'}
-              or score is not None):
+              or score is not None or prediction.get('predicted_gap') is not None):
             raise ValueError('unscoreable candidate needs an explicit failure and no score')
         if (not isinstance(truth.get('numerical_gate_passed'), bool)
                 or isinstance(truth.get('target_margin'), bool)
