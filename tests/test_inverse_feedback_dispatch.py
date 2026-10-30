@@ -91,3 +91,16 @@ def test_result_path_and_budget_overrun_block_followup(monkeypatch):
     assert state.ledger.status() == 'budget_exceeded'
     with pytest.raises(ValueError, match='budget'):
         begin_dispatch(state, proposal={}, task_id='next', cluster_id='m9', reservation=ResourceAmount(0, 0))
+
+
+def test_accounted_job_cannot_be_associated_with_a_second_attempt():
+    state = mark_submission_unknown(prepared(), reason='persisted before submit')
+    state = confirm_submission(state, job_id='10', confirmation_source='scheduler')
+    state = record_terminal_failure(state, failure='FAILED', reason='job failed')
+    state = settle_dispatch(state, accounting_bytes=b'10|FAILED|2|3|cpu=3,node=1\n', allocated_gpus=0)
+    state = begin_dispatch(state, proposal={'parameter_hash': 'c', 'parameters': [.1],
+        'predicted_center': .4, 'predicted_candidate': .5, 'surrogate_contract_sha256': 'checkpoint'},
+        task_id='next', cluster_id='m9', reservation=ResourceAmount(20, 0))
+    state = mark_submission_unknown(state, reason='persisted before submit')
+    with pytest.raises(ValueError, match='already accounted'):
+        confirm_submission(state, job_id='10', confirmation_source='scheduler')
