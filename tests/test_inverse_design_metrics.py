@@ -7,7 +7,9 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 import pytest
 
-from phc2d.inverse.design_metrics import compare_paired_success, summarize_design_outcomes
+from phc2d.inverse.design_metrics import (compare_paired_success, compare_paired_success_audited,
+                                          summarize_design_outcomes)
+from phc2d.inverse.resource_ledger import ResourceAmount, ResourceLedger, reserve_resources, settle_slurm_resources
 
 
 def verified(lower, upper):
@@ -130,3 +132,48 @@ def test_missing_pairs_and_unattempted_unseen_are_explicit():
     with pytest.raises(ValueError, match='attempted'):
         compare_paired_success(roster, left=[one], right=[one], left_budget=caps, right_budget=caps,
                                metric='unseen', bootstrap_seed=1)
+
+
+def test_audited_comparison_checks_every_trial_allocation_and_budget():
+    roster = planned('a', 'b')
+    records = [{'target_id': target, 'seed': 0, 'target_frequency': 1., 'nominal': verified(.8, 1.2),
+                'unseen': {'status': 'not_run'}} for target in ('a', 'b')]
+    cap = ResourceAmount(100, 0)
+    ledgers, accounting = {}, {}
+    for index, identity in enumerate([('left', 'a'), ('left', 'b'), ('right', 'a'), ('right', 'b')]):
+        job = str(index + 10)
+        raw = f'{job}|COMPLETED|5|3|cpu=3,node=1\n'.encode()
+        ledger = reserve_resources(ResourceLedger(cap), task_id='solve', amount=ResourceAmount(30, 0))
+        ledger = settle_slurm_resources(ledger, task_id='solve', cluster_id='m9', accounting_bytes=raw,
+                                        expected_gpus={job: 0})
+        ledgers[identity] = ledger
+        accounting[identity] = {'solve': {'cluster_id': 'm9', 'raw': raw, 'expected_gpus': {job: 0}}}
+    def select(items, arm):
+        return {(target, 0): value for (side, target), value in items.items() if side == arm}
+    args = dict(expected=roster, left=records, right=records,
+                budget={'cpu_core_seconds': 100, 'gpu_seconds': 0},
+                left_ledgers=select(ledgers, 'left'), right_ledgers=select(ledgers, 'right'),
+                left_accounting=select(accounting, 'left'), right_accounting=select(accounting, 'right'),
+                metric='nominal', bootstrap_seed=7, bootstrap_samples=10)
+    result = compare_paired_success_audited(**args)
+    assert result['comparison']['all_roster']['mean_difference'] == 0
+    assert result['resources']['left']['cpu_core_seconds'] == 30
+    assert result['resources']['right']['cpu_core_seconds'] == 30
+    duplicate = dict(args['right_ledgers'])
+    duplicate[('a', 0)] = args['left_ledgers'][('a', 0)]
+    duplicate_evidence = dict(args['right_accounting'])
+    duplicate_evidence[('a', 0)] = args['left_accounting'][('a', 0)]
+    with pytest.raises(ValueError, match='shared or counted'):
+        compare_paired_success_audited(**dict(args, right_ledgers=duplicate, right_accounting=duplicate_evidence))
+    with pytest.raises(ValueError, match='frozen roster'):
+        compare_paired_success_audited(**dict(args, left_ledgers={}))
+    wrong_caps = dict(args['left_ledgers'])
+    wrong_caps[('a', 0)] = ResourceLedger(ResourceAmount(101, 0))
+    with pytest.raises(ValueError, match='limits'):
+        compare_paired_success_audited(**dict(args, left_ledgers=wrong_caps))
+    unpaid = dict(args['left_ledgers'])
+    unpaid[('a', 0)] = ResourceLedger(cap)
+    no_accounting = dict(args['left_accounting'])
+    no_accounting[('a', 0)] = {}
+    with pytest.raises(ValueError, match='no settled accounting'):
+        compare_paired_success_audited(**dict(args, left_ledgers=unpaid, left_accounting=no_accounting))

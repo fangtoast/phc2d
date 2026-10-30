@@ -179,3 +179,49 @@ def release_unstarted(ledger: ResourceLedger, *, task_id: str, confirmed_not_sta
     records = list(ledger.records)
     records[matches[0]] = replace(records[matches[0]], state='released', source=confirmation_source)
     return replace(ledger, records=tuple(records))
+
+
+def audit_slurm_ledger(ledger: ResourceLedger, *, accounting_by_task: Mapping[str, Mapping[str, Any]],
+                       require_settled: bool = False) -> dict[str, Any]:
+    """Recompute settled Slurm allocations and verify one closed trial budget.
+
+    Every settled task needs its raw ``sacct`` bytes, cluster identity and
+    explicit expected GPU counts. Pending or released reservations fail
+    closed: an unstarted release needs separate external evidence. This audit
+    does not prove that an allocation cannot be requeued, that accounting is
+    authentic, or that these jobs cover every piece of trial work; callers
+    must establish those facts and account separately for excluded costs.
+    """
+    if (not isinstance(ledger, ResourceLedger) or not isinstance(accounting_by_task, Mapping)
+            or not isinstance(require_settled, bool)):
+        raise ValueError('resource ledger and accounting evidence are required')
+    if any(record.state != 'settled' for record in ledger.records):
+        raise ValueError('trial has pending or released reservations')
+    if require_settled and not ledger.records:
+        raise ValueError('attempted trial has no settled accounting')
+    if set(accounting_by_task) != {record.task_id for record in ledger.records}:
+        raise ValueError('accounting evidence does not match settled tasks')
+    identities: list[str] = []
+    for record in ledger.records:
+        evidence = accounting_by_task[record.task_id]
+        if not isinstance(evidence, Mapping):
+            raise ValueError('invalid task accounting evidence')
+        cluster, raw, expected = evidence.get('cluster_id'), evidence.get('raw'), evidence.get('expected_gpus')
+        if (not isinstance(cluster, str) or not re.fullmatch(r'[A-Za-z0-9_.-]+', cluster)
+                or not isinstance(raw, bytes) or not isinstance(expected, Mapping)):
+            raise ValueError('cluster, raw accounting and expected GPUs are required')
+        parsed = parse_terminal_allocations(raw, expected_gpus=expected)
+        expected_ids = {f'{cluster}:{entry.job_id}' for entry in parsed['allocations']}
+        if (set(record.allocation_ids) != expected_ids
+                or record.source != f"slurm:{cluster}:sha256:{parsed['source_sha256']}"
+                or record.actual != ResourceAmount(parsed['cpu_core_seconds'], parsed['gpu_seconds'])):
+            raise ValueError('settled ledger does not match raw scheduler accounting')
+        identities.extend(record.allocation_ids)
+    if len(identities) != len(set(identities)):
+        raise ValueError('scheduler allocation is already accounted')
+    if ledger.status() != 'within_budget':
+        raise ValueError('trial actual resource usage exceeds its budget')
+    total = ledger.totals()['actual']
+    return {'cpu_core_seconds': total.cpu_core_seconds, 'gpu_seconds': total.gpu_seconds,
+            'allocation_ids': tuple(identities), 'settled_tasks': len(ledger.records),
+            'scope': 'recomputed_slurm_records_caller_verifies_completeness_and_no_requeue'}

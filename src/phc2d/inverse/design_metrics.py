@@ -249,3 +249,54 @@ def compare_paired_success(expected: Sequence[Mapping[str, Any]], *,
             'bootstrap_samples': bootstrap_samples, 'left': left_summary, 'right': right_summary,
             'all_roster': describe(grouped, seed=bootstrap_seed),
             'verified_pairs_conditional': describe(verified_grouped, seed=bootstrap_seed)}
+
+
+def compare_paired_success_audited(
+    expected: Sequence[Mapping[str, Any]], *, left: Sequence[Mapping[str, Any]],
+    right: Sequence[Mapping[str, Any]], budget: Mapping[str, float],
+    left_ledgers: Mapping[tuple[str, int], Any], right_ledgers: Mapping[tuple[str, int], Any],
+    left_accounting: Mapping[tuple[str, int], Mapping[str, Mapping[str, Any]]],
+    right_accounting: Mapping[tuple[str, int], Mapping[str, Mapping[str, Any]]],
+    metric: str, bootstrap_seed: int, bootstrap_samples: int = 10000,
+) -> dict[str, Any]:
+    """Compare paired trials only after replaying every Slurm budget ledger.
+
+    Ledgers and raw accounting must cover the entire target/seed roster for
+    each method, including empty ledgers for genuinely unrun trials. Duplicate
+    allocations across trials or methods fail closed. Callers still verify
+    authentic scheduler records, trial-work completeness, no requeue, physical
+    artifacts and excluded costs such as pretraining and local WSL validation.
+    """
+    from phc2d.inverse.resource_ledger import ResourceAmount, ResourceLedger, audit_slurm_ledger
+
+    comparison = compare_paired_success(expected, left=left, right=right, left_budget=budget,
+        right_budget=budget, metric=metric, bootstrap_seed=bootstrap_seed, bootstrap_samples=bootstrap_samples)
+    roster = {_key(item) for item in expected}
+    if (not all(isinstance(v, Mapping) for v in (left_ledgers, right_ledgers, left_accounting, right_accounting))
+            or any(set(v) != roster for v in (left_ledgers, right_ledgers, left_accounting, right_accounting))):
+        raise ValueError('budget evidence must cover the frozen roster for both methods')
+    cap = ResourceAmount(float(budget['cpu_core_seconds']), float(budget['gpu_seconds']))
+    used_allocations: set[str] = set()
+    resource_summary: dict[str, Any] = {}
+    for name, observations, ledgers, accounting in (
+            ('left', left, left_ledgers, left_accounting), ('right', right, right_ledgers, right_accounting)):
+        by_key = {_key(row): row for row in observations}
+        trials = []
+        for identity in sorted(roster):
+            ledger = ledgers[identity]
+            if not isinstance(ledger, ResourceLedger) or ledger.limits != cap:
+                raise ValueError('trial ledger limits must match the shared budget')
+            record = by_key.get(identity)
+            attempted = record is not None and any(record[k]['status'] != 'not_run' for k in ('nominal', 'unseen'))
+            audited = audit_slurm_ledger(ledger, accounting_by_task=accounting[identity],
+                                         require_settled=attempted)
+            identities = set(audited['allocation_ids'])
+            if used_allocations.intersection(identities):
+                raise ValueError('scheduler allocation is shared or counted more than once')
+            used_allocations.update(identities)
+            trials.append({'target_id': identity[0], 'seed': identity[1], **audited})
+        resource_summary[name] = {'cpu_core_seconds': sum(row['cpu_core_seconds'] for row in trials),
+                                  'gpu_seconds': sum(row['gpu_seconds'] for row in trials), 'trials': trials}
+    return {'scope': 'paired_finite_solver_evidence_with_replayed_slurm_ledgers',
+            'comparison': comparison, 'resources': resource_summary,
+            'limitations': 'caller_verifies_complete_authentic_work_no_requeue_and_excluded_costs'}

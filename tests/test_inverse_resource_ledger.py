@@ -12,7 +12,7 @@ import pytest
 
 from phc2d.inverse.resource_ledger import (
     ResourceAmount, ResourceLedger, release_unstarted, reserve_resources, settle_resources,
-    settle_slurm_resources, restore_resource_ledger,
+    settle_slurm_resources, restore_resource_ledger, audit_slurm_ledger,
 )
 
 
@@ -84,6 +84,30 @@ def test_slurm_running_job_cannot_settle_reserved_budget():
         settle_slurm_resources(ledger, task_id='job', cluster_id='n56',
             accounting_bytes=b'100|RUNNING|1|6|cpu=6,gres/gpu=1\n', expected_gpus={'100': 1})
     assert ledger.records[0].state == 'reserved'
+
+
+def test_audit_replays_raw_accounting_and_rejects_tampered_or_open_ledger():
+    ledger = reserve_resources(ResourceLedger(ResourceAmount(100, 10)), task_id='job', amount=ResourceAmount(50, 5))
+    raw = b'10|FAILED|4|3|cpu=3,gres/gpu=1\n'
+    evidence = {'job': {'cluster_id': 'n56', 'raw': raw, 'expected_gpus': {'10': 1}}}
+    with pytest.raises(ValueError, match='pending or released'):
+        audit_slurm_ledger(ledger, accounting_by_task={})
+    ledger = settle_slurm_resources(ledger, task_id='job', cluster_id='n56',
+                                     accounting_bytes=raw, expected_gpus={'10': 1})
+    result = audit_slurm_ledger(ledger, accounting_by_task=evidence, require_settled=True)
+    assert result['cpu_core_seconds'] == 12 and result['gpu_seconds'] == 4
+    assert result['allocation_ids'] == ('n56:10',)
+    with pytest.raises(ValueError, match='does not match raw'):
+        audit_slurm_ledger(ledger, accounting_by_task={'job': dict(evidence['job'], raw=raw.replace(b'|4|', b'|5|'))})
+    with pytest.raises(ValueError, match='does not match settled'):
+        audit_slurm_ledger(ledger, accounting_by_task={})
+    with pytest.raises(ValueError, match='no settled accounting'):
+        audit_slurm_ledger(ResourceLedger(ResourceAmount(100, 10)), accounting_by_task={}, require_settled=True)
+    over = reserve_resources(ResourceLedger(ResourceAmount(10, 10)), task_id='job', amount=ResourceAmount(5, 5))
+    over = settle_slurm_resources(over, task_id='job', cluster_id='n56', accounting_bytes=raw,
+                                  expected_gpus={'10': 1})
+    with pytest.raises(ValueError, match='exceeds its budget'):
+        audit_slurm_ledger(over, accounting_by_task=evidence)
 
 
 def test_ledger_round_trip_preserves_overrun_reservations_and_accounted_jobs():
