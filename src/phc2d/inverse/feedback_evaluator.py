@@ -58,6 +58,18 @@ def evaluate_feedback_candidate(structure: FullCellStructureSpec, *, k_points: n
     row = observation['row']
     stable = all(row.get(key) is True for key in
                  ('last_refinement_stable', 'resolution_stable', 'adaptive_refinement_converged'))
+    work = []
+    for trace in traces:
+        arrays = trace['arrays']
+        primary_count = len(arrays['k_points'])
+        verification_count = len(arrays['verification_k_points'])
+        work.append({'offset': trace['offset'],
+                     'primary_resolution': int(trace['provenance']['primary_resolution']),
+                     'primary_k_points': primary_count,
+                     'verification_resolution': int(trace['provenance']['verification_resolution']),
+                     'verification_k_points': verification_count,
+                     'solver_calls': 2 + sum(int(level['new_k_points'] > 0) for level in trace['history'])})
     return {'status': 'numerically_stable' if stable else 'numerical_gate_failed',
             'observation': observation, 'traces': traces, 'elapsed_s': time.monotonic() - started,
+            'solver_work': work,
             'evidence_scope': 'finite_local_refinement_only'}

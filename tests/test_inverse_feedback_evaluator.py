@@ -31,6 +31,9 @@ def test_nominal_feedback_exposes_gate_and_raw_spectra():
     assert result['status'] == 'numerically_stable'
     assert result['observation']['provenance']['parameter_hash'] == structure.parameter_hash
     assert len(result['traces'][0]['arrays']['k_points']) > 2
+    assert result['solver_work'][0]['primary_k_points'] == len(result['traces'][0]['arrays']['k_points'])
+    assert result['solver_work'][0]['verification_resolution'] == 24
+    assert result['solver_work'][0]['solver_calls'] >= 2
 
 
 def test_robust_feedback_aggregates_same_grid_family_and_preserves_numerical_failure():
@@ -44,5 +47,6 @@ def test_robust_feedback_aggregates_same_grid_family_and_preserves_numerical_fai
         raster_resolution=16, solver=solver)
     assert result['status'] == 'numerical_gate_failed'
     assert len(result['traces']) == 3
+    assert len(result['solver_work']) == 3
     assert result['observation']['row']['refined_lower_edge_frequency'] == pytest.approx(.2)
     assert result['observation']['provenance']['offsets'] == [-.0625, 0., .0625]
