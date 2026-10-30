@@ -434,17 +434,25 @@ def refine_inverse_candidate(
     config: FullCellMpbBandSolverConfig, verification_resolution: int,
     lower_band: int, initial_spacing: float, min_levels: int, max_levels: int,
     required_stable_levels: int, edge_tolerance: float, resolution_tolerance: float,
-    solver: BandSolver | None = None,
+    solver: BandSolver | None = None, material_grid: np.ndarray | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, np.ndarray], list[dict[str, Any]], dict[str, Any]]:
     """Refine one inverse candidate using the existing adaptive edge algorithm.
 
     The caller owns the experiment protocol, budget and provenance. The returned
     per-pair gates cover finite local k refinement, not continuous-BZ proof.
     """
+    grid = None
+    grid_hash = None
+    if material_grid is not None:
+        raw = np.asarray(material_grid)
+        if raw.ndim != 2 or not raw.size or raw.shape[0] != raw.shape[1] or not np.isin(raw, (0, 1)).all():
+            raise ValueError("material_grid must be a nonempty square binary raster")
+        grid = np.ascontiguousarray(raw, dtype=np.uint8)
+        grid_hash = hashlib.sha256(grid.tobytes()).hexdigest()
     if solver is None:
-        from phc2d.solvers.full_cell import solve_bands_for_full_cell_mpb
+        from phc2d.solvers.full_cell import solve_bands_for_full_cell_mpb, solve_bands_for_periodic_binary_grid_mpb
 
-        solver = solve_bands_for_full_cell_mpb
+        solver = solve_bands_for_full_cell_mpb if grid is None else solve_bands_for_periodic_binary_grid_mpb
     points = np.asarray(k_points, dtype=np.float64)
     if points.ndim != 2 or points.shape[1] != 2 or len(points) == 0 or not np.isfinite(points).all():
         raise ValueError("k_points must be a finite nonempty [k,2] array")
@@ -460,12 +468,14 @@ def refine_inverse_candidate(
         raise ValueError("solver and structure material identity mismatch")
 
     def checked_solver(item: FullCellStructureSpec, *, k_points: np.ndarray, config: FullCellMpbBandSolverConfig):
-        bands, metadata = solver(item, k_points=k_points, config=config)
+        bands, metadata = solver(item if grid is None else grid, k_points=k_points, config=config)
         values = np.asarray(bands)
         if values.shape != (len(k_points), config.num_bands) or not np.isfinite(values).all():
             raise ValueError("invalid solver band output")
-        if metadata.get("geometry_hash") != item.geometry_hash:
+        if grid is None and metadata.get("geometry_hash") != item.geometry_hash:
             raise ValueError("solver geometry identity mismatch")
+        if grid is not None and metadata.get("grid_sha256") != grid_hash:
+            raise ValueError("solver grid identity mismatch")
         return values, metadata
 
     bands, initial_metadata = checked_solver(structure, k_points=points, config=config)
@@ -490,9 +500,12 @@ def refine_inverse_candidate(
     provenance["initial_solver"] = initial_metadata
     provenance["parameter_hash"] = structure.parameter_hash
     provenance["evidence_scope"] = "finite_local_refinement_only"
+    provenance["evaluated_geometry"] = "analytic" if grid is None else "periodic_binary_pixel_cells_v1"
+    provenance["evaluated_grid_sha256"] = grid_hash
     contract = {"mpb": resolved["mpb"], "refinement": resolved["refinement"],
                 "gates": resolved["gates"], "initial_k_points": points.tolist(),
-                "num_bands": config.num_bands}
+                "num_bands": config.num_bands, "evaluated_geometry": provenance["evaluated_geometry"],
+                "grid_shape": None if grid is None else list(grid.shape)}
     provenance["comparison_contract_sha256"] = hashlib.sha256(
         json.dumps(contract, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
     ).hexdigest()

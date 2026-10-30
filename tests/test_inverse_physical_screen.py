@@ -7,6 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 import numpy as np
 import pytest
+import hashlib
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.physical_screen import evaluate_sampled_candidate
@@ -65,3 +66,20 @@ def test_inverse_refinement_rejects_incompatible_resolution():
             verification_resolution=16, lower_band=1, initial_spacing=0.25,
             min_levels=1, max_levels=1, required_stable_levels=1,
             edge_tolerance=1e-3, resolution_tolerance=1e-3)
+
+
+def test_inverse_refinement_checks_grid_identity():
+    s, c = fixtures()
+    grid = np.eye(16, dtype=np.uint8)
+    def solver(actual_grid, *, k_points, config):
+        assert np.array_equal(actual_grid, grid)
+        digest = hashlib.sha256(np.ascontiguousarray(actual_grid).tobytes()).hexdigest()
+        return np.tile([.2, .7], (len(k_points), 1)), {'grid_sha256': digest}
+    rows, arrays, history, provenance = refine_inverse_candidate(
+        s, k_points=np.array([[0, 0], [.25, 0]]), config=c, verification_resolution=24,
+        lower_band=1, initial_spacing=.25, min_levels=1, max_levels=1,
+        required_stable_levels=1, edge_tolerance=1e-3, resolution_tolerance=1e-3,
+        material_grid=grid, solver=solver)
+    assert provenance['evaluated_grid_sha256'] == hashlib.sha256(grid.tobytes()).hexdigest()
+    assert provenance['evaluated_geometry'] == 'periodic_binary_pixel_cells_v1'
+    assert rows[0]['resolution_stable']
