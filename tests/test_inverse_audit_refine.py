@@ -8,6 +8,7 @@ import pytest
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.audit_refine import run_case
+from phc2d.inverse.audit_refined_reconcile import reconcile_refinements
 
 
 def test_frozen_refinement_writes_numerical_evidence_and_refuses_overwrite(tmp_path):
@@ -15,7 +16,7 @@ def test_frozen_refinement_writes_numerical_evidence_and_refuses_overwrite(tmp_p
         config={'fourier_cutoff': 2, 'audit_resolution': 16})
     manifest = {'rows': [{'structure': structure.to_mapping(), 'parameter_hash': structure.parameter_hash,
                           'source_index': 1, 'label': 'nominal'}],
-                'k_points': [[0, 0], [.25, 0]], 'lower_band': 1,
+                'k_points': [[0, 0], [.25, 0]], 'lower_band': 1, 'target_frequency': .5,
                 'solver_config': {'num_bands': 2, 'resolution': 16, 'polarization': 'TE',
                                   'eigensolver_tolerance': 1e-7,
                                   'epsilon_air': structure.epsilon_air,
@@ -39,6 +40,15 @@ def test_frozen_refinement_writes_numerical_evidence_and_refuses_overwrite(tmp_p
     assert result['rows'][0]['resolution_stable']
     assert result['provenance']['comparison_contract_sha256']
     assert len(result['arrays']['k_points']) > 2
+    # The reconciliation contract also requires the higher-resolution solver's
+    # geometry identity; a mock solver supplies the same one for both passes.
+    summary = reconcile_refinements(mp, [result], refinement_sha256=oh)
+    assert summary['numerical_gate_passed_count'] == 1
+    result['rows'][0]['resolution_stable'] = False
+    assert reconcile_refinements(mp, [result], refinement_sha256=oh)['numerical_gate_passed_count'] == 0
+    result['provenance']['verification_solver']['geometry_hash'] = 'wrong'
+    with pytest.raises(ValueError, match='geometry identity'):
+        reconcile_refinements(mp, [result], refinement_sha256=oh)
     with pytest.raises(FileExistsError):
         run_case(mp, **args)
     with pytest.raises(ValueError, match='SHA-256'):
