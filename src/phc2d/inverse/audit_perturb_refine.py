@@ -45,7 +45,10 @@ def run_case(manifest_path: str | Path, *, expected_sha256: str, protocol_path: 
             raster_resolution=protocol['raster_resolution'], solver=solver)
         observations = [{**trace, 'arrays': {key: value.tolist() for key, value in trace['arrays'].items()}}
                         for trace in evaluated['traces']]
+        # Preserve the historical aggregate schema; the full per-offset solver
+        # identities remain in observations and are checked during handoff.
         aggregate = {**evaluated['observation'], 'status': evaluated['status']}
+        aggregate['provenance'] = {k: v for k, v in aggregate['provenance'].items() if k != 'solver_identity'}
         payload = {'case_index': case_index, 'source_index': source['source_index'], 'label': source['label'],
                    'parameter_hash': structure.parameter_hash, 'manifest_sha256': digest,
                    'protocol_sha256': protocol_digest, 'elapsed_s': time.monotonic() - started,

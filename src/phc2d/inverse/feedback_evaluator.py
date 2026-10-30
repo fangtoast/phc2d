@@ -54,7 +54,14 @@ def evaluate_feedback_candidate(structure: FullCellStructureSpec, *, k_points: n
             traces.append({'offset': offset, 'row': rows[0], 'provenance': provenance,
                            'arrays': arrays, 'history': history})
         aggregate = aggregate_refined_perturbations(traces, expected_offsets=offsets)
-        observation = {'row': aggregate['row'], 'provenance': aggregate['provenance']}
+        provenance = dict(aggregate['provenance'])
+        identities = [(trace['provenance']['initial_solver'].get('solver_backend'),
+                       trace['provenance']['initial_solver'].get('solver_version')) for trace in traces]
+        if identities and all(backend and version for backend, version in identities):
+            if any(identity != identities[0] for identity in identities):
+                raise ValueError('offset solver identities differ')
+            provenance['solver_identity'] = {'solver_backend': identities[0][0], 'solver_version': identities[0][1]}
+        observation = {'row': aggregate['row'], 'provenance': provenance}
     row = observation['row']
     stable = all(row.get(key) is True for key in
                  ('last_refinement_stable', 'resolution_stable', 'adaptive_refinement_converged'))

@@ -137,6 +137,10 @@ def consume_nominal_solver_result(state: FeedbackState, *, manifest_bytes: bytes
         raise ValueError('solver band-pair mismatch')
     _validate_spectral_trace(result['rows'][0], result['arrays'], result['history'],
                              provenance, manifest, refinement)
+    incumbent_solver = state.incumbent_observation['provenance'].get('initial_solver', {})
+    for key in ('solver_backend', 'solver_version'):
+        if not incumbent_solver.get(key) or incumbent_solver[key] != provenance['initial_solver'].get(key):
+            raise ValueError('incumbent and candidate solver identity mismatch')
     observation = {'row': result['rows'][0], 'provenance': provenance}
     return finish_feedback(state, observation=observation)
 
@@ -190,4 +194,10 @@ def consume_robust_solver_result(state: FeedbackState, *, manifest_bytes: bytes,
     aggregate = aggregate_refined_perturbations(observations, expected_offsets=offsets)
     if aggregate != result['aggregate']:
         raise ValueError('solver common-gap aggregate mismatch')
-    return finish_feedback(state, observation={'row': aggregate['row'], 'provenance': aggregate['provenance']})
+    identities = [{'solver_backend': o['provenance']['initial_solver']['solver_backend'],
+                   'solver_version': o['provenance']['initial_solver']['solver_version']} for o in observations]
+    if (any(identity != identities[0] for identity in identities)
+            or state.incumbent_observation['provenance'].get('solver_identity') != identities[0]):
+        raise ValueError('incumbent and candidate solver identity mismatch')
+    provenance = {**aggregate['provenance'], 'solver_identity': identities[0]}
+    return finish_feedback(state, observation={'row': aggregate['row'], 'provenance': provenance})

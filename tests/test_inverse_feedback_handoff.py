@@ -72,6 +72,12 @@ def test_real_runner_output_can_be_reconciled_into_feedback_state(tmp_path):
     with pytest.raises(ValueError, match='numerical gate'):
         consume_nominal_solver_result(pending, manifest_bytes=mp.read_bytes(),
             expected_manifest_sha256=mh, refinement_sha256=oh, refinement_bytes=op.read_bytes(), result=result)
+    result['rows'][0]['resolution_stable'] = True
+    result['provenance']['initial_solver']['solver_version'] = '2'
+    result['provenance']['verification_solver']['solver_version'] = '2'
+    with pytest.raises(ValueError, match='incumbent and candidate solver identity'):
+        consume_nominal_solver_result(pending, manifest_bytes=mp.read_bytes(),
+            expected_manifest_sha256=mh, refinement_sha256=oh, refinement_bytes=op.read_bytes(), result=result)
 
 
 def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
@@ -117,5 +123,12 @@ def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
     assert final.incumbent_hash == candidate.parameter_hash
     result['observations'][0]['provenance']['evaluated_grid_sha256'] = 'wrong'
     with pytest.raises(ValueError, match='grid identity'):
+        consume_robust_solver_result(pending, manifest_bytes=mp.read_bytes(), expected_manifest_sha256=mh,
+                                     protocol_bytes=pp.read_bytes(), protocol_sha256=ph, result=result)
+    result = json.loads((output/'results.json').read_text())
+    for trace in result['observations']:
+        trace['provenance']['initial_solver']['solver_version'] = '2'
+        trace['provenance']['verification_solver']['solver_version'] = '2'
+    with pytest.raises(ValueError, match='incumbent and candidate solver identity'):
         consume_robust_solver_result(pending, manifest_bytes=mp.read_bytes(), expected_manifest_sha256=mh,
                                      protocol_bytes=pp.read_bytes(), protocol_sha256=ph, result=result)
