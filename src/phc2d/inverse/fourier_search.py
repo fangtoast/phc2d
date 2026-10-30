@@ -8,7 +8,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 
@@ -36,6 +36,7 @@ def search_fourier(
     material_fraction_bounds: tuple[float, float], lower_band: int, target_frequency: float,
     perturbation_offsets: tuple[float, ...] | None = None,
     geometry_constraints: dict[str, Any] | None = None,
+    score_adjuster: Callable[[np.ndarray, dict[str, Any]], float] | None = None,
 ) -> FourierSearchResult:
     """Maximize sampled surrogate margin; last parameter is the binary threshold.
 
@@ -44,6 +45,8 @@ def search_fourier(
     rejected proposals; each invocation is one seeded optimization trajectory.
     If offsets are supplied, optimize their common sampled gap rather than the
     nominal gap; the caller must verify the area-averaged checkpoint contract.
+    A caller-supplied score adjuster may calibrate the sampled edges; the raw
+    predicted gap remains in the trace and no physical success is implied.
     """
     from scipy.optimize import differential_evolution
 
@@ -93,10 +96,15 @@ def search_fourier(
             row.update(status=robust['status'], predicted_gap=robust['gap'],
                        perturbation_offsets=list(perturbation_offsets),
                        perturbation_grid_sha256=robust['grid_sha256'])
-        history.append(row)
         if row['status'] != "surrogate_only":
+            history.append(row)
             return float('inf')
-        score = float(row['predicted_gap']["target_margin"])
+        score = float(row['predicted_gap']["target_margin"] if score_adjuster is None
+                      else score_adjuster(vector.copy(), dict(row['predicted_gap'])))
+        if not np.isfinite(score):
+            raise ValueError('adjusted surrogate score must be finite')
+        row['selection_score'] = score
+        history.append(row)
         if best_margin is None or score > best_margin:
             best, best_margin = candidate, score
         return -score

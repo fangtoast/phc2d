@@ -1,6 +1,7 @@
 """End-to-end proposal identity and trust bounds for Fourier feedback."""
 
 import pytest
+import numpy as np
 
 torch = pytest.importorskip('torch')
 
@@ -8,6 +9,7 @@ from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.feedback_state import propose_feedback, start_feedback
 from phc2d.inverse.fourier_feedback_proposal import propose_fourier_candidate
+from phc2d.inverse.local_edge_correction import LocalEdgeCorrection
 
 
 class ToyPredictor:
@@ -40,6 +42,24 @@ def test_search_proposal_respects_frozen_coordinates_and_feedback_identity():
     assert len(result['trace']) <= 10
     pending = propose_feedback(state, **result['proposal'])
     assert pending.pending.parameter_hash == candidate.parameter_hash
+    correction = LocalEdgeCorrection(np.array([threshold]), .1, np.array([[-.02, .02], [0., 0.]]),
+                                     'solver', 'model', 1)
+    corrected = propose_fourier_candidate(state, source, ToyPredictor(), coefficient_keys=(),
+        global_bounds=((threshold-.5, threshold+.5),), origin=[0], scales=[1],
+        max_mode_radius=1, seed=3, population_size=5, surrogate_budget=10,
+        raster_method='master_block_mean_v1', source_resolution=16, input_resolution=8,
+        material_fraction_bounds=(0, 1), lower_band=1, surrogate_contract_sha256='model',
+        edge_correction=correction)
+    assert corrected['edge_correction_applied']
+    assert corrected['proposal']['predicted_center'] == pytest.approx(result['proposal']['predicted_center'] + .08)
+    invalid = LocalEdgeCorrection(np.array([threshold]), .1, np.zeros((2, 2)), 'wrong', 'model', 1)
+    with pytest.raises(ValueError, match='correction contract'):
+        propose_fourier_candidate(state, source, ToyPredictor(), coefficient_keys=(),
+            global_bounds=((threshold-.5, threshold+.5),), origin=[0], scales=[1],
+            max_mode_radius=1, seed=3, population_size=5, surrogate_budget=10,
+            raster_method='master_block_mean_v1', source_resolution=16, input_resolution=8,
+            material_fraction_bounds=(0, 1), lower_band=1, surrogate_contract_sha256='model',
+            edge_correction=invalid)
 
 
 def test_inconsistent_normalized_source_coordinates_are_rejected():
