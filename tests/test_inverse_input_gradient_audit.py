@@ -59,3 +59,10 @@ def test_manifest_runner_checks_raster_and_preserves_identity(tmp_path, monkeypa
     result = json.loads(output.read_text())
     assert result['anchor_count'] == 1
     assert result['rows'][0]['parameter_hash'] == s.parameter_hash
+    manifest['rows'].append({**manifest['rows'][0], 'label': 'neighbor'})
+    path.write_text(json.dumps(manifest), encoding='utf8')
+    output2 = tmp_path / 'directions.json'
+    run(path, manifest_sha256=hashlib.sha256(path.read_bytes()).hexdigest(), checkpoint='unused',
+        checkpoint_sha256='sha', device='cpu', output=output2, candidate_directions=True)
+    result2 = json.loads(output2.read_text())
+    assert result2['rows'][0]['candidate_directions']['selected_label'] == 'neighbor'

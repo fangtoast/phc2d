@@ -11,6 +11,21 @@ import math
 from typing import Any, Sequence
 
 
+def sampled_target_margin(predictor: Any, inputs: Any, *, lower_band: int,
+                          target_frequency: float) -> Any:
+    """Evaluate a differentiable sampled margin for a predictor batch."""
+    import torch
+
+    if not math.isfinite(target_frequency) or target_frequency <= 0:
+        raise ValueError('invalid target frequency')
+    bands = predictor.predict_tensor(inputs)
+    if bands.ndim != 3 or bands.shape[0] != len(inputs) or not 1 <= lower_band < bands.shape[2]:
+        raise ValueError('invalid predictor output or adjacent band pair')
+    lower = torch.amax(bands[:, :, lower_band - 1], dim=1)
+    upper = torch.amin(bands[:, :, lower_band], dim=1)
+    return 2 * torch.minimum(target_frequency - lower, upper - target_frequency) / target_frequency
+
+
 def audit_input_gradient(predictor: Any, image: Any, *, lower_band: int,
                          target_frequency: float, steps: Sequence[float], seed: int) -> dict[str, Any]:
     """Compare autograd and centered finite differences in continuous input space.
@@ -31,12 +46,8 @@ def audit_input_gradient(predictor: Any, image: Any, *, lower_band: int,
     x.requires_grad_(True)
 
     def objective(inputs: Any) -> Any:
-        bands = predictor.predict_tensor(inputs)
-        if bands.ndim != 3 or bands.shape[0] != 1 or not 1 <= lower_band < bands.shape[2]:
-            raise ValueError('invalid predictor output or adjacent band pair')
-        lower = torch.max(bands[0, :, lower_band - 1])
-        upper = torch.min(bands[0, :, lower_band])
-        return 2 * torch.minimum(target_frequency - lower, upper - target_frequency) / target_frequency
+        return sampled_target_margin(predictor, inputs, lower_band=lower_band,
+                                     target_frequency=target_frequency)[0]
 
     generator = torch.Generator(device='cpu').manual_seed(int(seed))
     direction = torch.randn(x.shape, generator=generator, dtype=torch.float32).to(x.device)
