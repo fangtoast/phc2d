@@ -45,3 +45,14 @@ def test_offsets_require_nominal_and_unique_values():
     for offsets in ((.1,), (0, 0)):
         with pytest.raises(ValueError, match='offsets'):
             periodic_perturbation_grids(s, resolution=16, offsets=offsets)
+
+
+def test_invalid_order_retains_spectra_without_a_score():
+    _, grids = setup()
+    class Predictor:
+        def predict_tensor(self, x):
+            return torch.tensor([[[.2, .8, .7]]] * len(x))
+    result = predict_perturbed_gap(grids, Predictor(), input_resolution=8, lower_band=1, target_frequency=.5)
+    assert result['status'] == 'band_order_violation' and result['gap'] is None
+    assert np.asarray(result['bands']).shape == (3, 1, 3)
+    assert result['bands'][0][0][2] == pytest.approx(.7)

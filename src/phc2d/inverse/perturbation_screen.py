@@ -54,10 +54,10 @@ def predict_perturbed_gap(grids: tuple[np.ndarray, ...], predictor: Any, *,
     if not np.isfinite(bands).all():
         return {'status': 'nonfinite_prediction', 'gap': None, 'grid_sha256': hashes}
     if np.any(np.diff(bands, axis=2) < 0):
-        return {'status': 'band_order_violation', 'gap': None, 'grid_sha256': hashes}
+        return {'status': 'band_order_violation', 'gap': None, 'bands': bands.tolist(), 'grid_sha256': hashes}
     pair = bands[:, :, lower_band-1:lower_band+1]
     if np.any(pair < 0):
-        return {'status': 'negative_frequency', 'gap': None, 'grid_sha256': hashes}
+        return {'status': 'negative_frequency', 'gap': None, 'bands': bands.tolist(), 'grid_sha256': hashes}
     result = common_gap(pair, lower_band=1, target_frequency=target_frequency)
     return {'status': 'surrogate_only', 'gap': asdict(result), 'bands': bands.tolist(),
             'grid_sha256': hashes}
