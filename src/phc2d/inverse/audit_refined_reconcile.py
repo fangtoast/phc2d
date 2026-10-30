@@ -98,3 +98,73 @@ def rank_refinements(proxy_rows: Sequence[Mapping[str, Any]], summary: Mapping[s
         result['all_numerical_gates_passed'] = result['numerical_gate_passed_count'] == len(group)
         result['evidence_scope'] = scope
     return ranked
+
+
+def rank_eligible_refinements(proxy_rows: Sequence[Mapping[str, Any]],
+                              summary: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Rank scoreable candidates without silently dropping incomplete groups.
+
+    The physical roster must contain every candidate, including unscoreable
+    ones. A group needs one scoreable anchor and at least two scoreable
+    non-anchor candidates; its random baseline uses that same eligible set.
+    Numerical-gate coverage is always reported over the *full* group, not just
+    eligible candidates. This is descriptive: callers validate checkpoint,
+    physical artifacts and the frozen roster independently.
+    """
+    scope = summary.get('status')
+    if scope not in {'exploratory_nominal_finite_local_refinement',
+                     'exploratory_finite_offsets_and_local_refinement'}:
+        raise ValueError('unexpected refinement summary status')
+    def identity(row: Mapping[str, Any]) -> tuple[Any, Any, Any]:
+        return row['source_index'], row['label'], row['parameter_hash']
+    physical_rows = summary['rows']
+    predicted = {identity(row): row for row in proxy_rows}
+    physical = {identity(row): row for row in physical_rows}
+    if (not predicted or len(predicted) != len(proxy_rows) or len(physical) != len(physical_rows)
+            or predicted.keys() != physical.keys()):
+        raise ValueError('paired candidate identities differ or are duplicated')
+    groups: dict[Any, list[tuple[Mapping[str, Any], Mapping[str, Any]]]] = {}
+    for key, prediction in predicted.items():
+        truth = physical[key]
+        score = prediction.get('predicted_margin')
+        if prediction.get('status') == 'surrogate_only':
+            if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score):
+                raise ValueError('scoreable candidate needs a finite prediction')
+        elif (prediction.get('status') not in {'band_order_violation', 'nonfinite_prediction', 'negative_frequency'}
+              or score is not None):
+            raise ValueError('unscoreable candidate needs an explicit failure and no score')
+        if (not isinstance(truth.get('numerical_gate_passed'), bool)
+                or isinstance(truth.get('target_margin'), bool)
+                or not isinstance(truth.get('target_margin'), (int, float))
+                or not math.isfinite(truth['target_margin'])):
+            raise ValueError('physical candidate needs a finite margin and explicit gate')
+        groups.setdefault(key[0], []).append((prediction, truth))
+    result = []
+    for source, entries in sorted(groups.items()):
+        anchors = [pair for pair in entries if pair[0]['label'] == 'anchor']
+        candidates = [pair for pair in entries if pair[0]['label'] != 'anchor']
+        if len(anchors) != 1 or len(candidates) < 2:
+            raise ValueError('each source needs one anchor and at least two candidates')
+        eligible = [pair for pair in candidates if pair[0]['status'] == 'surrogate_only']
+        missing = [{'label': pair[0]['label'], 'status': pair[0]['status']}
+                   for pair in entries if pair[0]['status'] != 'surrogate_only']
+        row = {'source_index': source, 'candidate_count': len(candidates),
+               'eligible_candidate_count': len(eligible), 'unscoreable': missing,
+               'numerical_gate_passed_count': sum(pair[1]['numerical_gate_passed'] for pair in entries),
+               'all_numerical_gates_passed': all(pair[1]['numerical_gate_passed'] for pair in entries),
+               'evidence_scope': scope, 'random_baseline': 'uniform_over_scoreable_non_anchor_candidates'}
+        if anchors[0][0]['status'] != 'surrogate_only':
+            row.update(status='anchor_unscoreable', ranking=None)
+        elif len(eligible) < 2:
+            row.update(status='insufficient_eligible_candidates', ranking=None)
+        else:
+            pairs = anchors + eligible
+            solver = [{'source_index': p['source_index'], 'label': p['label'],
+                       'parameter_hash': p['parameter_hash'], 'status': 'sampled_solver_only',
+                       'gap': {'target_margin': t['target_margin']}} for p, t in pairs]
+            ranked = paired_candidate_ranking([p for p, _ in pairs], solver)
+            if len(ranked) != 1:
+                raise ValueError('eligible comparison must produce one source group')
+            row.update(status='ranked_descriptive', ranking=ranked[0])
+        result.append(row)
+    return result

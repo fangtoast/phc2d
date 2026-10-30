@@ -13,7 +13,8 @@ import pytest
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.audit_refine import run_case
-from phc2d.inverse.audit_refined_reconcile import rank_refinements, reconcile_refinements
+from phc2d.inverse.audit_refined_reconcile import (rank_eligible_refinements, rank_refinements,
+                                                   reconcile_refinements)
 
 
 def test_frozen_refinement_writes_numerical_evidence_and_refuses_overwrite(tmp_path):
@@ -76,3 +77,42 @@ def test_refined_ranking_keeps_failed_gates_visible():
     assert group['random_expected_gain'] == 2
     assert group['numerical_gate_passed_count'] == 2
     assert not group['all_numerical_gates_passed']
+
+
+def test_eligible_ranking_keeps_full_physical_gate_and_uses_same_random_set():
+    labels = ['anchor', 'a', 'b', 'c', 'd']
+    proxy = [{'source_index': 1, 'label': label, 'parameter_hash': label,
+              'status': 'surrogate_only' if score is not None else 'band_order_violation',
+              'predicted_margin': score}
+             for label, score in zip(labels, [0, 2, None, 1, None])]
+    physical = [{'source_index': 1, 'label': label, 'parameter_hash': label,
+                 'target_margin': value, 'numerical_gate_passed': label != 'b'}
+                for label, value in zip(labels, [0, 4, 100, 0, -100])]
+    summary = {'status': 'exploratory_finite_offsets_and_local_refinement', 'rows': physical}
+    result = rank_eligible_refinements(proxy, summary)[0]
+    assert result['status'] == 'ranked_descriptive' and result['eligible_candidate_count'] == 2
+    assert result['candidate_count'] == 4 and len(result['unscoreable']) == 2
+    assert not result['all_numerical_gates_passed'] and result['numerical_gate_passed_count'] == 4
+    assert result['ranking']['selected_label'] == 'a'
+    assert result['ranking']['random_expected_gain'] == 2
+    assert result['random_baseline'] == 'uniform_over_scoreable_non_anchor_candidates'
+
+
+def test_eligible_ranking_does_not_hide_unscoreable_anchors_or_missing_candidates():
+    labels = ['anchor', 'a', 'b']
+    proxy = [{'source_index': 1, 'label': label, 'parameter_hash': label,
+              'status': 'surrogate_only', 'predicted_margin': 1.0} for label in labels]
+    physical = [{'source_index': 1, 'label': label, 'parameter_hash': label,
+                 'target_margin': 0.1, 'numerical_gate_passed': True} for label in labels]
+    summary = {'status': 'exploratory_finite_offsets_and_local_refinement', 'rows': physical}
+    proxy[0].update(status='band_order_violation', predicted_margin=None)
+    result = rank_eligible_refinements(proxy, summary)[0]
+    assert result['status'] == 'anchor_unscoreable' and result['ranking'] is None
+    proxy[0].update(status='surrogate_only', predicted_margin=1.)
+    proxy[1].update(status='band_order_violation', predicted_margin=None)
+    assert rank_eligible_refinements(proxy, summary)[0]['status'] == 'insufficient_eligible_candidates'
+    with pytest.raises(ValueError, match='identities differ'):
+        rank_eligible_refinements(proxy[:-1], summary)
+    proxy[1]['predicted_margin'] = 0.0
+    with pytest.raises(ValueError, match='explicit failure'):
+        rank_eligible_refinements(proxy, summary)
