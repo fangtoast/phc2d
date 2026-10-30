@@ -47,7 +47,15 @@ class FrozenBandAdapter:
         self.spec = get_model_spec(str(payload["model_name"]))
         self.k_points = payload.get("k_points")
         if self.k_points is not None:
-            self.k_points = torch.as_tensor(self.k_points, dtype=torch.float32, device=self.device)
+            points = torch.as_tensor(self.k_points, dtype=torch.float32, device="cpu").contiguous()
+            if points.ndim != 2 or not torch.isfinite(points).all():
+                raise ValueError("checkpoint k points must be a finite coordinate matrix")
+            expected_k_hash = payload.get("k_points_sha256")
+            if expected_k_hash and hashlib.sha256(points.numpy().tobytes()).hexdigest() != expected_k_hash:
+                raise ValueError("checkpoint k-point SHA-256 mismatch")
+            if len(self.output_shape) != 2 or points.shape[0] != self.output_shape[0]:
+                raise ValueError("checkpoint k points do not match output k axis")
+            self.k_points = points.to(self.device)
         self.lane_index = payload.get("lane_index")
         kwargs = dict(payload["model_params"])
         if self.spec.accepts_k_points:

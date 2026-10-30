@@ -45,3 +45,14 @@ def test_rejects_wrong_hash_and_shape(tmp_path):
     adapter = FrozenBandAdapter(path, sha256=digest)
     with pytest.raises(ValueError, match="input shape"):
         adapter.predict_tensor(torch.ones(1, 3))
+
+
+def test_rejects_corrupt_k_identity(tmp_path):
+    path, _, _ = checkpoint(tmp_path)
+    payload = torch.load(path, weights_only=True)
+    payload["k_points"] = torch.zeros(2, 2)
+    payload["k_points_sha256"] = "0" * 64
+    torch.save(payload, path)
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    with pytest.raises(ValueError, match="k-point SHA-256"):
+        FrozenBandAdapter(path, sha256=digest)
