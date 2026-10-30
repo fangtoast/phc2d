@@ -8,6 +8,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import subprocess
@@ -489,6 +490,12 @@ def refine_inverse_candidate(
     provenance["initial_solver"] = initial_metadata
     provenance["parameter_hash"] = structure.parameter_hash
     provenance["evidence_scope"] = "finite_local_refinement_only"
+    contract = {"mpb": resolved["mpb"], "refinement": resolved["refinement"],
+                "gates": resolved["gates"], "initial_k_points": points.tolist(),
+                "num_bands": config.num_bands}
+    provenance["comparison_contract_sha256"] = hashlib.sha256(
+        json.dumps(contract, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    ).hexdigest()
     return rows, arrays, history, provenance
 
 
