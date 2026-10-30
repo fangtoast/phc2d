@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
-from phc2d.inverse.audit_reconcile import reconcile_audit
+from phc2d.inverse.audit_reconcile import reconcile_audit, reconcile_sampled_solver
 
 
 def data(tmp_path):
@@ -52,3 +52,27 @@ def test_mismatch_and_missing_result_fail_closed(tmp_path):
     results[0]['bands'] = [[.35,.75]]
     with pytest.raises(ValueError, match='gap does not reproduce'):
         reconcile_audit(path, proxy, results, expected_checkpoint_sha256='checkpoint', checkpoint_k_sha256=khash)
+
+
+def test_solver_only_reconciliation_restores_manifest_order_and_rejects_mismatch(tmp_path):
+    path, _, results, _ = data(tmp_path)
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    for item in results:
+        item['solver_metadata'] = {**item['solver_metadata'], 'solver_backend': 'mock', 'solver_version': '1'}
+    identity = {'solver_backend': 'mock', 'solver_version': '1'}
+    result = reconcile_sampled_solver(path, list(reversed(results)), expected_manifest_sha256=digest,
+                                      expected_solver_identity=identity)
+    assert result['status'] == 'sampled_solver_only'
+    assert result['source_indices'].tolist() == [1, 1, 1]
+    assert result['spectra'].shape == (3, 1, 2)
+    with pytest.raises(ValueError, match='incomplete'):
+        reconcile_sampled_solver(path, results[:-1], expected_manifest_sha256=digest)
+    with pytest.raises(ValueError, match='SHA-256'):
+        reconcile_sampled_solver(path, results, expected_manifest_sha256='0' * 64)
+    results[0]['solver_metadata']['solver_version'] = 'different'
+    with pytest.raises(ValueError, match='identity'):
+        reconcile_sampled_solver(path, results, expected_manifest_sha256=digest, expected_solver_identity=identity)
+    results[0]['solver_metadata']['solver_version'] = '1'
+    results[0]['bands'] = [[.35, .75]]
+    with pytest.raises(ValueError, match='gap does not reproduce'):
+        reconcile_sampled_solver(path, results, expected_manifest_sha256=digest)
