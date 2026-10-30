@@ -28,6 +28,35 @@ class FourierSearchResult:
     evaluations: tuple[dict[str, Any], ...]
 
 
+def initial_fourier_population(
+    source: FullCellStructureSpec, *, coefficient_keys: tuple[tuple[int, str], ...],
+    bounds: tuple[tuple[float, float], ...], seed: int, population_size: int,
+    evaluation_budget: int,
+) -> np.ndarray:
+    """Build a reproducible bounded population with the source as its first member."""
+    if len(set(coefficient_keys)) != len(coefficient_keys) or len(bounds) != len(coefficient_keys) + 1:
+        raise ValueError('bounds must cover unique coefficients and one threshold')
+    limits = np.asarray(bounds, dtype=np.float64)
+    if limits.shape != (len(bounds), 2) or not np.isfinite(limits).all() or np.any(limits[:, 0] >= limits[:, 1]):
+        raise ValueError('bounds must contain finite increasing pairs')
+    if (isinstance(population_size, bool) or not isinstance(population_size, (int, np.integer)) or population_size < 5
+            or isinstance(evaluation_budget, bool) or not isinstance(evaluation_budget, (int, np.integer))
+            or evaluation_budget < population_size):
+        raise ValueError('budget must cover at least five population members')
+    modes = source.parameters['modes']
+    try:
+        initial = np.asarray([float(modes[i][name]) for i, name in coefficient_keys]
+                             + [float(source.parameters['threshold'])])
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ValueError('invalid source coefficient identity') from exc
+    if not np.isfinite(initial).all() or np.any(initial < limits[:, 0]) or np.any(initial > limits[:, 1]):
+        raise ValueError('source parameters lie outside configured bounds')
+    rng = np.random.default_rng(seed)
+    population = rng.uniform(limits[:, 0], limits[:, 1], size=(population_size, len(bounds)))
+    population[0] = initial
+    return population
+
+
 def search_fourier(
     source: FullCellStructureSpec, predictor: Any, *,
     coefficient_keys: tuple[tuple[int, str], ...], bounds: tuple[tuple[float, float], ...],
@@ -52,26 +81,10 @@ def search_fourier(
     """
     from scipy.optimize import differential_evolution
 
-    if len(set(coefficient_keys)) != len(coefficient_keys) or len(bounds) != len(coefficient_keys) + 1:
-        raise ValueError("bounds must cover unique coefficients and one threshold")
-    limits = np.asarray(bounds, dtype=np.float64)
-    if limits.shape != (len(bounds), 2) or not np.isfinite(limits).all() or np.any(limits[:, 0] >= limits[:, 1]):
-        raise ValueError("bounds must contain finite increasing pairs")
-    if population_size < 5 or evaluation_budget < population_size:
-        raise ValueError("budget must cover at least five population members")
+    population = initial_fourier_population(source, coefficient_keys=coefficient_keys, bounds=bounds,
+        seed=seed, population_size=population_size, evaluation_budget=evaluation_budget)
     if perturbation_offsets is not None and raster_method != 'master_block_mean_v1':
         raise ValueError('perturbed search requires master_block_mean_v1')
-    modes = source.parameters["modes"]
-    try:
-        initial = np.asarray([float(modes[i][name]) for i, name in coefficient_keys]
-                             + [float(source.parameters["threshold"])])
-    except (KeyError, IndexError, TypeError) as exc:
-        raise ValueError("invalid source coefficient identity") from exc
-    if not np.isfinite(initial).all() or np.any(initial < limits[:, 0]) or np.any(initial > limits[:, 1]):
-        raise ValueError("source parameters lie outside configured bounds")
-    rng = np.random.default_rng(seed)
-    population = rng.uniform(limits[:, 0], limits[:, 1], size=(population_size, len(bounds)))
-    population[0] = initial
     history: list[dict[str, Any]] = []
     best: FullCellStructureSpec | None = None
     best_margin: float | None = None
