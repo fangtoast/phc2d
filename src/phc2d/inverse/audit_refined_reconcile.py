@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from phc2d.data.full_cell_spec import FullCellStructureSpec
+from phc2d.inverse.audit_ranking import paired_candidate_ranking
 
 
 def reconcile_refinements(manifest_path: str | Path, records: Sequence[Mapping[str, Any]], *,
@@ -72,3 +73,26 @@ def reconcile_refinements(manifest_path: str | Path, records: Sequence[Mapping[s
             'refinement_sha256': refinement_sha256, 'comparison_contract_sha256': next(iter(signatures)),
             'candidate_count': len(results), 'numerical_gate_passed_count': sum(r['numerical_gate_passed'] for r in results),
             'rows': results}
+
+
+def rank_refinements(proxy_rows: Sequence[Mapping[str, Any]], summary: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Rank paired candidates while retaining whether every group passed its gates.
+
+    Caller must independently verify proxy checkpoint and dataset provenance.
+    Numerical failures remain in the descriptive ranking and are marked;
+    selecting only passing groups can introduce selection bias.
+    """
+    if summary.get('status') != 'exploratory_nominal_finite_local_refinement':
+        raise ValueError('unexpected refinement summary status')
+    rows = summary['rows']
+    # The shared paired ranking consumes the same signed-margin contract.
+    inputs = [{'source_index': r['source_index'], 'label': r['label'],
+               'parameter_hash': r['parameter_hash'], 'status': 'sampled_solver_only',
+               'gap': {'target_margin': r['target_margin']}} for r in rows]
+    ranked = paired_candidate_ranking(proxy_rows, inputs)
+    for result in ranked:
+        group = [r for r in rows if r['source_index'] == result['source_index']]
+        result['numerical_gate_passed_count'] = sum(r['numerical_gate_passed'] is True for r in group)
+        result['all_numerical_gates_passed'] = result['numerical_gate_passed_count'] == len(group)
+        result['evidence_scope'] = 'exploratory_nominal_finite_local_refinement'
+    return ranked

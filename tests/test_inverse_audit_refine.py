@@ -8,7 +8,7 @@ import pytest
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.audit_refine import run_case
-from phc2d.inverse.audit_refined_reconcile import reconcile_refinements
+from phc2d.inverse.audit_refined_reconcile import rank_refinements, reconcile_refinements
 
 
 def test_frozen_refinement_writes_numerical_evidence_and_refuses_overwrite(tmp_path):
@@ -53,3 +53,20 @@ def test_frozen_refinement_writes_numerical_evidence_and_refuses_overwrite(tmp_p
         run_case(mp, **args)
     with pytest.raises(ValueError, match='SHA-256'):
         run_case(mp, **{**args, 'expected_refinement_sha256': 'wrong'})
+
+
+def test_refined_ranking_keeps_failed_gates_visible():
+    labels = ['anchor', 'left', 'right']
+    proxy = [{'source_index': 1, 'label': label, 'parameter_hash': label,
+              'status': 'surrogate_only', 'predicted_margin': value}
+             for label, value in zip(labels, [0, 1, 2])]
+    rows = [{'source_index': 1, 'label': label, 'parameter_hash': label,
+             'target_margin': value, 'numerical_gate_passed': label != 'left'}
+            for label, value in zip(labels, [0, 1, 3])]
+    group = rank_refinements(proxy, {'status': 'exploratory_nominal_finite_local_refinement',
+                                    'rows': rows})[0]
+    assert group['selected_label'] == 'right'
+    assert group['selected_gain'] == 3
+    assert group['random_expected_gain'] == 2
+    assert group['numerical_gate_passed_count'] == 2
+    assert not group['all_numerical_gates_passed']
