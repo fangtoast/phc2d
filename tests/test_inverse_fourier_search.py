@@ -57,3 +57,19 @@ def test_search_can_optimize_perturbation_common_gap():
     assert result.status == 'surrogate_only'
     assert all(len(row['perturbation_grid_sha256']) == 3 for row in result.evaluations)
     assert result.best_margin == max(row['predicted_gap']['target_margin'] for row in result.evaluations)
+
+
+def test_search_reports_actual_evaluations_when_constant_scores_converge_early():
+    class ConstantPredictor:
+        def predict_tensor(self, raster):
+            return torch.tensor([.2, .8], dtype=raster.dtype, device=raster.device).expand(raster.shape[0], 1, 2)
+
+    s = generate_unified_fourier_binary('constant-source', master_seed=1, material_fraction_bin=1,
+                                        config={'fourier_cutoff': 2, 'audit_resolution': 16})
+    t = s.parameters['threshold']
+    result = search_fourier(s, ConstantPredictor(), coefficient_keys=(), bounds=((t-.2, t+.2),),
+        max_mode_radius=1, seed=42, population_size=5, evaluation_budget=20,
+        raster_method='master_block_mean_v1', source_resolution=16, input_resolution=8,
+        material_fraction_bounds=(0, 1), lower_band=1, target_frequency=.5)
+    assert result.status == 'surrogate_only'
+    assert len(result.evaluations) < 20

@@ -40,8 +40,10 @@ def search_fourier(
 ) -> FourierSearchResult:
     """Maximize sampled surrogate margin; last parameter is the binary threshold.
 
-    Equal budgets produce floor(budget/population_size) generations, including
-    initialization. The unedited source is always included. Traces include all
+    The evaluation budget caps the number of whole populations, including
+    initialization; convergence may stop the search earlier. Comparisons must
+    report actual evaluations and resource use, not assume the cap was spent.
+    The unedited source is always included. Traces include all
     rejected proposals; each invocation is one seeded optimization trajectory.
     If offsets are supplied, optimize their common sampled gap rather than the
     nominal gap; the caller must verify the area-averaged checkpoint contract.
