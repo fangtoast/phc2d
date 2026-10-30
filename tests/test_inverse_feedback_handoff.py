@@ -1,0 +1,72 @@
+"""Checks for immutable cross-server feedback solver handoff.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
+
+import hashlib
+import json
+
+import numpy as np
+import pytest
+
+from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
+from phc2d.inverse.audit_refine import run_case
+from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
+from phc2d.inverse.feedback_handoff import build_nominal_solver_manifest, consume_nominal_solver_result
+from phc2d.inverse.feedback_state import propose_feedback, start_feedback
+from phc2d.inverse.fourier_design import update_fourier_binary
+from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
+
+
+def test_real_runner_output_can_be_reconciled_into_feedback_state(tmp_path):
+    source = generate_unified_fourier_binary('source', master_seed=1, material_fraction_bin=1,
+        config={'fourier_cutoff': 2, 'audit_resolution': 16})
+    config = FullCellMpbBandSolverConfig(num_bands=2, resolution=16, polarization='TE',
+        epsilon_air=source.epsilon_air, epsilon_material=source.epsilon_material, eigensolver_tolerance=1e-7)
+    options = {'verification_resolution': 24, 'initial_spacing': .25, 'min_levels': 2,
+               'max_levels': 2, 'required_stable_levels': 2, 'edge_tolerance': 1,
+               'resolution_tolerance': 1e-6}
+    points = np.array([[0., 0.], [.25, 0.]])
+    def solver(item, *, k_points, config):
+        delta = item.parameters['threshold'] - source.parameters['threshold']
+        metadata = {'geometry_hash': item.geometry_hash, 'resolution': config.resolution,
+                    'polarization': config.polarization, 'num_bands': config.num_bands,
+                    'mesh_size': config.mesh_size, 'band_guard_count': config.band_guard_count,
+                    'band_order_policy': config.band_order_policy, 'eigensolver_tolerance': config.eigensolver_tolerance,
+                    'epsilon_air': config.epsilon_air, 'epsilon_material': config.epsilon_material,
+                    'solver_backend': 'mock', 'solver_version': '1'}
+        return np.tile([.2 + delta, .7 - delta], (len(k_points), 1)), metadata
+    anchor = evaluate_feedback_candidate(source, k_points=points, config=config, lower_band=1,
+                                          refinement=options, solver=solver)['observation']
+    state = start_feedback(incumbent_hash=source.parameter_hash, incumbent_parameters=[0.],
+        incumbent_observation=anchor, target_frequency=.5, radius=.1, min_radius=.01,
+        max_radius=.2, candidate_budget=1)
+    candidate = update_fourier_binary(source, sample_id='candidate', coefficients={},
+                                     threshold=source.parameters['threshold']-.01, max_mode_radius=1)
+    pending = propose_feedback(state, parameter_hash=candidate.parameter_hash, parameters=[-.01],
+                               predicted_center=.8, predicted_candidate=.84, surrogate_contract_sha256='model')
+    manifest = build_nominal_solver_manifest(pending, candidate, k_points=points, config=config,
+                                             lower_band=1, source_index=3)
+    mp = tmp_path / 'manifest.json'
+    mp.write_text(json.dumps(manifest), encoding='utf8')
+    op = tmp_path / 'refinement.json'
+    op.write_text(json.dumps(options), encoding='utf8')
+    mh, oh = (hashlib.sha256(path.read_bytes()).hexdigest() for path in (mp, op))
+    output = run_case(mp, expected_sha256=mh, refinement_path=op, expected_refinement_sha256=oh,
+                      case_index=0, output_root=tmp_path/'cases', solver=solver)
+    result = json.loads((output/'results.json').read_text())
+    final = consume_nominal_solver_result(pending, manifest_bytes=mp.read_bytes(),
+        expected_manifest_sha256=mh, refinement_sha256=oh, refinement_bytes=op.read_bytes(), result=result)
+    assert final.incumbent_hash == candidate.parameter_hash
+    assert final.history[-1]['accepted']
+    result['arrays']['k_points'][0][0] = .125
+    with pytest.raises(ValueError, match='k-point identity'):
+        consume_nominal_solver_result(pending, manifest_bytes=mp.read_bytes(),
+            expected_manifest_sha256=mh, refinement_sha256=oh, refinement_bytes=op.read_bytes(), result=result)
+    result['arrays']['k_points'][0][0] = 0.
+    result['rows'][0]['resolution_stable'] = False
+    with pytest.raises(ValueError, match='numerical gate'):
+        consume_nominal_solver_result(pending, manifest_bytes=mp.read_bytes(),
+            expected_manifest_sha256=mh, refinement_sha256=oh, refinement_bytes=op.read_bytes(), result=result)
