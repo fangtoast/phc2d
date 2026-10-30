@@ -7,7 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 import pytest
 
-from phc2d.inverse.audit_ranking import paired_candidate_ranking
+from phc2d.inverse.audit_ranking import paired_candidate_ranking, summarize_paired_gains
 
 
 def rows(scores, actual):
@@ -36,3 +36,15 @@ def test_missing_duplicate_and_undefined_rank_are_not_silenced():
         paired_candidate_ranking(p, s[:-1])
     with pytest.raises(ValueError, match='duplicate'):
         paired_candidate_ranking(p+[p[0]], s)
+
+
+def test_bootstrap_uses_sources_and_is_reproducible():
+    groups = [{'source_index': 1, 'selected_gain': .4, 'random_expected_gain': .3},
+              {'source_index': 2, 'selected_gain': .2, 'random_expected_gain': .3}]
+    result = summarize_paired_gains(groups, seed=123, bootstrap_samples=1000)
+    assert result == summarize_paired_gains(groups, seed=123, bootstrap_samples=1000)
+    assert result['selected_minus_random_mean'] == pytest.approx(0)
+    assert result['resampling_unit'] == 'source' and result['source_count'] == 2
+    assert result['bootstrap_95_low'] <= 0 <= result['bootstrap_95_high']
+    with pytest.raises(ValueError, match='unique'):
+        summarize_paired_gains(groups + [groups[0]], seed=1)

@@ -60,3 +60,29 @@ def paired_candidate_ranking(proxy: Sequence[Mapping[str, Any]],
                        'kendall_tau': tau if np.isfinite(tau) else None,
                        'kendall_status': 'defined' if np.isfinite(tau) else 'undefined_constant_rank'})
     return result
+
+
+def summarize_paired_gains(groups: Sequence[Mapping[str, Any]], *, seed: int,
+                           bootstrap_samples: int = 10000) -> dict[str, Any]:
+    """Bootstrap paired gain differences by source, not by candidate.
+
+    Source units are treated as the sampled population; stratified inference
+    requires an explicitly defined weighting policy and is not implied here.
+    """
+    if len(groups) < 2 or bootstrap_samples < 1:
+        raise ValueError('at least two sources and a positive bootstrap count are required')
+    ids = [int(row['source_index']) for row in groups]
+    if len(set(ids)) != len(ids):
+        raise ValueError('source identities must be unique')
+    differences = np.asarray([float(row['selected_gain']) - float(row['random_expected_gain'])
+                              for row in groups], dtype=np.float64)
+    if not np.isfinite(differences).all():
+        raise ValueError('paired gains must be finite')
+    rng = np.random.default_rng(seed)
+    indices = rng.integers(0, len(differences), size=(bootstrap_samples, len(differences)))
+    means = differences[indices].mean(axis=1)
+    lo, hi = np.quantile(means, [.025, .975])
+    return {'source_count': len(differences), 'selected_minus_random_mean': float(differences.mean()),
+            'bootstrap_95_low': float(lo), 'bootstrap_95_high': float(hi),
+            'resampling_unit': 'source', 'bootstrap_samples': int(bootstrap_samples), 'seed': int(seed),
+            'status': 'descriptive_only'}
