@@ -11,6 +11,7 @@ import pytest
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.physical_screen import evaluate_sampled_candidate
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
+from phc2d.replay.gap_refinement import refine_inverse_candidate
 
 
 def fixtures():
@@ -40,3 +41,27 @@ def test_mismatched_solver_identity_is_rejected():
     with pytest.raises(ValueError, match='geometry identity'):
         evaluate_sampled_candidate(s, k_points=np.array([[0, 0]]), config=c,
                                    lower_band=1, target_frequency=0.5, solver=solver)
+
+
+def test_inverse_refinement_uses_existing_edge_algorithm_and_checks_resolution():
+    s, c = fixtures()
+    def solver(structure, *, k_points, config):
+        r = np.sum(np.asarray(k_points) ** 2, axis=1)
+        return np.column_stack((0.2 + .01*r, 0.7 - .01*r)), {'geometry_hash': structure.geometry_hash}
+    rows, arrays, history, provenance = refine_inverse_candidate(
+        s, k_points=np.array([[0, 0], [0.25, 0]]), config=c, verification_resolution=24,
+        lower_band=1, initial_spacing=0.25, min_levels=2, max_levels=2,
+        required_stable_levels=2, edge_tolerance=1, resolution_tolerance=1e-6, solver=solver)
+    assert len(rows) == 1 and len(history) == 2
+    assert rows[0]['resolution_stable'] and rows[0]['adaptive_refinement_converged']
+    assert len(arrays['k_points']) > 2
+    assert provenance['evidence_scope'] == 'finite_local_refinement_only'
+
+
+def test_inverse_refinement_rejects_incompatible_resolution():
+    s, c = fixtures()
+    with pytest.raises(ValueError, match='verification resolution'):
+        refine_inverse_candidate(s, k_points=np.array([[0, 0]]), config=c,
+            verification_resolution=16, lower_band=1, initial_spacing=0.25,
+            min_levels=1, max_levels=1, required_stable_levels=1,
+            edge_tolerance=1e-3, resolution_tolerance=1e-3)

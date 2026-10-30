@@ -428,6 +428,70 @@ def _refine_one(
     return output_rows, arrays, history, provenance
 
 
+def refine_inverse_candidate(
+    structure: FullCellStructureSpec, *, k_points: np.ndarray,
+    config: FullCellMpbBandSolverConfig, verification_resolution: int,
+    lower_band: int, initial_spacing: float, min_levels: int, max_levels: int,
+    required_stable_levels: int, edge_tolerance: float, resolution_tolerance: float,
+    solver: BandSolver | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, np.ndarray], list[dict[str, Any]], dict[str, Any]]:
+    """Refine one inverse candidate using the existing adaptive edge algorithm.
+
+    The caller owns the experiment protocol, budget and provenance. The returned
+    per-pair gates cover finite local k refinement, not continuous-BZ proof.
+    """
+    if solver is None:
+        from phc2d.solvers.full_cell import solve_bands_for_full_cell_mpb
+
+        solver = solve_bands_for_full_cell_mpb
+    points = np.asarray(k_points, dtype=np.float64)
+    if points.ndim != 2 or points.shape[1] != 2 or len(points) == 0 or not np.isfinite(points).all():
+        raise ValueError("k_points must be a finite nonempty [k,2] array")
+    if not 1 <= lower_band < config.num_bands:
+        raise ValueError("lower_band must identify an adjacent pair")
+    if not (1 <= min_levels <= max_levels and 1 <= required_stable_levels <= max_levels):
+        raise ValueError("invalid refinement levels")
+    if not np.isfinite([initial_spacing, edge_tolerance, resolution_tolerance]).all() or initial_spacing <= 0 or min(edge_tolerance, resolution_tolerance) < 0:
+        raise ValueError("invalid spacing or tolerance")
+    if verification_resolution <= config.resolution:
+        raise ValueError("verification resolution must exceed primary resolution")
+    if config.epsilon_air != structure.epsilon_air or config.epsilon_material != structure.epsilon_material:
+        raise ValueError("solver and structure material identity mismatch")
+
+    def checked_solver(item: FullCellStructureSpec, *, k_points: np.ndarray, config: FullCellMpbBandSolverConfig):
+        bands, metadata = solver(item, k_points=k_points, config=config)
+        values = np.asarray(bands)
+        if values.shape != (len(k_points), config.num_bands) or not np.isfinite(values).all():
+            raise ValueError("invalid solver band output")
+        if metadata.get("geometry_hash") != item.geometry_hash:
+            raise ValueError("solver geometry identity mismatch")
+        return values, metadata
+
+    bands, initial_metadata = checked_solver(structure, k_points=points, config=config)
+    sample = RefinementSample(lane=structure.material_kind, dataset_index=-1,
+                              sample_id=structure.sample_id, geometry_hash=structure.geometry_hash,
+                              structure=structure, k_points=points, bands=bands)
+    resolved = {
+        "mpb": {"polarization": config.polarization, "epsilon_air": config.epsilon_air,
+                "epsilon_material": config.epsilon_material, "resolution": config.resolution,
+                "verification_resolution": verification_resolution, "mesh_size": config.mesh_size,
+                "eigensolver_tolerance": config.eigensolver_tolerance,
+                "band_guard_count": config.band_guard_count, "band_order_policy": config.band_order_policy},
+        "refinement": {"initial_spacing": initial_spacing, "min_levels": min_levels,
+                       "max_levels": max_levels, "required_consecutive_stable_levels": required_stable_levels,
+                       "lower_band_min_one_based": lower_band, "lower_band_max_one_based": lower_band},
+        "gates": {"last_refinement_gap_change_max": edge_tolerance,
+                  "last_refinement_edge_change_max": edge_tolerance,
+                  "resolution_edge_change_max": resolution_tolerance,
+                  "coarse_gap_change_material": edge_tolerance},
+    }
+    rows, arrays, history, provenance = _refine_one(sample, resolved=resolved, solver=checked_solver)
+    provenance["initial_solver"] = initial_metadata
+    provenance["parameter_hash"] = structure.parameter_hash
+    provenance["evidence_scope"] = "finite_local_refinement_only"
+    return rows, arrays, history, provenance
+
+
 def run_gap_refinement_study(
     config_path: str | Path,
     *,
