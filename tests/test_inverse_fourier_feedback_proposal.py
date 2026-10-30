@@ -1,4 +1,9 @@
-"""End-to-end proposal identity and trust bounds for Fourier feedback."""
+"""End-to-end proposal identity and trust bounds for Fourier feedback.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
 
 import pytest
 import numpy as np

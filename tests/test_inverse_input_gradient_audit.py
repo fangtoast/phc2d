@@ -1,4 +1,9 @@
-"""Directional derivative diagnostic tests."""
+"""Directional derivative diagnostic tests.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
 
 import pytest
 import hashlib

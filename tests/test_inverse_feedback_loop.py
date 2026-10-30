@@ -1,4 +1,9 @@
-"""Tests for recoverable solver-gated feedback orchestration."""
+"""Tests for recoverable solver-gated feedback orchestration.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
 
 import pytest
 

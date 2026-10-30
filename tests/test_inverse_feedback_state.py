@@ -1,4 +1,9 @@
-"""Pure feedback state transitions preserve verified incumbents and budgets."""
+"""Pure feedback state transitions preserve verified incumbents and budgets.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
 
 from dataclasses import asdict
 

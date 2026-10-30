@@ -1,4 +1,9 @@
-"""Solver-gated feedback physical evaluator contracts."""
+"""Solver-gated feedback physical evaluator contracts.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
 
 import hashlib
 

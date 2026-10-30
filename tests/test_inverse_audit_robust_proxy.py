@@ -1,4 +1,9 @@
-"""Tests for fixed-candidate sampled robust proxy diagnostics."""
+"""Tests for fixed-candidate sampled robust proxy diagnostics.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
 
 import hashlib
 import json

@@ -1,4 +1,9 @@
-"""Periodic phase topology and raster feature diagnostics."""
+"""Periodic phase topology and raster feature diagnostics.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
 
 import numpy as np
 import pytest

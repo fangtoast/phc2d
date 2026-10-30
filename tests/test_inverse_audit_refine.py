@@ -1,4 +1,9 @@
-"""Contracts for isolated inverse refinement audit cases."""
+"""Contracts for isolated inverse refinement audit cases.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
 
 import hashlib
 import json

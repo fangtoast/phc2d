@@ -1,4 +1,9 @@
-"""Integration of Fourier proposal, numerical evaluator and feedback state."""
+"""Integration of Fourier proposal, numerical evaluator and feedback state.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
 
 import numpy as np
 import pytest

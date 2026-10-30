@@ -1,4 +1,9 @@
-"""Tests for local discrete-candidate gradient ranking."""
+"""Tests for local discrete-candidate gradient ranking.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
 
 import pytest
 

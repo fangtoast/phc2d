@@ -1,4 +1,9 @@
-"""Tests for explicit inverse design compute budgets."""
+"""Tests for explicit inverse design compute budgets.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
 
 import pytest
 

@@ -1,4 +1,9 @@
-"""Tests for solver-gated local band-edge correction."""
+"""Tests for solver-gated local band-edge correction.
+
+Author: fangtoast
+Email: fangtoast@foxmail.com
+Copyright (c) 2026 fangtoast. All rights reserved.
+"""
 
 import numpy as np
 import pytest
