@@ -8,10 +8,55 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 from dataclasses import asdict
+import hashlib
+import json
 import math
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from phc2d.inverse.trust_region import update_trust_region
+
+
+def aggregate_refined_perturbations(
+    records: Sequence[Mapping[str, Any]], *, expected_offsets: Sequence[float],
+) -> dict[str, Any]:
+    """Aggregate one candidate's refined perturbations without promoting failures.
+
+    Each record contains offset, row and provenance from a grid refinement.
+    The complete finite offset set and numerical protocol become part of the
+    comparison identity; individual solver records remain the evidence source.
+    """
+    expected = [float(x) for x in expected_offsets]
+    if not expected or not all(math.isfinite(x) for x in expected) or len(set(expected)) != len(expected) or 0.0 not in expected:
+        raise ValueError("expected offsets must be finite, unique and include zero")
+    actual = [float(r['offset']) for r in records]
+    if len(actual) != len(expected) or len(set(actual)) != len(actual) or set(actual) != set(expected):
+        raise ValueError("perturbation results do not match expected offsets")
+    ordered = sorted(records, key=lambda x: float(x['offset']))
+    provenance = [r['provenance'] for r in ordered]
+    rows = [r['row'] for r in ordered]
+    signatures = {p.get('comparison_contract_sha256') for p in provenance}
+    parents = {p.get('parameter_hash') for p in provenance}
+    bands = {r.get('lower_band_one_based') for r in rows}
+    if len(signatures) != 1 or None in signatures or len(parents) != 1 or None in parents or len(bands) != 1:
+        raise ValueError("perturbations differ in protocol, parent or band pair")
+    if any(p.get('evaluated_geometry') != 'periodic_binary_pixel_cells_v1' or not p.get('evaluated_grid_sha256') for p in provenance):
+        raise ValueError("perturbation grid identity missing")
+    edges = [(float(row['refined_lower_edge_frequency']), float(row['refined_upper_edge_frequency'])) for row in rows]
+    if not all(math.isfinite(x) for pair in edges for x in pair):
+        raise ValueError("refined edges must be finite")
+    passed = all(row.get('last_refinement_stable') is True and row.get('resolution_stable') is True
+                 and row.get('adaptive_refinement_converged') is True for row in rows)
+    contract = {'refinement': next(iter(signatures)), 'offsets': sorted(expected)}
+    signature = hashlib.sha256(json.dumps(contract, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+    return {'row': {'lower_band_one_based': next(iter(bands)),
+                    'refined_lower_edge_frequency': max(x[0] for x in edges),
+                    'refined_upper_edge_frequency': min(x[1] for x in edges),
+                    'last_refinement_stable': passed, 'resolution_stable': passed,
+                    'adaptive_refinement_converged': passed},
+            'provenance': {'comparison_contract_sha256': signature, 'parameter_hash': next(iter(parents)),
+                           'offsets': sorted(expected),
+                           'grid_sha256': [p['evaluated_grid_sha256'] for p in provenance]},
+            'status': 'numerically_stable' if passed else 'numerical_gate_failed'}
 
 
 def compare_refined_candidates(
