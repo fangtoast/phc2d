@@ -36,6 +36,10 @@ class DirectSearchJournal:
     persist raw solver evidence before returning an evaluation, verify that
     evidence, and account for the initial incumbent and scheduler allocation.
     This journal does not submit, reconcile, retry, or lock external jobs.
+    When supplied, ``verify_evidence`` must be read-only and verify the
+    candidate, immutable evidence reference and stored observation on both initial use and replay;
+    it must raise on failure and return ``None`` on success.
+    Without it, replay alone cannot establish that raw evidence still exists.
 
     Use ``before_solve``, ``evaluate`` and ``after_solve`` as the callbacks to
     ``search_fourier_physically``; call ``finish`` after a normal return. On a
@@ -45,15 +49,21 @@ class DirectSearchJournal:
     """
 
     def __init__(self, directory: str | Path, *, contract: Mapping[str, Any],
-                 evaluator: Callable[[Any], Mapping[str, Any]]) -> None:
-        if not isinstance(contract, Mapping) or not contract or not callable(evaluator):
+                 evaluator: Callable[[Any], Mapping[str, Any]],
+                 verify_evidence: Callable[[Any, Mapping[str, Any], Mapping[str, Any]], None] | None = None) -> None:
+        if (not isinstance(contract, Mapping) or not contract or not callable(evaluator)
+                or (verify_evidence is not None and not callable(verify_evidence))):
             raise ValueError('nonempty frozen contract and evaluator are required')
         self.path = Path(directory)
         self.path.mkdir(parents=True, exist_ok=True)
         self.evaluator = evaluator
+        self.verify_evidence = verify_evidence
         self._active: dict[str, Any] | None = None
         self._visited: set[str] = set()
-        contract_bytes = _serialize({'schema': 'direct_search_journal_v1', 'contract': dict(contract)})
+        identity = {'schema': 'direct_search_journal_v1', 'contract': dict(contract)}
+        if verify_evidence is not None:
+            identity['requires_evidence_verification'] = True
+        contract_bytes = _serialize(identity)
         contract_path = self.path / 'contract.json'
         if contract_path.exists():
             if contract_path.read_bytes() != contract_bytes:
@@ -111,14 +121,29 @@ class DirectSearchJournal:
             # Raw traces remain in the evaluator's own immutable evidence store.
             record = {'kind': 'observation', 'status': evaluated.get('status'),
                       'observation': dict(evaluated['observation'])}
+            if 'evidence' in evaluated:
+                if not isinstance(evaluated['evidence'], Mapping):
+                    raise ValueError('evidence reference must be a mapping')
+                record['evidence'] = dict(evaluated['evidence'])
+            self._verify_evidence(candidate, record)
             _write_once(path, _serialize(record))
         else:
             record = json.loads(path.read_bytes())
+            if record.get('kind') == 'observation':
+                self._verify_evidence(candidate, record)
         if record.get('kind') == 'failure' and isinstance(record.get('reason'), str) and record['reason'].strip():
             raise SolverAttemptFailed(record['reason'])
         if record.get('kind') != 'observation' or not isinstance(record.get('observation'), dict):
             raise ValueError('invalid recorded search result')
         return {'status': record.get('status'), 'observation': record['observation']}
+
+    def _verify_evidence(self, candidate: Any, record: Mapping[str, Any]) -> None:
+        if self.verify_evidence is not None:
+            if not isinstance(record.get('evidence'), Mapping) or not record['evidence']:
+                raise ValueError('recorded physical evidence reference is required')
+            decision_input = {'status': record.get('status'), 'observation': record.get('observation')}
+            if self.verify_evidence(candidate, record['evidence'], decision_input) is not None:
+                raise ValueError('evidence verifier must return None on success')
 
     def after_solve(self, event: Mapping[str, Any], outcome: Mapping[str, Any]) -> None:
         active = self._active

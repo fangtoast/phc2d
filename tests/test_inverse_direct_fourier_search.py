@@ -5,6 +5,7 @@ Email: fangtoast@foxmail.com
 Copyright (c) 2026 fangtoast. All rights reserved.
 """
 
+import hashlib
 import pytest
 import numpy as np
 
@@ -244,3 +245,52 @@ def test_direct_journal_rejects_changed_result_or_search_trajectory(tmp_path):
     with pytest.raises(ValueError, match='trajectory differs'):
         search_fourier_physically(source, replay.evaluate, before_solve=replay.before_solve,
                                  after_solve=replay.after_solve, **changed)
+
+
+def test_direct_journal_verifies_raw_evidence_again_on_replay(tmp_path):
+    source, config = source_and_config()
+    evidence_dir = tmp_path / 'physical'
+    evidence_dir.mkdir()
+    def evaluator(candidate):
+        raw = candidate.parameter_hash.encode()
+        (evidence_dir / candidate.parameter_hash).write_bytes(raw)
+        return {**observed(candidate), 'evidence': {'sha256': hashlib.sha256(raw).hexdigest()}}
+    def verify(candidate, reference, decision_input):
+        raw = (evidence_dir / candidate.parameter_hash).read_bytes()
+        if (hashlib.sha256(raw).hexdigest() != reference['sha256']
+                or decision_input != observed(candidate)):
+            raise ValueError('raw physical evidence differs')
+    path = tmp_path / 'journal'
+    journal = DirectSearchJournal(path, contract={'run': 'frozen'}, evaluator=evaluator,
+                                   verify_evidence=verify)
+    result = search_fourier_physically(source, journal.evaluate, before_solve=journal.before_solve,
+                                      after_solve=journal.after_solve, **config)
+    journal.finish()
+    with pytest.raises(ValueError, match='contract mismatch'):
+        DirectSearchJournal(path, contract={'run': 'frozen'}, evaluator=evaluator)
+    replay = DirectSearchJournal(path, contract={'run': 'frozen'},
+                                  evaluator=lambda _: pytest.fail('physical solve repeated'), verify_evidence=verify)
+    assert search_fourier_physically(source, replay.evaluate, before_solve=replay.before_solve,
+                                     after_solve=replay.after_solve, **config) == result
+    replay.finish()
+    next(evidence_dir.iterdir()).write_bytes(b'changed')
+    replay = DirectSearchJournal(path, contract={'run': 'frozen'},
+                                  evaluator=lambda _: pytest.fail('physical solve repeated'), verify_evidence=verify)
+    with pytest.raises(ValueError, match='raw physical evidence differs'):
+        search_fourier_physically(source, replay.evaluate, before_solve=replay.before_solve,
+                                 after_solve=replay.after_solve, **config)
+
+
+def test_direct_journal_requires_reference_when_evidence_verification_is_enabled(tmp_path):
+    source, config = source_and_config()
+    path = tmp_path / 'journal'
+    journal = DirectSearchJournal(path, contract={'run': 'frozen'}, evaluator=observed,
+                                   verify_evidence=lambda _candidate, _reference, _decision: None)
+    with pytest.raises(ValueError, match='evidence reference is required'):
+        search_fourier_physically(source, journal.evaluate, before_solve=journal.before_solve,
+                                 after_solve=journal.after_solve, **config)
+    replay = DirectSearchJournal(path, contract={'run': 'frozen'}, evaluator=observed,
+                                  verify_evidence=lambda _candidate, _reference, _decision: None)
+    with pytest.raises(RuntimeError, match='requires external reconciliation'):
+        search_fourier_physically(source, replay.evaluate, before_solve=replay.before_solve,
+                                 after_solve=replay.after_solve, **config)
