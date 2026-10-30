@@ -5,11 +5,14 @@ Email: fangtoast@foxmail.com
 Copyright (c) 2026 fangtoast. All rights reserved.
 """
 
+import json
+from dataclasses import asdict
+
 import pytest
 
 from phc2d.inverse.resource_ledger import (
     ResourceAmount, ResourceLedger, release_unstarted, reserve_resources, settle_resources,
-    settle_slurm_resources,
+    settle_slurm_resources, restore_resource_ledger,
 )
 
 
@@ -81,3 +84,35 @@ def test_slurm_running_job_cannot_settle_reserved_budget():
         settle_slurm_resources(ledger, task_id='job', cluster_id='n56',
             accounting_bytes=b'100|RUNNING|1|6|cpu=6,gres/gpu=1\n', expected_gpus={'100': 1})
     assert ledger.records[0].state == 'reserved'
+
+
+def test_ledger_round_trip_preserves_overrun_reservations_and_accounted_jobs():
+    ledger = ResourceLedger(ResourceAmount(100, 10))
+    ledger = reserve_resources(ledger, task_id='done', amount=ResourceAmount(20, 0))
+    ledger = reserve_resources(ledger, task_id='pending', amount=ResourceAmount(10, 5))
+    raw = b'10|FAILED|40|3|cpu=3,node=1\n'
+    ledger = settle_slurm_resources(ledger, task_id='done', cluster_id='m9',
+                                    accounting_bytes=raw, expected_gpus={'10': 0})
+    assert ledger.status() == 'budget_exceeded'
+    restored = restore_resource_ledger(json.loads(json.dumps(asdict(ledger))))
+    assert restored == ledger
+    assert restored.totals()['reserved'] == ResourceAmount(10, 5)
+    with pytest.raises(ValueError, match='already accounted'):
+        settle_slurm_resources(restored, task_id='pending', cluster_id='m9',
+                               accounting_bytes=raw, expected_gpus={'10': 0})
+
+
+def test_ledger_restore_rejects_corrupt_states_and_duplicate_allocation():
+    ledger = ResourceLedger(ResourceAmount(100, 0))
+    ledger = reserve_resources(ledger, task_id='a', amount=ResourceAmount(10, 0))
+    ledger = settle_slurm_resources(ledger, task_id='a', cluster_id='m9',
+        accounting_bytes=b'10|COMPLETED|1|3|cpu=3\n', expected_gpus={'10': 0})
+    data = json.loads(json.dumps(asdict(ledger)))
+    duplicate = dict(data['records'][0], task_id='b')
+    data['records'].append(duplicate)
+    with pytest.raises(ValueError, match='already accounted'):
+        restore_resource_ledger(data)
+    data['records'].pop()
+    data['records'][0]['actual']['cpu_core_seconds'] = True
+    with pytest.raises(ValueError, match='finite'):
+        restore_resource_ledger(data)

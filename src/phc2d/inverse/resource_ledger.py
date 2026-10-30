@@ -10,7 +10,8 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass, replace
-from typing import Mapping
+from numbers import Real
+from typing import Any, Mapping
 
 from phc2d.hpc.slurm_accounting import parse_terminal_allocations
 
@@ -28,7 +29,8 @@ class ResourceAmount:
     gpu_seconds: float
 
     def __post_init__(self) -> None:
-        if not all(math.isfinite(x) and x >= 0 for x in (self.cpu_core_seconds, self.gpu_seconds)):
+        if not all(isinstance(x, Real) and not isinstance(x, bool) and math.isfinite(x) and x >= 0
+                   for x in (self.cpu_core_seconds, self.gpu_seconds)):
             raise ValueError('resource amounts must be finite and nonnegative')
 
 
@@ -42,11 +44,13 @@ class ResourceRecord:
     allocation_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if (not self.task_id or not isinstance(self.reserved, ResourceAmount)
-                or self.state not in {'reserved', 'settled', 'released'}
-                or (self.state == 'settled' and (not isinstance(self.actual, ResourceAmount) or not self.source))
+        if (not isinstance(self.task_id, str) or not self.task_id.strip() or not isinstance(self.reserved, ResourceAmount)
+                or not isinstance(self.state, str) or self.state not in {'reserved', 'settled', 'released'}
+                or (self.state == 'settled' and (not isinstance(self.actual, ResourceAmount)
+                                                 or not isinstance(self.source, str) or not self.source.strip()))
                 or (self.state == 'reserved' and (self.actual is not None or self.source is not None))
-                or (self.state == 'released' and (self.actual is not None or not self.source))
+                or (self.state == 'released' and (self.actual is not None or not isinstance(self.source, str)
+                                                 or not self.source.strip()))
                 or not isinstance(self.allocation_ids, tuple)
                 or any(not isinstance(value, str) or not value for value in self.allocation_ids)
                 or len(set(self.allocation_ids)) != len(self.allocation_ids)
@@ -60,7 +64,8 @@ class ResourceLedger:
     records: tuple[ResourceRecord, ...] = ()
 
     def __post_init__(self) -> None:
-        if (not isinstance(self.limits, ResourceAmount) or not all(isinstance(r, ResourceRecord) for r in self.records)
+        if (not isinstance(self.limits, ResourceAmount) or not isinstance(self.records, tuple)
+                or not all(isinstance(r, ResourceRecord) for r in self.records)
                 or len({r.task_id for r in self.records}) != len(self.records)):
             raise ValueError('invalid resource ledger')
         allocations = [identity for record in self.records for identity in record.allocation_ids]
@@ -81,6 +86,37 @@ class ResourceLedger:
                 or totals['actual'].gpu_seconds + totals['reserved'].gpu_seconds > self.limits.gpu_seconds):
             return 'budget_exceeded'
         return 'within_budget'
+
+
+def restore_resource_ledger(payload: Mapping[str, Any]) -> ResourceLedger:
+    """Restore a serialized ledger without discarding reservations or overruns.
+
+    Scheduler allocation identities remain subject to the same duplicate
+    checks as live settlement. Legacy records without allocation IDs remain
+    readable, but cannot retroactively establish which jobs they accounted for.
+    """
+    if not isinstance(payload, Mapping) or not isinstance(payload.get('limits'), Mapping):
+        raise ValueError('invalid saved resource ledger')
+    records = payload.get('records')
+    if not isinstance(records, (list, tuple)):
+        raise ValueError('saved resource records must be a sequence')
+
+    def amount(raw: Any) -> ResourceAmount:
+        if not isinstance(raw, Mapping) or 'cpu_core_seconds' not in raw or 'gpu_seconds' not in raw:
+            raise ValueError('saved resource amount is incomplete')
+        return ResourceAmount(raw['cpu_core_seconds'], raw['gpu_seconds'])
+
+    restored = []
+    for row in records:
+        if not isinstance(row, Mapping) or not all(key in row for key in ('task_id', 'reserved', 'actual', 'source', 'state')):
+            raise ValueError('saved resource record is incomplete')
+        identities = row.get('allocation_ids', ())
+        if not isinstance(identities, (list, tuple)):
+            raise ValueError('saved allocation identities must be a sequence')
+        restored.append(ResourceRecord(task_id=row['task_id'], reserved=amount(row['reserved']),
+            actual=None if row['actual'] is None else amount(row['actual']), source=row['source'],
+            state=row['state'], allocation_ids=tuple(identities)))
+    return ResourceLedger(limits=amount(payload['limits']), records=tuple(restored))
 
 
 def reserve_resources(ledger: ResourceLedger, *, task_id: str, amount: ResourceAmount) -> ResourceLedger:
