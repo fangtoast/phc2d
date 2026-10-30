@@ -117,6 +117,10 @@ def test_incomplete_receipt_fails_closed_instead_of_repeating_attempt(tmp_path):
 
 
 def test_terminal_failure_is_replayable_and_cannot_be_replaced(tmp_path):
+    from dataclasses import asdict
+    from phc2d.inverse.feedback_dispatch import (FeedbackDispatchState, begin_dispatch,
+        mark_submission_unknown, confirm_submission, record_terminal_failure, settle_dispatch)
+    from phc2d.inverse.resource_ledger import ResourceAmount, ResourceLedger
     pending, manifest, protocol, raw, _ = setup_attempt(tmp_path)
     initial = replace(pending, pending=None)
     journal = create_robust_round(tmp_path / 'round', pending=pending,
@@ -133,6 +137,14 @@ def test_terminal_failure_is_replayable_and_cannot_be_replaced(tmp_path):
         cluster='m9', job='10_0', allocated_gpus=0) == final
     assert read_robust_round(journal) == (final, 'completed')
     assert verify_robust_journal_chain(initial, [journal]) == (final, 'ready')
+    dispatch = begin_dispatch(FeedbackDispatchState(initial, ResourceLedger(ResourceAmount(100, 0))),
+        proposal=asdict(pending.pending), task_id='attempt', cluster_id='m9', reservation=ResourceAmount(40, 0))
+    dispatch = mark_submission_unknown(dispatch, reason='persisted before submit')
+    dispatch = confirm_submission(dispatch, job_id='10_0', confirmation_source='scheduler')
+    dispatch = record_terminal_failure(dispatch, failure='OUT_OF_MEMORY')
+    assert dispatch.feedback == final
+    settled = settle_dispatch(dispatch, accounting_bytes=accounting, allocated_gpus=0)
+    assert settled.ledger.totals()['actual'] == ResourceAmount(30, 0)
     with pytest.raises(ValueError, match='conflicting'):
         reconcile_robust_round(journal, solver_result_bytes=raw)
     receipt_path = journal / 'receipt.json'

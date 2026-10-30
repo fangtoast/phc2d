@@ -63,7 +63,7 @@ def test_failure_is_counted_once_and_must_match_exact_scheduler_record():
     state = confirm_submission(state, job_id='10_0', confirmation_source='scheduler')
     with pytest.raises(ValueError):
         confirm_submission(state, job_id='10_0', confirmation_source='scheduler')
-    state = restored(record_terminal_failure(state, failure='OUT_OF_MEMORY', reason='scheduler OOM'))
+    state = restored(record_terminal_failure(state, failure='OUT_OF_MEMORY'))
     assert state.feedback.incumbent_hash == 'a' and state.feedback.remaining_evaluations == 2
     with pytest.raises(ValueError):
         settle_dispatch(state, accounting_bytes=b'10_0|COMPLETED|10|3|cpu=3,node=1\n', allocated_gpus=0)
@@ -96,7 +96,7 @@ def test_result_path_and_budget_overrun_block_followup(monkeypatch):
 def test_accounted_job_cannot_be_associated_with_a_second_attempt():
     state = mark_submission_unknown(prepared(), reason='persisted before submit')
     state = confirm_submission(state, job_id='10', confirmation_source='scheduler')
-    state = record_terminal_failure(state, failure='FAILED', reason='job failed')
+    state = record_terminal_failure(state, failure='FAILED')
     state = settle_dispatch(state, accounting_bytes=b'10|FAILED|2|3|cpu=3,node=1\n', allocated_gpus=0)
     state = begin_dispatch(state, proposal={'parameter_hash': 'c', 'parameters': [.1],
         'predicted_center': .4, 'predicted_candidate': .5, 'surrogate_contract_sha256': 'checkpoint'},

@@ -161,15 +161,13 @@ def record_robust_result(state: FeedbackDispatchState, *, manifest_bytes: bytes,
         replace(item, phase='awaiting_accounting', result_sha256=hashlib.sha256(result_bytes).hexdigest()))
 
 
-def record_terminal_failure(state: FeedbackDispatchState, *, failure: str,
-                            reason: str) -> FeedbackDispatchState:
+def record_terminal_failure(state: FeedbackDispatchState, *, failure: str) -> FeedbackDispatchState:
     """Consume a confirmed failed solver attempt; its resources remain reserved."""
     item = state.dispatch
     if item is None or item.phase != 'submitted' or not isinstance(failure, str) or failure not in _FAILURES:
         raise ValueError('submitted dispatch and terminal failure required')
-    if not isinstance(reason, str) or not reason.strip():
-        raise ValueError('terminal failure reason required')
-    feedback = finish_feedback(state.feedback, failure_reason=reason)
+    feedback = finish_feedback(state.feedback,
+        failure_reason=f'slurm:{item.cluster_id}:{item.job_id}:{failure}')
     return FeedbackDispatchState(feedback, state.ledger,
         replace(item, phase='awaiting_accounting', terminal_failure=failure))
 
