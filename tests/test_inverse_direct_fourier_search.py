@@ -10,6 +10,7 @@ import numpy as np
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.direct_fourier_search import search_fourier_physically
+from phc2d.inverse.direct_search_journal import DirectSearchJournal
 from phc2d.inverse.feedback_loop import SolverAttemptFailed
 from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
 from phc2d.inverse.resource_ledger import (ResourceAmount, ResourceLedger, audit_slurm_ledger,
@@ -94,7 +95,7 @@ def test_unexpected_solver_failure_preserves_pending_attempt_and_propagates():
     assert len(events) == 1 and events[0][0] == 'pending'
 
 
-def test_direct_search_integrates_with_refined_physical_evaluator():
+def test_direct_search_integrates_with_refined_physical_evaluator(tmp_path):
     source, config = source_and_config()
     solver_config = FullCellMpbBandSolverConfig(num_bands=2, resolution=16, polarization='TE',
         epsilon_air=source.epsilon_air, epsilon_material=source.epsilon_material, eigensolver_tolerance=1e-7)
@@ -114,6 +115,11 @@ def test_direct_search_integrates_with_refined_physical_evaluator():
         after_solve=lambda _event, _outcome: None, **config)
     assert result.status == 'search_complete' and result.best_structure is not None
     assert all(row['status'] in {'numerically_stable', 'duplicate_cached'} for row in result.evaluations)
+    journal = DirectSearchJournal(tmp_path / 'physical', contract={'run': 'frozen'}, evaluator=evaluator)
+    recorded = search_fourier_physically(source, journal.evaluate, before_solve=journal.before_solve,
+                                         after_solve=journal.after_solve, **config)
+    journal.finish()
+    assert recorded == result
 
 
 def test_direct_search_hooks_can_reserve_and_settle_each_solver_allocation():
@@ -137,3 +143,104 @@ def test_direct_search_hooks_can_reserve_and_settle_each_solver_allocation():
     audited = audit_slurm_ledger(ledger, accounting_by_task=accounting, require_settled=True)
     assert audited['settled_tasks'] == result.solver_attempts
     assert ledger.totals()['actual'].cpu_core_seconds == 6 * result.solver_attempts
+
+
+def test_direct_journal_replays_completed_search_without_solver_calls(tmp_path):
+    source, config = source_and_config()
+    calls = []
+    def evaluator(candidate):
+        calls.append(candidate.parameter_hash)
+        return observed(candidate)
+    journal = DirectSearchJournal(tmp_path / 'journal', contract={'run': 'frozen'}, evaluator=evaluator)
+    first = search_fourier_physically(source, journal.evaluate, before_solve=journal.before_solve,
+                                      after_solve=journal.after_solve, **config)
+    journal.finish()
+    original_calls = tuple(calls)
+    assert len(original_calls) == first.solver_attempts > 0
+    replay = DirectSearchJournal(tmp_path / 'journal', contract={'run': 'frozen'},
+                                  evaluator=lambda _: pytest.fail('replay invoked solver'))
+    second = search_fourier_physically(source, replay.evaluate, before_solve=replay.before_solve,
+                                       after_solve=replay.after_solve, **config)
+    replay.finish()
+    assert second == first
+    with pytest.raises(ValueError, match='contract mismatch'):
+        DirectSearchJournal(tmp_path / 'journal', contract={'run': 'changed'}, evaluator=evaluator)
+
+
+def test_direct_journal_fails_closed_on_unknown_attempt(tmp_path):
+    source, config = source_and_config()
+    def crash(_candidate):
+        raise RuntimeError('solver state is unknown')
+    path = tmp_path / 'journal'
+    journal = DirectSearchJournal(path, contract={'run': 'frozen'}, evaluator=crash)
+    with pytest.raises(RuntimeError, match='solver state is unknown'):
+        search_fourier_physically(source, journal.evaluate, before_solve=journal.before_solve,
+                                 after_solve=journal.after_solve, **config)
+    resumed = DirectSearchJournal(path, contract={'run': 'frozen'},
+                                   evaluator=lambda _: pytest.fail('ambiguous attempt retried'))
+    with pytest.raises(RuntimeError, match='requires external reconciliation'):
+        search_fourier_physically(source, resumed.evaluate, before_solve=resumed.before_solve,
+                                 after_solve=resumed.after_solve, **config)
+
+
+def test_direct_journal_resumes_persisted_result_after_interrupted_receipt(tmp_path):
+    source, config = source_and_config()
+    calls = []
+    def evaluator(candidate):
+        calls.append(candidate.parameter_hash)
+        return observed(candidate)
+    path = tmp_path / 'journal'
+    journal = DirectSearchJournal(path, contract={'run': 'frozen'}, evaluator=evaluator)
+    def interrupted(_event, _outcome):
+        raise RuntimeError('receipt interrupted')
+    with pytest.raises(RuntimeError, match='receipt interrupted'):
+        search_fourier_physically(source, journal.evaluate, before_solve=journal.before_solve,
+                                 after_solve=interrupted, **config)
+    saved = calls[0]
+    resumed = DirectSearchJournal(path, contract={'run': 'frozen'}, evaluator=evaluator)
+    result = search_fourier_physically(source, resumed.evaluate, before_solve=resumed.before_solve,
+                                       after_solve=resumed.after_solve, **config)
+    resumed.finish()
+    assert result.solver_attempts > 0 and calls.count(saved) == 1
+
+
+def test_direct_journal_preserves_solver_failure_and_rejects_partial_replay(tmp_path):
+    source, config = source_and_config()
+    config['solver_budget'] = 2
+    def fail(_candidate):
+        raise SolverAttemptFailed('physical solver failed')
+    path = tmp_path / 'journal'
+    journal = DirectSearchJournal(path, contract={'run': 'frozen'}, evaluator=fail)
+    result = search_fourier_physically(source, journal.evaluate, before_solve=journal.before_solve,
+                                      after_solve=journal.after_solve, **config)
+    journal.finish()
+    assert result.status == 'solver_budget_exhausted'
+    replay = DirectSearchJournal(path, contract={'run': 'frozen'},
+                                 evaluator=lambda _: pytest.fail('failed solve repeated'))
+    with pytest.raises(ValueError, match='complete journal'):
+        replay.finish()
+    again = search_fourier_physically(source, replay.evaluate, before_solve=replay.before_solve,
+                                      after_solve=replay.after_solve, **config)
+    replay.finish()
+    assert again == result
+
+
+def test_direct_journal_rejects_changed_result_or_search_trajectory(tmp_path):
+    source, config = source_and_config()
+    path = tmp_path / 'journal'
+    journal = DirectSearchJournal(path, contract={'run': 'frozen'}, evaluator=observed)
+    search_fourier_physically(source, journal.evaluate, before_solve=journal.before_solve,
+                              after_solve=journal.after_solve, **config)
+    journal.finish()
+    result_path = sorted(path.glob('case_*/result.json'))[0]
+    result_path.write_bytes(result_path.read_bytes() + b' ')
+    replay = DirectSearchJournal(path, contract={'run': 'frozen'}, evaluator=observed)
+    with pytest.raises(ValueError, match='replayed search outcome differs'):
+        search_fourier_physically(source, replay.evaluate, before_solve=replay.before_solve,
+                                 after_solve=replay.after_solve, **config)
+    result_path.write_bytes(result_path.read_bytes().rstrip())
+    replay = DirectSearchJournal(path, contract={'run': 'frozen'}, evaluator=observed)
+    changed = dict(config, seed=43)
+    with pytest.raises(ValueError, match='trajectory differs'):
+        search_fourier_physically(source, replay.evaluate, before_solve=replay.before_solve,
+                                 after_solve=replay.after_solve, **changed)
