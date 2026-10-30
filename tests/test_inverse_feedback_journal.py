@@ -7,6 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 import hashlib
 import json
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -16,7 +17,8 @@ from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.audit_perturb_refine import run_case
 from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
 from phc2d.inverse.feedback_handoff import build_robust_solver_manifest
-from phc2d.inverse.feedback_journal import create_robust_round, read_robust_round, reconcile_robust_round
+from phc2d.inverse.feedback_journal import (create_robust_round, read_robust_round,
+                                            reconcile_robust_round, verify_robust_journal_chain)
 from phc2d.inverse.feedback_state import propose_feedback, start_feedback
 from phc2d.inverse.fourier_design import update_fourier_binary
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
@@ -115,6 +117,7 @@ def test_incomplete_receipt_fails_closed_instead_of_repeating_attempt(tmp_path):
 
 def test_two_rounds_resume_without_reusing_candidate_or_budget(tmp_path):
     pending, manifest, protocol, raw, solver = setup_attempt(tmp_path)
+    initial = replace(pending, pending=None)
     first = create_robust_round(tmp_path / 'round1', pending=pending,
                                 manifest_bytes=manifest, protocol_bytes=protocol)
     state = reconcile_robust_round(first, solver_result_bytes=raw)
@@ -136,6 +139,18 @@ def test_two_rounds_resume_without_reusing_candidate_or_budget(tmp_path):
                                  manifest_bytes=raw2, protocol_bytes=protocol)
     resumed, status = read_robust_round(round2)
     assert status == 'pending_reconciliation' and resumed.remaining_evaluations == 1
+    chain_state, chain_status = verify_robust_journal_chain(initial, [first, round2])
+    assert chain_status == 'pending_reconciliation' and chain_state == resumed
+    with pytest.raises(ValueError, match='twice'):
+        verify_robust_journal_chain(initial, [first, first])
+    with pytest.raises(ValueError, match='previous verified state'):
+        verify_robust_journal_chain(initial, [round2, first])
+    receipt = first / 'receipt.json'
+    parked = first / 'receipt.saved'
+    receipt.rename(parked)
+    with pytest.raises(ValueError, match='unfinished round must be last'):
+        verify_robust_journal_chain(initial, [first, round2])
+    parked.rename(receipt)
     manifest_path = tmp_path / 'manifest2.json'
     manifest_path.write_bytes(raw2)
     output = run_case(manifest_path, expected_sha256=hashlib.sha256(raw2).hexdigest(),
@@ -143,3 +158,5 @@ def test_two_rounds_resume_without_reusing_candidate_or_budget(tmp_path):
         case_index=0, output_root=tmp_path / 'cases2', solver=solver)
     final = reconcile_robust_round(round2, solver_result_bytes=(output / 'results.json').read_bytes())
     assert final.remaining_evaluations == 0 and len(final.history) == 2 and final.pending is None
+    verified, status = verify_robust_journal_chain(initial, [first, round2])
+    assert status == 'budget_exhausted' and verified == final

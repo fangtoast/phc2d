@@ -12,7 +12,7 @@ import base64
 import hashlib
 import json
 import os
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
@@ -142,6 +142,35 @@ def read_robust_round(directory: str | Path) -> tuple[FeedbackState, str]:
     return finished, 'completed'
 
 
+def verify_robust_journal_chain(initial: FeedbackState,
+                                directories: list[str | Path]) -> tuple[FeedbackState, str]:
+    """Replay consecutive rounds from one caller-validated initial incumbent.
+
+    Every complete round is recomputed from its raw solver result. Its pending
+    state must extend the previous decision exactly; at most the final round
+    may remain pending. The caller separately validates the initial incumbent
+    and single-writer ownership before any external job dispatch.
+    """
+    current = restore_feedback(asdict(initial))
+    if current.pending is not None or current.history or current.remaining_evaluations != current.total_candidate_budget:
+        raise ValueError('chain needs an unspent initial state')
+    paths = [Path(path).resolve() for path in directories]
+    if len(paths) != len(set(paths)):
+        raise ValueError('a journal cannot appear twice in one chain')
+    for index, path in enumerate(paths):
+        request, _ = _load_request(path)
+        pending, _, _ = _validate_request(request)
+        if replace(pending, pending=None) != current:
+            raise ValueError('journal does not extend the previous verified state')
+        result, status = read_robust_round(path)
+        if status == 'pending_reconciliation':
+            if index != len(paths) - 1:
+                raise ValueError('an unfinished round must be last')
+            return result, status
+        current = result
+    return current, 'budget_exhausted' if current.remaining_evaluations == 0 else 'ready'
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='Inspect or reconcile one robust feedback journal')
     subparsers = parser.add_subparsers(dest='action', required=True)
@@ -150,12 +179,18 @@ def main() -> None:
     reconcile = subparsers.add_parser('reconcile', help='Verify one completed solver result')
     reconcile.add_argument('--directory', required=True)
     reconcile.add_argument('--result', required=True)
+    chain = subparsers.add_parser('inspect-chain', help='Verify an initial state and ordered journal chain')
+    chain.add_argument('--initial-state', required=True)
+    chain.add_argument('--round', action='append', default=[])
     args = parser.parse_args()
     if args.action == 'inspect':
         state, status = read_robust_round(args.directory)
-    else:
+    elif args.action == 'reconcile':
         state = reconcile_robust_round(args.directory, solver_result_bytes=Path(args.result).read_bytes())
         status = 'completed'
+    else:
+        initial = restore_feedback(json.loads(Path(args.initial_state).read_bytes()))
+        state, status = verify_robust_journal_chain(initial, args.round)
     print(json.dumps({'status': status, 'incumbent_hash': state.incumbent_hash,
                       'remaining_evaluations': state.remaining_evaluations,
                       'pending_hash': state.pending.parameter_hash if state.pending else None,
