@@ -8,7 +8,11 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, replace
+from typing import Mapping
+
+from phc2d.hpc.slurm_accounting import parse_terminal_allocations
 
 
 @dataclass(frozen=True)
@@ -35,13 +39,18 @@ class ResourceRecord:
     actual: ResourceAmount | None = None
     source: str | None = None
     state: str = 'reserved'
+    allocation_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if (not self.task_id or not isinstance(self.reserved, ResourceAmount)
                 or self.state not in {'reserved', 'settled', 'released'}
                 or (self.state == 'settled' and (not isinstance(self.actual, ResourceAmount) or not self.source))
                 or (self.state == 'reserved' and (self.actual is not None or self.source is not None))
-                or (self.state == 'released' and (self.actual is not None or not self.source))):
+                or (self.state == 'released' and (self.actual is not None or not self.source))
+                or not isinstance(self.allocation_ids, tuple)
+                or any(not isinstance(value, str) or not value for value in self.allocation_ids)
+                or len(set(self.allocation_ids)) != len(self.allocation_ids)
+                or (self.state != 'settled' and self.allocation_ids)):
             raise ValueError('invalid resource record')
 
 
@@ -54,6 +63,9 @@ class ResourceLedger:
         if (not isinstance(self.limits, ResourceAmount) or not all(isinstance(r, ResourceRecord) for r in self.records)
                 or len({r.task_id for r in self.records}) != len(self.records)):
             raise ValueError('invalid resource ledger')
+        allocations = [identity for record in self.records for identity in record.allocation_ids]
+        if len(allocations) != len(set(allocations)):
+            raise ValueError('scheduler allocation is already accounted')
 
     def totals(self) -> dict[str, ResourceAmount]:
         """Separate settled usage from outstanding reservations."""
@@ -94,6 +106,31 @@ def settle_resources(ledger: ResourceLedger, *, task_id: str, actual: ResourceAm
     records = list(ledger.records)
     records[index] = replace(records[index], actual=actual, source=source, state='settled')
     return replace(ledger, records=tuple(records))
+
+
+def settle_slurm_resources(ledger: ResourceLedger, *, task_id: str, cluster_id: str,
+                           accounting_bytes: bytes, expected_gpus: Mapping[str, int]) -> ResourceLedger:
+    """Settle terminal Slurm allocations once, including failed-job costs.
+
+    Job IDs are scoped by cluster; the immutable source digest and explicit
+    allocation IDs make duplicate Slurm settlements detectable within this
+    ledger. Caller retains the raw accounting snapshot as run evidence and
+    verifies that no allocation can be requeued before settlement.
+    """
+    if not isinstance(cluster_id, str) or not re.fullmatch(r'[A-Za-z0-9_.-]+', cluster_id):
+        raise ValueError('a stable cluster identity is required')
+    parsed = parse_terminal_allocations(accounting_bytes, expected_gpus=expected_gpus)
+    identities = tuple(f'{cluster_id}:{record.job_id}' for record in parsed['allocations'])
+    existing = {identity for record in ledger.records for identity in record.allocation_ids}
+    if existing.intersection(identities):
+        raise ValueError('scheduler allocation is already accounted')
+    settled = settle_resources(ledger, task_id=task_id,
+        actual=ResourceAmount(parsed['cpu_core_seconds'], parsed['gpu_seconds']),
+        source=f"slurm:{cluster_id}:sha256:{parsed['source_sha256']}")
+    records = list(settled.records)
+    index = next(i for i, record in enumerate(records) if record.task_id == task_id)
+    records[index] = replace(records[index], allocation_ids=identities)
+    return replace(settled, records=tuple(records))
 
 
 def release_unstarted(ledger: ResourceLedger, *, task_id: str, confirmed_not_started: bool,

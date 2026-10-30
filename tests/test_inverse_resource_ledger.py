@@ -9,6 +9,7 @@ import pytest
 
 from phc2d.inverse.resource_ledger import (
     ResourceAmount, ResourceLedger, release_unstarted, reserve_resources, settle_resources,
+    settle_slurm_resources,
 )
 
 
@@ -50,3 +51,33 @@ def test_release_requires_external_nonexecution_confirmation():
 def test_invalid_usage_is_rejected(amount):
     with pytest.raises(ValueError, match='finite'):
         ResourceAmount(*amount)
+
+
+def test_slurm_settlement_counts_failures_and_rejects_duplicate_allocations():
+    raw = (b'10_0|COMPLETED|10|3|cpu=3,node=1\n'
+           b'10_0.batch|COMPLETED|10|3|cpu=3,node=1\n'
+           b'10_1|FAILED|5|3|cpu=3,node=1\n')
+    ledger = ResourceLedger(ResourceAmount(1000, 100))
+    ledger = reserve_resources(ledger, task_id='first', amount=ResourceAmount(100, 0))
+    ledger = reserve_resources(ledger, task_id='second', amount=ResourceAmount(100, 0))
+    ledger = settle_slurm_resources(ledger, task_id='first', cluster_id='m9', accounting_bytes=raw,
+                                    expected_gpus={'10_0': 0, '10_1': 0})
+    assert ledger.totals()['actual'] == ResourceAmount(45, 0)
+    assert ledger.records[0].allocation_ids == ('m9:10_0', 'm9:10_1')
+    assert ledger.records[0].source.startswith('slurm:m9:sha256:')
+    with pytest.raises(ValueError, match='already accounted'):
+        settle_slurm_resources(ledger, task_id='second', cluster_id='m9', accounting_bytes=raw,
+                               expected_gpus={'10_0': 0, '10_1': 0})
+    # IDs from different clusters are distinct allocations.
+    other = settle_slurm_resources(ledger, task_id='second', cluster_id='n56', accounting_bytes=raw,
+                                   expected_gpus={'10_0': 0, '10_1': 0})
+    assert other.totals()['actual'] == ResourceAmount(90, 0)
+
+
+def test_slurm_running_job_cannot_settle_reserved_budget():
+    ledger = reserve_resources(ResourceLedger(ResourceAmount(100, 10)), task_id='job',
+                               amount=ResourceAmount(30, 5))
+    with pytest.raises(ValueError, match='not terminal'):
+        settle_slurm_resources(ledger, task_id='job', cluster_id='n56',
+            accounting_bytes=b'100|RUNNING|1|6|cpu=6,gres/gpu=1\n', expected_gpus={'100': 1})
+    assert ledger.records[0].state == 'reserved'
