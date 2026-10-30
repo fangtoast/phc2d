@@ -59,7 +59,10 @@ def _validate_spectral_trace(row: Mapping[str, Any], arrays: Mapping[str, Any],
     band_count = manifest['solver_config']['num_bands']
     if (bands.shape != (len(refined_points), band_count) or verify_points.ndim != 2
             or verify_points.shape[1] != 2 or verify_bands.shape != (len(verify_points), band_count)
-            or not np.isfinite(bands).all() or not np.isfinite(verify_bands).all()):
+            or not np.isfinite(refined_points).all() or not np.isfinite(verify_points).all()
+            or not np.isfinite(bands).all() or not np.isfinite(verify_bands).all()
+            or np.any(bands < 0) or np.any(verify_bands < 0)
+            or np.any(np.diff(bands, axis=1) < 0) or np.any(np.diff(verify_bands, axis=1) < 0)):
         raise ValueError('solver spectral arrays invalid')
     band = manifest['lower_band']
     gap = adjacent_gap_records(bands, lower_band_min_one_based=band, lower_band_max_one_based=band)[0]
