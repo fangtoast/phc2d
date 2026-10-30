@@ -49,7 +49,7 @@
 
 > 2026-09-12 EXP-FWD-020 状态：36 个冻结 checkpoint（7 个原 G2 validation-best、29 个 epoch-300 continuation validation-best）已完成 K5/K20/F50 Binary/Graded 的 216-cell held-out surrogate 交叉评估。native Bands 2--10 MRE 均值为 `0.297%`，同数据集跨 lane、跨数据集同 lane、双重跨域依次为 `2.703%`、`3.295%`、`5.409%`；7x7 对 3x3 没有跨域一致优势。G2 仍为 `not_passed`，结果仅为探索性 surrogate 证据，不作 promotion、real-MPB/Meep 或物理结论。详见[六域交叉评估 Draft](docs/results/forward/EXP-FWD-020-全局局部带隙算子六域交叉评估.md)。
 
-> 2026-10-30 [非生成式鲁棒带隙逆向长期计划（Draft）](docs/planning/鲁棒带隙逆向/README.md)已进入探索性 P2 审计：[名义候选结果](docs/results/inverse/鲁棒带隙逆向可用性审计.md)的 60 个 M9 求解完成，64→96 下 31 个通过数值门；追加的 96→128 诊断有 53 个通过。有限扰动下 0/60 有正共同区间、仅 10 个通过原数值门，扩大搜索条件尚未满足；正式验收继续使用 WSL meep_env。
+> 2026-10-30 [非生成式鲁棒带隙逆向长期计划（Draft）](docs/planning/鲁棒带隙逆向/README.md)已进入探索性 P2 审计：[名义候选结果](docs/results/inverse/鲁棒带隙逆向可用性审计.md)的 60 个 M9 求解完成，64→96 下 31 个通过数值门；追加的 96→128 诊断有 53 个通过。有限扰动下两种精度均有 0/60 正共同区间，96→128 仅 12 个通过全部偏移数值门；扩大搜索条件尚未满足，正式验收继续使用 WSL meep_env。
 
 # PROJECT MAP
 
