@@ -18,7 +18,8 @@ from phc2d.inverse.audit_perturb_refine import run_case
 from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
 from phc2d.inverse.feedback_handoff import build_robust_solver_manifest
 from phc2d.inverse.feedback_journal import (create_robust_round, read_robust_round,
-                                            reconcile_robust_round, verify_robust_journal_chain)
+                                            reconcile_failed_robust_round, reconcile_robust_round,
+                                            verify_robust_journal_chain)
 from phc2d.inverse.feedback_state import propose_feedback, start_feedback
 from phc2d.inverse.fourier_design import update_fourier_binary
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
@@ -113,6 +114,33 @@ def test_incomplete_receipt_fails_closed_instead_of_repeating_attempt(tmp_path):
         read_robust_round(journal)
     with pytest.raises(ValueError, match='incomplete'):
         reconcile_robust_round(journal, solver_result_bytes=raw)
+
+
+def test_terminal_failure_is_replayable_and_cannot_be_replaced(tmp_path):
+    pending, manifest, protocol, raw, _ = setup_attempt(tmp_path)
+    initial = replace(pending, pending=None)
+    journal = create_robust_round(tmp_path / 'round', pending=pending,
+                                  manifest_bytes=manifest, protocol_bytes=protocol)
+    accounting = b'10_0|OUT_OF_MEMORY|10|3|cpu=3,node=1\n'
+    with pytest.raises(ValueError, match='not a confirmed'):
+        reconcile_failed_robust_round(journal, accounting_bytes=b'10_0|COMPLETED|10|3|cpu=3,node=1\n',
+                                      cluster='m9', job='10_0', allocated_gpus=0)
+    final = reconcile_failed_robust_round(journal, accounting_bytes=accounting,
+                                          cluster='m9', job='10_0', allocated_gpus=0)
+    assert final.incumbent_hash == initial.incumbent_hash and final.remaining_evaluations == 1
+    assert final.history[-1]['status'] == 'solver_failure'
+    assert reconcile_failed_robust_round(journal, accounting_bytes=accounting,
+        cluster='m9', job='10_0', allocated_gpus=0) == final
+    assert read_robust_round(journal) == (final, 'completed')
+    assert verify_robust_journal_chain(initial, [journal]) == (final, 'ready')
+    with pytest.raises(ValueError, match='conflicting'):
+        reconcile_robust_round(journal, solver_result_bytes=raw)
+    receipt_path = journal / 'receipt.json'
+    receipt = json.loads(receipt_path.read_bytes())
+    receipt['accounting_sha256'] = '0' * 64
+    receipt_path.write_text(json.dumps(receipt), encoding='utf8')
+    with pytest.raises(ValueError, match='digest'):
+        read_robust_round(journal)
 
 
 def test_two_rounds_resume_without_reusing_candidate_or_budget(tmp_path):

@@ -12,13 +12,15 @@ import base64
 import hashlib
 import json
 import os
+import re
 from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
 from phc2d.data.full_cell_spec import FullCellStructureSpec
+from phc2d.hpc.slurm_accounting import parse_terminal_allocations
 from phc2d.inverse.feedback_handoff import consume_robust_solver_result
-from phc2d.inverse.feedback_state import FeedbackState, restore_feedback
+from phc2d.inverse.feedback_state import FeedbackState, finish_feedback, restore_feedback
 
 
 def _hash(raw: bytes) -> str:
@@ -122,6 +124,41 @@ def reconcile_robust_round(directory: str | Path, *, solver_result_bytes: bytes)
     return finished
 
 
+def _failed_attempt(pending: FeedbackState, accounting: bytes, cluster: str,
+                    job: str, gpus: int) -> FeedbackState:
+    if not isinstance(cluster, str) or not re.fullmatch(r'[A-Za-z0-9_.-]+', cluster):
+        raise ValueError('invalid scheduler cluster')
+    allocation = parse_terminal_allocations(accounting, expected_gpus={job: gpus})['allocations'][0]
+    if allocation.state == 'COMPLETED':
+        raise ValueError('completed allocation is not a confirmed scheduler failure')
+    return finish_feedback(pending, failure_reason=f'slurm:{cluster}:{job}:{allocation.state}')
+
+
+def reconcile_failed_robust_round(directory: str | Path, *, accounting_bytes: bytes,
+                                  cluster: str, job: str, allocated_gpus: int) -> FeedbackState:
+    """Record one terminal scheduler failure; caller verifies ownership and no requeue.
+
+    The exact scheduler allocation and raw accounting are retained for replay.
+    This neither dispatches jobs nor proves that no valid solver output exists.
+    """
+    target = Path(directory)
+    request, request_bytes = _load_request(target)
+    pending, _, _ = _validate_request(request)
+    finished = _failed_attempt(pending, accounting_bytes, cluster, job, allocated_gpus)
+    receipt = {'schema': 'robust_feedback_failure_v1', 'request_sha256': _hash(request_bytes),
+               'accounting': _encoded(accounting_bytes), 'accounting_sha256': _hash(accounting_bytes),
+               'cluster': cluster, 'job': job, 'allocated_gpus': allocated_gpus,
+               'completed_state': asdict(finished)}
+    raw = _serialize(receipt)
+    path = target / 'receipt.json'
+    try:
+        _write_once(path, raw)
+    except FileExistsError:
+        if path.read_bytes() != raw:
+            raise ValueError('conflicting or incomplete solver receipt') from None
+    return finished
+
+
 def read_robust_round(directory: str | Path) -> tuple[FeedbackState, str]:
     """Restore a request or recompute a completed decision from its raw result."""
     target = Path(directory)
@@ -131,12 +168,18 @@ def read_robust_round(directory: str | Path) -> tuple[FeedbackState, str]:
     if not path.exists():
         return pending, 'pending_reconciliation'
     receipt = json.loads(path.read_bytes())
-    if receipt.get('schema') != 'robust_feedback_receipt_v1' or receipt.get('request_sha256') != _hash(request_bytes):
+    if receipt.get('request_sha256') != _hash(request_bytes):
         raise ValueError('receipt request identity mismatch')
-    result_bytes = _decode(receipt['solver_result'], receipt['solver_result_sha256'])
-    finished = consume_robust_solver_result(pending, manifest_bytes=manifest_bytes,
-        expected_manifest_sha256=request['manifest_sha256'], protocol_bytes=protocol_bytes,
-        protocol_sha256=request['protocol_sha256'], result=json.loads(result_bytes))
+    if receipt.get('schema') == 'robust_feedback_receipt_v1':
+        result_bytes = _decode(receipt['solver_result'], receipt['solver_result_sha256'])
+        finished = consume_robust_solver_result(pending, manifest_bytes=manifest_bytes,
+            expected_manifest_sha256=request['manifest_sha256'], protocol_bytes=protocol_bytes,
+            protocol_sha256=request['protocol_sha256'], result=json.loads(result_bytes))
+    elif receipt.get('schema') == 'robust_feedback_failure_v1':
+        accounting = _decode(receipt['accounting'], receipt['accounting_sha256'])
+        finished = _failed_attempt(pending, accounting, receipt['cluster'], receipt['job'], receipt['allocated_gpus'])
+    else:
+        raise ValueError('unknown receipt schema')
     if _serialize(asdict(finished)) != _serialize(receipt['completed_state']):
         raise ValueError('receipt decision does not match solver evidence')
     return finished, 'completed'
