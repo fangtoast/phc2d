@@ -37,6 +37,15 @@ def test_identity_and_single_phase_are_stable():
             np.testing.assert_array_equal(periodic_binary_offset(g, offset=offset), g)
 
 
+def test_subpixel_offsets_are_noops_not_resolved_perturbations():
+    grid = np.zeros((8, 8), dtype=np.uint8)
+    grid[2:6, 2:6] = 1
+    for offset in (-0.99 / 8, 0.99 / 8):
+        np.testing.assert_array_equal(periodic_binary_offset(grid, offset=offset), grid)
+    assert not np.array_equal(periodic_binary_offset(grid, offset=1 / 8), grid)
+    assert not np.array_equal(periodic_binary_offset(grid, offset=-1 / 8), grid)
+
+
 @pytest.mark.parametrize('grid,offset', [(np.ones((2, 3)), 0), (np.full((2, 2), .5), 0),
                                         (np.zeros((2, 2)), float('nan'))])
 def test_invalid_inputs_fail_closed(grid, offset):

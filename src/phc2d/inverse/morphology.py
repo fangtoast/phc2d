@@ -18,7 +18,9 @@ def periodic_binary_offset(grid: Any, *, offset: float) -> np.ndarray:
     Positive offsets dilate material, negative offsets erode it; units are
     fractions of the lattice constant. This is a grid approximation, with a
     resolution-dependent boundary error; it is not an analytic geometric offset.
-    The returned bool array retains the input resolution.
+    The returned bool array retains the input resolution. On an N-by-N grid,
+    nonzero offsets smaller than 1/N leave the raster unchanged; they must not
+    be interpreted as resolved subpixel manufacturing perturbations.
     """
     from scipy.ndimage import distance_transform_edt
 
