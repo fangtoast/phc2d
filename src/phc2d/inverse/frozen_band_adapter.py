@@ -73,9 +73,11 @@ class FrozenBandAdapter:
         self.model_name = self.spec.name
         self.checkpoint_sha256 = digest.hexdigest()
         self.k_points_sha256 = payload.get("k_points_sha256")
+        self.selection_split = payload.get("selection_split")
+        self.validation_bands_2_10_mre_pct = payload.get("validation_bands_2_10_mre_pct")
 
-    def predict_tensor(self, inputs: Any) -> Any:
-        """Predict frequencies while preserving gradients with respect to inputs."""
+    def predict_normalized_tensor(self, inputs: Any) -> Any:
+        """Predict normalized checkpoint outputs and preserve input gradients."""
         torch = self.torch
         x = inputs.to(device=self.device, dtype=torch.float32)
         if tuple(x.shape[1:]) != self.input_shape or x.shape[0] == 0:
@@ -88,5 +90,8 @@ class FrozenBandAdapter:
         if self.spec.accepts_lane_id:
             kwargs["lane_id"] = torch.full((x.shape[0],), int(self.lane_index),
                                            dtype=torch.long, device=self.device)
-        prediction = self.model(x, **kwargs).reshape(x.shape[0], *self.output_shape)
-        return prediction * self.std + self.mean
+        return self.model(x, **kwargs).reshape(x.shape[0], *self.output_shape)
+
+    def predict_tensor(self, inputs: Any) -> Any:
+        """Predict frequencies while preserving gradients with respect to inputs."""
+        return self.predict_normalized_tensor(inputs) * self.std + self.mean
