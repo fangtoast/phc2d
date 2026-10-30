@@ -86,3 +86,68 @@ def summarize_paired_gains(groups: Sequence[Mapping[str, Any]], *, seed: int,
             'bootstrap_95_low': float(lo), 'bootstrap_95_high': float(hi),
             'resampling_unit': 'source', 'bootstrap_samples': int(bootstrap_samples), 'seed': int(seed),
             'status': 'descriptive_only'}
+
+
+def summarize_stratified_paired_gains(
+    groups: Sequence[Mapping[str, Any]], *, source_strata: Mapping[int, str],
+    expected_counts: Mapping[str, int], stratum_weights: Mapping[str, float],
+    seed: int, bootstrap_samples: int = 10000,
+) -> dict[str, Any]:
+    """Bootstrap paired gains within frozen strata using explicit weights.
+
+    Every expected source must be present exactly once. The caller must freeze
+    the source roster, strata, counts and weights before reading results and
+    independently validate candidate identities and numerical gates. This
+    summary does not infer population weights, handle missing observations,
+    or establish statistical significance or physical acceptance.
+    """
+    if (not isinstance(source_strata, Mapping) or not isinstance(expected_counts, Mapping)
+            or not isinstance(stratum_weights, Mapping) or not expected_counts
+            or set(expected_counts) != set(stratum_weights)
+            or any(not isinstance(k, str) or not k for k in expected_counts)
+            or any(isinstance(v, bool) or not isinstance(v, int) or v < 2 for v in expected_counts.values())
+            or isinstance(seed, bool) or not isinstance(seed, int) or seed < 0
+            or isinstance(bootstrap_samples, bool) or not isinstance(bootstrap_samples, int) or bootstrap_samples < 1):
+        raise ValueError('valid strata, expected counts and bootstrap settings are required')
+    try:
+        weights = {key: float(stratum_weights[key]) for key in expected_counts}
+    except (TypeError, ValueError) as exc:
+        raise ValueError('invalid stratum weights') from exc
+    if (any(isinstance(stratum_weights[key], bool) for key in weights)
+            or not all(np.isfinite(value) and value > 0 for value in weights.values())
+            or not np.isclose(sum(weights.values()), 1.0, rtol=0, atol=1e-12)):
+        raise ValueError('stratum weights must be positive and sum to one')
+    if (not all(isinstance(k, int) and not isinstance(k, bool) and isinstance(v, str)
+                for k, v in source_strata.items()) or set(source_strata.values()) != set(expected_counts)):
+        raise ValueError('source strata must match frozen strata')
+    values: dict[str, list[float]] = {key: [] for key in expected_counts}
+    seen: set[int] = set()
+    for row in groups:
+        source = row.get('source_index')
+        if isinstance(source, bool) or not isinstance(source, int) or source in seen or source not in source_strata:
+            raise ValueError('group source identities must be unique and frozen')
+        try:
+            difference = float(row['selected_gain']) - float(row['random_expected_gain'])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError('invalid paired gain') from exc
+        if not np.isfinite(difference):
+            raise ValueError('paired gains must be finite')
+        seen.add(source)
+        values[source_strata[source]].append(difference)
+    if seen != set(source_strata) or any(len(values[key]) != expected_counts[key] for key in expected_counts):
+        raise ValueError('observed groups do not match the frozen stratum counts')
+    rng = np.random.default_rng(seed)
+    samples = np.zeros(bootstrap_samples, dtype=np.float64)
+    means: dict[str, float] = {}
+    for key in sorted(values):
+        data = np.asarray(values[key], dtype=np.float64)
+        means[key] = float(data.mean())
+        indices = rng.integers(0, len(data), size=(bootstrap_samples, len(data)))
+        samples += weights[key] * data[indices].mean(axis=1)
+    lo, hi = np.quantile(samples, [.025, .975])
+    return {'source_count': len(seen), 'stratum_counts': dict(expected_counts),
+            'stratum_weights': weights, 'stratum_means': means,
+            'selected_minus_random_mean': float(sum(weights[key] * means[key] for key in weights)),
+            'bootstrap_95_low': float(lo), 'bootstrap_95_high': float(hi),
+            'resampling_unit': 'source_within_stratum', 'bootstrap_samples': bootstrap_samples,
+            'seed': seed, 'status': 'descriptive_only'}
