@@ -57,7 +57,10 @@ def test_ambiguous_submission_requires_confirmed_nonexecution_and_no_future_exec
 
 
 def test_failure_is_counted_once_and_must_match_exact_scheduler_record():
-    state = confirm_submission(prepared(), job_id='10_0', confirmation_source='scheduler')
+    with pytest.raises(ValueError):
+        confirm_submission(prepared(), job_id='10_0', confirmation_source='scheduler')
+    state = mark_submission_unknown(prepared(), reason='persisted before submit')
+    state = confirm_submission(state, job_id='10_0', confirmation_source='scheduler')
     with pytest.raises(ValueError):
         confirm_submission(state, job_id='10_0', confirmation_source='scheduler')
     state = restored(record_terminal_failure(state, failure='OUT_OF_MEMORY', reason='scheduler OOM'))
@@ -79,7 +82,8 @@ def test_result_path_and_budget_overrun_block_followup(monkeypatch):
         assert kwargs['result'] == {'example': 1}
         return finish_feedback(feedback, observation=observation('b', .35, .65))
     monkeypatch.setattr(feedback_dispatch, 'consume_robust_solver_result', consume)
-    state = confirm_submission(prepared(limit=20), job_id='10', confirmation_source='scheduler')
+    state = mark_submission_unknown(prepared(limit=20), reason='persisted before submit')
+    state = confirm_submission(state, job_id='10', confirmation_source='scheduler')
     state = record_robust_result(state, manifest_bytes=b'{}', manifest_sha256='x',
                                  protocol_bytes=b'{}', protocol_sha256='y', result_bytes=b'{"example": 1}')
     assert restored(state) == state and state.feedback.incumbent_hash == 'b'

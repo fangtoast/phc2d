@@ -44,7 +44,8 @@ class FeedbackDispatchState:
 
     This does not invoke Slurm, lock files, or verify prior journal chains.
     A single controller must validate the initial incumbent and existing
-    journals and must reconcile ambiguous submissions rather than resend them.
+    journals. Persist submission_unknown before calling the scheduler and
+    reconcile ambiguous submissions rather than resend them.
     """
 
     feedback: FeedbackState
@@ -112,7 +113,7 @@ def begin_dispatch(state: FeedbackDispatchState, *, proposal: Mapping[str, Any],
 
 
 def mark_submission_unknown(state: FeedbackDispatchState, *, reason: str) -> FeedbackDispatchState:
-    """Persist an ambiguous scheduler response; it must not be resubmitted."""
+    """Persist before calling the scheduler; reconcile rather than resubmit."""
     item = state.dispatch
     if item is None or item.phase != 'prepared' or not isinstance(reason, str) or not reason.strip():
         raise ValueError('prepared dispatch and ambiguity reason required')
@@ -123,7 +124,7 @@ def confirm_submission(state: FeedbackDispatchState, *, job_id: str,
                        confirmation_source: str) -> FeedbackDispatchState:
     """Record a scheduler ID only after an external submission is confirmed."""
     item = state.dispatch
-    if item is None or item.phase not in {'prepared', 'submission_unknown'}:
+    if item is None or item.phase != 'submission_unknown':
         raise ValueError('dispatch is not awaiting submission confirmation')
     if not isinstance(confirmation_source, str) or not confirmation_source.strip():
         raise ValueError('submission confirmation source required')
