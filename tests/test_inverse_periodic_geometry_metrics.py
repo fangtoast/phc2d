@@ -39,6 +39,15 @@ def test_periodic_translation_preserves_all_geometry_metrics():
     assert expected == actual
 
 
+def test_void_pore_crossing_periodic_boundary_is_one_component():
+    grid = np.ones((16, 16), dtype=np.uint8)
+    grid[:2, 6:10] = 0
+    grid[-2:, 6:10] = 0
+    metrics = periodic_binary_geometry_metrics(grid, opening_radius_pixels=1)
+    assert metrics['void']['component_count'] == 1
+    assert metrics['void']['component_areas_over_lattice_squared'] == pytest.approx([16/256])
+
+
 def test_empty_phase_and_invalid_raster_are_explicit():
     metrics = periodic_binary_geometry_metrics(np.ones((12, 12)), opening_radius_pixels=1)
     assert metrics['void']['component_count'] == 0
