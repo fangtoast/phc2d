@@ -19,7 +19,7 @@ from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
 from phc2d.inverse.feedback_handoff import build_robust_solver_manifest
 from phc2d.inverse.feedback_journal import (create_robust_round, read_robust_round,
                                             reconcile_failed_robust_round, reconcile_robust_round,
-                                            verify_robust_journal_chain)
+                                            verify_dispatch_round, verify_robust_journal_chain)
 from phc2d.inverse.feedback_state import propose_feedback, start_feedback
 from phc2d.inverse.fourier_design import update_fourier_binary
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
@@ -116,6 +116,31 @@ def test_incomplete_receipt_fails_closed_instead_of_repeating_attempt(tmp_path):
         reconcile_robust_round(journal, solver_result_bytes=raw)
 
 
+def test_success_receipt_ahead_of_dispatch_requires_reconciliation(tmp_path):
+    from dataclasses import asdict
+    from phc2d.inverse.feedback_dispatch import (FeedbackDispatchState, begin_dispatch,
+        mark_submission_unknown, confirm_submission, record_robust_result)
+    from phc2d.inverse.resource_ledger import ResourceAmount, ResourceLedger
+    pending, manifest, protocol, raw, _ = setup_attempt(tmp_path)
+    journal = create_robust_round(tmp_path / 'round', pending=pending,
+                                  manifest_bytes=manifest, protocol_bytes=protocol)
+    state = begin_dispatch(FeedbackDispatchState(replace(pending, pending=None),
+        ResourceLedger(ResourceAmount(100, 0))), proposal=asdict(pending.pending),
+        task_id='attempt', cluster_id='m9', reservation=ResourceAmount(40, 0))
+    assert verify_dispatch_round(state, journal) == 'in_sync'
+    state = mark_submission_unknown(state, reason='persisted before submit')
+    state = confirm_submission(state, job_id='10', confirmation_source='scheduler')
+    reconcile_robust_round(journal, solver_result_bytes=raw)
+    assert verify_dispatch_round(state, journal) == 'receipt_ahead'
+    state = record_robust_result(state, manifest_bytes=manifest,
+        manifest_sha256=hashlib.sha256(manifest).hexdigest(), protocol_bytes=protocol,
+        protocol_sha256=hashlib.sha256(protocol).hexdigest(), result_bytes=raw)
+    assert verify_dispatch_round(state, journal) == 'in_sync'
+    altered = replace(state, dispatch=replace(state.dispatch, result_sha256='0' * 64))
+    with pytest.raises(ValueError, match='solver receipt differ'):
+        verify_dispatch_round(altered, journal)
+
+
 def test_terminal_failure_is_replayable_and_cannot_be_replaced(tmp_path):
     from dataclasses import asdict
     from phc2d.inverse.feedback_dispatch import (FeedbackDispatchState, begin_dispatch,
@@ -141,8 +166,10 @@ def test_terminal_failure_is_replayable_and_cannot_be_replaced(tmp_path):
         proposal=asdict(pending.pending), task_id='attempt', cluster_id='m9', reservation=ResourceAmount(40, 0))
     dispatch = mark_submission_unknown(dispatch, reason='persisted before submit')
     dispatch = confirm_submission(dispatch, job_id='10_0', confirmation_source='scheduler')
+    assert verify_dispatch_round(dispatch, journal) == 'receipt_ahead'
     dispatch = record_terminal_failure(dispatch, failure='OUT_OF_MEMORY')
     assert dispatch.feedback == final
+    assert verify_dispatch_round(dispatch, journal) == 'in_sync'
     settled = settle_dispatch(dispatch, accounting_bytes=accounting, allocated_gpus=0)
     assert settled.ledger.totals()['actual'] == ResourceAmount(30, 0)
     with pytest.raises(ValueError, match='conflicting'):

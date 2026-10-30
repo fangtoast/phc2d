@@ -185,6 +185,50 @@ def read_robust_round(directory: str | Path) -> tuple[FeedbackState, str]:
     return finished, 'completed'
 
 
+def verify_dispatch_round(dispatch_state: Any, directory: str | Path) -> str:
+    """Compare a persisted dispatch with a replayed journal without sending jobs.
+
+    ``receipt_ahead`` means a receipt was saved before the dispatch snapshot;
+    the caller must reconcile the existing receipt, not repeat the attempt.
+    The caller remains responsible for scheduler identity, single-writer
+    ownership, validating the initial incumbent, and durable state storage.
+    """
+    from phc2d.inverse.feedback_dispatch import FeedbackDispatchState
+
+    if not isinstance(dispatch_state, FeedbackDispatchState) or dispatch_state.dispatch is None:
+        raise ValueError('active dispatch required')
+    item = dispatch_state.dispatch
+    target = Path(directory)
+    request, _ = _load_request(target)
+    pending, _, _ = _validate_request(request)
+    if pending.pending.parameter_hash != item.candidate_hash:
+        raise ValueError('dispatch and journal candidate differ')
+    replayed, status = read_robust_round(target)
+    if item.phase != 'awaiting_accounting':
+        if pending != dispatch_state.feedback:
+            raise ValueError('dispatch and journal pending states differ')
+        if status == 'completed':
+            if item.phase != 'submitted':
+                raise ValueError('receipt exists without a confirmed job')
+            receipt = json.loads((target / 'receipt.json').read_bytes())
+            if (receipt.get('schema') == 'robust_feedback_failure_v1'
+                    and (receipt.get('cluster') != item.cluster_id or receipt.get('job') != item.job_id)):
+                raise ValueError('dispatch and scheduler failure receipt differ')
+            return 'receipt_ahead'
+        return 'in_sync'
+    if status != 'completed' or replayed != dispatch_state.feedback:
+        raise ValueError('dispatch and journal completed states differ')
+    receipt = json.loads((target / 'receipt.json').read_bytes())
+    if item.result_sha256 is not None:
+        if receipt.get('schema') != 'robust_feedback_receipt_v1' or receipt.get('solver_result_sha256') != item.result_sha256:
+            raise ValueError('dispatch and solver receipt differ')
+    elif (receipt.get('schema') != 'robust_feedback_failure_v1'
+          or receipt.get('cluster') != item.cluster_id or receipt.get('job') != item.job_id
+          or replayed.history[-1]['reason'] != f'slurm:{item.cluster_id}:{item.job_id}:{item.terminal_failure}'):
+        raise ValueError('dispatch and scheduler failure receipt differ')
+    return 'in_sync'
+
+
 def verify_robust_journal_chain(initial: FeedbackState,
                                 directories: list[str | Path]) -> tuple[FeedbackState, str]:
     """Replay consecutive rounds from one caller-validated initial incumbent.
