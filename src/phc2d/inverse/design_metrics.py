@@ -49,13 +49,35 @@ def _verified_margin(evidence: Mapping[str, Any], *, target: float) -> tuple[flo
     return 2.0 * min(target - lower, upper - target) / target, upper - lower
 
 
+def _joint_margin(nominal: Mapping[str, Any], unseen: Mapping[str, Any], *,
+                  target: float) -> tuple[float, float] | None:
+    """Intersect verified evidence only when both identify the same base design."""
+    if _verified_margin(nominal, target=target) is None or _verified_margin(unseen, target=target) is None:
+        return None
+    identities = (nominal.get('design_sha256'), unseen.get('design_sha256'))
+    if any(value is not None and (not isinstance(value, str) or not _SHA256.fullmatch(value))
+           for value in identities):
+        raise ValueError('invalid base design identity')
+    if any(value is None for value in identities):
+        return None
+    if identities[0] != identities[1]:
+        raise ValueError('nominal and unseen evidence refer to different base designs')
+    lower = max(float(nominal['lower_edge']), float(unseen['lower_edge']))
+    upper = min(float(nominal['upper_edge']), float(unseen['upper_edge']))
+    return 2.0 * min(target - lower, upper - target) / target, upper - lower
+
+
 def summarize_design_outcomes(expected: Sequence[Mapping[str, Any]],
                               observations: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     """Summarize one method over an explicitly frozen target/seed roster.
 
-    The caller must first validate the underlying solver artifacts and unseen
-    perturbation identity. Evidence is for the provided finite k/offset sets;
+    The caller must first validate the underlying solver artifacts, unseen
+    perturbation identity, band pair and frequency units. Evidence is for the provided finite k/offset sets;
     this function never certifies continuous BZ or manufacturing yield.
+    Joint nominal/unseen evidence requires matching ``design_sha256`` base
+    identities; its common interval is the intersection of both intervals.
+    When either identity is missing, joint success is unverified and counts as
+    unsuccessful in all-roster rates; ``both_identity_unavailable`` records it.
     Missing records count as unsuccessful in all-roster rates while remaining
     distinct in coverage; if an evaluation type was never attempted, its
     all-roster rate is undefined. A false-positive denominator includes only predicted
@@ -91,13 +113,15 @@ def summarize_design_outcomes(expected: Sequence[Mapping[str, Any]],
 
     counts = {'expected': len(roster), 'observed': len(indexed), 'missing': len(roster) - len(indexed),
               'nominal_verified': 0, 'nominal_success': 0, 'unseen_verified': 0,
-              'unseen_success': 0, 'both_success': 0, 'predicted_positive': 0,
+              'unseen_success': 0, 'both_verified': 0, 'both_identity_unavailable': 0,
+              'both_success': 0, 'predicted_positive': 0,
               'predictions_available': 0,
               'predicted_positive_verified': 0, 'predicted_positive_unverified': 0,
               'false_positive': 0}
     nominal_states = {key: 0 for key in _STATES}
     unseen_states = {key: 0 for key in _STATES}
     widths: list[float] = []
+    joint_widths: list[float] = []
     checkpoint_by_seed: dict[int, str] = {}
     for identity, row in indexed.items():
         frequency = roster[identity]
@@ -110,11 +134,18 @@ def summarize_design_outcomes(expected: Sequence[Mapping[str, Any]],
         unseen_states[unseen['status']] += 1
         nominal_success = nominal_result is not None and nominal_result[0] > 0
         unseen_success = unseen_result is not None and unseen_result[0] > 0
+        joint_result = _joint_margin(nominal, unseen, target=frequency)
+        counts['both_verified'] += int(joint_result is not None)
+        counts['both_identity_unavailable'] += int(nominal_result is not None and unseen_result is not None
+                                                   and joint_result is None)
         counts['nominal_verified'] += int(nominal_result is not None)
         counts['unseen_verified'] += int(unseen_result is not None)
         counts['nominal_success'] += int(nominal_success)
         counts['unseen_success'] += int(unseen_success)
-        counts['both_success'] += int(nominal_success and unseen_success)
+        joint_success = joint_result is not None and joint_result[0] > 0
+        counts['both_success'] += int(joint_success)
+        if joint_success:
+            joint_widths.append(joint_result[1])
         if nominal_success:
             widths.append(nominal_result[1])
         prediction = row.get('prediction')
@@ -157,7 +188,8 @@ def summarize_design_outcomes(expected: Sequence[Mapping[str, Any]],
             'unseen_success_rate_verified': ratio(counts['unseen_success'], counts['unseen_verified']),
             'both_success_rate_all': ratio(counts['both_success'], counts['expected']) if nominal_attempted and unseen_attempted else None,
             'false_positive_rate_verified_predictions': ratio(counts['false_positive'], counts['predicted_positive_verified']),
-            'mean_successful_nominal_common_width': sum(widths) / len(widths) if widths else None}
+            'mean_successful_nominal_common_width': sum(widths) / len(widths) if widths else None,
+            'mean_successful_joint_common_width': sum(joint_widths) / len(joint_widths) if joint_widths else None}
 
 
 def compare_paired_success(expected: Sequence[Mapping[str, Any]], *,
@@ -217,8 +249,8 @@ def compare_paired_success(expected: Sequence[Mapping[str, Any]], *,
             return nominal is not None and nominal[0] > 0, nominal is not None
         if metric == 'unseen':
             return unseen is not None and unseen[0] > 0, unseen is not None
-        return (nominal is not None and nominal[0] > 0 and unseen is not None and unseen[0] > 0,
-                nominal is not None and unseen is not None)
+        joint = _joint_margin(row['nominal'], row['unseen'], target=frequency)
+        return joint is not None and joint[0] > 0, joint is not None
 
     grouped: dict[str, list[float]] = {}
     verified_grouped: dict[str, list[float]] = {}

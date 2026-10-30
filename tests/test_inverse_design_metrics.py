@@ -53,10 +53,47 @@ def test_no_verified_or_predicted_positive_has_undefined_conditional_rates():
     assert result['both_success_rate_all'] is None
     assert result['false_positive_rate_verified_predictions'] is None
     assert result['mean_successful_nominal_common_width'] is None
+    assert result['mean_successful_joint_common_width'] is None
     records[0]['nominal'] = {'status': 'failed', 'reason': 'solver failed'}
     attempted = summarize_design_outcomes(planned('a'), records)
     assert attempted['nominal_success_rate_all'] == 0.
     assert attempted['nominal_success_rate_verified'] is None
+
+
+def test_joint_bandwidth_intersects_only_the_same_verified_base_design():
+    nominal = {**verified(.7, 1.1), 'design_sha256': 'c' * 64}
+    unseen = {**verified(.95, 1.3), 'design_sha256': 'c' * 64}
+    row = {'target_id': 'a', 'seed': 0, 'target_frequency': 1., 'nominal': nominal, 'unseen': unseen}
+    result = summarize_design_outcomes(planned('a'), [row])
+    assert result['counts']['both_verified'] == 1
+    assert result['counts']['both_success'] == 1
+    assert result['mean_successful_nominal_common_width'] == pytest.approx(.4)
+    assert result['mean_successful_joint_common_width'] == pytest.approx(.15)
+    missing = {**row, 'unseen': verified(.95, 1.3)}
+    result = summarize_design_outcomes(planned('a'), [missing])
+    assert result['counts']['both_identity_unavailable'] == 1
+    assert result['counts']['both_verified'] == 0 and result['counts']['both_success'] == 0
+    assert result['mean_successful_joint_common_width'] is None
+    different = {**row, 'unseen': {**unseen, 'design_sha256': 'd' * 64}}
+    with pytest.raises(ValueError, match='different base designs'):
+        summarize_design_outcomes(planned('a'), [different])
+    malformed = {**row, 'unseen': {**unseen, 'design_sha256': 'bad'}}
+    with pytest.raises(ValueError, match='invalid base design identity'):
+        summarize_design_outcomes(planned('a'), [malformed])
+
+
+def test_paired_joint_metric_excludes_unidentified_or_unverified_intersections():
+    nominal = {**verified(.7, 1.1), 'design_sha256': 'c' * 64}
+    unseen = {**verified(.95, 1.3), 'design_sha256': 'c' * 64}
+    known = {'target_id': 'a', 'seed': 0, 'target_frequency': 1., 'nominal': nominal, 'unseen': unseen}
+    unknown = {**known, 'unseen': verified(.95, 1.3)}
+    caps = {'cpu_core_seconds': 10, 'gpu_seconds': 0}
+    result = compare_paired_success(planned('a'), left=[known], right=[unknown],
+                                    left_budget=caps, right_budget=caps, metric='both',
+                                    bootstrap_seed=2, bootstrap_samples=10)
+    assert result['all_roster']['mean_difference'] == 1.
+    assert result['verified_pairs_conditional']['pair_count'] == 0
+    assert result['right']['counts']['both_identity_unavailable'] == 1
 
 
 def test_forged_verified_evidence_duplicate_or_unknown_roster_fails():
