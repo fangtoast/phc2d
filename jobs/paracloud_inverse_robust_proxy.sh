@@ -13,6 +13,11 @@ set -euo pipefail
 : "${PHC2D_CHECKPOINT_SHA256:?Set checkpoint digest}"
 : "${PHC2D_EXPECTED_COMMIT:?Set deployed commit}"
 : "${PHC2D_OUTPUT:?Set unique output file}"
+if ! type module >/dev/null 2>&1 && [[ -r /etc/profile.d/modules.sh ]]; then
+  set +u
+  source /etc/profile.d/modules.sh
+  set -u
+fi
 source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"
 [[ "$PHC2D_DEPLOYED_GIT_COMMIT" == "$PHC2D_EXPECTED_COMMIT" ]] || { echo 'deployment mismatch' >&2; exit 2; }
 python -m phc2d.inverse.audit_robust_proxy --manifest "$PHC2D_MANIFEST" \
