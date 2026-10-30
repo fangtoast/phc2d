@@ -206,7 +206,9 @@ def test_terminal_failure_is_replayable_and_cannot_be_replaced(tmp_path):
         read_robust_round(journal)
 
 
-def test_two_rounds_resume_without_reusing_candidate_or_budget(tmp_path):
+def test_two_rounds_resume_without_reusing_candidate_or_budget(tmp_path, capsys):
+    from dataclasses import asdict
+    from phc2d.cli.main import main
     pending, manifest, protocol, raw, solver = setup_attempt(tmp_path)
     initial = replace(pending, pending=None)
     first = create_robust_round(tmp_path / 'round1', pending=pending,
@@ -251,3 +253,15 @@ def test_two_rounds_resume_without_reusing_candidate_or_budget(tmp_path):
     assert final.remaining_evaluations == 0 and len(final.history) == 2 and final.pending is None
     verified, status = verify_robust_journal_chain(initial, [first, round2])
     assert status == 'budget_exhausted' and verified == final
+    initial_file = tmp_path / 'initial.json'
+    initial_file.write_text(json.dumps(asdict(initial)), encoding='utf8')
+    main(['inverse', 'feedback-inspect', '--initial-state', str(initial_file),
+          '--round', str(first), '--round', str(round2)])
+    summary = json.loads(capsys.readouterr().out)
+    assert summary['status'] == 'budget_exhausted' and summary['remaining_evaluations'] == 0
+    assert summary['evidence_scope'] == 'ordered_chain_replay_initial_incumbent_not_independently_verified'
+    with pytest.raises(ValueError, match='previous verified state'):
+        main(['inverse', 'feedback-inspect', '--initial-state', str(initial_file),
+              '--round', str(round2), '--round', str(first)])
+    with pytest.raises(SystemExit, match='requires --initial-state'):
+        main(['inverse', 'feedback-inspect', '--directory', str(first), '--round', str(round2)])

@@ -258,14 +258,24 @@ def verify_robust_journal_chain(initial: FeedbackState,
     return current, 'budget_exhausted' if current.remaining_evaluations == 0 else 'ready'
 
 
-def summarize_robust_round(directory: str | Path) -> dict[str, Any]:
-    """Read and recompute one round without certifying its incoming incumbent."""
-    state, status = read_robust_round(directory)
+def _status_summary(state: FeedbackState, status: str, scope: str) -> dict[str, Any]:
     return {'status': status, 'incumbent_hash': state.incumbent_hash,
             'remaining_evaluations': state.remaining_evaluations,
             'pending_hash': state.pending.parameter_hash if state.pending else None,
             'last_decision': state.history[-1] if state.history else None,
-            'evidence_scope': 'single_round_replay_initial_incumbent_not_independently_verified'}
+            'evidence_scope': scope}
+
+
+def summarize_robust_round(directory: str | Path) -> dict[str, Any]:
+    """Read and recompute one round without certifying its incoming incumbent."""
+    state, status = read_robust_round(directory)
+    return _status_summary(state, status, 'single_round_replay_initial_incumbent_not_independently_verified')
+
+
+def summarize_robust_chain(initial: FeedbackState, directories: list[str | Path]) -> dict[str, Any]:
+    """Replay an ordered chain; caller separately verifies the initial anchor."""
+    state, status = verify_robust_journal_chain(initial, directories)
+    return _status_summary(state, status, 'ordered_chain_replay_initial_incumbent_not_independently_verified')
 
 
 def main() -> None:
