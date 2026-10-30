@@ -22,11 +22,11 @@ def planned(*targets):
 def test_missing_and_unresolved_do_not_inflate_success_or_false_positive():
     positive = {'checkpoint_sha256': 'b' * 64, 'target_margin': .1}
     records = [
-        {'target_id': 'a', 'seed': 0, 'nominal': verified(.8, 1.2), 'unseen': verified(.9, 1.1),
+        {'target_id': 'a', 'seed': 0, 'target_frequency': 1., 'nominal': verified(.8, 1.2), 'unseen': verified(.9, 1.1),
          'prediction': positive},
-        {'target_id': 'b', 'seed': 0, 'nominal': verified(1.1, .9),
+        {'target_id': 'b', 'seed': 0, 'target_frequency': 1., 'nominal': verified(1.1, .9),
          'unseen': {'status': 'failed', 'reason': 'solver failed'}, 'prediction': positive},
-        {'target_id': 'c', 'seed': 0, 'nominal': {'status': 'unresolved', 'reason': 'resolution'},
+        {'target_id': 'c', 'seed': 0, 'target_frequency': 1., 'nominal': {'status': 'unresolved', 'reason': 'resolution'},
          'unseen': {'status': 'not_run'}, 'prediction': positive},
     ]
     result = summarize_design_outcomes(planned('a', 'b', 'c', 'd'), records)
@@ -42,7 +42,7 @@ def test_missing_and_unresolved_do_not_inflate_success_or_false_positive():
 
 
 def test_no_verified_or_predicted_positive_has_undefined_conditional_rates():
-    records = [{'target_id': 'a', 'seed': 0, 'nominal': {'status': 'not_run'},
+    records = [{'target_id': 'a', 'seed': 0, 'target_frequency': 1., 'nominal': {'status': 'not_run'},
                 'unseen': {'status': 'not_run'}}]
     result = summarize_design_outcomes(planned('a'), records)
     assert result['nominal_success_rate_all'] is None
@@ -58,7 +58,7 @@ def test_no_verified_or_predicted_positive_has_undefined_conditional_rates():
 
 
 def test_forged_verified_evidence_duplicate_or_unknown_roster_fails():
-    record = {'target_id': 'a', 'seed': 0, 'nominal': verified(.8, 1.2), 'unseen': {'status': 'not_run'}}
+    record = {'target_id': 'a', 'seed': 0, 'target_frequency': 1., 'nominal': verified(.8, 1.2), 'unseen': {'status': 'not_run'}}
     with pytest.raises(ValueError, match='duplicate'):
         summarize_design_outcomes(planned('a'), [record, record])
     with pytest.raises(ValueError, match='unexpected'):
@@ -78,11 +78,24 @@ def test_same_target_cannot_silently_change_frequency_across_seeds():
         summarize_design_outcomes(roster, [])
 
 
+def test_observation_frequency_and_checkpoint_are_stable_within_seed():
+    first = {'target_id': 'a', 'seed': 0, 'target_frequency': 1., 'nominal': verified(.8, 1.2),
+             'unseen': {'status': 'not_run'}, 'prediction': {'checkpoint_sha256': 'a' * 64, 'target_margin': .1}}
+    second = {'target_id': 'b', 'seed': 0, 'target_frequency': 1., 'nominal': verified(.8, 1.2),
+              'unseen': {'status': 'not_run'}, 'prediction': {'checkpoint_sha256': 'b' * 64, 'target_margin': .1}}
+    with pytest.raises(ValueError, match='checkpoint identity differs'):
+        summarize_design_outcomes(planned('a', 'b'), [first, second])
+    second['prediction']['checkpoint_sha256'] = 'a' * 64
+    second['target_frequency'] = 1.1
+    with pytest.raises(ValueError, match='frequency differs'):
+        summarize_design_outcomes(planned('a', 'b'), [first, second])
+
+
 def test_paired_comparison_resamples_targets_not_correlated_seeds():
     roster = [{'target_id': target, 'seed': seed, 'target_frequency': 1.}
               for target in ('a', 'b') for seed in (0, 1)]
     def result(target, seed, success):
-        return {'target_id': target, 'seed': seed,
+        return {'target_id': target, 'seed': seed, 'target_frequency': 1.,
                 'nominal': verified(.8, 1.2) if success else verified(1.1, .9),
                 'unseen': {'status': 'not_run'}}
     left = [result('a', 0, True), result('a', 1, True), result('b', 0, True), result('b', 1, False)]
@@ -106,7 +119,7 @@ def test_paired_comparison_resamples_targets_not_correlated_seeds():
 
 def test_missing_pairs_and_unattempted_unseen_are_explicit():
     roster = planned('a', 'b')
-    one = {'target_id': 'a', 'seed': 0, 'nominal': verified(.8, 1.2), 'unseen': {'status': 'not_run'}}
+    one = {'target_id': 'a', 'seed': 0, 'target_frequency': 1., 'nominal': verified(.8, 1.2), 'unseen': {'status': 'not_run'}}
     caps = {'cpu_core_seconds': 10, 'gpu_seconds': 0}
     result = compare_paired_success(roster, left=[one], right=[one], left_budget=caps, right_budget=caps,
                                     metric='nominal', bootstrap_seed=1, bootstrap_samples=10)

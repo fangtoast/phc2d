@@ -84,6 +84,9 @@ def summarize_design_outcomes(expected: Sequence[Mapping[str, Any]],
         identity = _key(row)
         if identity not in roster or identity in indexed:
             raise ValueError('unexpected or duplicate target/seed observation')
+        frequency = row.get('target_frequency')
+        if isinstance(frequency, bool) or not isinstance(frequency, (int, float)) or frequency != roster[identity]:
+            raise ValueError('observation target frequency differs from roster')
         indexed[identity] = row
 
     counts = {'expected': len(roster), 'observed': len(indexed), 'missing': len(roster) - len(indexed),
@@ -95,6 +98,7 @@ def summarize_design_outcomes(expected: Sequence[Mapping[str, Any]],
     nominal_states = {key: 0 for key in _STATES}
     unseen_states = {key: 0 for key in _STATES}
     widths: list[float] = []
+    checkpoint_by_seed: dict[int, str] = {}
     for identity, row in indexed.items():
         frequency = roster[identity]
         nominal, unseen = row.get('nominal'), row.get('unseen')
@@ -120,6 +124,9 @@ def summarize_design_outcomes(expected: Sequence[Mapping[str, Any]],
             checkpoint = prediction.get('checkpoint_sha256')
             if not isinstance(checkpoint, str) or not _SHA256.fullmatch(checkpoint):
                 raise ValueError('prediction checkpoint identity is required')
+            if identity[1] in checkpoint_by_seed and checkpoint_by_seed[identity[1]] != checkpoint:
+                raise ValueError('checkpoint identity differs within a seed')
+            checkpoint_by_seed[identity[1]] = checkpoint
             try:
                 if isinstance(prediction['target_margin'], bool):
                     raise ValueError('boolean prediction')
