@@ -151,3 +151,94 @@ def summarize_design_outcomes(expected: Sequence[Mapping[str, Any]],
             'both_success_rate_all': ratio(counts['both_success'], counts['expected']) if nominal_attempted and unseen_attempted else None,
             'false_positive_rate_verified_predictions': ratio(counts['false_positive'], counts['predicted_positive_verified']),
             'mean_successful_nominal_common_width': sum(widths) / len(widths) if widths else None}
+
+
+def compare_paired_success(expected: Sequence[Mapping[str, Any]], *,
+                           left: Sequence[Mapping[str, Any]], right: Sequence[Mapping[str, Any]],
+                           left_budget: Mapping[str, float], right_budget: Mapping[str, float],
+                           metric: str, bootstrap_seed: int, bootstrap_samples: int = 10000) -> dict[str, Any]:
+    """Compare paired success under the same declared CPU/GPU resource caps.
+
+    Bootstrap units are target IDs; seeds for one target are averaged first.
+    Missing or failed attempts count as unsuccessful in the all-roster view.
+    The optional verified-pair view is conditional and may be selection biased.
+    The caller must independently verify actual resource use against those caps.
+    This is descriptive unless the target sampling design supports inference.
+    """
+    import numpy as np
+
+    if metric not in {'nominal', 'unseen', 'both'}:
+        raise ValueError('metric must be nominal, unseen, or both')
+    if (isinstance(bootstrap_seed, bool) or not isinstance(bootstrap_seed, int) or bootstrap_seed < 0
+            or isinstance(bootstrap_samples, bool) or not isinstance(bootstrap_samples, int) or bootstrap_samples < 1):
+        raise ValueError('bootstrap seed and sample count are invalid')
+
+    def budget(value: Mapping[str, float]) -> tuple[float, float]:
+        try:
+            if any(isinstance(value[key], bool) for key in ('cpu_core_seconds', 'gpu_seconds')):
+                raise ValueError('boolean budget')
+            values = tuple(float(value[key]) for key in ('cpu_core_seconds', 'gpu_seconds'))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError('CPU and GPU budget caps are required') from exc
+        if not all(math.isfinite(x) and x >= 0 for x in values):
+            raise ValueError('budget caps must be finite and nonnegative')
+        return values
+
+    if budget(left_budget) != budget(right_budget):
+        raise ValueError('paired methods require identical resource caps')
+    left_summary = summarize_design_outcomes(expected, left)
+    right_summary = summarize_design_outcomes(expected, right)
+    seed_sets: dict[str, set[int]] = {}
+    for item in expected:
+        target, seed = _key(item)
+        seed_sets.setdefault(target, set()).add(seed)
+    if len({frozenset(values) for values in seed_sets.values()}) != 1:
+        raise ValueError('each target must have the same frozen seed roster')
+    rate_key = {'nominal': 'nominal_success_rate_all', 'unseen': 'unseen_success_rate_all',
+                'both': 'both_success_rate_all'}[metric]
+    if left_summary[rate_key] is None or right_summary[rate_key] is None:
+        raise ValueError('both methods must have attempted the requested physical evaluation')
+    left_by_key = {_key(row): row for row in left}
+    right_by_key = {_key(row): row for row in right}
+
+    def outcome(row: Mapping[str, Any] | None, frequency: float) -> tuple[bool, bool]:
+        if row is None:
+            return False, False
+        nominal = _verified_margin(row['nominal'], target=frequency)
+        unseen = _verified_margin(row['unseen'], target=frequency)
+        if metric == 'nominal':
+            return nominal is not None and nominal[0] > 0, nominal is not None
+        if metric == 'unseen':
+            return unseen is not None and unseen[0] > 0, unseen is not None
+        return (nominal is not None and nominal[0] > 0 and unseen is not None and unseen[0] > 0,
+                nominal is not None and unseen is not None)
+
+    grouped: dict[str, list[float]] = {}
+    verified_grouped: dict[str, list[float]] = {}
+    for item in expected:
+        identity = _key(item)
+        left_success, left_verified = outcome(left_by_key.get(identity), float(item['target_frequency']))
+        right_success, right_verified = outcome(right_by_key.get(identity), float(item['target_frequency']))
+        difference = float(left_success) - float(right_success)
+        grouped.setdefault(identity[0], []).append(difference)
+        if left_verified and right_verified:
+            verified_grouped.setdefault(identity[0], []).append(difference)
+
+    def describe(groups: Mapping[str, list[float]], *, seed: int) -> dict[str, Any]:
+        values = np.asarray([np.mean(groups[key]) for key in sorted(groups)], dtype=np.float64)
+        if not len(values):
+            return {'target_count': 0, 'pair_count': 0, 'mean_difference': None,
+                    'bootstrap_95_low': None, 'bootstrap_95_high': None}
+        low = high = None
+        if len(values) >= 2:
+            rng = np.random.default_rng(seed)
+            samples = rng.integers(0, len(values), size=(bootstrap_samples, len(values)))
+            low, high = (float(x) for x in np.quantile(values[samples].mean(axis=1), [.025, .975]))
+        return {'target_count': len(values), 'pair_count': sum(len(v) for v in groups.values()),
+                'mean_difference': float(values.mean()), 'bootstrap_95_low': low, 'bootstrap_95_high': high}
+
+    return {'scope': 'paired_descriptive_finite_solver_evidence', 'metric': metric,
+            'resampling_unit': 'target_id', 'bootstrap_seed': bootstrap_seed,
+            'bootstrap_samples': bootstrap_samples, 'left': left_summary, 'right': right_summary,
+            'all_roster': describe(grouped, seed=bootstrap_seed),
+            'verified_pairs_conditional': describe(verified_grouped, seed=bootstrap_seed)}

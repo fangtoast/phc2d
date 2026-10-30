@@ -7,7 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 import pytest
 
-from phc2d.inverse.design_metrics import summarize_design_outcomes
+from phc2d.inverse.design_metrics import compare_paired_success, summarize_design_outcomes
 
 
 def verified(lower, upper):
@@ -76,3 +76,44 @@ def test_same_target_cannot_silently_change_frequency_across_seeds():
               {'target_id': 'a', 'seed': 1, 'target_frequency': 1.1}]
     with pytest.raises(ValueError, match='one frequency'):
         summarize_design_outcomes(roster, [])
+
+
+def test_paired_comparison_resamples_targets_not_correlated_seeds():
+    roster = [{'target_id': target, 'seed': seed, 'target_frequency': 1.}
+              for target in ('a', 'b') for seed in (0, 1)]
+    def result(target, seed, success):
+        return {'target_id': target, 'seed': seed,
+                'nominal': verified(.8, 1.2) if success else verified(1.1, .9),
+                'unseen': {'status': 'not_run'}}
+    left = [result('a', 0, True), result('a', 1, True), result('b', 0, True), result('b', 1, False)]
+    right = [result('a', 0, True), result('a', 1, False), result('b', 0, True), result('b', 1, False)]
+    caps = {'cpu_core_seconds': 100, 'gpu_seconds': 10}
+    comparison = compare_paired_success(roster, left=left, right=right, left_budget=caps, right_budget=caps,
+                                        metric='nominal', bootstrap_seed=7, bootstrap_samples=100)
+    assert comparison['resampling_unit'] == 'target_id'
+    assert comparison['all_roster']['target_count'] == 2
+    assert comparison['all_roster']['pair_count'] == 4
+    assert comparison['all_roster']['mean_difference'] == .25
+    assert comparison['verified_pairs_conditional']['pair_count'] == 4
+    with pytest.raises(ValueError, match='identical resource caps'):
+        compare_paired_success(roster, left=left, right=right, left_budget=caps,
+                               right_budget={'cpu_core_seconds': 101, 'gpu_seconds': 10},
+                               metric='nominal', bootstrap_seed=7)
+    with pytest.raises(ValueError, match='same frozen seed roster'):
+        compare_paired_success(roster[:-1], left=left[:-1], right=right[:-1], left_budget=caps,
+                               right_budget=caps, metric='nominal', bootstrap_seed=7)
+
+
+def test_missing_pairs_and_unattempted_unseen_are_explicit():
+    roster = planned('a', 'b')
+    one = {'target_id': 'a', 'seed': 0, 'nominal': verified(.8, 1.2), 'unseen': {'status': 'not_run'}}
+    caps = {'cpu_core_seconds': 10, 'gpu_seconds': 0}
+    result = compare_paired_success(roster, left=[one], right=[one], left_budget=caps, right_budget=caps,
+                                    metric='nominal', bootstrap_seed=1, bootstrap_samples=10)
+    assert result['left']['counts']['missing'] == 1
+    assert result['all_roster']['pair_count'] == 2
+    assert result['verified_pairs_conditional']['pair_count'] == 1
+    assert result['verified_pairs_conditional']['bootstrap_95_low'] is None
+    with pytest.raises(ValueError, match='attempted'):
+        compare_paired_success(roster, left=[one], right=[one], left_budget=caps, right_budget=caps,
+                               metric='unseen', bootstrap_seed=1)
