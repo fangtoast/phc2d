@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from phc2d.data.full_cell_spec import FullCellStructureSpec
-from phc2d.inverse.audit_ranking import paired_candidate_ranking
+from phc2d.inverse.audit_ranking import paired_candidate_ranking, summarize_stratified_paired_gains
 
 
 def reconcile_refinements(manifest_path: str | Path, records: Sequence[Mapping[str, Any]], *,
@@ -168,3 +168,49 @@ def rank_eligible_refinements(proxy_rows: Sequence[Mapping[str, Any]],
             row.update(status='ranked_descriptive', ranking=ranked[0])
         result.append(row)
     return result
+
+
+def summarize_eligible_stratified(
+    groups: Sequence[Mapping[str, Any]], *, source_strata: Mapping[int, str],
+    expected_counts: Mapping[str, int], stratum_weights: Mapping[str, float],
+    seed: int, bootstrap_samples: int = 10000,
+) -> dict[str, Any]:
+    """Summarize only a complete frozen roster with full-group numerical gates.
+
+    The caller validates the frozen inputs, solver evidence, checkpoint and
+    perturbation provenance. A ready summary is not physical acceptance.
+    """
+    # Validate the entire frozen statistical contract even when observations
+    # are incomplete; fabricated values are never used in the returned result.
+    dummy = [{'source_index': source, 'selected_gain': 0., 'random_expected_gain': 0.}
+             for source in source_strata]
+    summarize_stratified_paired_gains(dummy, source_strata=source_strata,
+        expected_counts=expected_counts, stratum_weights=stratum_weights,
+        seed=seed, bootstrap_samples=1)
+    if isinstance(bootstrap_samples, bool) or not isinstance(bootstrap_samples, int) or bootstrap_samples < 1:
+        raise ValueError('bootstrap samples must be a positive integer')
+    by_source = {}
+    for group in groups:
+        source = group.get('source_index')
+        if isinstance(source, bool) or not isinstance(source, int) or source in by_source or source not in source_strata:
+            raise ValueError('group source identities must be unique and frozen')
+        by_source[source] = group
+    incomplete = []
+    for source in sorted(source_strata):
+        group = by_source.get(source)
+        if group is None:
+            incomplete.append({'source_index': source, 'reason': 'missing_group'})
+        elif group.get('status') != 'ranked_descriptive' or group.get('ranking') is None:
+            incomplete.append({'source_index': source, 'reason': str(group.get('status', 'missing_status'))})
+        elif group.get('all_numerical_gates_passed') is not True:
+            incomplete.append({'source_index': source, 'reason': 'full_group_numerical_gate_failed'})
+        elif group['ranking'].get('source_index') != source:
+            raise ValueError('ranking source identity mismatch')
+    if incomplete:
+        return {'status': 'ranking_summary_unavailable', 'expected_source_count': len(source_strata),
+                'incomplete_sources': incomplete, 'summary': None}
+    result = summarize_stratified_paired_gains([by_source[s]['ranking'] for s in sorted(source_strata)],
+        source_strata=source_strata, expected_counts=expected_counts, stratum_weights=stratum_weights,
+        seed=seed, bootstrap_samples=bootstrap_samples)
+    return {'status': 'ranking_summary_ready', 'expected_source_count': len(source_strata),
+            'incomplete_sources': [], 'summary': result}

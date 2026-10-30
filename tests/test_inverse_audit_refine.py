@@ -14,7 +14,7 @@ import pytest
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.audit_refine import run_case
 from phc2d.inverse.audit_refined_reconcile import (rank_eligible_refinements, rank_refinements,
-                                                   reconcile_refinements)
+                                                   reconcile_refinements, summarize_eligible_stratified)
 
 
 def test_frozen_refinement_writes_numerical_evidence_and_refuses_overwrite(tmp_path):
@@ -120,3 +120,25 @@ def test_eligible_ranking_does_not_hide_unscoreable_anchors_or_missing_candidate
     proxy[1]['predicted_gap'] = {'lower_edge': .4, 'upper_edge': .6}
     with pytest.raises(ValueError, match='explicit failure'):
         rank_eligible_refinements(proxy, summary)
+
+
+def test_stratified_summary_requires_frozen_roster_and_full_numerical_gates():
+    strata = {1: 'positive', 2: 'positive', 3: 'negative', 4: 'negative'}
+    kwargs = dict(source_strata=strata, expected_counts={'positive': 2, 'negative': 2},
+                  stratum_weights={'positive': .5, 'negative': .5}, seed=7, bootstrap_samples=50)
+    groups = [{'source_index': i, 'status': 'ranked_descriptive', 'all_numerical_gates_passed': True,
+               'ranking': {'source_index': i, 'selected_gain': float(i), 'random_expected_gain': 0.}}
+              for i in strata]
+    ready = summarize_eligible_stratified(groups, **kwargs)
+    assert ready['status'] == 'ranking_summary_ready'
+    assert ready['summary']['selected_minus_random_mean'] == 2.5
+    groups[0]['all_numerical_gates_passed'] = False
+    groups[1].update(status='anchor_unscoreable', ranking=None)
+    unavailable = summarize_eligible_stratified(groups[:3], **kwargs)
+    assert unavailable['summary'] is None
+    assert [item['reason'] for item in unavailable['incomplete_sources']] == [
+        'full_group_numerical_gate_failed', 'anchor_unscoreable', 'missing_group']
+    with pytest.raises(ValueError, match='unique and frozen'):
+        summarize_eligible_stratified(groups + [groups[0]], **kwargs)
+    with pytest.raises(ValueError, match='stratum weights'):
+        summarize_eligible_stratified(groups[:3], **{**kwargs, 'stratum_weights': {'positive': .5, 'negative': .4}})
