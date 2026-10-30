@@ -80,11 +80,36 @@ def _validate_spectral_trace(row: Mapping[str, Any], arrays: Mapping[str, Any],
         if not np.isclose(float(row[name]), value, rtol=0, atol=1e-10):
             raise ValueError('solver resolution change mismatch')
     expected_resolution_stable = max(changes) <= float(refinement['resolution_tolerance'])
-    if not history:
+    if not history or len(history) > int(refinement['max_levels']):
         raise ValueError('refinement history missing')
-    expected_edge_stable = float(history[-1]['max_edge_frequency_change']) <= float(refinement['edge_tolerance'])
-    expected_converged = (len(history) >= int(refinement['min_levels'])
-                          and int(history[-1]['stable_streak']) >= int(refinement['required_stable_levels']))
+    def gap_at(count: int) -> Mapping[str, Any]:
+        return adjacent_gap_records(bands[:count], lower_band_min_one_based=band,
+                                    lower_band_max_one_based=band)[0]
+    previous = gap_at(len(initial_points))
+    count, streak, edge_change = len(initial_points), 0, float('inf')
+    for level, item in enumerate(history, start=1):
+        new_points = item.get('new_k_points')
+        if (not isinstance(new_points, int) or isinstance(new_points, bool) or new_points < 0
+                or item.get('stage') != f'refinement_{level}' or item.get('total_k_points') != count + new_points
+                or count + new_points > len(refined_points)
+                or not np.isclose(float(item['step']), float(refinement['initial_spacing']) / (2 ** level), rtol=0, atol=1e-12)):
+            raise ValueError('refinement history structure mismatch')
+        count += new_points
+        current = gap_at(count)
+        edge_change = max(abs(float(current[name]) - float(previous[name]))
+                          for name in ('lower_edge_frequency', 'upper_edge_frequency'))
+        streak = streak + 1 if edge_change <= float(refinement['edge_tolerance']) else 0
+        if (not np.isclose(float(item['max_edge_frequency_change']), edge_change, rtol=0, atol=1e-10)
+                or item['stable_streak'] != streak):
+            raise ValueError('refinement history edge or stability mismatch')
+        if (level < len(history) and level >= int(refinement['min_levels'])
+                and streak >= int(refinement['required_stable_levels'])):
+            raise ValueError('refinement continued after convergence')
+        previous = current
+    if count != len(refined_points):
+        raise ValueError('refinement history does not cover all k points')
+    expected_edge_stable = edge_change <= float(refinement['edge_tolerance'])
+    expected_converged = len(history) >= int(refinement['min_levels']) and streak >= int(refinement['required_stable_levels'])
     if (row.get('resolution_stable') is not expected_resolution_stable
             or row.get('last_refinement_stable') is not expected_edge_stable
             or row.get('adaptive_refinement_converged') is not expected_converged

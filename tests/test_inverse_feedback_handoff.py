@@ -78,6 +78,11 @@ def test_real_runner_output_can_be_reconciled_into_feedback_state(tmp_path):
     with pytest.raises(ValueError, match='incumbent and candidate solver identity'):
         consume_nominal_solver_result(pending, manifest_bytes=mp.read_bytes(),
             expected_manifest_sha256=mh, refinement_sha256=oh, refinement_bytes=op.read_bytes(), result=result)
+    result = json.loads((output/'results.json').read_text())
+    result['history'][-1]['max_edge_frequency_change'] += .1
+    with pytest.raises(ValueError, match='history edge'):
+        consume_nominal_solver_result(pending, manifest_bytes=mp.read_bytes(),
+            expected_manifest_sha256=mh, refinement_sha256=oh, refinement_bytes=op.read_bytes(), result=result)
 
 
 def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
