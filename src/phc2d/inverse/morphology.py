@@ -12,6 +12,37 @@ from typing import Any
 import numpy as np
 
 
+def periodic_binary_offset(grid: Any, *, offset: float) -> np.ndarray:
+    """Offset binary material on a unit square torus using cell-center distances.
+
+    Positive offsets dilate material, negative offsets erode it; units are
+    fractions of the lattice constant. This is a grid approximation, with a
+    resolution-dependent boundary error; it is not an analytic geometric offset.
+    The returned bool array retains the input resolution.
+    """
+    from scipy.ndimage import distance_transform_edt
+
+    array = np.asarray(grid)
+    if array.ndim != 2 or array.shape[0] != array.shape[1] or array.shape[0] == 0:
+        raise ValueError("grid must be a nonempty square binary array")
+    if not np.isfinite(array).all() or not np.isin(array, (0, 1)).all():
+        raise ValueError("grid must contain only finite binary values")
+    if not np.isfinite(offset):
+        raise ValueError("offset must be finite")
+    material = array.astype(bool)
+    if offset == 0 or not material.any() or material.all():
+        return material.copy()
+    size = material.shape[0]
+    tiled = np.tile(material, (3, 3))
+    # Distance to the opposite phase on a 3x3 tiling gives toroidal distances
+    # for every center-cell pixel, including pixels across periodic boundaries.
+    distance = distance_transform_edt(~tiled if offset > 0 else tiled,
+                                      sampling=1.0 / size)[size:2*size, size:2*size]
+    if offset > 0:
+        return material | (distance <= offset)
+    return material & (distance > -offset)
+
+
 def _connected_components_4(binary: np.ndarray) -> list[int]:
     """Return 4-neighbor component sizes for a 2D binary grid."""
 
