@@ -24,8 +24,9 @@ from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, predi
 
 def validate_paired_proxy(proxy: Mapping[str, Any], records: Sequence[Mapping[str, Any]], *,
                           manifest_sha256: str, protocol_sha256: str,
-                          checkpoint_sha256: str, k_points_sha256: str) -> list[dict[str, Any]]:
-    """Check the surrogate and physical runs use identical candidates and grids."""
+                          checkpoint_sha256: str, k_points_sha256: str,
+                          allow_unscored: bool = False) -> list[dict[str, Any]]:
+    """Check paired identities; optionally retain explicit invalid predictions unscored."""
     if (proxy.get('status') != 'exploratory_surrogate_common_gap_only'
             or proxy.get('manifest_sha256') != manifest_sha256 or proxy.get('protocol_sha256') != protocol_sha256
             or proxy.get('checkpoint_sha256') != checkpoint_sha256 or proxy.get('k_points_sha256') != k_points_sha256):
@@ -49,7 +50,11 @@ def validate_paired_proxy(proxy: Mapping[str, Any], records: Sequence[Mapping[st
         if ([r['offset'] for r in observations] != list(proxy['offsets'])
                 or [r['provenance']['evaluated_grid_sha256'] for r in observations] != item['grid_sha256']):
             raise ValueError('offset grid identity mismatch')
-        if item.get('status') != 'surrogate_only' or item.get('predicted_margin') is None:
+        scored = item.get('status') == 'surrogate_only' and item.get('predicted_margin') is not None
+        unscored = (allow_unscored is True and item.get('status') in
+                    {'band_order_violation', 'nonfinite_prediction', 'negative_frequency'}
+                    and item.get('predicted_margin') is None and item.get('predicted_gap') is None)
+        if not scored and not unscored:
             raise ValueError('proxy candidate has invalid score')
         paired.append(dict(item))
     return paired

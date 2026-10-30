@@ -58,6 +58,13 @@ def test_robust_proxy_keeps_offset_grid_and_candidate_identities(tmp_path, monke
                                   for offset, digest in zip(protocol['offsets'], row['grid_sha256'])]}]
     args = dict(manifest_sha256=mh, protocol_sha256=ph, checkpoint_sha256='test', k_points_sha256=k_hash)
     assert len(validate_paired_proxy(result, physical, **args)) == 1
+    bad = dict(result, rows=[dict(row, status='band_order_violation', predicted_gap=None, predicted_margin=None)])
+    with pytest.raises(ValueError, match='invalid score'):
+        validate_paired_proxy(bad, physical, **args)
+    assert validate_paired_proxy(bad, physical, allow_unscored=True, **args)[0]['predicted_margin'] is None
+    invalid = dict(result, rows=[dict(row, status='band_order_violation', predicted_gap=None, predicted_margin=.1)])
+    with pytest.raises(ValueError, match='invalid score'):
+        validate_paired_proxy(invalid, physical, allow_unscored=True, **args)
     physical[0]['observations'][0]['provenance']['evaluated_grid_sha256'] = 'wrong'
     with pytest.raises(ValueError, match='grid identity'):
         validate_paired_proxy(result, physical, **args)
