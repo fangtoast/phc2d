@@ -86,6 +86,30 @@ def test_journal_recovers_pending_and_consumes_identical_result_once(tmp_path):
         create_robust_round(journal, pending=pending, manifest_bytes=manifest, protocol_bytes=protocol)
 
 
+def test_cli_inspects_replayed_round_and_marks_incumbent_boundary(tmp_path, capsys):
+    from phc2d.cli.main import main
+
+    pending, manifest, protocol, raw, _ = setup_attempt(tmp_path)
+    journal = create_robust_round(tmp_path / 'round', pending=pending,
+                                  manifest_bytes=manifest, protocol_bytes=protocol)
+    main(['inverse', 'feedback-inspect', '--directory', str(journal)])
+    result = json.loads(capsys.readouterr().out)
+    assert result['status'] == 'pending_reconciliation'
+    assert result['pending_hash'] == pending.pending.parameter_hash
+    assert result['evidence_scope'] == 'single_round_replay_initial_incumbent_not_independently_verified'
+    reconcile_robust_round(journal, solver_result_bytes=raw)
+    main(['inverse', 'feedback-inspect', '--directory', str(journal)])
+    result = json.loads(capsys.readouterr().out)
+    assert result['status'] == 'completed' and result['pending_hash'] is None
+    assert result['last_decision']['parameter_hash'] == pending.pending.parameter_hash
+    receipt_path = journal / 'receipt.json'
+    receipt = json.loads(receipt_path.read_bytes())
+    receipt['completed_state']['remaining_evaluations'] = 2
+    receipt_path.write_text(json.dumps(receipt), encoding='utf8')
+    with pytest.raises(ValueError, match='decision'):
+        main(['inverse', 'feedback-inspect', '--directory', str(journal)])
+
+
 def test_journal_rejects_changed_request_and_forged_decision(tmp_path):
     pending, manifest, protocol, raw, _ = setup_attempt(tmp_path)
     journal = create_robust_round(tmp_path / 'round', pending=pending,

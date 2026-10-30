@@ -23,6 +23,14 @@ def configure(sub: Any) -> None:
     )
     inverse_train.add_argument("--config", type=Path, default=None)
     inverse_train.set_defaults(command="inverse train")
+    feedback_inspect = inverse_sub.add_parser(
+        "feedback-inspect",
+        help="Verify and inspect one non-generative robust feedback journal.",
+        description=("Recompute one saved feedback receipt without dispatching jobs. "
+                     "The incoming incumbent and any earlier journal chain require independent verification."),
+    )
+    feedback_inspect.add_argument("--directory", type=Path, required=True)
+    feedback_inspect.set_defaults(command="inverse feedback-inspect")
     inverse_full_cell_preflight = inverse_sub.add_parser(
         "full-cell-preflight",
         help="Run the 15-case full-cell analytic Stage-A single-batch gate.",
@@ -152,6 +160,13 @@ def configure(sub: Any) -> None:
 def run(ns: Any) -> bool:
     """Run a parsed command when it belongs to this domain."""
 
+    if ns.command == "inverse feedback-inspect":
+        import json
+
+        from phc2d.inverse.feedback_journal import summarize_robust_round
+
+        print(json.dumps(summarize_robust_round(ns.directory), indent=2, allow_nan=False))
+        return True
     if ns.command == "inverse train":
         from phc2d.inverse import run_inverse_train
 
