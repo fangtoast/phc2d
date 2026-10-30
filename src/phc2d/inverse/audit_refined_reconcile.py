@@ -178,7 +178,8 @@ def summarize_eligible_stratified(
     """Summarize only a complete frozen roster with full-group numerical gates.
 
     The caller validates the frozen inputs, solver evidence, checkpoint and
-    perturbation provenance. A ready summary is not physical acceptance.
+    perturbation provenance. A ready summary is not physical acceptance;
+    exclusions make it conditional on the scoreable candidate subset.
     """
     # Validate the entire frozen statistical contract even when observations
     # are incomplete; fabricated values are never used in the returned result.
@@ -194,7 +195,11 @@ def summarize_eligible_stratified(
         source = group.get('source_index')
         if isinstance(source, bool) or not isinstance(source, int) or source in by_source or source not in source_strata:
             raise ValueError('group source identities must be unique and frozen')
+        if not isinstance(group.get('unscoreable'), list):
+            raise ValueError('each group must retain its unscoreable candidates')
         by_source[source] = group
+    exclusions = [{'source_index': source, 'candidates': group['unscoreable']}
+                  for source, group in sorted(by_source.items()) if group['unscoreable']]
     incomplete = []
     for source in sorted(source_strata):
         group = by_source.get(source)
@@ -208,9 +213,11 @@ def summarize_eligible_stratified(
             raise ValueError('ranking source identity mismatch')
     if incomplete:
         return {'status': 'ranking_summary_unavailable', 'expected_source_count': len(source_strata),
-                'incomplete_sources': incomplete, 'summary': None}
+                'incomplete_sources': incomplete, 'unscoreable_by_source': exclusions, 'summary': None}
     result = summarize_stratified_paired_gains([by_source[s]['ranking'] for s in sorted(source_strata)],
         source_strata=source_strata, expected_counts=expected_counts, stratum_weights=stratum_weights,
         seed=seed, bootstrap_samples=bootstrap_samples)
     return {'status': 'ranking_summary_ready', 'expected_source_count': len(source_strata),
-            'incomplete_sources': [], 'summary': result}
+            'incomplete_sources': [], 'unscoreable_by_source': exclusions,
+            'selection_scope': ('conditional_on_scoreable_candidates' if exclusions
+                                else 'all_frozen_candidates_scoreable'), 'summary': result}

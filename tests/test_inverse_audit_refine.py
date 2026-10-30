@@ -127,11 +127,17 @@ def test_stratified_summary_requires_frozen_roster_and_full_numerical_gates():
     kwargs = dict(source_strata=strata, expected_counts={'positive': 2, 'negative': 2},
                   stratum_weights={'positive': .5, 'negative': .5}, seed=7, bootstrap_samples=50)
     groups = [{'source_index': i, 'status': 'ranked_descriptive', 'all_numerical_gates_passed': True,
+               'unscoreable': [],
                'ranking': {'source_index': i, 'selected_gain': float(i), 'random_expected_gain': 0.}}
               for i in strata]
     ready = summarize_eligible_stratified(groups, **kwargs)
     assert ready['status'] == 'ranking_summary_ready'
+    assert ready['selection_scope'] == 'all_frozen_candidates_scoreable'
     assert ready['summary']['selected_minus_random_mean'] == 2.5
+    groups[0]['unscoreable'] = [{'label': 'a', 'status': 'band_order_violation'}]
+    conditional = summarize_eligible_stratified(groups, **kwargs)
+    assert conditional['selection_scope'] == 'conditional_on_scoreable_candidates'
+    assert conditional['unscoreable_by_source'][0]['source_index'] == 1
     groups[0]['all_numerical_gates_passed'] = False
     groups[1].update(status='anchor_unscoreable', ranking=None)
     unavailable = summarize_eligible_stratified(groups[:3], **kwargs)
@@ -142,3 +148,6 @@ def test_stratified_summary_requires_frozen_roster_and_full_numerical_gates():
         summarize_eligible_stratified(groups + [groups[0]], **kwargs)
     with pytest.raises(ValueError, match='stratum weights'):
         summarize_eligible_stratified(groups[:3], **{**kwargs, 'stratum_weights': {'positive': .5, 'negative': .4}})
+    del groups[2]['unscoreable']
+    with pytest.raises(ValueError, match='unscoreable'):
+        summarize_eligible_stratified(groups, **kwargs)
