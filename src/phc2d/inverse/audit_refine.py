@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 
 from phc2d.data.full_cell_spec import FullCellStructureSpec
-from phc2d.replay.gap_refinement import refine_inverse_candidate
+from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
@@ -52,10 +52,10 @@ def run_case(manifest_path: str | Path, *, expected_sha256: str,
     output.mkdir(parents=True, exist_ok=False)
     start = time.monotonic()
     try:
-        results, arrays, history, provenance = refine_inverse_candidate(
-            structure, k_points=points, config=config, lower_band=manifest["lower_band"],
-            solver=solver, **options,
-        )
+        evaluated = evaluate_feedback_candidate(structure, k_points=points, config=config,
+            lower_band=manifest["lower_band"], refinement=options, solver=solver)
+        trace = evaluated['traces'][0]
+        results, arrays, history, provenance = [trace['row']], trace['arrays'], trace['history'], trace['provenance']
         payload = {"case_index": case_index, "source_index": record["source_index"],
                    "label": record["label"], "parameter_hash": structure.parameter_hash,
                    "manifest_sha256": digest, "refinement_sha256": options_digest,

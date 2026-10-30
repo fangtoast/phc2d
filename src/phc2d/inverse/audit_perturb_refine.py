@@ -16,9 +16,7 @@ import numpy as np
 
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.audit_refine import read_checked_json
-from phc2d.inverse.perturbation_screen import periodic_perturbation_grids
-from phc2d.inverse.refinement_feedback import aggregate_refined_perturbations
-from phc2d.replay.gap_refinement import refine_inverse_candidate
+from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
@@ -35,7 +33,6 @@ def run_case(manifest_path: str | Path, *, expected_sha256: str, protocol_path: 
     if structure.parameter_hash != source['parameter_hash']:
         raise ValueError('candidate parameter identity mismatch')
     offsets = tuple(protocol['offsets'])
-    grids = periodic_perturbation_grids(structure, resolution=protocol['raster_resolution'], offsets=offsets)
     options = protocol['refinement']
     config = FullCellMpbBandSolverConfig(**manifest['solver_config'])
     points = np.asarray(manifest['k_points'], dtype=np.float64)
@@ -43,17 +40,12 @@ def run_case(manifest_path: str | Path, *, expected_sha256: str, protocol_path: 
     output.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
     try:
-        observations = []
-        for offset, grid in zip(offsets, grids):
-            rows, arrays, history, provenance = refine_inverse_candidate(
-                structure, k_points=points, config=config, lower_band=manifest['lower_band'],
-                material_grid=grid, solver=solver, **options)
-            if len(rows) != 1:
-                raise ValueError('expected exactly one band pair')
-            observations.append({'offset': offset, 'row': rows[0], 'provenance': provenance,
-                                 'arrays': {key: value.tolist() for key, value in arrays.items()},
-                                 'history': history})
-        aggregate = aggregate_refined_perturbations(observations, expected_offsets=offsets)
+        evaluated = evaluate_feedback_candidate(structure, k_points=points, config=config,
+            lower_band=manifest['lower_band'], refinement=options, offsets=offsets,
+            raster_resolution=protocol['raster_resolution'], solver=solver)
+        observations = [{**trace, 'arrays': {key: value.tolist() for key, value in trace['arrays'].items()}}
+                        for trace in evaluated['traces']]
+        aggregate = {**evaluated['observation'], 'status': evaluated['status']}
         payload = {'case_index': case_index, 'source_index': source['source_index'], 'label': source['label'],
                    'parameter_hash': structure.parameter_hash, 'manifest_sha256': digest,
                    'protocol_sha256': protocol_digest, 'elapsed_s': time.monotonic() - started,
