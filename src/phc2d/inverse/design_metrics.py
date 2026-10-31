@@ -285,6 +285,87 @@ def summarize_verified_budget_curve(
             'points': points, 'first_reached': first_reached}
 
 
+def compare_paired_budget_curves(
+    expected: Sequence[Mapping[str, Any]], *,
+    left: Mapping[tuple[str, int], Sequence[Mapping[str, Any]]],
+    right: Mapping[tuple[str, int], Sequence[Mapping[str, Any]]],
+    cpu_milestones: Sequence[float], gpu_cap_seconds: float, target_margin: float = 0.0,
+    bootstrap_seed: int, bootstrap_samples: int = 10000,
+) -> dict[str, Any]:
+    """Compare target attainment across paired trajectories at shared budgets.
+
+    Each mapping contains at most one ordered trajectory per target/seed;
+    missing trajectories and attempts without verified margins do not attain
+    the target. Seeds are averaged within each target before pointwise target
+    bootstrap. The caller must authenticate and account for complete work,
+    artifacts, ordering and actual cumulative costs for both methods.
+    """
+    import numpy as np
+
+    if (isinstance(bootstrap_seed, bool) or not isinstance(bootstrap_seed, int) or bootstrap_seed < 0
+            or isinstance(bootstrap_samples, bool) or not isinstance(bootstrap_samples, int) or bootstrap_samples < 1):
+        raise ValueError('bootstrap seed and sample count are invalid')
+    summarize_design_outcomes(expected, [])  # validate roster and target frequencies
+    roster = {_key(item): float(item['target_frequency']) for item in expected}
+    seed_sets: dict[str, set[int]] = {}
+    for target, seed in roster:
+        seed_sets.setdefault(target, set()).add(seed)
+    if len({frozenset(values) for values in seed_sets.values()}) != 1:
+        raise ValueError('each target must have the same frozen seed roster')
+    if not isinstance(left, Mapping) or not isinstance(right, Mapping):
+        raise ValueError('paired trajectory mappings are required')
+    for source in (left, right):
+        for identity in source:
+            if not isinstance(identity, tuple) or len(identity) != 2:
+                raise ValueError('trajectory identity must be a target/seed pair')
+            _key({'target_id': identity[0], 'seed': identity[1]})
+    if set(left) - set(roster) or set(right) - set(roster):
+        raise ValueError('trajectory identity is outside the frozen roster')
+    curves: dict[str, dict[tuple[str, int], dict[str, Any]]] = {'left': {}, 'right': {}}
+    for name, source in (('left', left), ('right', right)):
+        for identity, frequency in roster.items():
+            curves[name][identity] = summarize_verified_budget_curve(source.get(identity, ()),
+                target_frequency=frequency, cpu_milestones=cpu_milestones,
+                gpu_cap_seconds=gpu_cap_seconds, target_margin=target_margin)
+    targets = sorted(seed_sets)
+    rng = np.random.default_rng(bootstrap_seed)
+    samples = rng.integers(0, len(targets), size=(bootstrap_samples, len(targets))) if len(targets) >= 2 else None
+    points = []
+    for index, budget in enumerate(cpu_milestones):
+        groups: dict[str, list[float]] = {target: [] for target in targets}
+        stats = {name: {'attained': 0, 'verified': 0, 'no_completed_attempt': 0,
+                        'missing_trajectories': len(set(roster) - set(source))}
+                 for name, source in (('left', left), ('right', right))}
+        for identity in sorted(roster):
+            outcomes = {}
+            for name in ('left', 'right'):
+                point = curves[name][identity]['points'][index]
+                margin = point['best_verified_margin']
+                attained = margin is not None and margin > float(target_margin)
+                stats[name]['attained'] += int(attained)
+                stats[name]['verified'] += int(margin is not None)
+                stats[name]['no_completed_attempt'] += int(point['attempts_completed'] == 0)
+                outcomes[name] = attained
+            groups[identity[0]].append(float(outcomes['left']) - float(outcomes['right']))
+        attempted = {name: len(roster) - stats[name]['no_completed_attempt'] for name in ('left', 'right')}
+        for name in ('left', 'right'):
+            stats[name]['attainment_rate_all'] = stats[name]['attained'] / len(roster) if attempted[name] else None
+        values = np.asarray([np.mean(groups[target]) for target in targets], dtype=np.float64)
+        difference = float(values.mean()) if all(attempted.values()) else None
+        low = high = None
+        if difference is not None and samples is not None:
+            low, high = (float(x) for x in np.quantile(values[samples].mean(axis=1), [.025, .975]))
+        points.append({'cpu_budget': float(budget), 'left': stats['left'], 'right': stats['right'],
+                       'paired_attainment_difference': difference, 'bootstrap_95_low': low,
+                       'bootstrap_95_high': high})
+    return {'scope': 'paired_trajectory_descriptive_caller_verifies_evidence_and_cumulative_costs',
+            'target_count': len(targets), 'target_seed_count': len(roster),
+            'resampling_unit': 'target_id', 'bootstrap_seed': bootstrap_seed,
+            'bootstrap_samples': bootstrap_samples, 'interval_type': 'pointwise_not_simultaneous',
+            'gpu_cap_seconds': float(gpu_cap_seconds), 'target_margin_strictly_above': float(target_margin),
+            'points': points}
+
+
 def compare_paired_success(expected: Sequence[Mapping[str, Any]], *,
                            left: Sequence[Mapping[str, Any]], right: Sequence[Mapping[str, Any]],
                            left_budget: Mapping[str, float], right_budget: Mapping[str, float],

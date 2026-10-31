@@ -7,7 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 import pytest
 
-from phc2d.inverse.design_metrics import (compare_paired_success, compare_paired_success_audited,
+from phc2d.inverse.design_metrics import (compare_paired_budget_curves, compare_paired_success, compare_paired_success_audited,
                                           summarize_design_outcomes, summarize_verified_budget_curve)
 from phc2d.inverse.resource_ledger import ResourceAmount, ResourceLedger, reserve_resources, settle_slurm_resources
 
@@ -73,6 +73,53 @@ def test_budget_curve_strict_target_and_unverified_initial_state():
     assert curve['points'][0]['best_verified_margin'] is None
     assert curve['points'][1]['best_verified_margin'] == 0
     assert curve['first_reached'] is None
+
+
+def test_paired_budget_curve_resamples_targets_and_keeps_missing_failures():
+    roster = [{'target_id': target, 'seed': seed, 'target_frequency': 1.}
+              for target in ('a', 'b') for seed in (0, 1)]
+    design = 'd' * 64
+    def attempt(name, cpu, successful):
+        physical = ({**verified(.9, 1.1), 'design_sha256': design} if successful
+                    else {'status': 'failed', 'reason': 'timeout'})
+        return {'attempt_id': name, 'design_sha256': design, 'cumulative_cpu_core_seconds': cpu,
+                'cumulative_gpu_seconds': 1, 'physical': physical}
+    left = {('a', 0): [attempt('a0', 2, True)], ('a', 1): [attempt('a1', 4, True)],
+            ('b', 0): [attempt('b0', 2, True)], ('b', 1): [attempt('b1', 2, False)]}
+    right = {('a', 0): [attempt('a0', 2, True)], ('a', 1): [attempt('a1', 2, False)],
+             ('b', 0): [attempt('b0', 2, True)]}
+    kwargs = {'cpu_milestones': [0, 2, 4], 'gpu_cap_seconds': 1,
+              'bootstrap_seed': 7, 'bootstrap_samples': 100}
+    result = compare_paired_budget_curves(roster, left=left, right=right, **kwargs)
+    assert result['resampling_unit'] == 'target_id' and result['target_seed_count'] == 4
+    assert result['interval_type'] == 'pointwise_not_simultaneous'
+    assert result['points'][0]['paired_attainment_difference'] is None
+    assert result['points'][1]['paired_attainment_difference'] == 0
+    assert result['points'][2]['paired_attainment_difference'] == .25
+    assert result['points'][2]['left']['attainment_rate_all'] == .75
+    assert result['points'][2]['right']['attainment_rate_all'] == .5
+    assert result['points'][2]['right']['missing_trajectories'] == 1
+    assert result['points'][2]['right']['verified'] == 2
+    assert result == compare_paired_budget_curves(roster, left=left, right=right, **kwargs)
+    with pytest.raises(ValueError, match='outside the frozen roster'):
+        compare_paired_budget_curves(roster, left={('other', 0): []}, right=right, **kwargs)
+    with pytest.raises(ValueError, match='nonnegative integer seed'):
+        compare_paired_budget_curves(roster, left={('a', True): []}, right=right, **kwargs)
+    with pytest.raises(ValueError, match='same frozen seed roster'):
+        compare_paired_budget_curves(roster[:-1], left={}, right={}, **kwargs)
+
+
+def test_paired_budget_curve_does_not_report_rate_for_unattempted_method():
+    roster = planned('a')
+    design = 'e' * 64
+    failed = {'attempt_id': 'f', 'design_sha256': design, 'cumulative_cpu_core_seconds': 1,
+              'cumulative_gpu_seconds': 0, 'physical': {'status': 'failed', 'reason': 'timeout'}}
+    result = compare_paired_budget_curves(roster, left={('a', 0): [failed]}, right={},
+        cpu_milestones=[1], gpu_cap_seconds=0, bootstrap_seed=1, bootstrap_samples=10)
+    point = result['points'][0]
+    assert point['left']['attainment_rate_all'] == 0
+    assert point['right']['attainment_rate_all'] is None
+    assert point['paired_attainment_difference'] is None and point['bootstrap_95_low'] is None
 
 
 def test_missing_and_unresolved_do_not_inflate_success_or_false_positive():
