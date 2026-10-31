@@ -385,6 +385,124 @@ def compare_paired_budget_curves(
             'points': points}
 
 
+def compare_paired_budget_curves_audited(
+    expected: Sequence[Mapping[str, Any]], *,
+    left: Mapping[tuple[str, int], Sequence[Mapping[str, Any]]],
+    right: Mapping[tuple[str, int], Sequence[Mapping[str, Any]]],
+    budget: Mapping[str, float], cpu_milestones: Sequence[float],
+    left_ledgers: Mapping[tuple[str, int], Any], right_ledgers: Mapping[tuple[str, int], Any],
+    left_accounting: Mapping[tuple[str, int], Mapping[str, Mapping[str, Any]]],
+    right_accounting: Mapping[tuple[str, int], Mapping[str, Mapping[str, Any]]],
+    left_setup_tasks: Mapping[tuple[str, int], Sequence[str]],
+    right_setup_tasks: Mapping[tuple[str, int], Sequence[str]],
+    target_margin: float = 0.0, bootstrap_seed: int, bootstrap_samples: int = 10000,
+) -> dict[str, Any]:
+    """Recompute paired budget curves from settled Slurm task allocations.
+
+    Setup task IDs and each ordered attempt's ``task_ids`` must partition the
+    trial ledger exactly. Each attempt also has ``attempt_id``, ``design_sha256``
+    and ``physical``; cumulative costs are derived here, not supplied by the
+    caller. This does not prove scheduler authenticity, completion ordering,
+    absent concurrent work, requeue exclusion or excluded pretraining/WSL cost.
+    """
+    from phc2d.inverse.resource_ledger import ResourceAmount, ResourceLedger, audit_slurm_ledger
+
+    summarize_design_outcomes(expected, [])
+    roster = {_key(item) for item in expected}
+    if not isinstance(budget, Mapping):
+        raise ValueError('shared resource budget is required')
+    try:
+        cap = ResourceAmount(budget['cpu_core_seconds'], budget['gpu_seconds'])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError('valid CPU and GPU budget caps are required') from exc
+    empty_curve = summarize_verified_budget_curve((), target_frequency=1., cpu_milestones=cpu_milestones,
+                                                   gpu_cap_seconds=cap.gpu_seconds, target_margin=target_margin)
+    if empty_curve['points'][-1]['cpu_budget'] > cap.cpu_core_seconds:
+        raise ValueError('CPU milestone exceeds shared budget')
+    evidence_maps = (left_ledgers, right_ledgers, left_accounting, right_accounting,
+                     left_setup_tasks, right_setup_tasks)
+    if (not all(isinstance(value, Mapping) for value in evidence_maps)
+            or any(set(value) != roster for value in evidence_maps)):
+        raise ValueError('ledger, accounting and setup tasks must cover the full roster')
+    for evidence in evidence_maps:
+        for identity in evidence:
+            if not isinstance(identity, tuple) or len(identity) != 2:
+                raise ValueError('evidence identity must be a target/seed pair')
+            _key({'target_id': identity[0], 'seed': identity[1]})
+    if not isinstance(left, Mapping) or not isinstance(right, Mapping):
+        raise ValueError('paired trajectory mappings are required')
+    for source in (left, right):
+        for identity in source:
+            if not isinstance(identity, tuple) or len(identity) != 2:
+                raise ValueError('trajectory identity must be a target/seed pair')
+            _key({'target_id': identity[0], 'seed': identity[1]})
+        if set(source) - roster:
+            raise ValueError('trajectory identity is outside the frozen roster')
+
+    frequencies = {_key(item): float(item['target_frequency']) for item in expected}
+    used_allocations: set[str] = set()
+    converted: dict[str, dict[tuple[str, int], list[dict[str, Any]]]] = {'left': {}, 'right': {}}
+    resources: dict[str, Any] = {}
+    for name, source, ledgers, accounting, setup in (
+        ('left', left, left_ledgers, left_accounting, left_setup_tasks),
+        ('right', right, right_ledgers, right_accounting, right_setup_tasks),
+    ):
+        trials = []
+        for identity in sorted(roster):
+            ledger = ledgers[identity]
+            if not isinstance(ledger, ResourceLedger) or ledger.limits != cap:
+                raise ValueError('trial ledger limits must match the shared budget')
+            attempts = source.get(identity, ())
+            if not isinstance(attempts, Sequence) or isinstance(attempts, (str, bytes)):
+                raise ValueError('attempts must be an ordered sequence')
+            audited = audit_slurm_ledger(ledger, accounting_by_task=accounting[identity],
+                                         require_settled=bool(attempts))
+            allocations = set(audited['allocation_ids'])
+            if used_allocations.intersection(allocations):
+                raise ValueError('scheduler allocation is shared or counted more than once')
+            used_allocations.update(allocations)
+            records = {record.task_id: record for record in ledger.records}
+            consumed: set[str] = set()
+
+            def use_tasks(task_ids: Sequence[str]) -> ResourceAmount:
+                if (not isinstance(task_ids, Sequence) or isinstance(task_ids, (str, bytes))
+                        or any(not isinstance(task, str) or not task.strip() for task in task_ids)
+                        or len(set(task_ids)) != len(task_ids) or consumed.intersection(task_ids)
+                        or set(task_ids) - set(records)):
+                    raise ValueError('task IDs must be unique, disjoint and present in the trial ledger')
+                consumed.update(task_ids)
+                return ResourceAmount(sum(records[task].actual.cpu_core_seconds for task in task_ids),
+                                      sum(records[task].actual.gpu_seconds for task in task_ids))
+
+            total = use_tasks(setup[identity])
+            trajectory = []
+            for attempt in attempts:
+                if not isinstance(attempt, Mapping) or set(attempt) != {'attempt_id', 'design_sha256', 'physical', 'task_ids'}:
+                    raise ValueError('attempt must provide identity, physical evidence and task IDs')
+                allocated = use_tasks(attempt['task_ids'])
+                total = ResourceAmount(total.cpu_core_seconds + allocated.cpu_core_seconds,
+                                       total.gpu_seconds + allocated.gpu_seconds)
+                trajectory.append({'attempt_id': attempt['attempt_id'], 'design_sha256': attempt['design_sha256'],
+                    'physical': attempt['physical'], 'cumulative_cpu_core_seconds': total.cpu_core_seconds,
+                    'cumulative_gpu_seconds': total.gpu_seconds})
+            if consumed != set(records):
+                raise ValueError('all settled tasks must be assigned to setup or an attempt')
+            if identity in source:
+                converted[name][identity] = trajectory
+            curve = summarize_verified_budget_curve(trajectory, target_frequency=frequencies[identity],
+                cpu_milestones=cpu_milestones, gpu_cap_seconds=cap.gpu_seconds, target_margin=target_margin)
+            trials.append({'target_id': identity[0], 'seed': identity[1], **audited,
+                           'first_reached': curve['first_reached']})
+        resources[name] = {'cpu_core_seconds': sum(x['cpu_core_seconds'] for x in trials),
+                           'gpu_seconds': sum(x['gpu_seconds'] for x in trials), 'trials': trials}
+    comparison = compare_paired_budget_curves(expected, left=converted['left'], right=converted['right'],
+        cpu_milestones=cpu_milestones, gpu_cap_seconds=cap.gpu_seconds, target_margin=target_margin,
+        bootstrap_seed=bootstrap_seed, bootstrap_samples=bootstrap_samples)
+    return {'scope': 'paired_budget_curves_with_replayed_slurm_ledgers', 'comparison': comparison,
+            'resources': resources,
+            'limitations': 'caller_verifies_authentic_complete_ordered_work_no_requeue_and_excluded_costs'}
+
+
 def compare_paired_success(expected: Sequence[Mapping[str, Any]], *,
                            left: Sequence[Mapping[str, Any]], right: Sequence[Mapping[str, Any]],
                            left_budget: Mapping[str, float], right_budget: Mapping[str, float],

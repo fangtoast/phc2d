@@ -7,7 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 import pytest
 
-from phc2d.inverse.design_metrics import (compare_paired_budget_curves, compare_paired_success, compare_paired_success_audited,
+from phc2d.inverse.design_metrics import (compare_paired_budget_curves, compare_paired_budget_curves_audited, compare_paired_success, compare_paired_success_audited,
                                           summarize_design_outcomes, summarize_verified_budget_curve)
 from phc2d.inverse.resource_ledger import ResourceAmount, ResourceLedger, reserve_resources, settle_slurm_resources
 
@@ -338,3 +338,61 @@ def test_audited_comparison_checks_every_trial_allocation_and_budget():
     no_accounting[('a', 0)] = {}
     with pytest.raises(ValueError, match='no settled accounting'):
         compare_paired_success_audited(**dict(args, left_ledgers=unpaid, left_accounting=no_accounting))
+
+
+def test_audited_budget_curve_replays_setup_cost_and_rejects_reused_allocations():
+    cap = ResourceAmount(100, 0)
+    ledgers, accounting, setup, trajectories = {}, {}, {}, {}
+    design = 'c' * 64
+    for index, identity in enumerate([('left', 'a'), ('left', 'b'), ('right', 'a'), ('right', 'b')]):
+        ledger, evidence = ResourceLedger(cap), {}
+        tasks = [('solve', str(20 + index), 2)]
+        if identity == ('left', 'a'):
+            tasks.insert(0, ('setup', '30', 1))
+        for task, job, cpus in tasks:
+            raw = f'{job}|COMPLETED|5|{cpus}|cpu={cpus},node=1\n'.encode()
+            ledger = reserve_resources(ledger, task_id=task, amount=ResourceAmount(20, 0))
+            ledger = settle_slurm_resources(ledger, task_id=task, cluster_id='m9', accounting_bytes=raw,
+                                            expected_gpus={job: 0})
+            evidence[task] = {'cluster_id': 'm9', 'raw': raw, 'expected_gpus': {job: 0}}
+        ledgers[identity], accounting[identity] = ledger, evidence
+        setup[identity] = ['setup'] if identity == ('left', 'a') else []
+        trajectories[identity] = [{'attempt_id': 'one', 'design_sha256': design, 'task_ids': ['solve'],
+                                   'physical': {**verified(.9, 1.1), 'design_sha256': design}}]
+
+    def select(items, arm):
+        return {(target, 0): value for (side, target), value in items.items() if side == arm}
+
+    args = dict(expected=planned('a', 'b'), left=select(trajectories, 'left'),
+                right=select(trajectories, 'right'), budget={'cpu_core_seconds': 100, 'gpu_seconds': 0},
+                cpu_milestones=[0, 10, 15], left_ledgers=select(ledgers, 'left'),
+                right_ledgers=select(ledgers, 'right'), left_accounting=select(accounting, 'left'),
+                right_accounting=select(accounting, 'right'), left_setup_tasks=select(setup, 'left'),
+                right_setup_tasks=select(setup, 'right'), bootstrap_seed=7, bootstrap_samples=10)
+    result = compare_paired_budget_curves_audited(**args)
+    assert result['resources']['left']['cpu_core_seconds'] == 25
+    assert result['resources']['right']['cpu_core_seconds'] == 20
+    assert result['resources']['left']['trials'][0]['first_reached']['cpu_core_seconds'] == 15
+    assert result['comparison']['points'][1]['left']['attainment_rate_all'] == .5
+    assert result['comparison']['points'][1]['right']['attainment_rate_all'] == 1
+    assert result['comparison']['points'][2]['left']['attainment_rate_all'] == 1
+
+    duplicate = dict(args['right_ledgers'], **{})
+    duplicate[('a', 0)] = args['left_ledgers'][('a', 0)]
+    duplicate_evidence = dict(args['right_accounting'])
+    duplicate_evidence[('a', 0)] = args['left_accounting'][('a', 0)]
+    duplicate_setup = dict(args['right_setup_tasks'])
+    duplicate_setup[('a', 0)] = ['setup']
+    with pytest.raises(ValueError, match='shared or counted'):
+        compare_paired_budget_curves_audited(**dict(args, right_ledgers=duplicate,
+            right_accounting=duplicate_evidence, right_setup_tasks=duplicate_setup))
+    omitted = dict(args['left_setup_tasks'])
+    omitted[('a', 0)] = []
+    with pytest.raises(ValueError, match='all settled tasks'):
+        compare_paired_budget_curves_audited(**dict(args, left_setup_tasks=omitted))
+    repeated = dict(args['left_setup_tasks'])
+    repeated[('a', 0)] = ['setup', 'solve']
+    with pytest.raises(ValueError, match='unique, disjoint'):
+        compare_paired_budget_curves_audited(**dict(args, left_setup_tasks=repeated))
+    with pytest.raises(ValueError, match='milestone exceeds'):
+        compare_paired_budget_curves_audited(**dict(args, cpu_milestones=[0, 101]))
