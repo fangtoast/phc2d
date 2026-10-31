@@ -486,3 +486,101 @@ def evaluate_locked_shared_choices(
               require_shared_eligible=True) for mode, groups in modes.items()}
     return {'status': 'ready' if all(value['status'] == 'ranking_summary_ready' for value in result.values())
             else 'unavailable', 'physical_acceptance': 'not_evaluated', **result}
+
+
+def adjudicate_locked_choice_development(
+    evaluation: Mapping[str, Any], crosscheck: Mapping[str, Any] | None, *,
+    bootstrap_seed: int, bootstrap_samples: int, model_seeds: Sequence[int],
+    expected_source_count: int, expected_case_indices: Sequence[int], expected_offsets: Sequence[float],
+    frequency_tolerance: float,
+) -> dict[str, Any]:
+    """Apply a predeclared statistical and finite-grid crosscheck criterion.
+
+    Callers must authenticate the frozen protocol, all input artifacts and
+    the calculations producing these summaries. A pass is conditional on
+    that validation and does not decide the wider P2 gate or formal success.
+    """
+    if (isinstance(bootstrap_seed, bool) or not isinstance(bootstrap_seed, int) or bootstrap_seed < 0
+            or isinstance(bootstrap_samples, bool) or not isinstance(bootstrap_samples, int) or bootstrap_samples < 1
+            or not isinstance(model_seeds, Sequence) or isinstance(model_seeds, (str, bytes)) or not model_seeds
+            or any(isinstance(x, bool) or not isinstance(x, int) or x < 0 for x in model_seeds)
+            or len(set(model_seeds)) != len(model_seeds)
+            or isinstance(expected_source_count, bool) or not isinstance(expected_source_count, int)
+            or expected_source_count < 1
+            or not isinstance(expected_case_indices, Sequence) or isinstance(expected_case_indices, (str, bytes))
+            or not expected_case_indices or any(isinstance(x, bool) or not isinstance(x, int) or x < 0
+                                                for x in expected_case_indices)
+            or len(set(expected_case_indices)) != len(expected_case_indices)
+            or not isinstance(expected_offsets, Sequence) or isinstance(expected_offsets, (str, bytes))
+            or not expected_offsets or any(isinstance(x, bool) or not isinstance(x, (int, float))
+                                           or not math.isfinite(x) for x in expected_offsets)
+            or len(set(expected_offsets)) != len(expected_offsets)
+            or isinstance(frequency_tolerance, bool) or not isinstance(frequency_tolerance, (int, float))
+            or not math.isfinite(frequency_tolerance) or frequency_tolerance < 0):
+        raise ValueError('invalid frozen decision contract')
+    result = evaluation.get('locked_choice_evaluation')
+    for key in ('manifest_sha256', 'archive_sha256'):
+        value = evaluation.get(key)
+        if not isinstance(value, str) or len(value) != 64 or any(c not in '0123456789abcdef' for c in value):
+            raise ValueError('evaluation artifact digest required')
+    if not isinstance(result, Mapping) or result.get('status') not in {'ready', 'unavailable'}:
+        raise ValueError('invalid locked-choice evaluation')
+    stat = 'unavailable'
+    if result['status'] == 'ready':
+        corrected = result.get('corrected')
+        if not isinstance(corrected, Mapping) or corrected.get('status') != 'ranking_summary_ready':
+            raise ValueError('ready evaluation needs a complete corrected summary')
+        summary = corrected.get('summary')
+        if (not isinstance(summary, Mapping) or summary.get('seed') != bootstrap_seed
+                or summary.get('bootstrap_samples') != bootstrap_samples or summary.get('model_seeds') != list(model_seeds)
+                or summary.get('source_seed_count') != expected_source_count * len(model_seeds)
+                or summary.get('resampling_unit') != 'source_within_stratum'):
+            raise ValueError('statistical summary differs from frozen contract')
+        values = [summary.get(key) for key in ('selected_minus_random_mean', 'bootstrap_95_low', 'bootstrap_95_high')]
+        if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+               for value in values) or values[1] > values[2]:
+            raise ValueError('invalid statistical interval')
+        stat = 'pass' if values[0] > 0 and values[1] > 0 else 'fail'
+    physical = 'unavailable'
+    if crosscheck is not None:
+        if (not isinstance(crosscheck, Mapping) or crosscheck.get('manifest_sha256') != evaluation.get('manifest_sha256')
+                or crosscheck.get('archive_sha256') != evaluation.get('archive_sha256')
+                or crosscheck.get('frequency_absolute_tolerance') != frequency_tolerance
+                or not isinstance(crosscheck.get('cases'), list)):
+            raise ValueError('crosscheck identity or tolerance differs')
+        cases = crosscheck['cases']
+        indexed = {case['case_index']: case for case in cases}
+        if len(indexed) != len(cases) or set(indexed) != set(expected_case_indices):
+            raise ValueError('crosscheck case roster differs')
+        checks = []
+        for case in cases:
+            offsets = case.get('offsets')
+            if (not isinstance(offsets, list) or len(offsets) != len(expected_offsets)
+                    or any(not isinstance(item, Mapping) for item in offsets)
+                    or any(isinstance(item.get('offset'), bool) or not isinstance(item.get('offset'), (int, float))
+                           or not math.isfinite(item['offset']) for item in offsets)
+                    or {item.get('offset') for item in offsets} != set(expected_offsets)):
+                raise ValueError('crosscheck offset roster differs')
+            passed = []
+            for offset in offsets:
+                points, gates, solver = (offset.get(key) for key in ('k_points_match', 'gates_match', 'solver_identity_match'))
+                diff = offset.get('max_frequency_difference')
+                if any(not isinstance(flag, bool) for flag in (points, gates, solver, offset.get('passed'))):
+                    raise ValueError('crosscheck flags must be boolean')
+                if diff is not None and (isinstance(diff, bool) or not isinstance(diff, (int, float))
+                                         or not math.isfinite(diff) or diff < 0):
+                    raise ValueError('invalid crosscheck frequency difference')
+                actual = points and gates and solver and diff is not None and diff <= frequency_tolerance
+                if offset['passed'] is not actual:
+                    raise ValueError('crosscheck offset decision differs')
+                passed.append(actual)
+            if case.get('passed') is not all(passed):
+                raise ValueError('crosscheck case decision differs')
+            checks.append(all(passed))
+        if crosscheck.get('all_passed') is not all(checks):
+            raise ValueError('crosscheck aggregate decision differs')
+        physical = 'pass' if all(checks) else 'fail'
+    overall = ('fail' if 'fail' in (stat, physical) else
+               'unavailable' if 'unavailable' in (stat, physical) else 'pass')
+    return {'status': overall, 'statistical_criterion': stat, 'cross_environment_criterion': physical,
+            'scope': 'conditional_development_criteria_only', 'p2_gate': 'not_evaluated'}
