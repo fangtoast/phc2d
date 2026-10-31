@@ -8,7 +8,8 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 import pytest
 
 from phc2d.inverse.audit_ranking import (paired_candidate_ranking, summarize_paired_gains,
-                                        summarize_stratified_paired_gains)
+                                        summarize_stratified_paired_gains,
+                                        summarize_seed_averaged_stratified_gains)
 
 
 def rows(scores, actual):
@@ -79,3 +80,43 @@ def test_stratified_bootstrap_rejects_partial_duplicate_and_unfrozen_inputs():
         summarize_stratified_paired_gains(groups, **dict(args, stratum_weights={'a': .5, 'b': .6}))
     with pytest.raises(ValueError, match='source strata'):
         summarize_stratified_paired_gains(groups, **dict(args, source_strata={0: 'a', 1: 'a', 2: 'c', 3: 'c'}))
+
+
+def test_model_seeds_are_averaged_before_resampling_sources():
+    strata = {0: 'a', 1: 'a', 2: 'b', 3: 'b'}
+    groups = [{'source_index': source, 'seed': seed, 'selected_gain': float(source + seed),
+               'random_expected_gain': float(seed), 'physical_group_sha256': str(source) * 64}
+              for source in strata for seed in (0, 1, 2)]
+    args = dict(source_strata=strata, seeds=[0, 1, 2], expected_counts={'a': 2, 'b': 2},
+                stratum_weights={'a': .5, 'b': .5}, bootstrap_seed=9, bootstrap_samples=1000)
+    result = summarize_seed_averaged_stratified_gains(groups, **args)
+    manual = [{'source_index': source, 'selected_gain': source, 'random_expected_gain': 0.}
+              for source in strata]
+    reference = summarize_stratified_paired_gains(manual, source_strata=strata,
+        expected_counts={'a': 2, 'b': 2}, stratum_weights={'a': .5, 'b': .5}, seed=9, bootstrap_samples=1000)
+    assert result['source_count'] == 4 and result['source_seed_count'] == 12
+    assert result['selected_minus_random_mean'] == reference['selected_minus_random_mean']
+    assert result['bootstrap_95_low'] == reference['bootstrap_95_low']
+    assert result['bootstrap_95_high'] == reference['bootstrap_95_high']
+    assert result['resampling_unit'] == 'source_within_stratum'
+    assert result['status'] == 'descriptive_only'
+
+
+def test_model_seed_summary_rejects_missing_duplicate_and_mismatched_physics():
+    strata = {0: 'a', 1: 'a'}
+    groups = [{'source_index': source, 'seed': seed, 'selected_gain': .2, 'random_expected_gain': .1,
+               'physical_group_sha256': str(source) * 64} for source in strata for seed in (0, 1)]
+    args = dict(source_strata=strata, seeds=[0, 1], expected_counts={'a': 2},
+                stratum_weights={'a': 1.}, bootstrap_seed=2)
+    with pytest.raises(ValueError, match='incomplete'):
+        summarize_seed_averaged_stratified_gains(groups[:-1], **args)
+    with pytest.raises(ValueError, match='exactly once'):
+        summarize_seed_averaged_stratified_gains(groups+[groups[0]], **args)
+    changed = [dict(row) for row in groups]
+    changed[1]['physical_group_sha256'] = 'a' * 64
+    with pytest.raises(ValueError, match='share one physical group'):
+        summarize_seed_averaged_stratified_gains(changed, **args)
+    changed = [dict(row) for row in groups]
+    changed[1]['selected_gain'] = float('nan')
+    with pytest.raises(ValueError, match='finite'):
+        summarize_seed_averaged_stratified_gains(changed, **args)

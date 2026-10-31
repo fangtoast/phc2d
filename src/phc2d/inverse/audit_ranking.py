@@ -8,6 +8,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 from collections import defaultdict
+import re
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -151,3 +152,62 @@ def summarize_stratified_paired_gains(
             'bootstrap_95_low': float(lo), 'bootstrap_95_high': float(hi),
             'resampling_unit': 'source_within_stratum', 'bootstrap_samples': bootstrap_samples,
             'seed': seed, 'status': 'descriptive_only'}
+
+
+def summarize_seed_averaged_stratified_gains(
+    groups: Sequence[Mapping[str, Any]], *, source_strata: Mapping[int, str], seeds: Sequence[int],
+    expected_counts: Mapping[str, int], stratum_weights: Mapping[str, float],
+    bootstrap_seed: int, bootstrap_samples: int = 10000,
+) -> dict[str, Any]:
+    """Average frozen model seeds per physical source before stratified bootstrap.
+
+    The complete source-by-seed roster is mandatory. All seeds for one source
+    must name the same already-validated physical group digest. Callers must
+    independently verify that digest, the numerical gates and the eligible
+    candidate sets; this function cannot establish physical acceptance or
+    population representativeness.
+    """
+    if (not isinstance(source_strata, Mapping) or not source_strata
+            or any(isinstance(source, bool) or not isinstance(source, int) for source in source_strata)
+            or not isinstance(seeds, Sequence)
+            or isinstance(seeds, (str, bytes)) or not seeds
+            or any(isinstance(seed, bool) or not isinstance(seed, int) or seed < 0 for seed in seeds)
+            or len(set(seeds)) != len(seeds)):
+        raise ValueError('valid frozen sources and unique model seeds are required')
+    expected = {(source, seed) for source in source_strata for seed in seeds}
+    by_source: dict[int, list[Mapping[str, Any]]] = defaultdict(list)
+    identities: set[tuple[int, int]] = set()
+    for row in groups:
+        source, model_seed = row.get('source_index'), row.get('seed')
+        if (isinstance(source, bool) or not isinstance(source, int)
+                or isinstance(model_seed, bool) or not isinstance(model_seed, int)
+                or (source, model_seed) not in expected or (source, model_seed) in identities):
+            raise ValueError('source and model seed must match the frozen roster exactly once')
+        physical = row.get('physical_group_sha256')
+        if not isinstance(physical, str) or not re.fullmatch(r'[0-9a-f]{64}', physical):
+            raise ValueError('physical group digest is required')
+        identities.add((source, model_seed))
+        by_source[source].append(row)
+    if identities != expected:
+        raise ValueError('incomplete source and model seed roster')
+    averaged = []
+    for source in sorted(by_source):
+        rows = by_source[source]
+        if len({row['physical_group_sha256'] for row in rows}) != 1:
+            raise ValueError('model seeds must share one physical group per source')
+        try:
+            if any(isinstance(row[key], bool) for row in rows for key in ('selected_gain', 'random_expected_gain')):
+                raise ValueError('boolean gain')
+            selected = np.asarray([float(row['selected_gain']) for row in rows], dtype=np.float64)
+            random = np.asarray([float(row['random_expected_gain']) for row in rows], dtype=np.float64)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError('paired gains must be finite numbers') from exc
+        if not np.isfinite(selected).all() or not np.isfinite(random).all():
+            raise ValueError('paired gains must be finite numbers')
+        averaged.append({'source_index': source, 'selected_gain': float(selected.mean()),
+                         'random_expected_gain': float(random.mean())})
+    result = summarize_stratified_paired_gains(averaged, source_strata=source_strata,
+        expected_counts=expected_counts, stratum_weights=stratum_weights,
+        seed=bootstrap_seed, bootstrap_samples=bootstrap_samples)
+    return {**result, 'model_seeds': list(seeds), 'source_seed_count': len(identities),
+            'seed_aggregation': 'arithmetic_mean_within_source_before_resampling'}
