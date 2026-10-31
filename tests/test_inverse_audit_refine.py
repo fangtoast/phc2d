@@ -14,7 +14,8 @@ import pytest
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.audit_refine import run_case
 from phc2d.inverse.audit_refined_reconcile import (rank_eligible_refinements, rank_refinements,
-                                                   reconcile_refinements, summarize_eligible_stratified)
+                                                   reconcile_refinements, summarize_eligible_stratified,
+                                                   summarize_multiseed_eligible_stratified)
 
 
 def test_frozen_refinement_writes_numerical_evidence_and_refuses_overwrite(tmp_path):
@@ -151,3 +152,40 @@ def test_stratified_summary_requires_frozen_roster_and_full_numerical_gates():
     del groups[2]['unscoreable']
     with pytest.raises(ValueError, match='unscoreable'):
         summarize_eligible_stratified(groups, **kwargs)
+
+
+def test_multiseed_summary_fails_closed_until_all_source_groups_are_gated():
+    strata = {1: 'positive', 2: 'positive', 3: 'negative', 4: 'negative'}
+    physical = {source: f'{source:064x}' for source in strata}
+    groups = {seed: [{'source_index': source, 'status': 'ranked_descriptive',
+                      'all_numerical_gates_passed': True, 'unscoreable': [],
+                      'physical_group_sha256': physical[source],
+                      'ranking': {'source_index': source, 'selected_gain': float(source+seed),
+                                  'random_expected_gain': float(seed)}} for source in strata]
+              for seed in (0, 1, 2)}
+    kwargs = dict(source_strata=strata, seeds=[0, 1, 2], physical_group_sha256=physical,
+                  expected_counts={'positive': 2, 'negative': 2},
+                  stratum_weights={'positive': .5, 'negative': .5}, bootstrap_seed=3, bootstrap_samples=50)
+    result = summarize_multiseed_eligible_stratified(groups, **kwargs)
+    assert result['status'] == 'ranking_summary_ready'
+    assert result['summary']['source_count'] == 4 and result['summary']['source_seed_count'] == 12
+    assert result['summary']['selected_minus_random_mean'] == 2.5
+    groups[0][1]['unscoreable'] = [{'label': 'a', 'status': 'band_order_violation'}]
+    conditional = summarize_multiseed_eligible_stratified(groups, **kwargs)
+    assert conditional['selection_scope'] == 'conditional_on_scoreable_candidates'
+    assert conditional['per_seed'][0]['unscoreable_by_source'][0]['source_index'] == 2
+    groups[0][1]['unscoreable'] = []
+    groups[1][0]['all_numerical_gates_passed'] = False
+    unavailable = summarize_multiseed_eligible_stratified(groups, **kwargs)
+    assert unavailable['summary'] is None
+    assert unavailable['incomplete_source_seeds'] == [
+        {'seed': 1, 'source_index': 1, 'reason': 'full_group_numerical_gate_failed'}]
+    with pytest.raises(ValueError, match='rosters must be complete'):
+        summarize_multiseed_eligible_stratified(groups, **{**kwargs, 'bootstrap_samples': 0})
+    groups[1][0]['all_numerical_gates_passed'] = True
+    shortened = {**groups, 0: groups[0][:-1]}
+    assert summarize_multiseed_eligible_stratified(shortened, **kwargs)['incomplete_source_seeds'] == [
+        {'seed': 0, 'source_index': 4, 'reason': 'missing_group'}]
+    groups[2][0]['physical_group_sha256'] = physical[2]
+    with pytest.raises(ValueError, match='physical identity differs'):
+        summarize_multiseed_eligible_stratified(groups, **kwargs)

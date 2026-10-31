@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from phc2d.data.full_cell_spec import FullCellStructureSpec
-from phc2d.inverse.audit_ranking import paired_candidate_ranking, summarize_stratified_paired_gains
+from phc2d.inverse.audit_ranking import (paired_candidate_ranking, summarize_stratified_paired_gains,
+                                        summarize_seed_averaged_stratified_gains)
 
 
 def reconcile_refinements(manifest_path: str | Path, records: Sequence[Mapping[str, Any]], *,
@@ -221,3 +222,64 @@ def summarize_eligible_stratified(
             'incomplete_sources': [], 'unscoreable_by_source': exclusions,
             'selection_scope': ('conditional_on_scoreable_candidates' if exclusions
                                 else 'all_frozen_candidates_scoreable'), 'summary': result}
+
+
+def summarize_multiseed_eligible_stratified(
+    groups_by_seed: Mapping[int, Sequence[Mapping[str, Any]]], *, source_strata: Mapping[int, str],
+    seeds: Sequence[int], physical_group_sha256: Mapping[int, str], expected_counts: Mapping[str, int],
+    stratum_weights: Mapping[str, float], bootstrap_seed: int, bootstrap_samples: int = 10000,
+) -> dict[str, Any]:
+    """Apply full-group gates before averaging seeds and resampling sources.
+
+    Input groups must derive from independently validated solver evidence and
+    locked model choices. Digests identify the same physical group across
+    seeds; their authenticity and candidate eligibility remain caller duties.
+    Missing or unresolved source/seed groups prevent the summary, never cause
+    implicit source deletion. A ready summary is descriptive, not acceptance.
+    """
+    if (not isinstance(groups_by_seed, Mapping) or not isinstance(physical_group_sha256, Mapping)
+            or not isinstance(source_strata, Mapping)
+            or not isinstance(seeds, Sequence) or isinstance(seeds, (str, bytes)) or not seeds
+            or any(isinstance(x, bool) or not isinstance(x, int) or x < 0 for x in seeds)
+            or any(isinstance(x, bool) or not isinstance(x, int) for x in groups_by_seed)
+            or len(set(seeds)) != len(seeds) or set(groups_by_seed) != set(seeds)
+            or set(physical_group_sha256) != set(source_strata)
+            or isinstance(bootstrap_samples, bool) or not isinstance(bootstrap_samples, int) or bootstrap_samples < 1):
+        raise ValueError('frozen seed and physical group rosters must be complete')
+    digests = list(physical_group_sha256.values())
+    if (any(not isinstance(x, str) or len(x) != 64 or any(c not in '0123456789abcdef' for c in x)
+            for x in digests) or len(set(digests)) != len(digests)):
+        raise ValueError('unique physical group digests are required')
+    per_seed = {}
+    incomplete = []
+    for model_seed in seeds:
+        if (not isinstance(groups_by_seed[model_seed], Sequence)
+                or isinstance(groups_by_seed[model_seed], (str, bytes))
+                or any(not isinstance(group, Mapping) for group in groups_by_seed[model_seed])):
+            raise ValueError('each seed needs a sequence of candidate groups')
+        for group in groups_by_seed[model_seed]:
+            source = group.get('source_index')
+            if (isinstance(source, bool) or not isinstance(source, int) or source not in physical_group_sha256
+                    or group.get('physical_group_sha256') != physical_group_sha256[source]):
+                raise ValueError('seed group physical identity differs from the frozen source')
+        result = summarize_eligible_stratified(groups_by_seed[model_seed], source_strata=source_strata,
+            expected_counts=expected_counts, stratum_weights=stratum_weights,
+            seed=bootstrap_seed, bootstrap_samples=1)
+        per_seed[model_seed] = result
+        incomplete.extend({'seed': model_seed, **item} for item in result['incomplete_sources'])
+    if incomplete:
+        return {'status': 'ranking_summary_unavailable', 'incomplete_source_seeds': incomplete,
+                'per_seed': per_seed, 'summary': None}
+    rows = []
+    for model_seed in seeds:
+        for group in groups_by_seed[model_seed]:
+            source = group['source_index']
+            rows.append({**group['ranking'], 'seed': model_seed,
+                         'physical_group_sha256': physical_group_sha256[source]})
+    summary = summarize_seed_averaged_stratified_gains(rows, source_strata=source_strata, seeds=seeds,
+        expected_counts=expected_counts, stratum_weights=stratum_weights,
+        bootstrap_seed=bootstrap_seed, bootstrap_samples=bootstrap_samples)
+    conditional = any(result['unscoreable_by_source'] for result in per_seed.values())
+    return {'status': 'ranking_summary_ready', 'incomplete_source_seeds': [], 'per_seed': per_seed,
+            'selection_scope': ('conditional_on_scoreable_candidates' if conditional
+                                else 'all_frozen_candidates_scoreable'), 'summary': summary}

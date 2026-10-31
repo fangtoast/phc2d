@@ -14,6 +14,7 @@ import pytest
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.audit_perturb_refine import run_case
+from phc2d.inverse.audit_perturb_reconcile import fingerprint_validated_perturbation_groups
 from phc2d.inverse.design_evidence import RobustSolverArtifact, bind_joint_robust_evidence
 from phc2d.inverse.design_metrics import summarize_design_outcomes
 from phc2d.inverse.fourier_design import update_fourier_binary
@@ -116,3 +117,21 @@ def test_unstable_solver_remains_unresolved_and_normalization_is_checked(make_ar
         bind_joint_robust_evidence(nominal, unstable,
             expected_solver_identity={'solver_backend': 'mock', 'solver_version': '1'},
             expected_frequency_normalization='wrong unit')
+
+
+def test_physical_group_fingerprint_binds_exact_validated_result_bytes(make_artifact):
+    item = make_artifact((-.0625, 0., .0625))
+    args = dict(manifest_bytes=item.manifest_bytes, manifest_sha256=item.manifest_sha256,
+                protocol_bytes=item.protocol_bytes, protocol_sha256=item.protocol_sha256,
+                expected_solver_identity={'solver_backend': 'mock', 'solver_version': '1'})
+    result = fingerprint_validated_perturbation_groups(record_bytes=[item.result_bytes], **args)
+    assert result['groups'][0]['all_numerical_gates_passed']
+    assert result['groups'][0]['candidate_count'] == 1
+    changed = fingerprint_validated_perturbation_groups(record_bytes=[item.result_bytes+b' '], **args)
+    assert changed['groups'][0]['physical_group_sha256'] != result['groups'][0]['physical_group_sha256']
+    with pytest.raises(ValueError, match='incomplete or unexpected'):
+        fingerprint_validated_perturbation_groups(record_bytes=[], **args)
+    forged = json.loads(item.result_bytes)
+    forged['observations'][0]['arrays']['bands'][0][0] += .01
+    with pytest.raises(ValueError):
+        fingerprint_validated_perturbation_groups(record_bytes=[json.dumps(forged).encode()], **args)
