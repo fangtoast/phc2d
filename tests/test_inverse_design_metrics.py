@@ -8,7 +8,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 import pytest
 
 from phc2d.inverse.design_metrics import (compare_paired_success, compare_paired_success_audited,
-                                          summarize_design_outcomes)
+                                          summarize_design_outcomes, summarize_verified_budget_curve)
 from phc2d.inverse.resource_ledger import ResourceAmount, ResourceLedger, reserve_resources, settle_slurm_resources
 
 
@@ -19,6 +19,60 @@ def verified(lower, upper):
 
 def planned(*targets):
     return [{'target_id': target, 'seed': 0, 'target_frequency': 1.0} for target in targets]
+
+
+def test_budget_curve_counts_failed_attempts_and_honors_both_resource_caps():
+    design_a, design_b, design_c = 'a' * 64, 'b' * 64, 'c' * 64
+    def entry(name, design, cpu, gpu, evidence):
+        return {'attempt_id': name, 'design_sha256': design, 'cumulative_cpu_core_seconds': cpu,
+                'cumulative_gpu_seconds': gpu, 'physical': evidence}
+    attempts = [
+        entry('first', design_a, 3, 2, {**verified(1.1, 1.3), 'design_sha256': design_a}),
+        entry('failed', design_b, 5, 2, {'status': 'failed', 'reason': 'timeout'}),
+        entry('improved', design_b, 8, 5, {**verified(.9, 1.2), 'design_sha256': design_b}),
+        entry('over_gpu', design_c, 9, 9, {**verified(.8, 1.2), 'design_sha256': design_c}),
+    ]
+    curve = summarize_verified_budget_curve(attempts, target_frequency=1.,
+        cpu_milestones=[0, 3, 5, 8, 12], gpu_cap_seconds=6)
+    assert [p['attempts_completed'] for p in curve['points']] == [0, 1, 2, 3, 3]
+    assert curve['points'][0]['best_verified_margin'] is None
+    assert curve['points'][1]['best_verified_margin'] == pytest.approx(-.2)
+    assert curve['points'][2]['best_verified_margin'] == pytest.approx(-.2)
+    assert curve['points'][-1]['best_verified_margin'] == pytest.approx(.2)
+    assert curve['points'][-1]['best_design_sha256'] == design_b
+    assert curve['points'][-1]['best_attempt_id'] == 'improved'
+    assert curve['points'][-1]['best_artifact_sha256'] == 'a' * 64
+    assert curve['first_reached']['attempt_id'] == 'improved'
+    assert curve['first_reached']['cpu_core_seconds'] == 8
+
+
+def test_budget_curve_rejects_wrong_identity_and_nonmonotone_or_duplicate_attempts():
+    design = 'a' * 64
+    row = {'attempt_id': 'one', 'design_sha256': design, 'cumulative_cpu_core_seconds': 2,
+           'cumulative_gpu_seconds': 1, 'physical': {**verified(.9, 1.1), 'design_sha256': design}}
+    kwargs = {'target_frequency': 1., 'cpu_milestones': [0, 3], 'gpu_cap_seconds': 2}
+    with pytest.raises(ValueError, match='different design'):
+        summarize_verified_budget_curve([{**row, 'physical': {**row['physical'], 'design_sha256': 'b' * 64}}], **kwargs)
+    with pytest.raises(ValueError, match='identify the attempted design'):
+        summarize_verified_budget_curve([{**row, 'physical': verified(.9, 1.1)}], **kwargs)
+    with pytest.raises(ValueError, match='unique'):
+        summarize_verified_budget_curve([row, row], **kwargs)
+    with pytest.raises(ValueError, match='cannot decrease'):
+        summarize_verified_budget_curve([row, {**row, 'attempt_id': 'two', 'cumulative_gpu_seconds': 0}], **kwargs)
+    with pytest.raises(ValueError, match='strictly increasing'):
+        summarize_verified_budget_curve([row], **{**kwargs, 'cpu_milestones': [3, 3]})
+    with pytest.raises(ValueError, match='unrun candidate'):
+        summarize_verified_budget_curve([{**row, 'physical': {'status': 'not_run'}}], **kwargs)
+
+
+def test_budget_curve_strict_target_and_unverified_initial_state():
+    design = 'd' * 64
+    attempts = [{'attempt_id': 'boundary', 'design_sha256': design, 'cumulative_cpu_core_seconds': 1,
+                 'cumulative_gpu_seconds': 0, 'physical': {**verified(1., 1.2), 'design_sha256': design}}]
+    curve = summarize_verified_budget_curve(attempts, target_frequency=1., cpu_milestones=[0, 1], gpu_cap_seconds=0)
+    assert curve['points'][0]['best_verified_margin'] is None
+    assert curve['points'][1]['best_verified_margin'] == 0
+    assert curve['first_reached'] is None
 
 
 def test_missing_and_unresolved_do_not_inflate_success_or_false_positive():

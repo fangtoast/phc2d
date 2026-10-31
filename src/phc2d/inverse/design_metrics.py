@@ -192,6 +192,99 @@ def summarize_design_outcomes(expected: Sequence[Mapping[str, Any]],
             'mean_successful_joint_common_width': sum(joint_widths) / len(joint_widths) if joint_widths else None}
 
 
+def summarize_verified_budget_curve(
+    attempts: Sequence[Mapping[str, Any]], *, target_frequency: float,
+    cpu_milestones: Sequence[float], gpu_cap_seconds: float, target_margin: float = 0.0,
+) -> dict[str, Any]:
+    """Summarize one ordered trajectory at CPU budgets and a fixed GPU cap.
+
+    Each attempt supplies cumulative settled CPU core-seconds and GPU-seconds,
+    a unique attempt ID, a base design hash and physical evidence. Failed or
+    unresolved attempts consume budget but cannot improve the incumbent.
+    A target is reached only when a verified margin is strictly greater than
+    ``target_margin`` and lies within the largest supplied CPU milestone and
+    GPU cap. This operation does not authenticate artifacts or
+    scheduler accounts: the caller must verify provenance, costs, completion
+    order, and that all concurrent and excluded work is accounted for.
+    """
+    def number(value: Any, *, nonnegative: bool, name: str) -> float:
+        if isinstance(value, bool):
+            raise ValueError(f'{name} must be finite')
+        try:
+            result = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f'{name} must be finite') from exc
+        if not math.isfinite(result) or (nonnegative and result < 0):
+            raise ValueError(f'{name} must be finite and nonnegative' if nonnegative else f'{name} must be finite')
+        return result
+
+    target = number(target_frequency, nonnegative=True, name='target frequency')
+    if target == 0:
+        raise ValueError('target frequency must be positive')
+    gpu_cap = number(gpu_cap_seconds, nonnegative=True, name='GPU cap')
+    threshold = number(target_margin, nonnegative=False, name='target margin')
+    if (not isinstance(cpu_milestones, Sequence) or isinstance(cpu_milestones, (str, bytes))
+            or not cpu_milestones):
+        raise ValueError('CPU milestones must be a nonempty sequence')
+    milestones = [number(x, nonnegative=True, name='CPU milestone') for x in cpu_milestones]
+    if any(a >= b for a, b in zip(milestones, milestones[1:])):
+        raise ValueError('CPU milestones must be strictly increasing')
+    if not isinstance(attempts, Sequence) or isinstance(attempts, (str, bytes)):
+        raise ValueError('attempts must be an ordered sequence')
+    verified: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    previous_cpu = previous_gpu = 0.0
+    for item in attempts:
+        if not isinstance(item, Mapping):
+            raise ValueError('attempt must be an object')
+        attempt_id, design = item.get('attempt_id'), item.get('design_sha256')
+        if not isinstance(attempt_id, str) or not attempt_id.strip() or attempt_id in seen:
+            raise ValueError('attempt IDs must be unique nonempty strings')
+        if not isinstance(design, str) or not _SHA256.fullmatch(design):
+            raise ValueError('attempt needs a base design identity')
+        seen.add(attempt_id)
+        cpu = number(item.get('cumulative_cpu_core_seconds'), nonnegative=True, name='cumulative CPU cost')
+        gpu = number(item.get('cumulative_gpu_seconds'), nonnegative=True, name='cumulative GPU cost')
+        if cpu < previous_cpu or gpu < previous_gpu:
+            raise ValueError('cumulative resource costs cannot decrease')
+        previous_cpu, previous_gpu = cpu, gpu
+        physical = item.get('physical')
+        if not isinstance(physical, Mapping):
+            raise ValueError('attempt needs physical evidence status')
+        if physical.get('status') == 'not_run':
+            raise ValueError('an unrun candidate is not a completed attempt')
+        margin = _verified_margin(physical, target=target)
+        physical_design = physical.get('design_sha256')
+        if physical_design is not None and physical_design != design:
+            raise ValueError('physical evidence belongs to a different design')
+        if margin is not None and physical_design != design:
+            raise ValueError('verified evidence must identify the attempted design')
+        verified.append({'attempt_id': attempt_id, 'design_sha256': design, 'cpu': cpu, 'gpu': gpu,
+                         'artifact_sha256': physical.get('artifact_sha256') if margin is not None else None,
+                         'margin': None if margin is None else margin[0]})
+
+    points = []
+    cursor, best, first_reached = 0, None, None
+    for limit in milestones:
+        while cursor < len(verified) and verified[cursor]['cpu'] <= limit and verified[cursor]['gpu'] <= gpu_cap:
+            row = verified[cursor]
+            if row['margin'] is not None and (best is None or row['margin'] > best['margin']):
+                best = row
+            if first_reached is None and row['margin'] is not None and row['margin'] > threshold:
+                first_reached = {'attempt_id': row['attempt_id'], 'design_sha256': row['design_sha256'],
+                                 'artifact_sha256': row['artifact_sha256'],
+                                 'cpu_core_seconds': row['cpu'], 'gpu_seconds': row['gpu'], 'margin': row['margin']}
+            cursor += 1
+        points.append({'cpu_budget': limit, 'attempts_completed': cursor,
+                       'best_verified_margin': None if best is None else best['margin'],
+                       'best_design_sha256': None if best is None else best['design_sha256'],
+                       'best_attempt_id': None if best is None else best['attempt_id'],
+                       'best_artifact_sha256': None if best is None else best['artifact_sha256']})
+    return {'scope': 'single_ordered_trajectory_caller_verifies_evidence_and_cumulative_costs',
+            'target_frequency': target, 'gpu_cap_seconds': gpu_cap, 'target_margin_strictly_above': threshold,
+            'points': points, 'first_reached': first_reached}
+
+
 def compare_paired_success(expected: Sequence[Mapping[str, Any]], *,
                            left: Sequence[Mapping[str, Any]], right: Sequence[Mapping[str, Any]],
                            left_budget: Mapping[str, float], right_budget: Mapping[str, float],
