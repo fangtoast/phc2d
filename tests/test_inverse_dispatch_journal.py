@@ -131,3 +131,18 @@ def test_cli_inspects_dispatch_only_with_trusted_head(tmp_path, capsys):
         main(args[:-1] + [genesis])
     with pytest.raises(SystemExit, match='requires'):
         main(['inverse', 'feedback-inspect', '--dispatch-directory', str(folder), '--initial-sha256', genesis])
+
+
+def test_cli_rejects_a_truncated_but_otherwise_valid_dispatch_chain(tmp_path):
+    from phc2d.cli.main import main
+
+    folder = tmp_path / 'dispatch'
+    genesis = create_dispatch_journal(folder, initial=_initial())
+    _, head = append_dispatch_event(folder, initial_sha256=genesis, expected_head=genesis,
+                                    operation='begin', payload=_begin('b', 'first'))
+    _, trusted_head = append_dispatch_event(folder, initial_sha256=genesis, expected_head=head,
+                                           operation='submission_unknown', payload={'reason': 'persisted'})
+    (folder / 'events' / '00000002.json').unlink()
+    with pytest.raises(ValueError, match='head differs'):
+        main(['inverse', 'feedback-inspect', '--dispatch-directory', str(folder),
+              '--initial-sha256', genesis, '--head-sha256', trusted_head])
