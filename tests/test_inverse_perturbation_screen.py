@@ -56,3 +56,17 @@ def test_invalid_order_retains_spectra_without_a_score():
     assert result['status'] == 'band_order_violation' and result['gap'] is None
     assert np.asarray(result['bands']).shape == (3, 1, 3)
     assert result['bands'][0][0][2] == pytest.approx(.7)
+
+
+def test_nonfinite_prediction_preserves_locations_without_nonstandard_json():
+    import json
+    _, grids = setup()
+    class Predictor:
+        def predict_tensor(self, x):
+            return torch.tensor([[[float('nan'), .8]], [[.2, float('inf')]], [[float('-inf'), .8]]])
+    result = predict_perturbed_gap(grids, Predictor(), input_resolution=8, lower_band=1, target_frequency=.5)
+    assert result['status'] == 'nonfinite_prediction' and result['gap'] is None
+    assert result['nonfinite_spectrum'][0][0][0] == 'nan'
+    assert result['nonfinite_spectrum'][1][0][1] == '+inf'
+    assert result['nonfinite_spectrum'][2][0][0] == '-inf'
+    json.dumps(result, allow_nan=False)

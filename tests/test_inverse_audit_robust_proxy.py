@@ -72,6 +72,8 @@ def test_robust_proxy_keeps_offset_grid_and_candidate_identities(tmp_path, monke
         def __init__(self, *args, **kwargs):
             self.device = kwargs.get('device')
         def predict_tensor(self, x):
+            if self.device == 'nonfinite':
+                return torch.tensor([[[float('nan'), .7]]] * len(x))
             return torch.tensor([[[.2, .9 if self.device == 'bad' else .7]]] * len(x))
     monkeypatch.setattr('phc2d.inverse.audit_robust_proxy.FrozenBandAdapter', Predictor)
     output = tmp_path / 'scores.json'
@@ -99,6 +101,12 @@ def test_robust_proxy_keeps_offset_grid_and_candidate_identities(tmp_path, monke
             checkpoint='unused', checkpoint_sha256='test', device='bad', output=rejected,
             parity_reference_device='cpu', parity_absolute_tolerance=1e-6)
     assert not rejected.exists()
+    nonfinite_output = tmp_path / 'nonfinite.json'
+    run(mp, manifest_sha256=mh, protocol_path=pp, protocol_sha256=ph,
+        checkpoint='unused', checkpoint_sha256='test', device='nonfinite', output=nonfinite_output)
+    nonfinite = json.loads(nonfinite_output.read_text())
+    assert nonfinite['rows'][0]['nonfinite_spectrum'][0][0][0] == 'nan'
+    assert validate_frozen_proxy_predictions(proxy=nonfinite, **frozen_args)['nonfinite_spectrum_verifiable_count'] == 1
     changed = json.loads(json.dumps(result))
     changed['rows'][0]['predicted_margin'] += .01
     with pytest.raises(ValueError, match='does not reproduce'):
@@ -121,6 +129,15 @@ def test_robust_proxy_keeps_offset_grid_and_candidate_identities(tmp_path, monke
         validate_frozen_proxy_predictions(proxy=changed, **frozen_args)
     changed['rows'][0].update(status='nonfinite_prediction', predicted_bands=None)
     assert validate_frozen_proxy_predictions(proxy=changed, **frozen_args)['nonfinite_failure_reason_verifiable'] is False
+    changed['rows'][0]['nonfinite_spectrum'] = [[['nan', .7]], [[.2, '+inf']], [[.2, '-inf']]]
+    verified_nonfinite = validate_frozen_proxy_predictions(proxy=changed, **frozen_args)
+    assert verified_nonfinite['nonfinite_spectrum_verifiable_count'] == 1
+    changed['rows'][0]['nonfinite_spectrum'] = [[[.2, .7]]] * 3
+    with pytest.raises(ValueError, match='contains no nonfinite'):
+        validate_frozen_proxy_predictions(proxy=changed, **frozen_args)
+    changed['rows'][0]['nonfinite_spectrum'] = [[['unknown', .7]]] * 3
+    with pytest.raises(ValueError, match='encoding'):
+        validate_frozen_proxy_predictions(proxy=changed, **frozen_args)
     row = result['rows'][0]
     physical = [{'source_index': row['source_index'], 'label': row['label'], 'parameter_hash': row['parameter_hash'],
                  'manifest_sha256': mh, 'protocol_sha256': ph,

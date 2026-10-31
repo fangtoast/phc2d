@@ -66,6 +66,7 @@ def validate_frozen_proxy_predictions(
     if len(expected) != len(entries) or len(predicted) != len(rows) or set(expected) != set(predicted):
         raise ValueError('prediction candidate identity differs or is duplicated')
     counts: dict[str, int] = {}
+    nonfinite_spectrum_verifiable_count = 0
     for key, entry in expected.items():
         item = predicted[key]
         structure = FullCellStructureSpec.from_mapping(entry['structure'])
@@ -81,7 +82,24 @@ def validate_frozen_proxy_predictions(
         if status == 'nonfinite_prediction':
             if bands_raw is not None or item.get('predicted_gap') is not None or item.get('predicted_margin') is not None:
                 raise ValueError('nonfinite prediction must remain unscoreable')
+            encoded = item.get('nonfinite_spectrum')
+            if encoded is not None:
+                spectrum = np.asarray(encoded, dtype=object)
+                if spectrum.shape != (len(offsets), *checkpoint_output_shape):
+                    raise ValueError('nonfinite spectrum shape differs')
+                nonfinite = 0
+                for value in spectrum.flat:
+                    if isinstance(value, str) and value in {'nan', '+inf', '-inf'}:
+                        nonfinite += 1
+                    elif (isinstance(value, bool) or not isinstance(value, (int, float))
+                          or not np.isfinite(value)):
+                        raise ValueError('invalid nonfinite spectrum encoding')
+                if not nonfinite:
+                    raise ValueError('nonfinite spectrum contains no nonfinite value')
+                nonfinite_spectrum_verifiable_count += 1
             continue
+        if item.get('nonfinite_spectrum') is not None:
+            raise ValueError('finite prediction cannot contain nonfinite spectrum')
         bands = np.asarray(bands_raw, dtype=np.float64)
         if bands.shape != (len(offsets), *checkpoint_output_shape) or not np.isfinite(bands).all():
             raise ValueError('prediction spectral shape or finiteness differs')
@@ -111,7 +129,8 @@ def validate_frozen_proxy_predictions(
                 or not np.isclose(item['predicted_margin'], gap['target_margin'], rtol=0, atol=1e-10)):
             raise ValueError('prediction gap does not reproduce from spectrum')
     return {'scope': 'frozen_proxy_input_and_score_contract_only', 'candidate_count': len(entries),
-            'status_counts': counts, 'nonfinite_failure_reason_verifiable': False}
+            'status_counts': counts, 'nonfinite_failure_reason_verifiable': False,
+            'nonfinite_spectrum_verifiable_count': nonfinite_spectrum_verifiable_count}
 
 
 def validate_paired_proxy(proxy: Mapping[str, Any], records: Sequence[Mapping[str, Any]], *,
@@ -203,6 +222,8 @@ def run(manifest_path: str | Path, *, manifest_sha256: str, protocol_path: str |
                'parameter_hash': structure.parameter_hash, 'grid_sha256': result['grid_sha256'],
                'status': result['status'], 'predicted_margin': None, 'predicted_gap': result['gap'],
                'predicted_bands': result.get('bands')}
+        if 'nonfinite_spectrum' in result:
+            row['nonfinite_spectrum'] = result['nonfinite_spectrum']
         if result['gap'] is not None:
             row['predicted_margin'] = result['gap']['target_margin']
         rows.append(row)

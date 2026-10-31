@@ -81,7 +81,17 @@ def predict_perturbed_gap(grids: tuple[np.ndarray, ...], predictor: Any, *,
         raise ValueError('invalid target band')
     hashes = [hashlib.sha256(np.ascontiguousarray(g, dtype=np.uint8).tobytes()).hexdigest() for g in grids]
     if not np.isfinite(bands).all():
-        return {'status': 'nonfinite_prediction', 'gap': None, 'grid_sha256': hashes}
+        def encode(value: Any) -> float | str:
+            if np.isnan(value):
+                return 'nan'
+            if np.isposinf(value):
+                return '+inf'
+            if np.isneginf(value):
+                return '-inf'
+            return float(value)
+        spectrum = [[[encode(value) for value in point] for point in perturbation] for perturbation in bands]
+        return {'status': 'nonfinite_prediction', 'gap': None, 'grid_sha256': hashes,
+                'nonfinite_spectrum': spectrum}
     if np.any(np.diff(bands, axis=2) < 0):
         return {'status': 'band_order_violation', 'gap': None, 'bands': bands.tolist(), 'grid_sha256': hashes}
     pair = bands[:, :, lower_band-1:lower_band+1]
