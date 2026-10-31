@@ -21,6 +21,7 @@ from phc2d.forward.official_comparison_campaign import audit_run, claim_task
 from phc2d.forward.single_domain_branch_matrix import build_matrix
 
 AUTHORIZATION = "user-2026-10-31-exp-fwd-032-admission-training"
+PLATFORM_RELEASE_AUTHORIZATION = "user-2026-10-31-exp-fwd-032-independent-platform-release"
 ROOTS = {"n40": "/HOME/scw6g7a/run/phc2d/data", "n56": "/data/run01/scxl892/data/exp_fwd_020"}
 EXTERNAL_TARGETS = {
     "exp_dat_007_12k": ("exp_dat_007_single_hole_six_family_bz9_12000_bingxing_v1.h5", "badd2081180406d6eaac451d758c8d17259a23e13a2c00198b2c82059c9b85a8"),
@@ -150,7 +151,14 @@ def audit_admission(suite: Path) -> dict:
             raise ValueError(f"invalid admission: {row['case_id']}")
     record = dict(passed=True, task_count=len(rows), validation_only=True,
                   manifest_sha256=file_digest(suite / "task_manifest.csv"))
-    write_json(suite / "admission_audit.json", record)
+    audit_path = suite / "admission_audit.json"
+    if audit_path.exists():
+        if json.loads(audit_path.read_text()) != record:
+            raise ValueError("existing admission audit does not match current evidence")
+    else:
+        with audit_path.open("x", encoding="utf-8") as stream:
+            json.dump(record, stream, indent=2)
+            stream.write("\n")
     return record
 
 
@@ -158,8 +166,26 @@ def audit_release(suite: Path) -> None:
     audit = json.loads((suite / "admission_audit.json").read_text())
     if not audit["passed"] or audit["task_count"] != 12 or audit["manifest_sha256"] != file_digest(suite / "task_manifest.csv"):
         raise ValueError("local admission is not bound to this manifest")
-    release = json.loads((suite / "global_admission_release.json").read_text())
     platform = json.loads((suite / "suite.json").read_text())["platform"]
+    local_release = suite / "platform_admission_release.json"
+    if local_release.is_file():
+        release = json.loads(local_release.read_text())
+        preflight = json.loads((suite / "manifest_preflight.json").read_text())
+        baseline = json.loads((suite / "baseline_reuse_audit.json").read_text())
+        if (release.get("authorization_id") != PLATFORM_RELEASE_AUTHORIZATION
+                or release.get("platform") != platform or not release.get("passed")
+                or release.get("manifest_sha256") != file_digest(suite / "task_manifest.csv")
+                or release.get("admission_sha256") != file_digest(suite / "admission_audit.json")
+                or release.get("preflight_sha256") != file_digest(suite / "manifest_preflight.json")
+                or release.get("baseline_sha256") != file_digest(suite / "baseline_reuse_audit.json")
+                or release.get("resource_sha256") != file_digest(suite / "resource_admission.json")
+                or preflight.get("status") != "pass_training_manifest" or preflight.get("task_count") != 36
+                or preflight.get("manifest_sha256") != file_digest(suite / "task_manifest.csv")
+                or preflight.get("baseline_reuse_audit_sha256") != file_digest(suite / "baseline_reuse_audit.json")
+                or baseline.get("status") != "pass" or baseline.get("candidate_count") != 24):
+            raise ValueError("authorized local-platform release is missing or changed")
+        return
+    release = json.loads((suite / "global_admission_release.json").read_text())
     if (release.get("authorization_id") != AUTHORIZATION or not release.get("passed")
             or release.get("passed_tasks") != 24 or set(release.get("platforms", {})) != set(ROOTS)):
         raise ValueError("both-platform admission release is missing or changed")
@@ -167,6 +193,35 @@ def audit_release(suite: Path) -> None:
     if (local["manifest_sha256"] != file_digest(suite / "task_manifest.csv")
             or local["admission_sha256"] != file_digest(suite / "admission_audit.json")):
         raise ValueError("both-platform admission release is missing or changed")
+
+
+def release_platform(suite: Path) -> dict:
+    """Bind a user-approved per-platform release to verified local evidence."""
+    if (suite / "platform_admission_release.json").exists():
+        raise FileExistsError(suite / "platform_admission_release.json")
+    audit_admission(suite)
+    preflight = json.loads((suite / "manifest_preflight.json").read_text())
+    baseline = json.loads((suite / "baseline_reuse_audit.json").read_text())
+    resource = json.loads((suite / "resource_admission.json").read_text())
+    platform = json.loads((suite / "suite.json").read_text())["platform"]
+    manifest_sha = file_digest(suite / "task_manifest.csv")
+    if (platform not in ROOTS or preflight.get("status") != "pass_training_manifest"
+            or preflight.get("task_count") != 36 or preflight.get("manifest_sha256") != manifest_sha
+            or preflight.get("baseline_reuse_audit_sha256") != file_digest(suite / "baseline_reuse_audit.json")
+            or baseline.get("status") != "pass" or baseline.get("candidate_count") != 24
+            or resource.get("status") != "admission_measurements_only" or resource.get("platform") != platform
+            or resource.get("admission_tasks") != 12 or resource.get("max_concurrent_gpu") != 8):
+        raise ValueError("local admission, baseline or resource evidence is incomplete")
+    record = dict(passed=True, platform=platform, authorization_id=PLATFORM_RELEASE_AUTHORIZATION,
+                  manifest_sha256=manifest_sha, admission_sha256=file_digest(suite / "admission_audit.json"),
+                  preflight_sha256=file_digest(suite / "manifest_preflight.json"),
+                  baseline_sha256=file_digest(suite / "baseline_reuse_audit.json"),
+                  resource_sha256=file_digest(suite / "resource_admission.json"))
+    with (suite / "platform_admission_release.json").open("x", encoding="utf-8") as stream:
+        json.dump(record, stream, indent=2)
+        stream.write("\n")
+    audit_release(suite)
+    return record
 
 
 def worker(suite: Path, stage: str) -> None:
@@ -207,7 +262,7 @@ def worker(suite: Path, stage: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(__doc__)
-    parser.add_argument("stage", choices=["freeze", "admission", "audit-admission", "train"])
+    parser.add_argument("stage", choices=["freeze", "admission", "audit-admission", "release-platform", "train"])
     parser.add_argument("--suite", required=True, type=Path)
     parser.add_argument("--profile", type=Path)
     parser.add_argument("--root", type=Path)
@@ -219,6 +274,8 @@ def main() -> None:
         freeze(args.profile, args.suite, args.platform, args.root)
     elif args.stage == "audit-admission":
         print(json.dumps(audit_admission(args.suite)))
+    elif args.stage == "release-platform":
+        print(json.dumps(release_platform(args.suite)))
     else:
         worker(args.suite, args.stage)
 

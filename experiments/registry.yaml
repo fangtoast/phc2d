@@ -1110,7 +1110,7 @@ experiments:
     related_experiments: [EXP-FWD-026]
     decision:
       state: continue
-      summary: 24项历史Full基线审计通过，训练与测试目标身份冻结；N56准入12/12通过，N40准入排队，两机通过后才释放训练。
+      summary: 24项历史Full基线审计通过，训练与测试目标身份冻结；N56准入12/12通过，N40准入排队，用户授权逐平台准入后分别释放训练。
     tags: [single-domain, ablation, global-local, admission]
 
 deferred_history:

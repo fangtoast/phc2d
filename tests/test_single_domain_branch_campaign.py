@@ -11,7 +11,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from phc2d.forward.single_domain_branch_campaign import freeze, task_configs, worker
+from phc2d.forward.single_domain_branch_campaign import (PLATFORM_RELEASE_AUTHORIZATION, audit_release,
+                                                         freeze, task_configs, worker)
 
 
 def profiles():
@@ -51,6 +52,46 @@ def test_unauthorized_and_training_without_global_release_fail(tmp_path):
         passed=True, task_count=12, manifest_sha256=file_digest(tmp_path / "task_manifest.csv"))))
     with pytest.raises(FileNotFoundError):
         worker(tmp_path, "train")
+
+
+def test_authorized_local_release_binds_admission_and_baselines(tmp_path):
+    from phc2d.forward.budget_confirmation import file_digest
+    (tmp_path / "task_manifest.csv").write_text("manifest")
+    manifest = file_digest(tmp_path / "task_manifest.csv")
+    (tmp_path / "suite.json").write_text(json.dumps(dict(platform="n56")))
+    (tmp_path / "admission_audit.json").write_text(json.dumps(dict(passed=True, task_count=12, manifest_sha256=manifest)))
+    (tmp_path / "baseline_reuse_audit.json").write_text(json.dumps(dict(status="pass", candidate_count=24)))
+    (tmp_path / "manifest_preflight.json").write_text(json.dumps(dict(status="pass_training_manifest", task_count=36,
+        manifest_sha256=manifest, baseline_reuse_audit_sha256=file_digest(tmp_path / "baseline_reuse_audit.json"))))
+    (tmp_path / "resource_admission.json").write_text(json.dumps(dict(status="admission_measurements_only")))
+    release = dict(authorization_id=PLATFORM_RELEASE_AUTHORIZATION, platform="n56", passed=True,
+                   manifest_sha256=manifest, admission_sha256=file_digest(tmp_path / "admission_audit.json"),
+                   preflight_sha256=file_digest(tmp_path / "manifest_preflight.json"),
+                   baseline_sha256=file_digest(tmp_path / "baseline_reuse_audit.json"),
+                   resource_sha256=file_digest(tmp_path / "resource_admission.json"))
+    (tmp_path / "platform_admission_release.json").write_text(json.dumps(release))
+    audit_release(tmp_path)
+    (tmp_path / "baseline_reuse_audit.json").write_text("{}")
+    with pytest.raises(ValueError, match="local-platform release"):
+        audit_release(tmp_path)
+
+
+def test_platform_release_requires_resource_and_complete_evidence(tmp_path, monkeypatch):
+    from phc2d.forward import single_domain_branch_campaign as module
+    from phc2d.forward.budget_confirmation import file_digest
+    (tmp_path / "task_manifest.csv").write_text("manifest")
+    manifest = file_digest(tmp_path / "task_manifest.csv")
+    (tmp_path / "suite.json").write_text(json.dumps(dict(platform="n56")))
+    (tmp_path / "admission_audit.json").write_text(json.dumps(dict(passed=True, task_count=12, manifest_sha256=manifest)))
+    (tmp_path / "baseline_reuse_audit.json").write_text(json.dumps(dict(status="pass", candidate_count=24)))
+    (tmp_path / "manifest_preflight.json").write_text(json.dumps(dict(status="pass_training_manifest", task_count=36,
+        manifest_sha256=manifest, baseline_reuse_audit_sha256=file_digest(tmp_path / "baseline_reuse_audit.json"))))
+    (tmp_path / "resource_admission.json").write_text(json.dumps(dict(status="admission_measurements_only", platform="n56",
+        admission_tasks=12, max_concurrent_gpu=8)))
+    monkeypatch.setattr(module, "audit_admission", lambda _: None)
+    assert module.release_platform(tmp_path)["platform"] == "n56"
+    with pytest.raises(FileExistsError):
+        module.release_platform(tmp_path)
 
 
 def test_freeze_binds_config_and_rejects_existing_output(tmp_path, monkeypatch):
