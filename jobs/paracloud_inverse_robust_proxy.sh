@@ -20,7 +20,14 @@ if ! type module >/dev/null 2>&1 && [[ -r /etc/profile.d/modules.sh ]]; then
 fi
 source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"
 [[ "$PHC2D_DEPLOYED_GIT_COMMIT" == "$PHC2D_EXPECTED_COMMIT" ]] || { echo 'deployment mismatch' >&2; exit 2; }
+parity_args=()
+if [[ -n "${PHC2D_PARITY_REFERENCE_DEVICE:-}" || -n "${PHC2D_PARITY_ABSOLUTE_TOLERANCE:-}" ]]; then
+  : "${PHC2D_PARITY_REFERENCE_DEVICE:?Set reference device}"
+  : "${PHC2D_PARITY_ABSOLUTE_TOLERANCE:?Set absolute tolerance}"
+  parity_args=(--parity-reference-device "$PHC2D_PARITY_REFERENCE_DEVICE"
+               --parity-absolute-tolerance "$PHC2D_PARITY_ABSOLUTE_TOLERANCE")
+fi
 python -m phc2d.inverse.audit_robust_proxy --manifest "$PHC2D_MANIFEST" \
   --manifest-sha256 "$PHC2D_MANIFEST_SHA256" --protocol "$PHC2D_PROTOCOL" \
   --protocol-sha256 "$PHC2D_PROTOCOL_SHA256" --checkpoint "$PHC2D_CHECKPOINT" \
-  --checkpoint-sha256 "$PHC2D_CHECKPOINT_SHA256" --device cuda:0 --output "$PHC2D_OUTPUT"
+  --checkpoint-sha256 "$PHC2D_CHECKPOINT_SHA256" --device cuda:0 --output "$PHC2D_OUTPUT" "${parity_args[@]}"

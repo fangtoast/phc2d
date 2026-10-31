@@ -20,7 +20,7 @@ import numpy as np
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.audit_refine import read_checked_json
 from phc2d.inverse.frozen_band_adapter import FrozenBandAdapter
-from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, predict_perturbed_gap
+from phc2d.inverse.perturbation_screen import compare_predictor_devices, periodic_perturbation_grids, predict_perturbed_gap
 from phc2d.inverse.robust_gap import common_gap
 
 
@@ -154,7 +154,8 @@ def validate_paired_proxy(proxy: Mapping[str, Any], records: Sequence[Mapping[st
 
 def run(manifest_path: str | Path, *, manifest_sha256: str, protocol_path: str | Path,
         protocol_sha256: str, checkpoint: str | Path, checkpoint_sha256: str,
-        device: str, output: str | Path) -> Path:
+        device: str, output: str | Path, parity_reference_device: str | None = None,
+        parity_absolute_tolerance: float | None = None) -> Path:
     """Predict all candidate offsets; caller verifies checkpoint raster contract."""
     manifest, digest = read_checked_json(manifest_path, manifest_sha256)
     protocol, protocol_digest = read_checked_json(protocol_path, protocol_sha256)
@@ -169,6 +170,23 @@ def run(manifest_path: str | Path, *, manifest_sha256: str, protocol_path: str |
     output_path.parent.mkdir(parents=True, exist_ok=True)
     if output_path.exists():
         raise FileExistsError(output_path)
+    if (parity_reference_device is None) != (parity_absolute_tolerance is None):
+        raise ValueError('reference device and absolute tolerance must be supplied together')
+    parity = None
+    if parity_reference_device is not None:
+        if not manifest['rows']:
+            raise ValueError('device parity requires a candidate')
+        first = manifest['rows'][0]
+        structure = FullCellStructureSpec.from_mapping(first['structure'])
+        if structure.parameter_hash != first['parameter_hash']:
+            raise ValueError('parity candidate parameter identity mismatch')
+        grids = periodic_perturbation_grids(structure, resolution=protocol['raster_resolution'], offsets=offsets)
+        reference = FrozenBandAdapter(checkpoint, sha256=checkpoint_sha256, device=parity_reference_device)
+        parity = compare_predictor_devices(grids, predictor, reference, input_resolution=predictor.input_shape[0],
+                                           absolute_tolerance=parity_absolute_tolerance)
+        parity.update(candidate_index=0, reference_device=parity_reference_device, device=device)
+        if not parity['passed']:
+            raise ValueError(f'device prediction parity failed: {parity}')
     started = time.monotonic()
     rows = []
     for source in manifest['rows']:
@@ -192,6 +210,8 @@ def run(manifest_path: str | Path, *, manifest_sha256: str, protocol_path: str |
                'protocol_sha256': protocol_digest, 'checkpoint_sha256': checkpoint_sha256,
                'k_points_sha256': predictor.k_points_sha256, 'offsets': offsets,
                'elapsed_s': time.monotonic() - started, 'rows': rows}
+    if parity is not None:
+        payload['device_parity'] = parity
     with output_path.open('x', encoding='utf8') as handle:
         json.dump(payload, handle, indent=2, allow_nan=False)
     return output_path
@@ -202,10 +222,14 @@ def main() -> None:
     for name in ('manifest', 'manifest-sha256', 'protocol', 'protocol-sha256',
                  'checkpoint', 'checkpoint-sha256', 'device', 'output'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--parity-reference-device')
+    parser.add_argument('--parity-absolute-tolerance', type=float)
     args = parser.parse_args()
     print(run(args.manifest, manifest_sha256=args.manifest_sha256, protocol_path=args.protocol,
               protocol_sha256=args.protocol_sha256, checkpoint=args.checkpoint,
-              checkpoint_sha256=args.checkpoint_sha256, device=args.device, output=args.output))
+              checkpoint_sha256=args.checkpoint_sha256, device=args.device, output=args.output,
+              parity_reference_device=args.parity_reference_device,
+              parity_absolute_tolerance=args.parity_absolute_tolerance))
 
 
 if __name__ == '__main__':

@@ -33,6 +33,35 @@ def periodic_perturbation_grids(structure: FullCellStructureSpec, *, resolution:
     return tuple(periodic_binary_offset(base, offset=float(offset)) for offset in offsets)
 
 
+def compare_predictor_devices(grids: tuple[np.ndarray, ...], predictor: Any, reference: Any, *,
+                              input_resolution: int, absolute_tolerance: float) -> dict[str, Any]:
+    """Compare full spectra on identical inputs; this is not a physical accuracy test."""
+    import torch
+
+    if (not grids or isinstance(absolute_tolerance, bool)
+            or not isinstance(absolute_tolerance, (int, float))
+            or not np.isfinite(absolute_tolerance) or absolute_tolerance < 0):
+        raise ValueError('grids and finite nonnegative absolute tolerance required')
+    if predictor.input_shape != reference.input_shape or predictor.output_shape != reference.output_shape:
+        raise ValueError('predictor input or output contract differs')
+    if (predictor.checkpoint_sha256 != reference.checkpoint_sha256
+            or predictor.k_points_sha256 != reference.k_points_sha256):
+        raise ValueError('predictor checkpoint or k-point identity differs')
+    inputs = np.stack([block_mean_downsample(g, input_resolution) for g in grids]).astype(np.float32)
+    with torch.no_grad():
+        actual = predictor.predict_tensor(torch.as_tensor(inputs)).detach().cpu().numpy()
+        expected = reference.predict_tensor(torch.as_tensor(inputs)).detach().cpu().numpy()
+    if actual.shape != expected.shape or actual.shape != (len(grids), *predictor.output_shape):
+        raise ValueError('device prediction shape differs from checkpoint')
+    actual_finite, expected_finite = np.isfinite(actual), np.isfinite(expected)
+    finite = bool(actual_finite.all() and expected_finite.all())
+    maximum = float(np.max(np.abs(actual.astype(np.float64) - expected.astype(np.float64)))) if finite else None
+    return {'passed': bool(finite and maximum <= absolute_tolerance),
+            'absolute_tolerance': float(absolute_tolerance), 'max_absolute_difference': maximum,
+            'prediction_nonfinite_count': int((~actual_finite).sum()),
+            'reference_nonfinite_count': int((~expected_finite).sum())}
+
+
 def predict_perturbed_gap(grids: tuple[np.ndarray, ...], predictor: Any, *,
                           input_resolution: int, lower_band: int, target_frequency: float) -> dict[str, Any]:
     """Compute a surrogate-only common interval using area-averaged inputs.

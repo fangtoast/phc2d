@@ -15,6 +15,36 @@ torch = pytest.importorskip('torch')
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.audit_robust_proxy import run, validate_paired_proxy, validate_frozen_proxy_predictions
+from phc2d.inverse.perturbation_screen import compare_predictor_devices
+
+
+def test_device_parity_checks_full_spectra_identity_and_nonfinite():
+    class Predictor:
+        input_shape = (2, 2)
+        output_shape = (1, 2)
+        checkpoint_sha256 = 'checkpoint'
+        k_points_sha256 = 'points'
+        def __init__(self, value):
+            self.value = value
+        def predict_tensor(self, x):
+            return torch.tensor([[[.2, self.value]]] * len(x))
+    grids = (np.zeros((4, 4), dtype=np.uint8),)
+    reference = Predictor(.7)
+    passing = compare_predictor_devices(grids, Predictor(.700001), reference,
+                                        input_resolution=2, absolute_tolerance=1e-5)
+    assert passing['passed'] and passing['max_absolute_difference'] > 0
+    assert not compare_predictor_devices(grids, Predictor(.8), reference,
+                                         input_resolution=2, absolute_tolerance=1e-5)['passed']
+    invalid = compare_predictor_devices(grids, Predictor(float('nan')), reference,
+                                        input_resolution=2, absolute_tolerance=1e-5)
+    assert not invalid['passed'] and invalid['prediction_nonfinite_count'] == 1
+    assert invalid['max_absolute_difference'] is None
+    changed = Predictor(.7)
+    changed.checkpoint_sha256 = 'other'
+    with pytest.raises(ValueError, match='identity'):
+        compare_predictor_devices(grids, changed, reference, input_resolution=2, absolute_tolerance=1e-5)
+    with pytest.raises(ValueError, match='tolerance'):
+        compare_predictor_devices(grids, reference, reference, input_resolution=2, absolute_tolerance=float('nan'))
 
 
 def test_robust_proxy_keeps_offset_grid_and_candidate_identities(tmp_path, monkeypatch):
@@ -36,11 +66,13 @@ def test_robust_proxy_keeps_offset_grid_and_candidate_identities(tmp_path, monke
     pp, ph = save('protocol.json', protocol)
     class Predictor:
         input_shape = (2, 2)
+        output_shape = (1, 2)
+        checkpoint_sha256 = 'test'
         k_points_sha256 = k_hash
         def __init__(self, *args, **kwargs):
-            pass
+            self.device = kwargs.get('device')
         def predict_tensor(self, x):
-            return torch.tensor([[[.2, .7]]] * len(x))
+            return torch.tensor([[[.2, .9 if self.device == 'bad' else .7]]] * len(x))
     monkeypatch.setattr('phc2d.inverse.audit_robust_proxy.FrozenBandAdapter', Predictor)
     output = tmp_path / 'scores.json'
     run(mp, manifest_sha256=mh, protocol_path=pp, protocol_sha256=ph,
@@ -56,6 +88,17 @@ def test_robust_proxy_keeps_offset_grid_and_candidate_identities(tmp_path, monke
                        checkpoint_output_shape=(1, 2))
     verified = validate_frozen_proxy_predictions(proxy=result, **frozen_args)
     assert verified['candidate_count'] == 1 and verified['status_counts'] == {'surrogate_only': 1}
+    parity_output = tmp_path / 'parity.json'
+    run(mp, manifest_sha256=mh, protocol_path=pp, protocol_sha256=ph,
+        checkpoint='unused', checkpoint_sha256='test', device='cpu', output=parity_output,
+        parity_reference_device='cpu', parity_absolute_tolerance=1e-6)
+    assert json.loads(parity_output.read_text())['device_parity']['passed']
+    rejected = tmp_path / 'rejected.json'
+    with pytest.raises(ValueError, match='device prediction parity failed'):
+        run(mp, manifest_sha256=mh, protocol_path=pp, protocol_sha256=ph,
+            checkpoint='unused', checkpoint_sha256='test', device='bad', output=rejected,
+            parity_reference_device='cpu', parity_absolute_tolerance=1e-6)
+    assert not rejected.exists()
     changed = json.loads(json.dumps(result))
     changed['rows'][0]['predicted_margin'] += .01
     with pytest.raises(ValueError, match='does not reproduce'):
