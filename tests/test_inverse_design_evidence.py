@@ -107,6 +107,29 @@ def test_unseen_offsets_and_grids_cannot_reuse_optimization_cases(make_artifact)
         bind(nominal, other)
 
 
+def test_nominal_record_must_cover_supplied_optimization_protocol(make_artifact):
+    nominal = make_artifact((-.0625, 0., .0625))
+    unseen = make_artifact((-.125, 0., .125))
+    kwargs = {'expected_solver_identity': {'solver_backend': 'mock', 'solver_version': '1'},
+              'expected_frequency_normalization': 'synthetic unit'}
+    without = bind_joint_robust_evidence(nominal, unseen, **kwargs)
+    assert without['optimization_coverage_verified_against_supplied_protocol'] is False
+    protocol = json.dumps({'offsets': [-.0625, 0., .0625]}).encode()
+    matched = bind_joint_robust_evidence(nominal, unseen, **kwargs, optimization_protocol_bytes=protocol,
+                                        optimization_protocol_sha256=digest(protocol))
+    assert matched['optimization_coverage_verified_against_supplied_protocol'] is True
+    assert matched['optimization_protocol_sha256'] == digest(protocol)
+    missing = json.dumps({'offsets': [-.125, 0., .125]}).encode()
+    with pytest.raises(ValueError, match='does not cover'):
+        bind_joint_robust_evidence(nominal, unseen, **kwargs, optimization_protocol_bytes=missing,
+                                   optimization_protocol_sha256=digest(missing))
+    with pytest.raises(ValueError, match='digest mismatch'):
+        bind_joint_robust_evidence(nominal, unseen, **kwargs, optimization_protocol_bytes=protocol,
+                                   optimization_protocol_sha256='0'*64)
+    with pytest.raises(ValueError, match='supplied together'):
+        bind_joint_robust_evidence(nominal, unseen, **kwargs, optimization_protocol_bytes=protocol)
+
+
 def test_unstable_solver_remains_unresolved_and_normalization_is_checked(make_artifact):
     nominal = make_artifact((-.0625, 0., .0625))
     unstable = make_artifact((-.125, 0., .125), unstable=True)
