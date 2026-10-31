@@ -89,6 +89,11 @@ def test_submission_is_bounded_and_never_repeated(tmp_path, monkeypatch):
     profile["platform"] = "n40"
     (tmp_path / "config.resolved.yaml").write_text(yaml.safe_dump(profile))
     (tmp_path / "deployment_audit.json").write_text(json.dumps(dict(archive_sha256="frozen")))
+    from phc2d.forward.budget_confirmation import file_digest
+    (tmp_path / "jobs").mkdir()
+    launcher = tmp_path / "jobs/paracloud_single_domain_branch.sh"
+    launcher.write_text("launcher")
+    (tmp_path / "launcher_audit.json").write_text(json.dumps(dict(archive_sha256="frozen", launcher_sha256=file_digest(launcher))))
     calls = []
     monkeypatch.setattr(module.subprocess, "run", lambda args, **kw: (calls.append(args) or
                         SimpleNamespace(returncode=0, stdout="12345\n", stderr="")))
@@ -98,3 +103,27 @@ def test_submission_is_bounded_and_never_repeated(tmp_path, monkeypatch):
     with pytest.raises(FileExistsError):
         module.submit(tmp_path, tmp_path, "admission")
     assert len(calls) == 1
+
+
+def test_submission_recovery_requires_explicit_authorization_and_failed_prior(tmp_path, monkeypatch):
+    import importlib.util
+    from types import SimpleNamespace
+    from phc2d.forward.budget_confirmation import file_digest
+    spec = importlib.util.spec_from_file_location("submit_branch", "jobs/paracloud_submit_single_domain_branch.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    profile, _, _ = profiles()
+    profile["platform"] = "n40"
+    (tmp_path / "config.resolved.yaml").write_text(yaml.safe_dump(profile))
+    (tmp_path / "deployment_audit.json").write_text(json.dumps(dict(archive_sha256="frozen")))
+    (tmp_path / "jobs").mkdir()
+    launcher = tmp_path / "jobs/paracloud_single_domain_branch.sh"
+    launcher.write_text("launcher")
+    (tmp_path / "launcher_audit.json").write_text(json.dumps(dict(archive_sha256="frozen", launcher_sha256=file_digest(launcher))))
+    (tmp_path / "submission_admission.json").write_text(json.dumps(dict(status="submission_failed", stdout="")))
+    with pytest.raises(ValueError, match="explicit authorization"):
+        module.submit(tmp_path, tmp_path, "admission", recovery_id="1")
+    monkeypatch.setattr(module.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=0, stdout="123\n", stderr=""))
+    module.submit(tmp_path, tmp_path, "admission", recovery_id="1", recovery_authorization="user-approved")
+    with pytest.raises(ValueError, match="may have created a job"):
+        module.submit(tmp_path, tmp_path, "admission", recovery_id="2", recovery_authorization="user-approved")
