@@ -258,6 +258,120 @@ def verify_robust_journal_chain(initial: FeedbackState,
     return current, 'budget_exhausted' if current.remaining_evaluations == 0 else 'ready'
 
 
+def _apply_dispatch_event(state: Any, operation: str, payload: dict[str, Any]) -> Any:
+    """Replay one pure dispatch transition; no scheduler action is performed."""
+    from phc2d.inverse import feedback_dispatch as dispatch
+    from phc2d.inverse.resource_ledger import ResourceAmount
+
+    if not isinstance(payload, dict):
+        raise ValueError('dispatch event payload must be an object')
+    fields = {
+        'begin': {'proposal', 'task_id', 'cluster_id', 'reservation'},
+        'submission_unknown': {'reason'},
+        'confirm': {'job_id', 'confirmation_source'},
+        'release': {'confirmed_not_started', 'confirmed_no_future_execution', 'confirmation_source'},
+        'result': {'manifest', 'manifest_sha256', 'protocol', 'protocol_sha256', 'result'},
+        'failure': {'failure'},
+        'settle': {'accounting', 'allocated_gpus'},
+    }
+    if not isinstance(operation, str) or operation not in fields or set(payload) != fields[operation]:
+        raise ValueError('unknown dispatch operation or unexpected payload fields')
+    if operation == 'begin':
+        reservation = payload['reservation']
+        if not isinstance(reservation, dict) or set(reservation) != {'cpu_core_seconds', 'gpu_seconds'}:
+            raise ValueError('invalid dispatch reservation')
+        return dispatch.begin_dispatch(state, proposal=payload['proposal'], task_id=payload['task_id'],
+                                       cluster_id=payload['cluster_id'], reservation=ResourceAmount(**reservation))
+    if operation == 'submission_unknown':
+        return dispatch.mark_submission_unknown(state, reason=payload['reason'])
+    if operation == 'confirm':
+        return dispatch.confirm_submission(state, **payload)
+    if operation == 'release':
+        return dispatch.resolve_unstarted(state, **payload)
+    if operation == 'failure':
+        return dispatch.record_terminal_failure(state, **payload)
+    try:
+        if operation == 'result':
+            return dispatch.record_robust_result(state, manifest_bytes=base64.b64decode(payload['manifest'], validate=True),
+                manifest_sha256=payload['manifest_sha256'], protocol_bytes=base64.b64decode(payload['protocol'], validate=True),
+                protocol_sha256=payload['protocol_sha256'], result_bytes=base64.b64decode(payload['result'], validate=True))
+        return dispatch.settle_dispatch(state, accounting_bytes=base64.b64decode(payload['accounting'], validate=True),
+                                        allocated_gpus=payload['allocated_gpus'])
+    except (TypeError, ValueError) as exc:
+        raise ValueError('invalid dispatch event or encoded evidence') from exc
+
+
+def create_dispatch_journal(directory: str | Path, *, initial: Any) -> str:
+    """Create a new journal and return its initial hash for external custody.
+
+    The caller validates the initial incumbent, scheduler evidence and single
+    writer ownership; this journal neither submits jobs nor authenticates the
+    external origin of subsequently supplied evidence.
+    """
+    from phc2d.inverse.feedback_dispatch import FeedbackDispatchState, restore_feedback_dispatch
+
+    if not isinstance(initial, FeedbackDispatchState) or initial.dispatch is not None:
+        raise ValueError('initial dispatch state must not contain an active attempt')
+    restored = restore_feedback_dispatch(asdict(initial))
+    raw = _serialize({'schema': 'feedback_dispatch_journal_v1', 'state': asdict(restored)})
+    target = Path(directory)
+    target.mkdir(parents=False, exist_ok=False)
+    (target / 'events').mkdir()
+    _write_once(target / 'initial.json', raw)
+    return _hash(raw)
+
+
+def replay_dispatch_journal(directory: str | Path, *, initial_sha256: str) -> tuple[Any, str, int]:
+    """Recompute all transitions and return state, current hash and event count.
+
+    A trusted externally retained head is needed to detect a rewritten or
+    truncated otherwise-valid journal. Incomplete writes fail closed.
+    """
+    from phc2d.inverse.feedback_dispatch import restore_feedback_dispatch
+
+    target = Path(directory)
+    raw = (target / 'initial.json').read_bytes()
+    if _hash(raw) != initial_sha256:
+        raise ValueError('dispatch journal initial hash differs')
+    initial = json.loads(raw)
+    if set(initial) != {'schema', 'state'} or initial['schema'] != 'feedback_dispatch_journal_v1':
+        raise ValueError('invalid dispatch journal initial record')
+    state = restore_feedback_dispatch(initial['state'])
+    if state.dispatch is not None:
+        raise ValueError('dispatch journal begins with an active attempt')
+    entries = sorted((target / 'events').iterdir(), key=lambda path: path.name)
+    head = initial_sha256
+    for number, path in enumerate(entries, start=1):
+        if path.name != f'{number:08d}.json' or not path.is_file() or path.is_symlink():
+            raise ValueError('dispatch journal event sequence differs')
+        event_raw = path.read_bytes()
+        event = json.loads(event_raw)
+        if (set(event) != {'schema', 'number', 'previous_sha256', 'operation', 'payload', 'state_sha256'}
+                or event['schema'] != 'feedback_dispatch_event_v1' or isinstance(event['number'], bool)
+                or event['number'] != number
+                or event['previous_sha256'] != head):
+            raise ValueError('dispatch journal event identity differs')
+        state = _apply_dispatch_event(state, event['operation'], event['payload'])
+        if _hash(_serialize(asdict(state))) != event['state_sha256']:
+            raise ValueError('dispatch journal transition differs')
+        head = _hash(event_raw)
+    return state, head, len(entries)
+
+
+def append_dispatch_event(directory: str | Path, *, initial_sha256: str, expected_head: str,
+                          operation: str, payload: dict[str, Any]) -> tuple[Any, str]:
+    """Validate and append one immutable transition under single-writer control."""
+    state, head, count = replay_dispatch_journal(directory, initial_sha256=initial_sha256)
+    if head != expected_head:
+        raise ValueError('dispatch journal head differs; reconcile before writing')
+    next_state = _apply_dispatch_event(state, operation, payload)
+    event = {'schema': 'feedback_dispatch_event_v1', 'number': count + 1, 'previous_sha256': head,
+             'operation': operation, 'payload': payload, 'state_sha256': _hash(_serialize(asdict(next_state)))}
+    raw = _serialize(event)
+    _write_once(Path(directory) / 'events' / f'{count + 1:08d}.json', raw)
+    return next_state, _hash(raw)
+
+
 def _status_summary(state: FeedbackState, status: str, scope: str) -> dict[str, Any]:
     return {'status': status, 'incumbent_hash': state.incumbent_hash,
             'remaining_evaluations': state.remaining_evaluations,
