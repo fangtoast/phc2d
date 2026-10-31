@@ -54,3 +54,39 @@ def test_report_per_band_validation_agrees_with_aggregates(tmp_path, experiment_
     assert record["experiment_id"] == experiment_id
     assert record["per_band_mre_pct"] == pytest.approx(per_band, abs=1e-4)
     assert (run / "per_band_validation.json").is_file()
+
+
+def test_exp032_requires_explicit_identity_and_keeps_test_unread(tmp_path, monkeypatch):
+    torch = pytest.importorskip("torch")
+    h5py = pytest.importorskip("h5py")
+    import phc2d.models
+
+    class FixedModel(torch.nn.Module):
+        def forward(self, x):
+            return torch.ones((len(x), 3, 2), dtype=x.dtype, device=x.device)
+
+    monkeypatch.setattr(phc2d.models, "build_model", lambda *a, **k: FixedModel())
+    data = tmp_path / "data.h5"
+    with h5py.File(data, "w") as handle:
+        handle["grid"] = np.ones((3, 2, 2), dtype=np.float32)
+        labels = np.ones((3, 3, 2), dtype=np.float32)
+        labels[-1] = np.nan
+        handle["Wh"] = labels
+        handle["idx_val"] = np.array([0, 1])
+        handle["idx_test"] = np.array([2])
+    run = tmp_path / "run"
+    run.mkdir()
+    checkpoint = run / "model.pt"
+    torch.save(dict(state_dict={}, model_name="global_local_band_operator_v1", model_params={},
+                    input_shape=(2, 2), output_shape=(3, 2), target_mean=torch.zeros(3, 2),
+                    target_std=torch.ones(3, 2)), checkpoint)
+    (run / "results.json").write_text(json.dumps(dict(status="formal_training_success", selection_split="validation",
+        test_executed=False, model="global_local_band_operator_v1", checkpoint_sha256=file_digest(checkpoint))))
+    (run / "metrics.json").write_text(json.dumps(dict(bands_1_10_mre_pct=0., bands_2_10_mre_pct=0.)))
+    (run / "config.resolved.yaml").write_text(yaml.safe_dump(dict(
+        experiment=dict(experiment_id="EXP-FWD-032_n8000_e1000"),
+        dataset=dict(path=str(data), grid_field="grid", expected_dataset_sha256=file_digest(data)))))
+    with pytest.raises(ValueError, match="identity mismatch"):
+        report_per_band_validation(run)
+    report = report_per_band_validation(run, batch_size=1, expected_experiment="EXP-FWD-032")
+    assert report["validation_count"] == 2 and not report["test_executed"]

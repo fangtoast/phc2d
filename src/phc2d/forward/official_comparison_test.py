@@ -67,7 +67,7 @@ def test_indices(handle, *, external: bool) -> np.ndarray:
 
 def evaluate(run: Path, completed: Path, dataset: Path, dataset_sha256: str,
              grid_field: str, output: Path, *, external: bool = False,
-             save_predictions: bool = False) -> dict:
+             save_predictions: bool = False, expected_experiment: str = "EXP-FWD-031") -> dict:
     """Write a new test cell without changing the source training run."""
     import h5py
     import torch
@@ -80,7 +80,8 @@ def evaluate(run: Path, completed: Path, dataset: Path, dataset_sha256: str,
     if file_digest(dataset) != dataset_sha256:
         raise ValueError("target dataset SHA-256 mismatch")
     config = yaml.safe_load((run / "config.resolved.yaml").read_text(encoding="utf-8"))
-    if config["experiment"]["experiment_id"].split("_", 1)[0] != "EXP-FWD-031":
+    if (expected_experiment not in {"EXP-FWD-031", "EXP-FWD-032"}
+            or config["experiment"]["experiment_id"].split("_", 1)[0] != expected_experiment):
         raise ValueError("unexpected source experiment")
     if file_digest(Path(config["dataset"]["path"])) != config["dataset"]["expected_dataset_sha256"]:
         raise ValueError("source dataset changed")
@@ -198,9 +199,11 @@ def main() -> None:
     parser.add_argument("--external", action="store_true")
     parser.add_argument("--save-predictions", action="store_true",
                         help="Export de-normalized arrays in frozen sample order")
+    parser.add_argument("--experiment-id", choices=["EXP-FWD-031", "EXP-FWD-032"], default="EXP-FWD-031")
     args = parser.parse_args()
     evaluate(args.run, args.completed, args.dataset, args.dataset_sha256, args.grid_field,
-             args.output, external=args.external, save_predictions=args.save_predictions)
+             args.output, external=args.external, save_predictions=args.save_predictions,
+             expected_experiment=args.experiment_id)
 
 
 if __name__ == "__main__":

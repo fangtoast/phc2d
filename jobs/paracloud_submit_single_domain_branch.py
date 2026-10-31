@@ -27,11 +27,23 @@ def submit(root: Path, suite: Path, stage: str, *, recovery_id: str | None = Non
     profile = yaml.safe_load((suite / "config.resolved.yaml").read_text(encoding="utf-8"))
     platform = profile["platform"]
     if (profile["experiment_id"] != "EXP-FWD-032" or platform not in ENVIRONMENTS
-            or profile["execution"]["authorization_id"] != AUTHORIZATION or stage not in {"admission", "train"}):
+            or profile["execution"]["authorization_id"] != AUTHORIZATION or stage not in {"admission", "train", "validation", "test"}):
         raise ValueError("unregistered submission contract")
     if stage == "train":
         from phc2d.forward.single_domain_branch_campaign import audit_release
         audit_release(suite)
+    if stage in {"validation", "test"}:
+        audit = json.loads((suite / "training_audit.json").read_text())
+        if audit.get("task_count") != 36 or audit.get("status") != "training_artifacts_complete_pending_independent_review":
+            raise ValueError("all local training must be audited first")
+        if stage == "test":
+            from phc2d.forward.single_domain_branch_test import test_rows
+            test_rows(suite)
+        submission = json.loads((suite / "submission_train.json").read_text())
+        running = subprocess.run(["squeue", "-h", "-j", submission["job_id"], "-o", "%i"],
+                                 capture_output=True, text=True, check=True)
+        if running.stdout.strip():
+            raise ValueError("training workers have not released their GPUs")
     deployment = json.loads((root / "deployment_audit.json").read_text())
     launcher = root / "jobs/paracloud_single_domain_branch.sh"
     launcher_audit = json.loads((root / "launcher_audit.json").read_text())
@@ -63,7 +75,7 @@ def submit(root: Path, suite: Path, stage: str, *, recovery_id: str | None = Non
                    PHC2D_ARCHIVE_SHA256=deployment["archive_sha256"], PYTHONDONTWRITEBYTECODE="1")
     args = ["sbatch", "--parsable", "--no-requeue", "-p", platform_spec["partition"],
             "--gres=gpu:1", "-c", str(platform_spec["cpus_per_gpu"]),
-            "-t", "04:00:00" if stage == "admission" else "7-00:00:00",
+            "-t", "04:00:00" if stage in {"admission", "validation"} else "7-00:00:00",
             "-J", "phc2d032_" + stage, "--array=0-7%8",
             "-o", str(suite / (stage + "_%A_%a.out")), "-e", str(suite / (stage + "_%A_%a.err")),
             "--export=ALL," + ",".join(k + "=" + v for k, v in exports.items()),
@@ -83,7 +95,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(__doc__)
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--suite", required=True, type=Path)
-    parser.add_argument("--stage", required=True, choices=["admission", "train"])
+    parser.add_argument("--stage", required=True, choices=["admission", "train", "validation", "test"])
     parser.add_argument("--recovery-id")
     parser.add_argument("--recovery-authorization")
     args = parser.parse_args()

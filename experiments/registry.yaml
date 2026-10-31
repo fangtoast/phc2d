@@ -1097,7 +1097,7 @@ experiments:
   - id: EXP-FWD-032
     title: K5与F50单域全局局部分支消融
     task: forward
-    status: planned
+    status: active
     mapping_status: complete
     research_question: 同一单域训练合同下，完整全局局部模型、独立分支和容量对照的原域与迁移表现如何？
     spec: [experiments/research/EXP-FWD-032-单域全局局部消融.md]
@@ -1109,9 +1109,9 @@ experiments:
     report: []
     related_experiments: [EXP-FWD-026]
     decision:
-      state: blocked
-      summary: 规划已登记；历史Full复用审计、执行清单、训练测试接口与GPU准入尚未闭合，远程提交未授权。
-    tags: [single-domain, ablation, global-local, planned]
+      state: continue
+      summary: 24项历史Full基线审计通过，训练与测试目标身份冻结；N56准入12/12通过，N40准入排队，两机通过后才释放训练。
+    tags: [single-domain, ablation, global-local, admission]
 
 deferred_history:
   - scope: 2026-05 至 2026-06 初期的 legacy reproduction、FEM/MPB 与 smoke runs
