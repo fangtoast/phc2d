@@ -23,6 +23,7 @@ primary_layer: L4
 
 ## 截稿前补充实验
 
+- [单域全局局部消融](../../experiments/research/EXP-FWD-032-单域全局局部消融.md)：K5/F50 四域分支与容量对照；待完成基线审计、执行清单和准入。
 - [四域多指标补充评价](https://github.com/fangtoast/phc2d/blob/master/experiments/research/EXP-FWD-031-多指标补充评价.md)：冻结已有测试身份，补算相对 L²、MAE、MSE/RMSE 与 P95；完整性与原 MRE 测试分开验收。
 
 - [官方算子与通道融合对比](../../experiments/research/EXP-FWD-031-官方算子与通道融合对比.md)：四域三模型三种子，从零训练；先核查 12 项准入，训练与 validation 之外的评价另行安排。

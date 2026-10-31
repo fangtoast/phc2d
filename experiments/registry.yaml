@@ -1094,6 +1094,25 @@ experiments:
       summary: 用户已授权同条件三seed与每平台8GPU；运行和收敛状态以新campaign原始证据为准，不覆盖固定预算结果。
     tags: [convergence, validation-only, three-seed, adaptive-optimization]
 
+  - id: EXP-FWD-032
+    title: K5与F50单域全局局部分支消融
+    task: forward
+    status: planned
+    mapping_status: complete
+    research_question: 同一单域训练合同下，完整全局局部模型、独立分支和容量对照的原域与迁移表现如何？
+    spec: [experiments/research/EXP-FWD-032-单域全局局部消融.md]
+    config: [configs/research/full_cell_single_domain_branch_ablation_exp_fwd_032_v1.yaml]
+    runs:
+      local: []
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments: [EXP-FWD-026]
+    decision:
+      state: blocked
+      summary: 规划已登记；历史Full复用审计、执行清单、训练测试接口与GPU准入尚未闭合，远程提交未授权。
+    tags: [single-domain, ablation, global-local, planned]
+
 deferred_history:
   - scope: 2026-05 至 2026-06 初期的 legacy reproduction、FEM/MPB 与 smoke runs
     reason: 历史价值存在，但不属于当前活跃或论文核心实验，暂不批量登记。

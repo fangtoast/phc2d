@@ -1,0 +1,48 @@
+# Planned single-domain Global/Local ablation; not an execution manifest.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+experiment_id: EXP-FWD-032
+status: planned
+source_profile: configs/research/full_cell_core_confirmation_exp_fwd_024_v1.yaml
+adaptive_profile: configs/research/official_comparison_exp_fwd_031_v1.yaml
+domains: [k5_binary, k5_graded, f50_binary, f50_graded]
+seeds: [0, 1, 2]
+model: global_local_band_operator_v1
+parameter_tolerance: 0.05
+variants:
+  full_k3: {branches: [spectral, local], local_kernel: 3, width: 64, dense_head_hidden_dim: null, parameters: 2571978}
+  full_k7: {branches: [spectral, local], local_kernel: 7, width: 64, dense_head_hidden_dim: null, parameters: 2587338}
+  g_only: {branches: [spectral], local_kernel: 3, width: 64, dense_head_hidden_dim: null, parameters: 2369610}
+  g_only_cap: {branches: [spectral], local_kernel: 3, width: 64, dense_head_hidden_dim: 291, parameters: 2572395}
+  l_only_k3: {branches: [local], local_kernel: 3, width: 64, dense_head_hidden_dim: null, parameters: 256170}
+  l_only_k7: {branches: [local], local_kernel: 7, width: 64, dense_head_hidden_dim: null, parameters: 271530}
+  l_only_cap_k3: {branches: [local], local_kernel: 3, width: 224, dense_head_hidden_dim: null, parameters: 2614890}
+  l_only_cap_k7: {branches: [local], local_kernel: 7, width: 224, dense_head_hidden_dim: null, parameters: 2668650}
+training:
+  train_size: 8000
+  train_subset_salt: exp-fwd-021-domain-ranking-v1
+  micro_batch_size: 64
+  effective_batch_size: 64
+  optimizer: adamw
+  learning_rate: 0.0005
+  weight_decay: 0.00001
+  loss: normalized_full_matrix_mse
+  checkpoint_selection: validation_bands_2_10_mre
+  max_epochs: 1000
+  initialization: from_scratch
+  test_authorized: false
+platforms:
+  n40: {domains: [k5_binary, f50_graded], partition: gpu_4090, cpus_per_gpu: 6, max_gpus: 8}
+  n56: {domains: [k5_graded, f50_binary], partition: gpu_5090, cpus_per_gpu: 8, max_gpus: 8}
+test:
+  targets: [k5_binary, k5_graded, f50_binary, f50_graded, exp_dat_007_12k, exp_dat_008_24k]
+  primary_metric: bands_1_10_mre_pct
+  batch_size: 16
+  planned_new_cells_if_full_reused: 432
+execution:
+  manifest_status: not_frozen
+  admission_status: not_run
+  remote_submission_authorized: false
+  automatic_retry: false
+  automatic_migration: false

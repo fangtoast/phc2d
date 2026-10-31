@@ -5,6 +5,8 @@
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
+> 2026-10-31 [EXP-FWD-032 单域分支消融](experiments/research/EXP-FWD-032-单域全局局部消融.md)为 Draft 规划：暂定四域72项新增训练与432个测试单元，历史Full仍待完整复用审计；执行接口、冻结清单及GPU准入尚未完成，未提交远程作业。
+
 > 2026-10-29 四域多指标补充评价为 partial：已冻结 1,176 个单元的范围，历史 K5 两域三模型的 18 个原域单元通过 WSL 多指标补算及 MRE 回归；历史 960 个单元的预测文件已定位，031 的 216 项需补导出预测，远端作业待资源授权。见[补充评价结果（Draft）](docs/results/forward/EXP-FWD-031-多指标补充评价.md)与[补充协议](experiments/research/EXP-FWD-031-多指标补充评价.md)。这不改变[原四域 MRE 完整报告](docs/reports/EXP-FWD-031四域完整测试结果_20261029.md)的测试完成状态。下方早期执行快照保留为历史。
 
 > 2026-10-27 EXP-FWD-031 已登记为 Draft：[官方算子与通道融合对比](experiments/research/EXP-FWD-031-官方算子与通道融合对比.md)。模型实现与训练协议的工程验证、双服务器准入和 36 项正式提交分别核查；未完成准入前不得称训练已启动。此批仅含训练与 validation，不包含 held-out test。
