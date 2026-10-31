@@ -386,3 +386,103 @@ def summarize_multiseed_eligible_stratified(
     return {'status': 'ranking_summary_ready', 'incomplete_source_seeds': [], 'per_seed': per_seed,
             'selection_scope': ('conditional_on_scoreable_candidates' if conditional
                                 else 'all_frozen_candidates_scoreable'), 'summary': summary}
+
+
+def evaluate_locked_shared_choices(
+    choices: Mapping[str, Any], manifest: Mapping[str, Any], physical: Mapping[str, Any], *,
+    source_strata: Mapping[int, str], seeds: Sequence[int], physical_group_sha256: Mapping[int, str],
+    expected_counts: Mapping[str, int], stratum_weights: Mapping[str, float],
+    bootstrap_seed: int, bootstrap_samples: int = 10000,
+) -> dict[str, Any]:
+    """Evaluate pre-locked choices on independently verified physical records.
+
+    The caller must verify lock chronology, hashes, predictions and solver
+    provenance. Missing observations or any failed full-group gate prevent a
+    summary. A statistical result alone is not physical acceptance.
+    """
+    entries = manifest['rows']
+    measured = physical['rows']
+    expected = {i: row for i, row in enumerate(entries)}
+    observed = {row['case_index']: row for row in measured}
+    if len(observed) != len(measured) or set(observed) - set(expected):
+        raise ValueError('duplicate or unexpected physical candidate')
+    if {row['source_index'] for row in entries} != set(source_strata):
+        raise ValueError('manifest source roster differs')
+    for index, row in observed.items():
+        reference = expected[index]
+        if any(row.get(k) != reference.get(k) for k in ('source_index', 'label', 'parameter_hash')):
+            raise ValueError('physical candidate identity differs')
+        value = row.get('target_margin')
+        if (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+                or not isinstance(row.get('numerical_gate_passed'), bool)):
+            raise ValueError('invalid physical outcome')
+    locked = choices['sources']
+    by_pair = {(row['source_index'], row['seed']): row for row in locked}
+    roster = {(source, seed) for source in source_strata for seed in seeds}
+    if len(by_pair) != len(locked) or set(by_pair) - roster:
+        raise ValueError('duplicate or unexpected locked choice')
+    modes = {'raw': {seed: [] for seed in seeds}, 'corrected': {seed: [] for seed in seeds}}
+    for source, seed in sorted(roster):
+        items = [(i, row) for i, row in expected.items() if row['source_index'] == source]
+        anchors = [i for i, row in items if row['label'] == 'anchor']
+        if len(anchors) != 1:
+            raise ValueError('source requires exactly one anchor')
+        choice = by_pair.get((source, seed))
+        if choice is None:
+            continue
+        if choice.get('anchor_case_index') != anchors[0]:
+            raise ValueError('locked anchor differs')
+        status = choice.get('status')
+        allowed = {'choices_locked', 'anchor_unscoreable', 'anchor_numerical_gate_failed',
+                   'insufficient_shared_candidates'}
+        if status not in allowed:
+            raise ValueError('unknown locked choice status')
+        eligible = choice.get('eligible', [])
+        identities = []
+        for candidate in eligible:
+            index = candidate['case_index']
+            if index not in expected or expected[index]['source_index'] != source or expected[index]['label'] == 'anchor':
+                raise ValueError('eligible candidate outside source')
+            if any(candidate.get(k) != expected[index].get(k) for k in ('label', 'parameter_hash')):
+                raise ValueError('locked candidate identity differs')
+            for score in ('raw_score', 'corrected_score'):
+                value = candidate.get(score)
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                    raise ValueError('locked score must be finite')
+            identities.append((source, candidate['label'], candidate['parameter_hash']))
+        if len(set(identities)) != len(identities):
+            raise ValueError('duplicate eligible candidate')
+        if status == 'choices_locked':
+            if len(eligible) < 2:
+                raise ValueError('locked choice requires two eligible candidates')
+            for mode in modes:
+                winner = min(eligible, key=lambda x: (-x[f'{mode}_score'], x['label'], x['parameter_hash']))
+                if choice.get(f'{mode}_choice') != winner['case_index']:
+                    raise ValueError('locked winner differs from scores')
+        complete = all(index in observed for index, _ in items)
+        passed = complete and all(observed[index]['numerical_gate_passed'] for index, _ in items)
+        for mode, groups in modes.items():
+            ranking = None
+            group_status = status
+            if status == 'choices_locked' and complete:
+                anchor = observed[anchors[0]]['target_margin']
+                selected = observed[choice[f'{mode}_choice']]
+                baseline = sum(observed[item['case_index']]['target_margin'] for item in eligible) / len(eligible)
+                ranking = {'source_index': source, 'selected_label': selected['label'],
+                           'selected_parameter_hash': selected['parameter_hash'],
+                           'selected_gain': selected['target_margin'] - anchor,
+                           'random_expected_gain': baseline - anchor}
+                group_status = 'ranked_descriptive'
+            elif status == 'choices_locked':
+                group_status = 'missing_physical_candidate'
+            groups[seed].append({'source_index': source, 'physical_group_sha256': physical_group_sha256[source],
+                'status': group_status, 'ranking': ranking, 'all_numerical_gates_passed': passed,
+                'eligible_candidate_identities': identities, 'eligible_candidate_count': len(identities),
+                'unscoreable': [row['label'] for _, row in items
+                                if row['label'] != 'anchor' and (source, row['label'], row['parameter_hash']) not in identities]})
+    result = {mode: summarize_multiseed_eligible_stratified(groups, source_strata=source_strata, seeds=seeds,
+              physical_group_sha256=physical_group_sha256, expected_counts=expected_counts,
+              stratum_weights=stratum_weights, bootstrap_seed=bootstrap_seed, bootstrap_samples=bootstrap_samples,
+              require_shared_eligible=True) for mode, groups in modes.items()}
+    return {'status': 'ready' if all(value['status'] == 'ranking_summary_ready' for value in result.values())
+            else 'unavailable', 'physical_acceptance': 'not_evaluated', **result}
