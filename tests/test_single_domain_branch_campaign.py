@@ -127,3 +127,34 @@ def test_submission_recovery_requires_explicit_authorization_and_failed_prior(tm
     module.submit(tmp_path, tmp_path, "admission", recovery_id="1", recovery_authorization="user-approved")
     with pytest.raises(ValueError, match="may have created a job"):
         module.submit(tmp_path, tmp_path, "admission", recovery_id="2", recovery_authorization="user-approved")
+
+
+def test_validation_submission_checks_live_queue_without_querying_expired_job(tmp_path, monkeypatch):
+    import importlib.util
+    from types import SimpleNamespace
+    from phc2d.forward.budget_confirmation import file_digest
+    spec = importlib.util.spec_from_file_location("submit_branch", "jobs/paracloud_submit_single_domain_branch.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    profile, _, _ = profiles()
+    profile["platform"] = "n40"
+    (tmp_path / "config.resolved.yaml").write_text(yaml.safe_dump(profile))
+    (tmp_path / "training_audit.json").write_text(json.dumps(dict(task_count=36, status="training_artifacts_complete_pending_independent_review")))
+    (tmp_path / "submission_train.json").write_text(json.dumps(dict(status="submitted", job_id="123")))
+    (tmp_path / "deployment_audit.json").write_text(json.dumps(dict(archive_sha256="frozen")))
+    (tmp_path / "jobs").mkdir()
+    launcher = tmp_path / "jobs/paracloud_single_domain_branch.sh"
+    launcher.write_text("launcher")
+    (tmp_path / "launcher_audit.json").write_text(json.dumps(dict(archive_sha256="frozen", launcher_sha256=file_digest(launcher))))
+    monkeypatch.setenv("USER", "test-user")
+    monkeypatch.setattr(module.subprocess, "run", lambda args, **kw: SimpleNamespace(
+        returncode=0, stdout="123_[0-7%8]\n" if args[0] == "squeue" else "456\n", stderr=""))
+    with pytest.raises(ValueError, match="not released"):
+        module.submit(tmp_path, tmp_path, "validation")
+    calls = []
+    def run(args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(returncode=0, stdout="999_0\n" if args[0] == "squeue" else "456\n", stderr="")
+    monkeypatch.setattr(module.subprocess, "run", run)
+    assert module.submit(tmp_path, tmp_path, "validation")["job_id"] == "456"
+    assert calls[0] == ["squeue", "-h", "-u", "test-user", "-o", "%i"]

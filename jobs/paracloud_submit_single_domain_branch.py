@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 from datetime import datetime, timezone
@@ -39,10 +40,15 @@ def submit(root: Path, suite: Path, stage: str, *, recovery_id: str | None = Non
         if stage == "test":
             from phc2d.forward.single_domain_branch_test import test_rows
             test_rows(suite)
-        submission = json.loads((suite / "submission_train.json").read_text())
-        running = subprocess.run(["squeue", "-h", "-j", submission["job_id"], "-o", "%i"],
+        submissions = [suite / "submission_train.json", *suite.glob("submission_train_recovery_*.json")]
+        accepted = [json.loads(path.read_text()) for path in submissions if path.is_file()]
+        accepted = [item for item in accepted if item.get("status") == "submitted" and item.get("job_id")]
+        if len(accepted) != 1:
+            raise ValueError("expected exactly one accepted training array")
+        running = subprocess.run(["squeue", "-h", "-u", os.environ["USER"], "-o", "%i"],
                                  capture_output=True, text=True, check=True)
-        if running.stdout.strip():
+        job_id = accepted[0]["job_id"]
+        if any(line.strip().split("_", 1)[0] == job_id for line in running.stdout.splitlines()):
             raise ValueError("training workers have not released their GPUs")
     deployment = json.loads((root / "deployment_audit.json").read_text())
     launcher = root / "jobs/paracloud_single_domain_branch.sh"
