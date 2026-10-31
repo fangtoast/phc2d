@@ -18,7 +18,7 @@ primary_layer: L3
 
 # EXP-FWD-032：单域全局局部消融
 
-**结论：本实验用于补齐 K5/F50 单域分支独立能力证据，目前为 planned，尚无冻结执行清单、准入或新训练结果。** 原 K5+K20 mixed 消融不能代替单域训练；冻结关断和独立重训也回答不同问题。候选基线与既有 mixed 证据见 [EXP-FWD-022](../../docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md) 和 [四域测试报告](../../docs/reports/EXP-FWD-031四域完整测试结果_20261029.md)。本协议为 Draft，待人类审阅。
+**结论：本实验用于补齐 K5/F50 单域分支独立能力证据；用户已明确要求开展双平台准入与训练，运行状态以 manifest 和 run 制品为准。** 原 K5+K20 mixed 消融不能代替单域训练；冻结关断和独立重训也回答不同问题。候选基线与既有 mixed 证据见 [EXP-FWD-022](../../docs/results/forward/EXP-FWD-022-分支依赖与独立能力.md) 和 [四域测试报告](../../docs/reports/EXP-FWD-031四域完整测试结果_20261029.md)。本协议为 Draft，待人类审阅。
 
 ## 比较合同
 
@@ -54,4 +54,4 @@ N40 分配 K5 Binary、F50 Graded；N56 分配 K5 Graded、F50 Binary；各最�
 
 ## 当前 gate
 
-[规划配置](../../configs/research/full_cell_single_domain_branch_ablation_exp_fwd_032_v1.yaml) 不是可提交 manifest，也不是已实现的执行入口。下一步逐项完成 Full 与历史测试复用审计、目标环境容量核验、数据和资源预检，冻结唯一训练和测试清单并实现相应执行与审计接口；远程训练与测试在清单和预算具体可审阅后另获明确授权。
+[实验配置](../../configs/research/full_cell_single_domain_branch_ablation_exp_fwd_032_v1.yaml) 不是已冻结的任务清单。用户于 2026-10-31 明确要求开展本实验直至训练完成，授权双平台准入与训练；仍须先核验基线、冻结 manifest 并通过准入。测试应按本协议另建独立冻结评价清单，不以训练配置的 `test_authorized: false` 替代评价授权或结果。

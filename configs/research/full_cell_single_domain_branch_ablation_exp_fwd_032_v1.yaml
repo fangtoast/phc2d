@@ -43,6 +43,7 @@ test:
 execution:
   manifest_status: not_frozen
   admission_status: not_run
-  remote_submission_authorized: false
+  remote_submission_authorized: true
+  authorization_id: user-2026-10-31-exp-fwd-032-admission-training
   automatic_retry: false
   automatic_migration: false
