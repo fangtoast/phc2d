@@ -102,7 +102,8 @@ def rank_refinements(proxy_rows: Sequence[Mapping[str, Any]], summary: Mapping[s
 
 
 def rank_eligible_refinements(proxy_rows: Sequence[Mapping[str, Any]],
-                              summary: Mapping[str, Any]) -> list[dict[str, Any]]:
+                              summary: Mapping[str, Any], *,
+                              shared_eligible: set[tuple[Any, Any, Any]] | None = None) -> list[dict[str, Any]]:
     """Rank scoreable candidates without silently dropping incomplete groups.
 
     The physical roster must contain every candidate, including unscoreable
@@ -124,6 +125,12 @@ def rank_eligible_refinements(proxy_rows: Sequence[Mapping[str, Any]],
     if (not predicted or len(predicted) != len(proxy_rows) or len(physical) != len(physical_rows)
             or predicted.keys() != physical.keys()):
         raise ValueError('paired candidate identities differ or are duplicated')
+    if shared_eligible is not None:
+        if not isinstance(shared_eligible, set) or not shared_eligible.issubset(predicted):
+            raise ValueError('shared eligibility must be a subset of paired identities')
+        if any(predicted[key]['label'] == 'anchor' or predicted[key].get('status') != 'surrogate_only'
+               for key in shared_eligible):
+            raise ValueError('shared eligible identities must be scoreable nonanchors')
     groups: dict[Any, list[tuple[Mapping[str, Any], Mapping[str, Any]]]] = {}
     for key, prediction in predicted.items():
         truth = physical[key]
@@ -146,11 +153,17 @@ def rank_eligible_refinements(proxy_rows: Sequence[Mapping[str, Any]],
         candidates = [pair for pair in entries if pair[0]['label'] != 'anchor']
         if len(anchors) != 1 or len(candidates) < 2:
             raise ValueError('each source needs one anchor and at least two candidates')
-        eligible = [pair for pair in candidates if pair[0]['status'] == 'surrogate_only']
+        eligible = [pair for pair in candidates if pair[0]['status'] == 'surrogate_only'
+                    and (shared_eligible is None or identity(pair[0]) in shared_eligible)]
         missing = [{'label': pair[0]['label'], 'status': pair[0]['status']}
                    for pair in entries if pair[0]['status'] != 'surrogate_only']
+        if shared_eligible is not None:
+            missing.extend({'label': pair[0]['label'], 'status': 'excluded_by_other_seed'}
+                           for pair in candidates if pair[0]['status'] == 'surrogate_only'
+                           and identity(pair[0]) not in shared_eligible)
         row = {'source_index': source, 'candidate_count': len(candidates),
                'eligible_candidate_count': len(eligible), 'unscoreable': missing,
+               'eligible_candidate_identities': sorted((identity(pair[0]) for pair in eligible)),
                'numerical_gate_passed_count': sum(pair[1]['numerical_gate_passed'] for pair in entries),
                'all_numerical_gates_passed': all(pair[1]['numerical_gate_passed'] for pair in entries),
                'evidence_scope': scope, 'random_baseline': 'uniform_over_scoreable_non_anchor_candidates'}
@@ -169,6 +182,75 @@ def rank_eligible_refinements(proxy_rows: Sequence[Mapping[str, Any]],
             row.update(status='ranked_descriptive', ranking=ranked[0])
         result.append(row)
     return result
+
+
+def shared_eligibility_from_predictions(
+    proxy_by_seed: Mapping[int, Sequence[Mapping[str, Any]]], *, seeds: Sequence[int],
+) -> dict[str, Any]:
+    """Compute shared identities without reading any physical outcomes.
+
+    Caller independently validates every prediction, frozen roster and hash.
+    """
+    if (not isinstance(proxy_by_seed, Mapping) or not isinstance(seeds, Sequence)
+            or isinstance(seeds, (str, bytes)) or not seeds
+            or any(isinstance(seed, bool) or not isinstance(seed, int) or seed < 0 for seed in seeds)
+            or len(set(seeds)) != len(seeds) or set(proxy_by_seed) != set(seeds)):
+        raise ValueError('shared ranking needs the frozen seed roster')
+    def identity(row: Mapping[str, Any]) -> tuple[Any, Any, Any]:
+        return row['source_index'], row['label'], row['parameter_hash']
+    by_seed = {}
+    for seed in seeds:
+        rows = proxy_by_seed[seed]
+        if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes)) or not rows:
+            raise ValueError('each seed needs a nonempty prediction roster')
+        indexed = {identity(row): row for row in rows}
+        if len(indexed) != len(rows):
+            raise ValueError('duplicate prediction identity')
+        for row in rows:
+            score = row.get('predicted_margin')
+            if row.get('status') == 'surrogate_only':
+                if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score):
+                    raise ValueError('scoreable candidate needs a finite prediction')
+            elif (row.get('status') not in {'band_order_violation', 'nonfinite_prediction', 'negative_frequency'}
+                  or score is not None or row.get('predicted_gap') is not None):
+                raise ValueError('unscoreable candidate needs an explicit failure and no score')
+        by_seed[seed] = indexed
+    keys = set(by_seed[seeds[0]])
+    if any(set(by_seed[seed]) != keys for seed in seeds):
+        raise ValueError('prediction candidate rosters differ')
+    sources = {key[0] for key in keys}
+    if any(sum(key[0] == source and key[1] == 'anchor' for key in keys) != 1 for source in sources):
+        raise ValueError('each source needs exactly one anchor')
+    common = {key for key in keys if key[1] != 'anchor'
+              and all(by_seed[seed][key]['status'] == 'surrogate_only' for seed in seeds)}
+    invalid_anchor_sources = {key[0] for key in keys if key[1] == 'anchor'
+                              and any(by_seed[seed][key]['status'] != 'surrogate_only' for seed in seeds)}
+    anchor_failures = [{'source_index': key[0], 'seed': seed, 'status': by_seed[seed][key]['status']}
+                       for key in sorted(keys) if key[1] == 'anchor' for seed in seeds
+                       if by_seed[seed][key]['status'] != 'surrogate_only']
+    return {'common_nonanchor_identities': sorted(common), 'unscoreable_anchor_sources': sorted(invalid_anchor_sources),
+            'unscoreable_anchor_details': anchor_failures}
+
+
+def rank_shared_eligible_refinements(
+    proxy_by_seed: Mapping[int, Sequence[Mapping[str, Any]]], summary: Mapping[str, Any], *,
+    seeds: Sequence[int],
+) -> dict[int, list[dict[str, Any]]]:
+    """Rank each seed against a common valid set and gate the full physical roster."""
+    shared = shared_eligibility_from_predictions(proxy_by_seed, seeds=seeds)
+    common = set(shared['common_nonanchor_identities'])
+    invalid_anchor_sources = set(shared['unscoreable_anchor_sources'])
+    output = {}
+    for seed in seeds:
+        groups = rank_eligible_refinements(proxy_by_seed[seed], summary, shared_eligible=common)
+        for group in groups:
+            group['random_baseline'] = 'uniform_over_shared_scoreable_non_anchor_candidates'
+            if group['source_index'] in invalid_anchor_sources:
+                group.update(status='anchor_unscoreable', ranking=None,
+                             shared_anchor_failures=[item for item in shared['unscoreable_anchor_details']
+                                                     if item['source_index'] == group['source_index']])
+        output[seed] = groups
+    return output
 
 
 def summarize_eligible_stratified(
@@ -228,6 +310,7 @@ def summarize_multiseed_eligible_stratified(
     groups_by_seed: Mapping[int, Sequence[Mapping[str, Any]]], *, source_strata: Mapping[int, str],
     seeds: Sequence[int], physical_group_sha256: Mapping[int, str], expected_counts: Mapping[str, int],
     stratum_weights: Mapping[str, float], bootstrap_seed: int, bootstrap_samples: int = 10000,
+    require_shared_eligible: bool = False,
 ) -> dict[str, Any]:
     """Apply full-group gates before averaging seeds and resampling sources.
 
@@ -244,12 +327,14 @@ def summarize_multiseed_eligible_stratified(
             or any(isinstance(x, bool) or not isinstance(x, int) for x in groups_by_seed)
             or len(set(seeds)) != len(seeds) or set(groups_by_seed) != set(seeds)
             or set(physical_group_sha256) != set(source_strata)
-            or isinstance(bootstrap_samples, bool) or not isinstance(bootstrap_samples, int) or bootstrap_samples < 1):
+            or isinstance(bootstrap_samples, bool) or not isinstance(bootstrap_samples, int) or bootstrap_samples < 1
+            or not isinstance(require_shared_eligible, bool)):
         raise ValueError('frozen seed and physical group rosters must be complete')
     digests = list(physical_group_sha256.values())
     if (any(not isinstance(x, str) or len(x) != 64 or any(c not in '0123456789abcdef' for c in x)
             for x in digests) or len(set(digests)) != len(digests)):
         raise ValueError('unique physical group digests are required')
+    shared_by_source: dict[int, tuple[tuple[Any, Any, Any], ...]] = {}
     per_seed = {}
     incomplete = []
     for model_seed in seeds:
@@ -262,6 +347,24 @@ def summarize_multiseed_eligible_stratified(
             if (isinstance(source, bool) or not isinstance(source, int) or source not in physical_group_sha256
                     or group.get('physical_group_sha256') != physical_group_sha256[source]):
                 raise ValueError('seed group physical identity differs from the frozen source')
+            if require_shared_eligible:
+                identities = group.get('eligible_candidate_identities')
+                if (not isinstance(identities, (list, tuple))
+                        or any(not isinstance(item, (list, tuple)) or len(item) != 3
+                               or item[0] != source or not isinstance(item[1], str)
+                               or not isinstance(item[2], str) or item[1] == 'anchor' for item in identities)):
+                    raise ValueError('shared eligibility identities are invalid')
+                canonical = tuple(sorted(tuple(item) for item in identities))
+                if len(set(canonical)) != len(canonical) or len(canonical) != group.get('eligible_candidate_count'):
+                    raise ValueError('shared eligibility count differs')
+                if source in shared_by_source and shared_by_source[source] != canonical:
+                    raise ValueError('shared eligibility differs across seeds')
+                shared_by_source[source] = canonical
+                if group.get('status') == 'ranked_descriptive':
+                    ranking = group.get('ranking')
+                    if (not isinstance(ranking, Mapping) or len(canonical) < 2
+                            or (source, ranking.get('selected_label'), ranking.get('selected_parameter_hash')) not in canonical):
+                        raise ValueError('selected candidate is outside shared eligibility')
         result = summarize_eligible_stratified(groups_by_seed[model_seed], source_strata=source_strata,
             expected_counts=expected_counts, stratum_weights=stratum_weights,
             seed=bootstrap_seed, bootstrap_samples=1)

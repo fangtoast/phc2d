@@ -16,6 +16,7 @@ from phc2d.inverse.audit_refine import run_case
 from phc2d.inverse.audit_refined_reconcile import (rank_eligible_refinements, rank_refinements,
                                                    reconcile_refinements, summarize_eligible_stratified,
                                                    summarize_multiseed_eligible_stratified)
+from phc2d.inverse.audit_refined_reconcile import rank_shared_eligible_refinements, shared_eligibility_from_predictions
 
 
 def test_frozen_refinement_writes_numerical_evidence_and_refuses_overwrite(tmp_path):
@@ -123,6 +124,40 @@ def test_eligible_ranking_does_not_hide_unscoreable_anchors_or_missing_candidate
         rank_eligible_refinements(proxy, summary)
 
 
+def test_shared_eligibility_uses_identical_baselines_and_preserves_full_gate():
+    labels = ['anchor', 'a', 'b', 'c', 'd']
+    physical = [{'source_index': 1, 'label': label, 'parameter_hash': label,
+                 'target_margin': value, 'numerical_gate_passed': label != 'a'}
+                for label, value in zip(labels, [0., 100., -100., 1., 3.])]
+    summary = {'status': 'exploratory_finite_offsets_and_local_refinement', 'rows': physical}
+    def rows(invalid):
+        return [{'source_index': 1, 'label': label, 'parameter_hash': label,
+                 'status': 'band_order_violation' if label == invalid else 'surrogate_only',
+                 'predicted_margin': None if label == invalid else value}
+                for label, value in zip(labels, [0., 4., 3., 2., 1.])]
+    proxies = {0: rows('a'), 1: rows('b')}
+    prephysical = shared_eligibility_from_predictions(proxies, seeds=[0, 1])
+    assert prephysical == {'common_nonanchor_identities': [(1, 'c', 'c'), (1, 'd', 'd')],
+                           'unscoreable_anchor_sources': [], 'unscoreable_anchor_details': []}
+    with pytest.raises(ValueError, match='rosters differ'):
+        shared_eligibility_from_predictions({0: proxies[0], 1: proxies[1][:-1]}, seeds=[0, 1])
+    result = rank_shared_eligible_refinements(proxies, summary, seeds=[0, 1])
+    for seed in (0, 1):
+        group = result[seed][0]
+        assert group['eligible_candidate_identities'] == [(1, 'c', 'c'), (1, 'd', 'd')]
+        assert group['ranking']['random_expected_gain'] == 2.
+        assert not group['all_numerical_gates_passed'] and group['numerical_gate_passed_count'] == 4
+        assert {item['status'] for item in group['unscoreable']} == {'band_order_violation', 'excluded_by_other_seed'}
+    proxies[1][0].update(status='band_order_violation', predicted_margin=None)
+    result = rank_shared_eligible_refinements(proxies, summary, seeds=[0, 1])
+    assert all(result[seed][0]['status'] == 'anchor_unscoreable' and result[seed][0]['ranking'] is None
+               for seed in (0, 1))
+    assert result[0][0]['shared_anchor_failures'] == [
+        {'source_index': 1, 'seed': 1, 'status': 'band_order_violation'}]
+    with pytest.raises(ValueError, match='seed roster'):
+        rank_shared_eligible_refinements(proxies, summary, seeds=[0, 2])
+
+
 def test_stratified_summary_requires_frozen_roster_and_full_numerical_gates():
     strata = {1: 'positive', 2: 'positive', 3: 'negative', 4: 'negative'}
     kwargs = dict(source_strata=strata, expected_counts={'positive': 2, 'negative': 2},
@@ -170,6 +205,21 @@ def test_multiseed_summary_fails_closed_until_all_source_groups_are_gated():
     assert result['status'] == 'ranking_summary_ready'
     assert result['summary']['source_count'] == 4 and result['summary']['source_seed_count'] == 12
     assert result['summary']['selected_minus_random_mean'] == 2.5
+    for seed in groups:
+        for group in groups[seed]:
+            source = group['source_index']
+            group['eligible_candidate_identities'] = [[source, 'a', 'hash-a'], [source, 'b', 'hash-b']]
+            group['eligible_candidate_count'] = 2
+            group['ranking'].update(selected_label='a', selected_parameter_hash='hash-a')
+    assert summarize_multiseed_eligible_stratified(groups, **kwargs, require_shared_eligible=True)['status'] == 'ranking_summary_ready'
+    groups[1][0]['eligible_candidate_identities'][0][2] = 'different'
+    with pytest.raises(ValueError, match='shared eligibility differs'):
+        summarize_multiseed_eligible_stratified(groups, **kwargs, require_shared_eligible=True)
+    groups[1][0]['eligible_candidate_identities'][0][2] = 'hash-a'
+    groups[1][0]['ranking']['selected_parameter_hash'] = 'not-eligible'
+    with pytest.raises(ValueError, match='outside shared eligibility'):
+        summarize_multiseed_eligible_stratified(groups, **kwargs, require_shared_eligible=True)
+    groups[1][0]['ranking']['selected_parameter_hash'] = 'hash-a'
     groups[0][1]['unscoreable'] = [{'label': 'a', 'status': 'band_order_violation'}]
     conditional = summarize_multiseed_eligible_stratified(groups, **kwargs)
     assert conditional['selection_scope'] == 'conditional_on_scoreable_candidates'
