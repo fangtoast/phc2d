@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import time
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -20,6 +21,97 @@ from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.audit_refine import read_checked_json
 from phc2d.inverse.frozen_band_adapter import FrozenBandAdapter
 from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, predict_perturbed_gap
+from phc2d.inverse.robust_gap import common_gap
+
+
+def validate_frozen_proxy_predictions(
+    *, manifest_bytes: bytes, manifest_sha256: str, protocol_bytes: bytes, protocol_sha256: str,
+    proxy: Mapping[str, Any], checkpoint_sha256: str, k_points_sha256: str,
+    checkpoint_output_shape: tuple[int, int],
+) -> dict[str, Any]:
+    """Rebuild input rasters and scores before any candidate physical results.
+
+    The caller independently verifies checkpoint identity and output metadata.
+    A nonfinite prediction whose raw spectrum is absent remains explicitly
+    unscoreable; its specific failure cause cannot be independently replayed.
+    This check establishes neither model accuracy nor physical acceptance.
+    """
+    if (hashlib.sha256(manifest_bytes).hexdigest() != manifest_sha256
+            or hashlib.sha256(protocol_bytes).hexdigest() != protocol_sha256):
+        raise ValueError('manifest or protocol digest mismatch')
+    manifest, protocol = json.loads(manifest_bytes), json.loads(protocol_bytes)
+    points = np.ascontiguousarray(manifest['k_points'], dtype=np.float32)
+    if (points.ndim != 2 or points.shape[1] != 2 or not np.isfinite(points).all()
+            or hashlib.sha256(points.tobytes()).hexdigest() != k_points_sha256):
+        raise ValueError('checkpoint k-point identity differs')
+    if (not isinstance(checkpoint_output_shape, tuple) or len(checkpoint_output_shape) != 2
+            or any(isinstance(x, bool) or not isinstance(x, int) or x <= 0 for x in checkpoint_output_shape)
+            or checkpoint_output_shape[0] != len(points)
+            or not 1 <= manifest['lower_band'] < checkpoint_output_shape[1]):
+        raise ValueError('invalid checkpoint output shape or band')
+    offsets = protocol['offsets']
+    if (proxy.get('status') != 'exploratory_surrogate_common_gap_only'
+            or proxy.get('manifest_sha256') != manifest_sha256 or proxy.get('protocol_sha256') != protocol_sha256
+            or proxy.get('checkpoint_sha256') != checkpoint_sha256 or proxy.get('k_points_sha256') != k_points_sha256
+            or proxy.get('offsets') != offsets):
+        raise ValueError('proxy prediction provenance differs')
+    entries = manifest['rows']
+    rows = proxy.get('rows')
+    def identity(item: Mapping[str, Any]) -> tuple[Any, Any, Any]:
+        return item['source_index'], item['label'], item['parameter_hash']
+    if not isinstance(rows, list) or not entries or len(rows) != len(entries):
+        raise ValueError('prediction roster incomplete')
+    expected = {identity(item): item for item in entries}
+    predicted = {identity(item): item for item in rows}
+    if len(expected) != len(entries) or len(predicted) != len(rows) or set(expected) != set(predicted):
+        raise ValueError('prediction candidate identity differs or is duplicated')
+    counts: dict[str, int] = {}
+    for key, entry in expected.items():
+        item = predicted[key]
+        structure = FullCellStructureSpec.from_mapping(entry['structure'])
+        if structure.parameter_hash != entry['parameter_hash']:
+            raise ValueError('candidate parameter identity differs')
+        grids = periodic_perturbation_grids(structure, resolution=protocol['raster_resolution'], offsets=tuple(offsets))
+        grid_hashes = [hashlib.sha256(np.ascontiguousarray(grid, dtype=np.uint8).tobytes()).hexdigest() for grid in grids]
+        if item.get('grid_sha256') != grid_hashes or grid_hashes[offsets.index(0.0)] != entry['master_grid_sha256']:
+            raise ValueError('prediction offset grid identity differs')
+        status = item.get('status')
+        counts[status] = counts.get(status, 0) + 1
+        bands_raw = item.get('predicted_bands')
+        if status == 'nonfinite_prediction':
+            if bands_raw is not None or item.get('predicted_gap') is not None or item.get('predicted_margin') is not None:
+                raise ValueError('nonfinite prediction must remain unscoreable')
+            continue
+        bands = np.asarray(bands_raw, dtype=np.float64)
+        if bands.shape != (len(offsets), *checkpoint_output_shape) or not np.isfinite(bands).all():
+            raise ValueError('prediction spectral shape or finiteness differs')
+        unordered = bool(np.any(np.diff(bands, axis=-1) < 0))
+        lower = manifest['lower_band']
+        negative_pair = bool(np.any(bands[..., lower-1:lower+1] < 0))
+        if status == 'band_order_violation':
+            if not unordered or item.get('predicted_gap') is not None or item.get('predicted_margin') is not None:
+                raise ValueError('band-order failure is inconsistent')
+            continue
+        if status == 'negative_frequency':
+            if unordered or not negative_pair or item.get('predicted_gap') is not None or item.get('predicted_margin') is not None:
+                raise ValueError('negative-frequency failure is inconsistent')
+            continue
+        if status != 'surrogate_only' or unordered or negative_pair:
+            raise ValueError('invalid scoreable prediction')
+        gap = asdict(common_gap(bands[..., lower-1:lower+1], lower_band=1,
+                                target_frequency=manifest['target_frequency']))
+        observed = item.get('predicted_gap')
+        if (not isinstance(observed, Mapping) or set(observed) != set(gap)
+                or observed['contains_target'] is not gap['contains_target']
+                or any(isinstance(observed[k], bool) or not isinstance(observed[k], (int, float))
+                       or not np.isclose(observed[k], gap[k], rtol=0, atol=1e-10)
+                       for k in ('lower_edge', 'upper_edge', 'signed_width', 'target_margin'))
+                or isinstance(item.get('predicted_margin'), bool)
+                or not isinstance(item.get('predicted_margin'), (int, float))
+                or not np.isclose(item['predicted_margin'], gap['target_margin'], rtol=0, atol=1e-10)):
+            raise ValueError('prediction gap does not reproduce from spectrum')
+    return {'scope': 'frozen_proxy_input_and_score_contract_only', 'candidate_count': len(entries),
+            'status_counts': counts, 'nonfinite_failure_reason_verifiable': False}
 
 
 def validate_paired_proxy(proxy: Mapping[str, Any], records: Sequence[Mapping[str, Any]], *,

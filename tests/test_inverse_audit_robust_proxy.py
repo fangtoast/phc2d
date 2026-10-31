@@ -14,7 +14,7 @@ import pytest
 torch = pytest.importorskip('torch')
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
-from phc2d.inverse.audit_robust_proxy import run, validate_paired_proxy
+from phc2d.inverse.audit_robust_proxy import run, validate_paired_proxy, validate_frozen_proxy_predictions
 
 
 def test_robust_proxy_keeps_offset_grid_and_candidate_identities(tmp_path, monkeypatch):
@@ -51,6 +51,33 @@ def test_robust_proxy_keeps_offset_grid_and_candidate_identities(tmp_path, monke
     assert len(result['rows'][0]['predicted_bands']) == 3
     assert len(result['rows'][0]['grid_sha256']) == 3
     assert result['rows'][0]['grid_sha256'][1] == manifest['rows'][0]['master_grid_sha256']
+    frozen_args = dict(manifest_bytes=mp.read_bytes(), manifest_sha256=mh, protocol_bytes=pp.read_bytes(),
+                       protocol_sha256=ph, checkpoint_sha256='test', k_points_sha256=k_hash,
+                       checkpoint_output_shape=(1, 2))
+    verified = validate_frozen_proxy_predictions(proxy=result, **frozen_args)
+    assert verified['candidate_count'] == 1 and verified['status_counts'] == {'surrogate_only': 1}
+    changed = json.loads(json.dumps(result))
+    changed['rows'][0]['predicted_margin'] += .01
+    with pytest.raises(ValueError, match='does not reproduce'):
+        validate_frozen_proxy_predictions(proxy=changed, **frozen_args)
+    changed = json.loads(json.dumps(result))
+    changed['rows'][0]['grid_sha256'][0] = 'wrong'
+    with pytest.raises(ValueError, match='grid identity'):
+        validate_frozen_proxy_predictions(proxy=changed, **frozen_args)
+    changed = json.loads(json.dumps(result))
+    changed['rows'][0].update(status='band_order_violation', predicted_gap=None, predicted_margin=None,
+                              predicted_bands=[[[.7, .2]]] * 3)
+    assert validate_frozen_proxy_predictions(proxy=changed, **frozen_args)['status_counts'] == {'band_order_violation': 1}
+    changed['rows'][0]['predicted_bands'] = [[[.2, .7]]] * 3
+    with pytest.raises(ValueError, match='band-order failure'):
+        validate_frozen_proxy_predictions(proxy=changed, **frozen_args)
+    changed['rows'][0].update(status='negative_frequency', predicted_bands=[[[-.1, .7]]] * 3)
+    assert validate_frozen_proxy_predictions(proxy=changed, **frozen_args)['status_counts'] == {'negative_frequency': 1}
+    changed['rows'][0]['predicted_bands'] = [[[.2, .7]]] * 3
+    with pytest.raises(ValueError, match='negative-frequency failure'):
+        validate_frozen_proxy_predictions(proxy=changed, **frozen_args)
+    changed['rows'][0].update(status='nonfinite_prediction', predicted_bands=None)
+    assert validate_frozen_proxy_predictions(proxy=changed, **frozen_args)['nonfinite_failure_reason_verifiable'] is False
     row = result['rows'][0]
     physical = [{'source_index': row['source_index'], 'label': row['label'], 'parameter_hash': row['parameter_hash'],
                  'manifest_sha256': mh, 'protocol_sha256': ph,
