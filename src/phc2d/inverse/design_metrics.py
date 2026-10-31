@@ -296,9 +296,11 @@ def compare_paired_budget_curves(
 
     Each mapping contains at most one ordered trajectory per target/seed;
     missing trajectories and attempts without verified margins do not attain
-    the target. Seeds are averaged within each target before pointwise target
-    bootstrap. The caller must authenticate and account for complete work,
-    artifacts, ordering and actual cumulative costs for both methods.
+    the target. Margin differences are conditional on both methods having
+    verified margins and may be selection biased. Seeds are averaged within
+    each target before pointwise target bootstrap. The caller must authenticate
+    and account for complete work, artifacts, ordering and actual cumulative
+    costs for both methods.
     """
     import numpy as np
 
@@ -333,11 +335,12 @@ def compare_paired_budget_curves(
     points = []
     for index, budget in enumerate(cpu_milestones):
         groups: dict[str, list[float]] = {target: [] for target in targets}
+        margin_groups: dict[str, list[float]] = {}
         stats = {name: {'attained': 0, 'verified': 0, 'no_completed_attempt': 0,
                         'missing_trajectories': len(set(roster) - set(source))}
                  for name, source in (('left', left), ('right', right))}
         for identity in sorted(roster):
-            outcomes = {}
+            outcomes, margins = {}, {}
             for name in ('left', 'right'):
                 point = curves[name][identity]['points'][index]
                 margin = point['best_verified_margin']
@@ -346,7 +349,10 @@ def compare_paired_budget_curves(
                 stats[name]['verified'] += int(margin is not None)
                 stats[name]['no_completed_attempt'] += int(point['attempts_completed'] == 0)
                 outcomes[name] = attained
+                margins[name] = margin
             groups[identity[0]].append(float(outcomes['left']) - float(outcomes['right']))
+            if margins['left'] is not None and margins['right'] is not None:
+                margin_groups.setdefault(identity[0], []).append(margins['left'] - margins['right'])
         attempted = {name: len(roster) - stats[name]['no_completed_attempt'] for name in ('left', 'right')}
         for name in ('left', 'right'):
             stats[name]['attainment_rate_all'] = stats[name]['attained'] / len(roster) if attempted[name] else None
@@ -355,9 +361,22 @@ def compare_paired_budget_curves(
         low = high = None
         if difference is not None and samples is not None:
             low, high = (float(x) for x in np.quantile(values[samples].mean(axis=1), [.025, .975]))
+        margin_values = np.asarray([np.mean(margin_groups[target]) for target in sorted(margin_groups)], dtype=np.float64)
+        margin_mean = float(margin_values.mean()) if len(margin_values) else None
+        margin_low = margin_high = None
+        if len(margin_values) >= 2:
+            margin_samples = np.random.default_rng(bootstrap_seed).integers(
+                0, len(margin_values), size=(bootstrap_samples, len(margin_values)))
+            margin_low, margin_high = (float(x) for x in
+                np.quantile(margin_values[margin_samples].mean(axis=1), [.025, .975]))
         points.append({'cpu_budget': float(budget), 'left': stats['left'], 'right': stats['right'],
                        'paired_attainment_difference': difference, 'bootstrap_95_low': low,
-                       'bootstrap_95_high': high})
+                       'bootstrap_95_high': high, 'verified_margin_difference_conditional': {
+                           'target_count': len(margin_values),
+                           'pair_count': sum(len(values) for values in margin_groups.values()),
+                           'mean_difference': margin_mean, 'bootstrap_95_low': margin_low,
+                           'bootstrap_95_high': margin_high,
+                           'scope': 'both_verified_only_potential_selection_bias'}})
     return {'scope': 'paired_trajectory_descriptive_caller_verifies_evidence_and_cumulative_costs',
             'target_count': len(targets), 'target_seed_count': len(roster),
             'resampling_unit': 'target_id', 'bootstrap_seed': bootstrap_seed,

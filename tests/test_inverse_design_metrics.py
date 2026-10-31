@@ -120,6 +120,29 @@ def test_paired_budget_curve_does_not_report_rate_for_unattempted_method():
     assert point['left']['attainment_rate_all'] == 0
     assert point['right']['attainment_rate_all'] is None
     assert point['paired_attainment_difference'] is None and point['bootstrap_95_low'] is None
+    assert point['verified_margin_difference_conditional']['target_count'] == 0
+    assert point['verified_margin_difference_conditional']['mean_difference'] is None
+
+
+def test_paired_budget_curve_margin_difference_averages_within_targets():
+    roster = [{'target_id': target, 'seed': seed, 'target_frequency': 1.}
+              for target in ('a', 'b') for seed in (0, 1)]
+    design = 'c' * 64
+    def trajectory(name, margin):
+        edges = verified(1 - margin / 2, 1 + margin / 2)
+        return [{'attempt_id': name, 'design_sha256': design, 'cumulative_cpu_core_seconds': 1,
+                 'cumulative_gpu_seconds': 0, 'physical': {**edges, 'design_sha256': design}}]
+    left = {('a', 0): trajectory('a0', .4), ('a', 1): trajectory('a1', .6),
+            ('b', 0): trajectory('b0', .1), ('b', 1): trajectory('b1', .5)}
+    right = {('a', 0): trajectory('a0', .2), ('a', 1): trajectory('a1', .4),
+             ('b', 0): trajectory('b0', .3)}
+    result = compare_paired_budget_curves(roster, left=left, right=right, cpu_milestones=[1],
+        gpu_cap_seconds=0, bootstrap_seed=8, bootstrap_samples=100)
+    summary = result['points'][0]['verified_margin_difference_conditional']
+    assert summary['target_count'] == 2 and summary['pair_count'] == 3
+    assert summary['mean_difference'] == pytest.approx(0.)
+    assert summary['bootstrap_95_low'] is not None
+    assert summary['scope'] == 'both_verified_only_potential_selection_bias'
 
 
 def test_missing_and_unresolved_do_not_inflate_success_or_false_positive():
