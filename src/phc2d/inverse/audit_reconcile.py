@@ -61,15 +61,52 @@ def reconcile_sampled_solver(manifest_path: str | Path, solver: Sequence[Mapping
     if digest != expected_manifest_sha256:
         raise ValueError('manifest SHA-256 mismatch')
     manifest = json.loads(raw)
-    points = np.asarray(manifest['k_points'], dtype=np.float64)
     expected = manifest['rows']
-    indexed = {row['case_index']: row for row in solver}
-    if len(solver) != len(expected) or len(indexed) != len(expected) or set(indexed) != set(range(len(expected))):
-        raise ValueError('incomplete or duplicate sampled solver matrix')
     if not expected:
         raise ValueError('sampled solver matrix must not be empty')
+    return _reconcile_sampled_records(manifest, digest, solver, list(range(len(expected))),
+                                      expected_solver_identity=expected_solver_identity, complete=True)
+
+
+def reconcile_sampled_solver_subset(
+    manifest_path: str | Path, solver: Sequence[Mapping[str, Any]], *, expected_manifest_sha256: str,
+    expected_case_indices: Sequence[int], expected_solver_identity: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Validate a declared subset without deriving cohort-level conclusions.
+
+    The original full manifest and a fixed subset of case indices must match;
+    this does not authorize selection, imputation or a complete-screen claim.
+    """
+    raw = Path(manifest_path).read_bytes()
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != expected_manifest_sha256:
+        raise ValueError('manifest SHA-256 mismatch')
+    manifest = json.loads(raw)
+    if (not isinstance(expected_case_indices, Sequence) or isinstance(expected_case_indices, (str, bytes))
+            or not expected_case_indices
+            or any(isinstance(i, (bool, np.bool_)) or not isinstance(i, (int, np.integer))
+                   or not 0 <= i < len(manifest['rows'])
+                   for i in expected_case_indices)
+            or len(set(expected_case_indices)) != len(expected_case_indices)):
+        raise ValueError('valid unique subset case indices are required')
+    return _reconcile_sampled_records(manifest, digest, solver, sorted(expected_case_indices),
+                                      expected_solver_identity=expected_solver_identity, complete=False)
+
+
+def _reconcile_sampled_records(manifest: Mapping[str, Any], digest: str,
+                               solver: Sequence[Mapping[str, Any]], indices: Sequence[int], *,
+                               expected_solver_identity: Mapping[str, Any] | None, complete: bool) -> dict[str, Any]:
+    expected = manifest['rows']
+    points = np.asarray(manifest['k_points'], dtype=np.float64)
+    if any(isinstance(row.get('case_index'), (bool, np.bool_))
+           or not isinstance(row.get('case_index'), (int, np.integer)) for row in solver):
+        raise ValueError('invalid sampled solver case index')
+    indexed = {row['case_index']: row for row in solver}
+    if len(solver) != len(indices) or len(indexed) != len(indices) or set(indexed) != set(indices):
+        raise ValueError('incomplete or duplicate sampled solver matrix')
     spectra = []
-    for i, source in enumerate(expected):
+    for i in indices:
+        source = expected[i]
         row = indexed[i]
         if row.get('status') != 'sampled_solver_only':
             raise ValueError('invalid sampled solver status')
@@ -78,9 +115,13 @@ def reconcile_sampled_solver(manifest_path: str | Path, solver: Sequence[Mapping
             if any(metadata.get(key) != value for key, value in expected_solver_identity.items()):
                 raise ValueError('sampled solver identity mismatch')
         spectra.append(_validate_sampled_row(source, row, manifest=manifest, manifest_sha=digest, points=points))
-    return {'status': 'sampled_solver_only', 'manifest_sha256': digest,
-            'source_indices': np.asarray([row['source_index'] for row in expected], dtype=np.int64),
-            'spectra': np.stack(spectra)}
+    output = {'status': 'sampled_solver_only' if complete else 'sampled_solver_subset_only',
+              'manifest_sha256': digest,
+              'source_indices': np.asarray([expected[i]['source_index'] for i in indices], dtype=np.int64),
+              'spectra': np.stack(spectra)}
+    if not complete:
+        output['case_indices'] = np.asarray(indices, dtype=np.int64)
+    return output
 
 
 def reconcile_audit(manifest_path: str | Path, proxy: Mapping[str, Any],

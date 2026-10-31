@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
-from phc2d.inverse.audit_reconcile import reconcile_audit, reconcile_sampled_solver
+from phc2d.inverse.audit_reconcile import reconcile_audit, reconcile_sampled_solver, reconcile_sampled_solver_subset
 
 
 def data(tmp_path):
@@ -76,6 +76,30 @@ def test_solver_only_reconciliation_restores_manifest_order_and_rejects_mismatch
     results[0]['bands'] = [[.35, .75]]
     with pytest.raises(ValueError, match='gap does not reproduce'):
         reconcile_sampled_solver(path, results, expected_manifest_sha256=digest)
+
+
+def test_subset_reconciliation_validates_only_the_declared_cases(tmp_path):
+    path, _, results, _ = data(tmp_path)
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    for row in results:
+        row['solver_metadata'] = {**row['solver_metadata'], 'solver_backend': 'mock', 'solver_version': '1'}
+    args = dict(expected_manifest_sha256=digest, expected_case_indices=[2, 0],
+                expected_solver_identity={'solver_backend': 'mock', 'solver_version': '1'})
+    result = reconcile_sampled_solver_subset(path, [results[2], results[0]], **args)
+    assert result['status'] == 'sampled_solver_subset_only'
+    assert result['case_indices'].tolist() == [0, 2]
+    assert result['spectra'].shape == (2, 1, 2)
+    with pytest.raises(ValueError, match='incomplete or duplicate'):
+        reconcile_sampled_solver_subset(path, [results[0]], **args)
+    with pytest.raises(ValueError, match='unique subset'):
+        reconcile_sampled_solver_subset(path, [results[0], results[0]], **{**args, 'expected_case_indices': [0, 0]})
+    with pytest.raises(ValueError, match='unique subset'):
+        reconcile_sampled_solver_subset(path, [], **{**args, 'expected_case_indices': []})
+    with pytest.raises(ValueError, match='unique subset'):
+        reconcile_sampled_solver_subset(path, [results[0]], **{**args, 'expected_case_indices': [True]})
+    changed = dict(results[2], bands=[[.35, .75]])
+    with pytest.raises(ValueError, match='gap does not reproduce'):
+        reconcile_sampled_solver_subset(path, [results[0], changed], **args)
 
 
 @pytest.mark.parametrize('field,value', [('eigensolver_tolerance', 1e-7),
