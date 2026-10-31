@@ -111,3 +111,23 @@ def test_invalid_transition_does_not_append_and_missing_event_is_rejected(tmp_pa
     (folder / 'events' / '00000001.json').unlink()
     with pytest.raises(ValueError, match='sequence differs'):
         replay_dispatch_journal(folder, initial_sha256=genesis)
+
+
+def test_cli_inspects_dispatch_only_with_trusted_head(tmp_path, capsys):
+    from phc2d.cli.main import main
+
+    folder = tmp_path / 'dispatch'
+    genesis = create_dispatch_journal(folder, initial=_initial())
+    _, head = append_dispatch_event(folder, initial_sha256=genesis, expected_head=genesis,
+                                    operation='begin', payload=_begin('b', 'first'))
+    args = ['inverse', 'feedback-inspect', '--dispatch-directory', str(folder),
+            '--initial-sha256', genesis, '--head-sha256', head]
+    main(args)
+    summary = json.loads(capsys.readouterr().out)
+    assert summary['phase'] == 'prepared' and summary['pending_hash'] == 'b'
+    assert summary['event_count'] == 1 and summary['reserved']['cpu_core_seconds'] == 20
+    assert summary['evidence_scope'] == 'journal_replay_only_initial_and_scheduler_evidence_not_independently_verified'
+    with pytest.raises(ValueError, match='head differs'):
+        main(args[:-1] + [genesis])
+    with pytest.raises(SystemExit, match='requires'):
+        main(['inverse', 'feedback-inspect', '--dispatch-directory', str(folder), '--initial-sha256', genesis])

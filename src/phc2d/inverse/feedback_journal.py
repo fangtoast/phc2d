@@ -372,6 +372,25 @@ def append_dispatch_event(directory: str | Path, *, initial_sha256: str, expecte
     return next_state, _hash(raw)
 
 
+def summarize_dispatch_journal(directory: str | Path, *, initial_sha256: str,
+                               expected_head: str) -> dict[str, Any]:
+    """Inspect a chain against externally retained initial and head hashes."""
+    state, head, count = replay_dispatch_journal(directory, initial_sha256=initial_sha256)
+    if head != expected_head:
+        raise ValueError('dispatch journal head differs; reconcile before use')
+    totals = state.ledger.totals()
+    item = state.dispatch
+    return {'status': 'chain_verified', 'event_count': count, 'head_sha256': head,
+            'phase': item.phase if item else 'idle', 'task_id': item.task_id if item else None,
+            'cluster_id': item.cluster_id if item else None, 'job_id': item.job_id if item else None,
+            'incumbent_hash': state.feedback.incumbent_hash,
+            'pending_hash': state.feedback.pending.parameter_hash if state.feedback.pending else None,
+            'remaining_evaluations': state.feedback.remaining_evaluations,
+            'budget_status': state.ledger.status(), 'limits': asdict(state.ledger.limits),
+            'actual': asdict(totals['actual']), 'reserved': asdict(totals['reserved']),
+            'evidence_scope': 'journal_replay_only_initial_and_scheduler_evidence_not_independently_verified'}
+
+
 def _status_summary(state: FeedbackState, status: str, scope: str) -> dict[str, Any]:
     return {'status': status, 'incumbent_hash': state.incumbent_hash,
             'remaining_evaluations': state.remaining_evaluations,
