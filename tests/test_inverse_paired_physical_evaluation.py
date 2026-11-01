@@ -8,6 +8,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 import hashlib
 import json
 import runpy
+import copy
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +18,7 @@ from phc2d.inverse.audit_perturb_refine import run_case
 from phc2d.inverse.paired_physical_handoff import build_paired_physical_batch
 from phc2d.inverse.paired_physical_evaluation import evaluate_locked_paired_physics
 from phc2d.inverse.robust_cross_environment import compare_locked_robust_environments
+from phc2d.inverse.paired_development_gate import adjudicate_paired_development
 
 
 def test_locked_comparison_requires_every_physical_gate(tmp_path):
@@ -75,11 +77,22 @@ def test_locked_comparison_requires_every_physical_gate(tmp_path):
         'frequency_tolerance':1e-6}
     comparison = compare_locked_robust_environments(**cross_args)
     assert comparison['all_passed'] and comparison['p2_gate'] == 'not_evaluated'
+    decision_args = {'expected_case_indices':cross_ids,'expected_offsets':[-1/32,0,1/32],
+                     'expected_source_count':2,'expected_seeds':[0,1],'expected_tolerance':1e-6}
+    decision = adjudicate_paired_development(actual,comparison,**decision_args)
+    expected_stat = 'pass' if actual['statistics']['bootstrap_95_low'] > 0 else 'fail'
+    assert decision['statistical_criterion'] == expected_stat and decision['p2_gate'] == 'not_evaluated'
+    altered = copy.deepcopy(comparison)
+    altered['cases'][0]['offsets'][0]['passed'] = False
+    with pytest.raises(ValueError,match='offset decision mismatch'):
+        adjudicate_paired_development(actual,altered,**decision_args)
     failed_case = cross_ids[0]
     exits = dict(cross_args['replay_exit_codes']); exits[failed_case] = 124
     replays = {i:raw for i,raw in cross_args['replay_results'].items() if i != failed_case}
     comparison = compare_locked_robust_environments(**dict(cross_args,replay_exit_codes=exits,replay_results=replays))
     assert not comparison['all_passed'] and comparison['cases'][0]['reason'] == 'replay_process_failed'
+    decision = adjudicate_paired_development(actual,comparison,**decision_args)
+    assert decision['cross_environment_criterion'] == 'fail' and decision['status'] == 'development_criterion_not_met'
     with pytest.raises(ValueError,match='case or exit roster'):
         compare_locked_robust_environments(**dict(cross_args,replay_results={}))
     shifted = run_case(manifest_path,expected_sha256=manifest_sha,protocol_path=protocol_path,
@@ -105,3 +118,12 @@ def test_locked_comparison_requires_every_physical_gate(tmp_path):
     actual = evaluate_locked_paired_physics(**dict(args,results_by_case=failed))
     assert actual['status'] == 'unscoreable_numerical_gate_failures' and actual['failed_case_indices'] == [0]
     assert actual['statistics'] is None and actual['p2_gate'] == 'not_evaluated'
+    original_comparison = compare_locked_robust_environments(**cross_args)
+    with pytest.raises(ValueError,match='crosscheck reference identity mismatch'):
+        adjudicate_paired_development(actual,original_comparison,**decision_args)
+    failed_reference = dict(cross_args['reference_results']); failed_reference[0] = failed[0]
+    failed_replay = dict(cross_args['replay_results']); failed_replay[0] = failed[0]
+    failed_comparison = compare_locked_robust_environments(**dict(cross_args,
+        reference_results=failed_reference,replay_results=failed_replay))
+    decision = adjudicate_paired_development(actual,failed_comparison,**decision_args)
+    assert decision['statistical_criterion'] == 'unscoreable' and decision['status'] == 'development_criterion_not_met'

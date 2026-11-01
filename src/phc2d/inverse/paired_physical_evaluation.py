@@ -85,6 +85,7 @@ def evaluate_locked_paired_physics(
     if failed:
         return {'status':'unscoreable_numerical_gate_failures', 'physical_validation':'incomplete',
                 'failed_case_indices':failed, 'statistics':None, 'p2_gate':'not_evaluated',
+                'batch_sha256':batch_sha256, 'manifest_sha256':manifest_sha256, 'protocol_sha256':protocol_sha256,
                 'case_result_sha256':case_hashes}
     groups = []
     for sid in sorted(source_strata):
@@ -102,4 +103,5 @@ def evaluate_locked_paired_physics(
         bootstrap_seed=bootstrap_seed, bootstrap_samples=bootstrap_samples)
     return {'status':'paired_statistics_available', 'physical_validation':'solver_cases_numerically_checked',
             'failed_case_indices':[], 'statistics':summary, 'groups':groups,
+            'batch_sha256':batch_sha256, 'manifest_sha256':manifest_sha256, 'protocol_sha256':protocol_sha256,
             'p2_gate':'not_evaluated', 'case_result_sha256':case_hashes}
