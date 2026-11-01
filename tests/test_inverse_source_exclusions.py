@@ -11,7 +11,7 @@ import json
 import pytest
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
-from phc2d.inverse.source_exclusions import extend_source_exclusions
+from phc2d.inverse.source_exclusions import extend_source_exclusions, merge_source_exclusions
 
 
 def fixture_inputs():
@@ -80,3 +80,28 @@ def test_extend_retains_authenticated_historical_parameter_hash():
     args['additions'] = [{'name': 'historical', 'bytes': raw, 'sha256': hashlib.sha256(raw).hexdigest()}]
     with pytest.raises(ValueError, match='historical parameter hash'):
         extend_source_exclusions(**args)
+
+
+def test_merge_requires_matching_config_and_preserves_each_identity():
+    args = fixture_inputs()
+    first = extend_source_exclusions(**args)
+    second = json.loads(json.dumps(first))
+    second['identity_sets']['parameter_hash'] = ['unique-second']
+    second['prior_candidate_master_grid_sha256'] = ['unique-grid']
+    def item(name, doc):
+        raw = json.dumps(doc).encode()
+        return {'name': name, 'bytes': raw, 'sha256': hashlib.sha256(raw).hexdigest()}
+    inputs = [item('first', first), item('second', second)]
+    merged = merge_source_exclusions(config_bytes=args['config_bytes'], inputs=inputs,
+                                     low_resolution=8, audit_resolution=16)
+    assert {'previous', 'unique-second'} <= set(merged['identity_sets']['parameter_hash'])
+    assert {'physical', 'unique-grid'} <= set(merged['prior_candidate_master_grid_sha256'])
+    with pytest.raises(ValueError, match='hash mismatch'):
+        merge_source_exclusions(config_bytes=args['config_bytes'], inputs=[dict(inputs[0], sha256='bad')],
+                                low_resolution=8, audit_resolution=16)
+    with pytest.raises(ValueError, match='configuration or identity schema'):
+        merge_source_exclusions(config_bytes=b'different', inputs=inputs, low_resolution=8, audit_resolution=16)
+    second['prior_candidate_master_grid_sha256'] = ['duplicate', 'duplicate']
+    with pytest.raises(ValueError, match='identity set'):
+        merge_source_exclusions(config_bytes=args['config_bytes'], inputs=[item('bad', second)],
+                                low_resolution=8, audit_resolution=16)

@@ -119,3 +119,42 @@ def extend_source_exclusions(
             'previous_exclusions_sha256': previous_sha256, 'additions': inventory,
             'identity_sets': {key: sorted(value) for key, value in identity_sets.items()},
             'prior_candidate_master_grid_sha256': sorted(physical)}
+
+
+def merge_source_exclusions(*, config_bytes: bytes, inputs: Sequence[Mapping[str, Any]],
+                            low_resolution: int, audit_resolution: int) -> dict[str, Any]:
+    """Union authenticated exclusion sets without asserting their completeness.
+
+    The caller must independently authenticate each input's scientific scope,
+    processing status and audit evidence before treating the union as frozen.
+    """
+    if (isinstance(low_resolution, bool) or not isinstance(low_resolution, int)
+            or isinstance(audit_resolution, bool) or not isinstance(audit_resolution, int)
+            or low_resolution < 1 or audit_resolution <= low_resolution or not inputs):
+        raise ValueError('invalid exclusion merge configuration')
+    keys = ('parameter_hash', f'content_hash_r{low_resolution}', f'content_hash_r{audit_resolution}')
+    merged: dict[str, set[str]] = {key: set() for key in keys}
+    physical: set[str] = set()
+    config_hash = hashlib.sha256(config_bytes).hexdigest()
+    inventory, names = [], set()
+    for item in inputs:
+        name, raw, expected = item['name'], item['bytes'], item['sha256']
+        if not isinstance(name, str) or not name or name in names or not isinstance(raw, bytes):
+            raise ValueError('invalid merge inventory')
+        if hashlib.sha256(raw).hexdigest() != expected:
+            raise ValueError('merge input hash mismatch')
+        doc = json.loads(raw)
+        if doc.get('config_sha256') != config_hash or set(doc.get('identity_sets', {})) != set(keys):
+            raise ValueError('merge input configuration or identity schema mismatch')
+        values_by_key = {key: doc['identity_sets'][key] for key in keys}
+        values_by_key['physical'] = doc.get('prior_candidate_master_grid_sha256')
+        for key, values in values_by_key.items():
+            if (not isinstance(values, list) or not all(isinstance(v, str) and v for v in values)
+                    or len(set(values)) != len(values)):
+                raise ValueError('invalid merge identity set')
+            (physical if key == 'physical' else merged[key]).update(values)
+        names.add(name)
+        inventory.append({'name': name, 'sha256': expected})
+    return {'scope': 'exclusion_union_not_exhaustiveness_certification', 'config_sha256': config_hash,
+            'inputs': inventory, 'identity_sets': {key: sorted(value) for key, value in merged.items()},
+            'prior_candidate_master_grid_sha256': sorted(physical)}
