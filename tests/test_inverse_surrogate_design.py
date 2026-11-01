@@ -15,6 +15,8 @@ torch = pytest.importorskip('torch')
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.surrogate_design import build_surrogate_replay_request, run_surrogate_design
+from phc2d.inverse.audit_perturb_refine import run_case
+from phc2d.inverse.feedback_handoff import validate_robust_observation
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
@@ -106,3 +108,48 @@ def test_replay_request_binds_selected_structure_and_original_k_grid(tmp_path):
     wrong=json.dumps({'offsets':[0],'raster_resolution':16}).encode()
     with pytest.raises(ValueError,match='protocol differs'):
         build_surrogate_replay_request(**dict(args,protocol_bytes=wrong,protocol_sha256=hashlib.sha256(wrong).hexdigest()))
+
+
+def test_surrogate_structure_can_be_sent_to_and_checked_by_physical_runner(tmp_path):
+    source,options=inputs()
+    options['perturbation_offsets']=(-1/16,0,1/16)
+    points=np.array([[0.,0.],[.25,0.]])
+    k_hash=hashlib.sha256(np.ascontiguousarray(points,dtype=np.float32).tobytes()).hexdigest()
+    out=tmp_path/'design'
+    run_surrogate_design(source,Predictor(),seeds=[0],search_options=options,output_root=out,
+                         provenance={'checkpoint_sha256':'a'*64,'k_points_sha256':k_hash})
+    summary=(out/'summary.json').read_bytes()
+    protocol={'offsets':[-1/16,0,1/16],'raster_resolution':16,
+        'refinement':{'verification_resolution':24,'initial_spacing':.25,'min_levels':2,
+                      'max_levels':2,'required_stable_levels':2,'edge_tolerance':1.,
+                      'resolution_tolerance':1e-6}}
+    protocol_bytes=json.dumps(protocol).encode()
+    protocol_hash=hashlib.sha256(protocol_bytes).hexdigest()
+    config=FullCellMpbBandSolverConfig(num_bands=2,resolution=16,polarization='TE',
+        epsilon_air=1.,epsilon_material=8.9,eigensolver_tolerance=1e-7)
+    request=build_surrogate_replay_request(summary_bytes=summary,summary_sha256=hashlib.sha256(summary).hexdigest(),
+        structure_bytes=(out/'seed_0'/'structure.json').read_bytes(),seed=0,k_points=points,k_points_sha256=k_hash,
+        solver_config=config,source_index=4,protocol_bytes=protocol_bytes,protocol_sha256=protocol_hash)
+    manifest=tmp_path/'manifest.json'
+    manifest.write_text(json.dumps(request),encoding='utf8')
+    protocol_path=tmp_path/'protocol.json'
+    protocol_path.write_bytes(protocol_bytes)
+    manifest_hash=hashlib.sha256(manifest.read_bytes()).hexdigest()
+
+    def solver(grid, *, k_points, config):
+        fill=float(grid.mean())
+        metadata={'grid_sha256':hashlib.sha256(np.ascontiguousarray(grid,dtype=np.uint8).tobytes()).hexdigest(),
+            'resolution':config.resolution,'polarization':config.polarization,'num_bands':config.num_bands,
+            'mesh_size':config.mesh_size,'band_guard_count':config.band_guard_count,
+            'band_order_policy':config.band_order_policy,'eigensolver_tolerance':config.eigensolver_tolerance,
+            'epsilon_air':config.epsilon_air,'epsilon_material':config.epsilon_material,
+            'solver_backend':'mock','solver_version':'1'}
+        return np.tile([.2+.1*fill,.8-.1*fill],(len(k_points),1)),metadata
+
+    result_dir=run_case(manifest,expected_sha256=manifest_hash,protocol_path=protocol_path,
+        expected_protocol_sha256=protocol_hash,case_index=0,output_root=tmp_path/'physical',solver=solver)
+    result=json.loads((result_dir/'results.json').read_text())
+    observation=validate_robust_observation(manifest_bytes=manifest.read_bytes(),expected_manifest_sha256=manifest_hash,
+        protocol_bytes=protocol_bytes,protocol_sha256=protocol_hash,case_index=0,result=result)
+    assert observation['provenance']['parameter_hash']==request['rows'][0]['parameter_hash']
+    assert observation['provenance']['solver_identity']['solver_backend']=='mock'
