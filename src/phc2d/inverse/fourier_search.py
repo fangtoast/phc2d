@@ -89,8 +89,13 @@ def search_fourier(
     best: FullCellStructureSpec | None = None
     best_margin: float | None = None
 
+    class BudgetExhausted(Exception):
+        """Stop before an optimizer-requested evaluation exceeds the cap."""
+
     def objective(vector: np.ndarray) -> float:
         nonlocal best, best_margin
+        if len(history) >= evaluation_budget:
+            raise BudgetExhausted
         index = len(history)
         candidate = update_fourier_binary(
             source, sample_id=f"{source.sample_id}-search-{seed}-{index}",
@@ -124,9 +129,14 @@ def search_fourier(
             best, best_margin = candidate, score
         return -score
 
-    differential_evolution(objective, bounds=bounds, init=population, seed=seed,
-                           maxiter=evaluation_budget // population_size - 1,
-                           polish=False, updating="immediate", workers=1, tol=0, atol=0)
+    try:
+        differential_evolution(objective, bounds=bounds, init=population, seed=seed,
+                               maxiter=evaluation_budget // population_size - 1,
+                               polish=False, updating="immediate", workers=1, tol=0, atol=0)
+    except BudgetExhausted:
+        # SciPy can re-evaluate an all-infinite initial population; stop
+        # before doing any work beyond the caller's hard evaluation cap.
+        pass
     return FourierSearchResult(status="surrogate_only" if best is not None else "no_valid_candidates",
                                best_structure=best.to_mapping() if best is not None else None,
                                best_margin=best_margin, evaluations=tuple(history))

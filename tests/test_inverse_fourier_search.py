@@ -42,7 +42,22 @@ def test_all_invalid_proposals_are_retained():
     result = run(1, (0, 0))
     assert result.status == 'no_valid_candidates'
     assert result.best_structure is None
+    assert len(result.evaluations) == 10
     assert all(row['status'] == 'material_fraction_rejected' for row in result.evaluations)
+
+
+def test_optimizer_cannot_exceed_budget_even_if_it_requests_extra_calls(monkeypatch):
+    import scipy.optimize
+
+    def overcalling_optimizer(objective, *, init, **kwargs):
+        for i in range(12):
+            objective(init[i % len(init)])
+
+    monkeypatch.setattr(scipy.optimize, 'differential_evolution', overcalling_optimizer)
+    result = run(42)
+    assert len(result.evaluations) == 10
+    assert result.status == 'surrogate_only'
+    assert result.best_margin == max(x['predicted_gap']['target_margin'] for x in result.evaluations)
 
 
 def test_search_can_optimize_perturbation_common_gap():
