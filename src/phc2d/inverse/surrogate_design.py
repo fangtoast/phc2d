@@ -19,7 +19,8 @@ import numpy as np
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.fourier_search import search_fourier
 from phc2d.inverse.fourier_screen import screen_fourier_geometry
-from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, predict_perturbed_gap
+from phc2d.inverse.perturbation_screen import (compare_predictor_devices,
+                                               periodic_perturbation_grids, predict_perturbed_gap)
 from phc2d.inverse.robust_gap import common_gap
 from phc2d.inverse.fourier_design import update_fourier_binary
 
@@ -45,6 +46,21 @@ def audit_surrogate_design(output_root: Path, *, config_bytes: bytes,
             or summary['search_options'] != config['search_options']
             or summary['physical_validation'] != 'not_run'):
         raise ValueError('search contract mismatch')
+    tolerance = config.get('device_parity_absolute_tolerance')
+    parity = summary.get('device_parity')
+    if tolerance is not None:
+        if (parity is None or parity != json.loads((root/'device_parity.json').read_bytes())
+                or parity.get('passed') is not True or parity.get('absolute_tolerance') != tolerance
+                or parity.get('source_parameter_hash') != source.parameter_hash
+                or parity.get('offsets') != config['search_options'].get('perturbation_offsets')
+                or parity.get('max_absolute_difference') is None
+                or not np.isfinite(parity['max_absolute_difference'])
+                or not 0 <= parity['max_absolute_difference'] <= tolerance
+                or parity.get('prediction_nonfinite_count') != 0
+                or parity.get('reference_nonfinite_count') != 0):
+            raise ValueError('device parity evidence mismatch')
+    elif parity is not None:
+        raise ValueError('unexpected device parity evidence')
     records = summary['trajectories']
     if [row['seed'] for row in records] != config['seeds']:
         raise ValueError('seed roster mismatch')
@@ -149,7 +165,8 @@ def _replay_selected_prediction(structure: FullCellStructureSpec, predictor: Any
 
 def run_surrogate_design(source: FullCellStructureSpec, predictor: Any, *, seeds: Sequence[int],
                          search_options: Mapping[str, Any], output_root: Path,
-                         provenance: Mapping[str, Any]) -> dict[str, Any]:
+                         provenance: Mapping[str, Any], parity_reference: Any = None,
+                         parity_absolute_tolerance: float | None = None) -> dict[str, Any]:
     """Run independent searches and save predicted structures and full traces.
 
     This is a surrogate-only exploratory workflow; neither the fixed k-grid
@@ -166,6 +183,22 @@ def run_surrogate_design(source: FullCellStructureSpec, predictor: Any, *, seeds
         raise ValueError('explicit provenance is required')
     root = Path(output_root)
     root.mkdir(parents=True, exist_ok=False)
+    parity = None
+    if parity_reference is not None or parity_absolute_tolerance is not None:
+        if (parity_reference is None or parity_absolute_tolerance is None
+                or options.get('perturbation_offsets') is None
+                or options.get('raster_method') != 'master_block_mean_v1'):
+            raise ValueError('device parity requires a reference, tolerance and perturbed block-mean contract')
+        grids = periodic_perturbation_grids(source, resolution=options['source_resolution'],
+                                            offsets=tuple(options['perturbation_offsets']))
+        parity = compare_predictor_devices(grids, predictor, parity_reference,
+            input_resolution=options['input_resolution'], absolute_tolerance=parity_absolute_tolerance)
+        parity.update({'source_parameter_hash': source.parameter_hash,
+                       'offsets': list(options['perturbation_offsets']),
+                       'scope': 'source_only_not_all_candidates_or_physical_accuracy'})
+        (root/'device_parity.json').write_text(json.dumps(parity, indent=2, allow_nan=False), encoding='utf8')
+        if not parity['passed']:
+            raise ValueError('device parity preflight failed; see device_parity.json')
     records = []
     for seed in seeds:
         result = search_fourier(source, predictor, seed=seed, **options)
@@ -196,7 +229,7 @@ def run_surrogate_design(source: FullCellStructureSpec, predictor: Any, *, seeds
     overall_status = 'surrogate_only' if any(item['structure_parameter_hash'] is not None for item in records) else 'no_valid_candidates'
     output = {'status': overall_status, 'physical_validation': 'not_run',
               'source_parameter_hash': source.parameter_hash, 'provenance': dict(provenance),
-              'search_options': options, 'trajectories': records}
+              'search_options': options, 'device_parity': parity, 'trajectories': records}
     (root/'summary.json').write_text(json.dumps(output, indent=2, allow_nan=False), encoding='utf8')
     return output
 
@@ -271,11 +304,14 @@ def main() -> None:
     options['material_fraction_bounds'] = tuple(options['material_fraction_bounds'])
     if options.get('perturbation_offsets') is not None:
         options['perturbation_offsets'] = tuple(options['perturbation_offsets'])
+    parity_tolerance = config.get('device_parity_absolute_tolerance')
+    reference = (None if parity_tolerance is None else
+                 FrozenBandAdapter(config['checkpoint'], sha256=config['checkpoint_sha256'], device='cpu'))
     result = run_surrogate_design(source, predictor, seeds=config['seeds'], search_options=options,
         output_root=Path(args.output_root), provenance={'config_sha256': hashlib.sha256(config_bytes).hexdigest(),
         'source_sha256': hashlib.sha256(source_bytes).hexdigest(), 'checkpoint_sha256': predictor.checkpoint_sha256,
         'model_name': predictor.model_name, 'k_points_sha256': predictor.k_points_sha256,
-        'device': args.device})
+        'device': args.device}, parity_reference=reference, parity_absolute_tolerance=parity_tolerance)
     print(json.dumps(result, indent=2, allow_nan=False))
 
 

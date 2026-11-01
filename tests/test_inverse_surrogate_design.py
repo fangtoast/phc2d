@@ -26,6 +26,19 @@ class Predictor:
         return torch.stack((0.2 + .1*mean, 0.8 - .1*mean), dim=1).unsqueeze(1)
 
 
+class ContractPredictor(Predictor):
+    input_shape=(8,8)
+    output_shape=(1,2)
+    checkpoint_sha256='a'*64
+    k_points_sha256='b'*64
+
+    def __init__(self, shift=0):
+        self.shift=shift
+
+    def predict_tensor(self, raster):
+        return super().predict_tensor(raster)+self.shift
+
+
 def inputs():
     source=generate_unified_fourier_binary('source',master_seed=1,material_fraction_bin=1,
         config={'fourier_cutoff':2,'audit_resolution':16})
@@ -97,6 +110,54 @@ def test_artifact_audit_preserves_failed_search_status(tmp_path):
     (out/'seed_0'/'structure.json').write_text('{}')
     with pytest.raises(ValueError,match='empty search result'):
         audit_surrogate_design(out,**args)
+
+
+def test_device_parity_preflight_records_pass_and_binds_audit(tmp_path):
+    source,options=inputs()
+    options['perturbation_offsets']=(-1/16,0,1/16)
+    source_bytes=json.dumps(source.to_mapping()).encode()
+    config_bytes=json.dumps({'search_options':options,'seeds':[0],
+        'checkpoint_sha256':'a'*64,'device_parity_absolute_tolerance':1e-5}).encode()
+    out=tmp_path/'design'
+    summary=run_surrogate_design(source,ContractPredictor(),seeds=[0],search_options=options,
+        output_root=out,provenance={'config_sha256':hashlib.sha256(config_bytes).hexdigest(),
+        'source_sha256':hashlib.sha256(source_bytes).hexdigest(),'checkpoint_sha256':'a'*64},
+        parity_reference=ContractPredictor(),parity_absolute_tolerance=1e-5)
+    assert summary['device_parity']['passed'] is True
+    args={'config_bytes':config_bytes,'source_bytes':source_bytes,'checkpoint_sha256':'a'*64}
+    assert audit_surrogate_design(out,**args)['status']=='artifact_consistent'
+    parity_path=out/'device_parity.json'
+    parity=json.loads(parity_path.read_text())
+    parity['max_absolute_difference']=0.1
+    parity_path.write_text(json.dumps(parity))
+    with pytest.raises(ValueError,match='parity evidence'):
+        audit_surrogate_design(out,**args)
+
+
+def test_device_parity_failure_is_recorded_before_search(tmp_path):
+    source,options=inputs()
+    options['perturbation_offsets']=(-1/16,0,1/16)
+    out=tmp_path/'design'
+    with pytest.raises(ValueError,match='device parity preflight failed'):
+        run_surrogate_design(source,ContractPredictor(shift=.1),seeds=[0],search_options=options,
+            output_root=out,provenance={'test':True},parity_reference=ContractPredictor(),
+            parity_absolute_tolerance=1e-5)
+    evidence=json.loads((out/'device_parity.json').read_text())
+    assert not evidence['passed'] and evidence['max_absolute_difference']>1e-5
+    assert not (out/'summary.json').exists() and not (out/'seed_0').exists()
+
+
+def test_device_parity_nonfinite_prediction_is_not_accepted(tmp_path):
+    source,options=inputs()
+    options['perturbation_offsets']=(0,)
+    out=tmp_path/'design'
+    with pytest.raises(ValueError,match='device parity preflight failed'):
+        run_surrogate_design(source,ContractPredictor(shift=float('nan')),seeds=[0],
+            search_options=options,output_root=out,provenance={'test':True},
+            parity_reference=ContractPredictor(),parity_absolute_tolerance=1e-5)
+    evidence=json.loads((out/'device_parity.json').read_text())
+    assert evidence['max_absolute_difference'] is None
+    assert evidence['prediction_nonfinite_count'] > 0 and not evidence['passed']
 
 
 def test_search_returns_reconstructible_structure_and_preserves_prediction_scope(tmp_path):
