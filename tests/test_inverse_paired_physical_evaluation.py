@@ -16,6 +16,7 @@ import pytest
 from phc2d.inverse.audit_perturb_refine import run_case
 from phc2d.inverse.paired_physical_handoff import build_paired_physical_batch
 from phc2d.inverse.paired_physical_evaluation import evaluate_locked_paired_physics
+from phc2d.inverse.robust_cross_environment import compare_locked_robust_environments
 
 
 def test_locked_comparison_requires_every_physical_gate(tmp_path):
@@ -36,7 +37,7 @@ def test_locked_comparison_requires_every_physical_gate(tmp_path):
     manifest_path.write_bytes(manifest_raw)
     protocol_path.write_bytes(kwargs['protocol_bytes'])
 
-    def solver(grid, *, k_points, config, fail=False):
+    def solver(grid, *, k_points, config, fail=False, shift=0.):
         fill = float(grid.mean())
         change = .01 if fail and config.resolution == 48 else 0.
         metadata = {'grid_sha256':hashlib.sha256(np.ascontiguousarray(grid,dtype=np.uint8).tobytes()).hexdigest(),
@@ -45,7 +46,7 @@ def test_locked_comparison_requires_every_physical_gate(tmp_path):
                     'band_order_policy':config.band_order_policy,'eigensolver_tolerance':config.eigensolver_tolerance,
                     'epsilon_air':config.epsilon_air,'epsilon_material':config.epsilon_material,
                     'solver_backend':'mock','solver_version':'1'}
-        return np.tile([.2+.1*fill+change,.8-.1*fill],(len(k_points),1)), metadata
+        return np.tile([.2+.1*fill+change+shift,.8-.1*fill+shift],(len(k_points),1)), metadata
 
     results = {}
     for index in range(len(batch['manifest']['rows'])):
@@ -65,6 +66,29 @@ def test_locked_comparison_requires_every_physical_gate(tmp_path):
     assert actual['statistics']['selected_minus_random_mean'] == pytest.approx(np.mean(differences))
     same_group = next(row for row in actual['groups'] if row['source_index'] == 0 and row['seed'] == 1)
     assert same_group['selected_gain'] == same_group['random_expected_gain']
+    cross_ids = [r['case_index'] for r in batch['cross_environment_roles']]
+    cross_args = {'batch_bytes':batch_raw,'batch_sha256':args['batch_sha256'],
+        'manifest_bytes':manifest_raw,'manifest_sha256':manifest_sha,'protocol_bytes':kwargs['protocol_bytes'],
+        'protocol_sha256':kwargs['protocol_sha256'], 'reference_results':{i:results[i] for i in cross_ids},
+        'replay_results':{i:results[i] for i in cross_ids},'replay_exit_codes':{i:0 for i in cross_ids},
+        'expected_case_count':len(cross_ids),'expected_solver_identity':args['expected_solver_identity'],
+        'frequency_tolerance':1e-6}
+    comparison = compare_locked_robust_environments(**cross_args)
+    assert comparison['all_passed'] and comparison['p2_gate'] == 'not_evaluated'
+    failed_case = cross_ids[0]
+    exits = dict(cross_args['replay_exit_codes']); exits[failed_case] = 124
+    replays = {i:raw for i,raw in cross_args['replay_results'].items() if i != failed_case}
+    comparison = compare_locked_robust_environments(**dict(cross_args,replay_exit_codes=exits,replay_results=replays))
+    assert not comparison['all_passed'] and comparison['cases'][0]['reason'] == 'replay_process_failed'
+    with pytest.raises(ValueError,match='case or exit roster'):
+        compare_locked_robust_environments(**dict(cross_args,replay_results={}))
+    shifted = run_case(manifest_path,expected_sha256=manifest_sha,protocol_path=protocol_path,
+        expected_protocol_sha256=kwargs['protocol_sha256'],case_index=failed_case,output_root=tmp_path/'shifted',
+        solver=lambda grid,**kw:solver(grid,shift=.0001,**kw))
+    replays = dict(cross_args['replay_results'])
+    replays[failed_case] = (shifted/'results.json').read_bytes()
+    comparison = compare_locked_robust_environments(**dict(cross_args,replay_results=replays))
+    assert not comparison['all_passed'] and comparison['cases'][0]['offsets'][0]['max_frequency_difference'] > 1e-6
     with pytest.raises(ValueError,match='complete solver case roster'):
         evaluate_locked_paired_physics(**dict(args,results_by_case={0:results[0]}))
     tampered = dict(results)
