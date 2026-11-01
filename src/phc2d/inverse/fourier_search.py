@@ -15,7 +15,8 @@ import numpy as np
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.fourier_design import update_fourier_binary
 from phc2d.inverse.fourier_screen import screen_fourier_candidate
-from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, predict_perturbed_gap
+from phc2d.inverse.perturbation_screen import (periodic_perturbation_grids, predict_perturbed_gap,
+                                               project_perturbed_band_order)
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,7 @@ def search_fourier(
     perturbation_offsets: tuple[float, ...] | None = None,
     geometry_constraints: dict[str, Any] | None = None,
     score_adjuster: Callable[[np.ndarray, dict[str, Any]], float] | None = None,
+    projection_contract_sha256: str | None = None,
 ) -> FourierSearchResult:
     """Maximize sampled surrogate margin; last parameter is the binary threshold.
 
@@ -85,6 +87,11 @@ def search_fourier(
         seed=seed, population_size=population_size, evaluation_budget=evaluation_budget)
     if perturbation_offsets is not None and raster_method != 'master_block_mean_v1':
         raise ValueError('perturbed search requires master_block_mean_v1')
+    if projection_contract_sha256 is not None and (
+            perturbation_offsets is None or not isinstance(projection_contract_sha256, str)
+            or len(projection_contract_sha256) != 64
+            or any(c not in '0123456789abcdef' for c in projection_contract_sha256)):
+        raise ValueError('projection requires perturbations and a lowercase surrogate contract SHA-256')
     history: list[dict[str, Any]] = []
     best: FullCellStructureSpec | None = None
     best_margin: float | None = None
@@ -109,7 +116,9 @@ def search_fourier(
         )
         row = {"candidate_index": index, "parameters": vector.tolist(),
                "structure": candidate.to_mapping(), **asdict(result)}
-        if result.status == 'surrogate_only' and perturbation_offsets is not None:
+        nominal_eligible = (result.status == 'surrogate_only' or
+                            (projection_contract_sha256 is not None and result.status == 'band_order_violation'))
+        if nominal_eligible and perturbation_offsets is not None:
             grids = periodic_perturbation_grids(candidate, resolution=source_resolution,
                                                 offsets=perturbation_offsets)
             robust = predict_perturbed_gap(grids, predictor, input_resolution=input_resolution,
@@ -117,7 +126,20 @@ def search_fourier(
             row.update(status=robust['status'], predicted_gap=robust['gap'],
                        perturbation_offsets=list(perturbation_offsets),
                        perturbation_grid_sha256=robust['grid_sha256'])
-        if row['status'] != "surrogate_only":
+            if projection_contract_sha256 is not None:
+                row['raw_perturbation_prediction'] = robust
+                if robust['status'] in ('surrogate_only', 'band_order_violation'):
+                    bands = np.asarray(robust['bands'])
+                    ordered = np.sort(bands, axis=2)
+                    if np.any(ordered[:, :, lower_band-1:lower_band+1] < 0):
+                        row.update(status='projected_negative_frequency', predicted_gap=None)
+                    else:
+                        projection = project_perturbed_band_order(robust, lower_band=lower_band,
+                            target_frequency=target_frequency, surrogate_contract_sha256=projection_contract_sha256)
+                        row.update(status='projected_surrogate_only', predicted_gap=projection['gap'],
+                                   projected_prediction=projection, prediction_method='ordered_projection')
+        eligible_status = 'projected_surrogate_only' if projection_contract_sha256 is not None else 'surrogate_only'
+        if row['status'] != eligible_status:
             history.append(row)
             return float('inf')
         score = float(row['predicted_gap']["target_margin"] if score_adjuster is None

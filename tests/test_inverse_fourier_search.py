@@ -88,3 +88,26 @@ def test_search_reports_actual_evaluations_when_constant_scores_converge_early()
         material_fraction_bounds=(0, 1), lower_band=1, target_frequency=.5)
     assert result.status == 'surrogate_only'
     assert len(result.evaluations) < 20
+
+
+def test_opt_in_projection_keeps_raw_order_failures_and_searches_within_budget():
+    class ReversedPredictor(ToyPredictor):
+        def predict_tensor(self, raster):
+            return super().predict_tensor(raster).flip(-1)
+    s = generate_unified_fourier_binary('projected', master_seed=1, material_fraction_bin=1,
+        config={'fourier_cutoff':2,'audit_resolution':16})
+    t=s.parameters['threshold']
+    args=dict(coefficient_keys=(), bounds=((t-.2,t+.2),), max_mode_radius=1, seed=3,
+        population_size=5, evaluation_budget=10, raster_method='master_block_mean_v1',
+        source_resolution=16,input_resolution=8,material_fraction_bounds=(0,1),
+        lower_band=1,target_frequency=.5,perturbation_offsets=(-1/16,0,1/16))
+    strict=search_fourier(s,ReversedPredictor(),**args)
+    assert strict.status=='no_valid_candidates'
+    result=search_fourier(s,ReversedPredictor(),**args,projection_contract_sha256='a'*64)
+    assert result.status=='surrogate_only' and len(result.evaluations)<=10
+    assert all(row['raw_perturbation_prediction']['status']=='band_order_violation' for row in result.evaluations)
+    assert all(row['projected_prediction']['original_status']=='band_order_violation' for row in result.evaluations)
+    assert all(row['prediction_method']=='ordered_projection' for row in result.evaluations)
+    with pytest.raises(ValueError,match='projection requires'):
+        search_fourier(s,ReversedPredictor(),**dict(args,perturbation_offsets=None),
+                       projection_contract_sha256='a'*64)

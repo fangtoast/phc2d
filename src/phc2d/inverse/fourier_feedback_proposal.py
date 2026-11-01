@@ -17,8 +17,9 @@ from phc2d.inverse.feedback_state import FeedbackState
 from phc2d.inverse.fourier_design import update_fourier_binary
 from phc2d.inverse.fourier_screen import screen_fourier_candidate
 from phc2d.inverse.fourier_search import search_fourier
-from phc2d.inverse.local_edge_correction import LocalEdgeCorrection
-from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, predict_perturbed_gap
+from phc2d.inverse.local_edge_correction import LocalEdgeCorrection, correct_projected_with_anchor
+from phc2d.inverse.perturbation_screen import (periodic_perturbation_grids, predict_perturbed_gap,
+                                               project_perturbed_band_order)
 
 
 def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpec, predictor: Any, *,
@@ -31,7 +32,8 @@ def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpe
                               surrogate_contract_sha256: str,
                               perturbation_offsets: tuple[float, ...] | None = None,
                               geometry_constraints: dict[str, Any] | None = None,
-                              edge_correction: LocalEdgeCorrection | None = None) -> dict[str, Any]:
+                              edge_correction: LocalEdgeCorrection | None = None,
+                              projected_anchor_calibration: bool = False) -> dict[str, Any]:
     """Search a conservative box inside the normalized Euclidean trust region.
 
     Returned proposals remain surrogate-only. The caller persists the trace and
@@ -40,6 +42,9 @@ def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpe
     if (source.parameter_hash != state.incumbent_hash or state.pending is not None
             or state.remaining_evaluations <= 0 or not surrogate_contract_sha256):
         raise ValueError('source, budget, pending state or surrogate identity is invalid')
+    if (not isinstance(projected_anchor_calibration, bool) or
+            (projected_anchor_calibration and (edge_correction is not None or perturbation_offsets is None))):
+        raise ValueError('projected anchor calibration requires perturbations and no external correction')
     d = len(coefficient_keys) + 1
     bounds = np.asarray(global_bounds, dtype=np.float64)
     origin_array, scale_array = np.asarray(origin, dtype=np.float64), np.asarray(scales, dtype=np.float64)
@@ -73,18 +78,33 @@ def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpe
         source_resolution=source_resolution, input_resolution=input_resolution,
         material_fraction_bounds=material_fraction_bounds, lower_band=lower_band,
         target_frequency=state.target_frequency, geometry_constraints=geometry_constraints)
-    if anchor.status != 'surrogate_only':
+    if anchor.status != 'surrogate_only' and not (
+            projected_anchor_calibration and anchor.status == 'band_order_violation'):
         raise ValueError('incumbent failed surrogate screening')
     anchor_gap = anchor.predicted_gap
+    anchor_projection = None
     if perturbation_offsets is not None:
         if raster_method != 'master_block_mean_v1':
             raise ValueError('perturbations require the master block-mean raster contract')
         grids = periodic_perturbation_grids(source, resolution=source_resolution, offsets=perturbation_offsets)
         robust = predict_perturbed_gap(grids, predictor, input_resolution=input_resolution,
             lower_band=lower_band, target_frequency=state.target_frequency)
-        if robust['status'] != 'surrogate_only':
+        if projected_anchor_calibration and robust['status'] in ('surrogate_only', 'band_order_violation'):
+            anchor_projection = project_perturbed_band_order(robust, lower_band=lower_band,
+                target_frequency=state.target_frequency, surrogate_contract_sha256=surrogate_contract_sha256)
+            calibrated = correct_projected_with_anchor(anchor_projection, anchor_projection,
+                anchor_structure=source, candidate_structure=source,
+                verified_anchor=state.incumbent_observation, raster_resolution=source_resolution)
+            coefficients = np.zeros((d+1, 2))
+            coefficients[0] = calibrated['anchor_edge_residual']
+            edge_correction = LocalEdgeCorrection(normalized.copy(), state.radius, coefficients,
+                state.incumbent_observation['provenance']['comparison_contract_sha256'],
+                surrogate_contract_sha256, 1)
+            anchor_gap = anchor_projection['gap']
+        elif robust['status'] != 'surrogate_only':
             raise ValueError('incumbent failed robust surrogate screening')
-        anchor_gap = robust['gap']
+        else:
+            anchor_gap = robust['gap']
     def adjusted_margin(vector: np.ndarray, gap: dict[str, Any]) -> float:
         edges = np.asarray([gap['lower_edge'], gap['upper_edge']], dtype=np.float64)
         if edge_correction is not None:
@@ -99,16 +119,22 @@ def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpe
         material_fraction_bounds=material_fraction_bounds, lower_band=lower_band,
         target_frequency=state.target_frequency, perturbation_offsets=perturbation_offsets,
         geometry_constraints=geometry_constraints,
-        score_adjuster=adjusted_margin if edge_correction is not None else None)
-    eligible = [row for row in result.evaluations if row['status'] == 'surrogate_only'
+        score_adjuster=adjusted_margin if edge_correction is not None else None,
+        projection_contract_sha256=surrogate_contract_sha256 if projected_anchor_calibration else None)
+    eligible_status = 'projected_surrogate_only' if projected_anchor_calibration else 'surrogate_only'
+    eligible = [row for row in result.evaluations if row['status'] == eligible_status
                 and row['parameter_hash'] not in state.seen_hashes]
     eligible.sort(key=lambda row: (-float(row['selection_score']), row['candidate_index']))
+    evidence = {'anchor_screen': asdict(anchor), 'anchor_projection': anchor_projection,
+                'edge_correction_applied': edge_correction is not None,
+                'anchor_edge_residual': (None if not projected_anchor_calibration else
+                                         edge_correction.coefficients[0].tolist())}
     if not eligible:
-        return {'status': 'no_unseen_candidate', 'proposal': None, 'trace': list(result.evaluations)}
+        return {'status': 'no_unseen_candidate', 'proposal': None, 'trace': list(result.evaluations), **evidence}
     best = eligible[0]
     anchor_score = adjusted_margin(center, anchor_gap)
     if float(best['selection_score']) <= anchor_score + 1e-12:
-        return {'status': 'no_predicted_improvement', 'proposal': None, 'trace': list(result.evaluations)}
+        return {'status': 'no_predicted_improvement', 'proposal': None, 'trace': list(result.evaluations), **evidence}
     vector = np.asarray(best['parameters'], dtype=np.float64)
     candidate = update_fourier_binary(source, sample_id=best['sample_id'],
         coefficients={key: float(vector[i]) for i, key in enumerate(coefficient_keys)},
@@ -121,6 +147,4 @@ def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpe
                 'predicted_candidate': float(best['selection_score']),
                 'surrogate_contract_sha256': surrogate_contract_sha256}
     return {'status': 'surrogate_proposal_only', 'proposal': proposal,
-            'structure': candidate.to_mapping(), 'anchor_screen': asdict(anchor),
-            'edge_correction_applied': edge_correction is not None,
-            'trace': list(result.evaluations)}
+            'structure': candidate.to_mapping(), 'trace': list(result.evaluations), **evidence}

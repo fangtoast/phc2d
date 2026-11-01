@@ -20,7 +20,8 @@ from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.fourier_search import search_fourier
 from phc2d.inverse.fourier_screen import screen_fourier_geometry
 from phc2d.inverse.perturbation_screen import (compare_predictor_devices,
-                                               periodic_perturbation_grids, predict_perturbed_gap)
+                                               periodic_perturbation_grids, predict_perturbed_gap,
+                                               project_perturbed_band_order)
 from phc2d.inverse.robust_gap import common_gap
 from phc2d.inverse.fourier_design import update_fourier_binary
 
@@ -109,9 +110,27 @@ def audit_surrogate_design(output_root: Path, *, config_bytes: bytes,
                 threshold=float(vector[-1]), max_mode_radius=options['max_mode_radius'])
             if 'structure' in row:
                 _verify_candidate_snapshot(row, candidate)
+                candidate = FullCellStructureSpec.from_mapping(row['structure'])
             elif candidate.parameter_hash != row['parameter_hash']:
                 raise ValueError('candidate identity mismatch')
-            if row['status'] == 'surrogate_only':
+            projection_contract = options.get('projection_contract_sha256')
+            eligible_status = 'projected_surrogate_only' if projection_contract is not None else 'surrogate_only'
+            if row['status'] == eligible_status:
+                if projection_contract is not None:
+                    original = row['raw_perturbation_prediction']
+                    expected_projection = project_perturbed_band_order(original,
+                        lower_band=options['lower_band'], target_frequency=options['target_frequency'],
+                        surrogate_contract_sha256=projection_contract)
+                    grids = periodic_perturbation_grids(candidate, resolution=options['source_resolution'],
+                                                        offsets=tuple(options['perturbation_offsets']))
+                    grid_hashes = [hashlib.sha256(np.ascontiguousarray(g, dtype=np.uint8).tobytes()).hexdigest()
+                                   for g in grids]
+                    if (row.get('prediction_method') != 'ordered_projection'
+                            or row.get('projected_prediction') != expected_projection
+                            or row.get('predicted_gap') != expected_projection['gap']
+                            or row.get('perturbation_grid_sha256') != expected_projection['grid_sha256']
+                            or expected_projection['grid_sha256'] != grid_hashes):
+                        raise ValueError('projected prediction evidence mismatch')
                 score = row['selection_score']
                 gap = row['predicted_gap']
                 lower, upper, width, margin = (gap[name] for name in
@@ -160,6 +179,16 @@ def _replay_selected_prediction(structure: FullCellStructureSpec, predictor: Any
                                             offsets=tuple(offsets))
         result = predict_perturbed_gap(grids, predictor, input_resolution=options['input_resolution'],
             lower_band=options['lower_band'], target_frequency=options['target_frequency'])
+        if options.get('projection_contract_sha256') is not None and result['status'] in ('surrogate_only', 'band_order_violation'):
+            bands = np.sort(np.asarray(result['bands']), axis=2)
+            lower = options['lower_band']
+            if np.any(bands[:, :, lower-1:lower+1] < 0):
+                return {'offsets': list(offsets), 'status': 'projected_negative_frequency',
+                        'gap': None, 'raw_prediction': result}
+            projection = project_perturbed_band_order(result, lower_band=lower,
+                target_frequency=options['target_frequency'],
+                surrogate_contract_sha256=options['projection_contract_sha256'])
+            return {'offsets': list(offsets), **projection}
         return {'offsets': list(offsets), **result}
     import torch
     geometry = screen_fourier_geometry(structure, raster_method=options['raster_method'],

@@ -7,6 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 import pytest
 import numpy as np
+import hashlib
 
 torch = pytest.importorskip('torch')
 
@@ -15,6 +16,7 @@ from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.feedback_state import propose_feedback, start_feedback
 from phc2d.inverse.fourier_feedback_proposal import propose_fourier_candidate
 from phc2d.inverse.local_edge_correction import LocalEdgeCorrection
+from phc2d.inverse.perturbation_screen import periodic_perturbation_grids
 
 
 class ToyPredictor:
@@ -84,3 +86,51 @@ def test_inconsistent_normalized_source_coordinates_are_rejected():
             seed=1, population_size=5, surrogate_budget=5, raster_method='master_block_mean_v1',
             source_resolution=16, input_resolution=8, material_fraction_bounds=(0, 1),
             lower_band=1, surrogate_contract_sha256='model')
+
+
+def test_projected_anchor_feedback_uses_gated_matching_physical_geometry():
+    class ReversedPredictor(ToyPredictor):
+        def predict_tensor(self, raster):
+            return super().predict_tensor(raster).flip(-1)
+    source=generate_unified_fourier_binary('source',master_seed=1,material_fraction_bin=1,
+        config={'fourier_cutoff':2,'audit_resolution':16})
+    threshold=source.parameters['threshold']
+    offsets=(-1/16,0,1/16)
+    grids=periodic_perturbation_grids(source,resolution=16,offsets=offsets)
+    hashes=[hashlib.sha256(np.ascontiguousarray(g,dtype=np.uint8).tobytes()).hexdigest() for g in grids]
+    observation={'row':{'lower_band_one_based':1,'refined_lower_edge_frequency':.2,
+        'refined_upper_edge_frequency':.8,'last_refinement_stable':True,'resolution_stable':True,
+        'adaptive_refinement_converged':True},
+        'provenance':{'parameter_hash':source.parameter_hash,'comparison_contract_sha256':'solver',
+        'offsets':list(offsets),'grid_sha256':hashes}}
+    state=start_feedback(incumbent_hash=source.parameter_hash,incumbent_parameters=[threshold],
+        incumbent_observation=observation,target_frequency=.5,radius=.1,min_radius=.01,
+        max_radius=.2,candidate_budget=1)
+    options=dict(coefficient_keys=(),global_bounds=((threshold-.5,threshold+.5),),
+        origin=[0],scales=[1],max_mode_radius=1,seed=3,population_size=5,surrogate_budget=10,
+        raster_method='master_block_mean_v1',source_resolution=16,input_resolution=8,
+        material_fraction_bounds=(0,1),lower_band=1,surrogate_contract_sha256='a'*64,
+        perturbation_offsets=offsets,projected_anchor_calibration=True)
+    result=propose_fourier_candidate(state,source,ReversedPredictor(),**options)
+    assert result['status']=='surrogate_proposal_only'
+    assert result['edge_correction_applied']
+    assert result['anchor_projection']['original_status']=='band_order_violation'
+    assert result['proposal']['predicted_center']==pytest.approx(1.2)
+    eligible=[row for row in result['trace'] if row['status']=='projected_surrogate_only']
+    assert eligible and all(row['projected_prediction']['original_status']=='band_order_violation'
+                            for row in eligible)
+    assert result['anchor_edge_residual'] is not None
+    class ConstantReversed:
+        def predict_tensor(self,raster):
+            return torch.tensor([.8,.2],dtype=raster.dtype).expand(len(raster),1,2)
+    no_improvement=propose_fourier_candidate(state,source,ConstantReversed(),**options)
+    assert no_improvement['status']=='no_predicted_improvement'
+    assert no_improvement['anchor_projection']['original_status']=='band_order_violation'
+    assert no_improvement['anchor_edge_residual']==pytest.approx([0,0],abs=1e-7)
+    changed=observation.copy()
+    changed['provenance']=dict(observation['provenance'],grid_sha256=['wrong']*3)
+    invalid=start_feedback(incumbent_hash=source.parameter_hash,incumbent_parameters=[threshold],
+        incumbent_observation=changed,target_frequency=.5,radius=.1,min_radius=.01,
+        max_radius=.2,candidate_budget=1)
+    with pytest.raises(ValueError,match='geometry mismatch'):
+        propose_fourier_candidate(invalid,source,ReversedPredictor(),**options)

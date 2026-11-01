@@ -258,6 +258,33 @@ def test_perturbed_response_contains_all_offsets_and_search_margin(tmp_path):
     assert result['trajectories'][0]['response_reprediction_status']=='surrogate_only'
 
 
+def test_projected_search_audit_rebuilds_transform_and_perturbation_identity(tmp_path):
+    class ReversedPredictor(Predictor):
+        def predict_tensor(self,raster):
+            return super().predict_tensor(raster).flip(-1)
+    source,options=inputs()
+    options.update(perturbation_offsets=(-1/16,0,1/16),projection_contract_sha256='b'*64)
+    source_bytes=json.dumps(source.to_mapping()).encode()
+    config_bytes=json.dumps({'search_options':options,'seeds':[0],
+                             'checkpoint_sha256':'a'*64}).encode()
+    out=tmp_path/'design'
+    result=run_surrogate_design(source,ReversedPredictor(),seeds=[0],search_options=options,
+        output_root=out,provenance={'config_sha256':hashlib.sha256(config_bytes).hexdigest(),
+        'source_sha256':hashlib.sha256(source_bytes).hexdigest(),'checkpoint_sha256':'a'*64})
+    assert result['trajectories'][0]['response_reprediction_status']=='projected_surrogate_only'
+    response=json.loads((out/'seed_0'/'predicted_response.json').read_text())
+    assert response['original_status']=='band_order_violation'
+    assert response['target_margin_difference']==pytest.approx(0)
+    args={'config_bytes':config_bytes,'source_bytes':source_bytes,'checkpoint_sha256':'a'*64}
+    assert audit_surrogate_design(out,**args)['status']=='artifact_consistent'
+    path=out/'seed_0'/'search.json'
+    trace=json.loads(path.read_text())
+    trace['evaluations'][0]['raw_perturbation_prediction']['bands'][0][0][0]+=.01
+    path.write_text(json.dumps(trace))
+    with pytest.raises(ValueError,match='projected prediction evidence'):
+        audit_surrogate_design(out,**args)
+
+
 def test_failed_reprediction_is_recorded_without_claiming_response_success(tmp_path):
     class ChangingPredictor(Predictor):
         def __init__(self):
