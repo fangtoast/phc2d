@@ -38,6 +38,12 @@ def _addition_identity(row: Mapping[str, Any], *, low_resolution: int,
     for key in ('parameter_hash', f'content_hash_r{low_resolution}', f'content_hash_r{audit_resolution}'):
         if key in row and row[key] != result[key]:
             raise ValueError(f'addition recorded {key} mismatch')
+    historical = row.get('historical_parameter_hash')
+    if historical is not None:
+        if (not isinstance(historical, str) or len(historical) != 64
+                or any(ch not in '0123456789abcdef' for ch in historical)):
+            raise ValueError('invalid historical parameter hash')
+        result['historical_parameter_hash'] = historical
     if row.get('master_grid_resolution') == physical_resolution and row.get('master_grid_sha256') != result['physical_grid_sha256']:
         raise ValueError('addition physical raster identity mismatch')
     return result
@@ -105,6 +111,8 @@ def extend_source_exclusions(
         for identity in executor.map(work, rows, chunksize=1):
             for key in keys:
                 identity_sets[key].add(identity[key])
+            if 'historical_parameter_hash' in identity:
+                identity_sets['parameter_hash'].add(identity['historical_parameter_hash'])
             physical.add(identity['physical_grid_sha256'])
     return {'scope': 'extended_source_exclusions_not_exhaustiveness_certification',
             'config_sha256': hashlib.sha256(config_bytes).hexdigest(),

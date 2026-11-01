@@ -65,3 +65,18 @@ def test_extend_respects_scheduler_allocation(monkeypatch):
     monkeypatch.setenv('SLURM_MEM_PER_NODE', '1999')
     with pytest.raises(ValueError, match='memory budget exceeds scheduler allocation'):
         extend_source_exclusions(**args)
+
+
+def test_extend_retains_authenticated_historical_parameter_hash():
+    args = fixture_inputs()
+    manifest = json.loads(args['additions'][0]['bytes'])
+    manifest['rows'][0]['historical_parameter_hash'] = 'a' * 64
+    raw = json.dumps(manifest).encode()
+    args['additions'] = [{'name': 'historical', 'bytes': raw, 'sha256': hashlib.sha256(raw).hexdigest()}]
+    result = extend_source_exclusions(**args)
+    assert 'a' * 64 in result['identity_sets']['parameter_hash']
+    manifest['rows'][0]['historical_parameter_hash'] = 'not-a-hash'
+    raw = json.dumps(manifest).encode()
+    args['additions'] = [{'name': 'historical', 'bytes': raw, 'sha256': hashlib.sha256(raw).hexdigest()}]
+    with pytest.raises(ValueError, match='historical parameter hash'):
+        extend_source_exclusions(**args)
