@@ -64,6 +64,58 @@ def run_surrogate_design(source: FullCellStructureSpec, predictor: Any, *, seeds
     return output
 
 
+def build_surrogate_replay_request(*, summary_bytes: bytes, summary_sha256: str,
+                                   structure_bytes: bytes, seed: int, k_points: Any,
+                                   k_points_sha256: str, solver_config: Any,
+                                   source_index: int, protocol_bytes: bytes,
+                                   protocol_sha256: str) -> dict[str, Any]:
+    """Bind a selected surrogate structure to a real-MPB request, without solving it.
+
+    The k-grid digest is computed from contiguous float32 coordinates as in the
+    frozen forward checkpoint. Offset amplitudes and raster resolution must
+    match the frozen physical protocol; solver fidelity remains caller-owned.
+    """
+    from phc2d.inverse.feedback_handoff import build_structure_solver_manifest
+    if hashlib.sha256(summary_bytes).hexdigest() != summary_sha256:
+        raise ValueError('search summary hash mismatch')
+    summary = json.loads(summary_bytes)
+    if summary.get('status') != 'surrogate_only' or summary.get('physical_validation') != 'not_run':
+        raise ValueError('expected an unverified surrogate search')
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise ValueError('integer seed required')
+    matches = [item for item in summary['trajectories'] if item['seed'] == seed]
+    if len(matches) != 1 or matches[0]['status'] != 'surrogate_only':
+        raise ValueError('seed has no unique candidate')
+    structure = FullCellStructureSpec.from_mapping(json.loads(structure_bytes))
+    if structure.parameter_hash != matches[0]['structure_parameter_hash']:
+        raise ValueError('structure identity differs from search')
+    points = np.asarray(k_points, dtype=np.float64)
+    canonical_points = np.ascontiguousarray(points, dtype=np.float32)
+    if hashlib.sha256(canonical_points.tobytes()).hexdigest() != k_points_sha256:
+        raise ValueError('k-grid hash mismatch')
+    checkpoint_k = summary['provenance'].get('k_points_sha256')
+    if checkpoint_k != k_points_sha256:
+        raise ValueError('k grid differs from frozen checkpoint')
+    options = summary['search_options']
+    if hashlib.sha256(protocol_bytes).hexdigest() != protocol_sha256:
+        raise ValueError('physical protocol hash mismatch')
+    protocol = json.loads(protocol_bytes)
+    offsets = options.get('perturbation_offsets')
+    if (offsets is None or list(offsets) != protocol.get('offsets')
+            or options['source_resolution'] != protocol.get('raster_resolution')):
+        raise ValueError('physical protocol differs from search perturbations or raster')
+    request = build_structure_solver_manifest(structure, k_points=points, config=solver_config,
+        lower_band=options['lower_band'], source_index=source_index,
+        target_frequency=options['target_frequency'], surrogate_contract_sha256=summary_sha256,
+        status='surrogate_replay_request')
+    request['search_seed'] = seed
+    request['checkpoint_sha256'] = summary['provenance']['checkpoint_sha256']
+    request['k_points_sha256'] = k_points_sha256
+    request['protocol_sha256'] = protocol_sha256
+    request['search_perturbation_offsets'] = list(offsets)
+    return request
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='Search a target band gap using a frozen forward checkpoint')
     parser.add_argument('--config', required=True, help='JSON with checkpoint, source, seeds and search_options')
@@ -85,7 +137,8 @@ def main() -> None:
     result = run_surrogate_design(source, predictor, seeds=config['seeds'], search_options=options,
         output_root=Path(args.output_root), provenance={'config_sha256': hashlib.sha256(config_bytes).hexdigest(),
         'source_sha256': hashlib.sha256(source_bytes).hexdigest(), 'checkpoint_sha256': predictor.checkpoint_sha256,
-        'model_name': predictor.model_name, 'device': args.device})
+        'model_name': predictor.model_name, 'k_points_sha256': predictor.k_points_sha256,
+        'device': args.device})
     print(json.dumps(result, indent=2, allow_nan=False))
 
 

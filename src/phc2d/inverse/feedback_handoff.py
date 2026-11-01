@@ -28,6 +28,16 @@ def build_nominal_solver_manifest(state: FeedbackState, structure: FullCellStruc
     """Create the immutable one-case contract consumed by the audit solver runner."""
     if state.pending is None or structure.parameter_hash != state.pending.parameter_hash:
         raise ValueError('structure does not match pending candidate')
+    return build_structure_solver_manifest(structure, k_points=k_points, config=config,
+        lower_band=lower_band, source_index=source_index, target_frequency=state.target_frequency,
+        surrogate_contract_sha256=state.pending.surrogate_contract_sha256, status='feedback_solver_request')
+
+
+def build_structure_solver_manifest(structure: FullCellStructureSpec, *, k_points: Any,
+                                    config: FullCellMpbBandSolverConfig, lower_band: int,
+                                    source_index: int, target_frequency: float,
+                                    surrogate_contract_sha256: str, status: str) -> dict[str, Any]:
+    """Build a single-structure solver request without claiming a feedback decision."""
     points = np.asarray(k_points, dtype=np.float64)
     if points.ndim != 2 or points.shape[1] != 2 or len(points) == 0 or not np.isfinite(points).all():
         raise ValueError('k points must be a finite nonempty coordinate matrix')
@@ -35,9 +45,13 @@ def build_nominal_solver_manifest(state: FeedbackState, structure: FullCellStruc
             or not 1 <= lower_band < config.num_bands or not isinstance(source_index, int)
             or isinstance(source_index, bool) or source_index < 0):
         raise ValueError('invalid band pair or source identity')
-    return {'status': 'feedback_solver_request', 'k_points': points.tolist(), 'lower_band': lower_band,
-            'target_frequency': state.target_frequency, 'solver_config': asdict(config),
-            'surrogate_contract_sha256': state.pending.surrogate_contract_sha256,
+    if (status not in {'feedback_solver_request', 'feedback_robust_solver_request', 'surrogate_replay_request'}
+            or not isinstance(surrogate_contract_sha256, str) or not surrogate_contract_sha256
+            or isinstance(target_frequency, bool) or not np.isfinite(target_frequency) or target_frequency <= 0):
+        raise ValueError('invalid target or surrogate contract')
+    return {'status': status, 'k_points': points.tolist(), 'lower_band': lower_band,
+            'target_frequency': target_frequency, 'solver_config': asdict(config),
+            'surrogate_contract_sha256': surrogate_contract_sha256,
             'rows': [{'source_index': source_index, 'label': 'candidate',
                       'parameter_hash': structure.parameter_hash, 'structure': structure.to_mapping()}]}
 
