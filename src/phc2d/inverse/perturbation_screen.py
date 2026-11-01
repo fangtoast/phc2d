@@ -103,7 +103,8 @@ def predict_perturbed_gap(grids: tuple[np.ndarray, ...], predictor: Any, *,
 
 
 def project_perturbed_band_order(prediction: dict[str, Any], *, lower_band: int,
-                                 target_frequency: float) -> dict[str, Any]:
+                                 target_frequency: float,
+                                 surrogate_contract_sha256: str | None = None) -> dict[str, Any]:
     """Score an explicitly transformed spectrum without changing its raw status.
 
     Sorting is a model variant, not evidence that the original prediction was
@@ -128,9 +129,15 @@ def project_perturbed_band_order(prediction: dict[str, Any], *, lower_band: int,
     pair = projected[:, :, lower_band-1:lower_band+1]
     if np.any(pair < 0):
         raise ValueError('projected target bands contain negative frequency')
+    if surrogate_contract_sha256 is not None and (
+            not isinstance(surrogate_contract_sha256, str) or len(surrogate_contract_sha256) != 64
+            or any(c not in '0123456789abcdef' for c in surrogate_contract_sha256)):
+        raise ValueError('surrogate contract must be a lowercase SHA-256 digest')
     gap = common_gap(pair, lower_band=1, target_frequency=target_frequency)
     return {'status': 'projected_surrogate_only', 'original_status': expected,
             'transformation': 'ascending_per_k_and_perturbation',
+            'lower_band_one_based': int(lower_band), 'target_frequency': float(target_frequency),
+            'surrogate_contract_sha256': surrogate_contract_sha256,
             'raw_band_order_violations': violations,
             'raw_negative_frequency_count': int(np.count_nonzero(raw < 0)),
             'projection_max_abs_change': float(np.max(np.abs(projected - raw))),

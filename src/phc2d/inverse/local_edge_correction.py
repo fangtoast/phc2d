@@ -8,6 +8,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -84,3 +85,63 @@ def fit_local_edge_correction(observations: Sequence[Mapping[str, Any]], *, cent
                                    x.T @ (weights[:, None] * y))
     return LocalEdgeCorrection(center_array.copy(), float(radius), coefficients,
                                str(next(iter(signatures))), str(next(iter(surrogate_signatures))), len(observations))
+
+
+def correct_projected_with_anchor(anchor: Mapping[str, Any], candidate: Mapping[str, Any], *,
+                                  anchor_structure: Any, candidate_structure: Any,
+                                  verified_anchor: Mapping[str, Any], raster_resolution: int) -> dict[str, Any]:
+    """Apply one gated anchor edge residual to an explicitly projected candidate.
+
+    The caller must obtain the observation from the checked physical handoff,
+    enforce the intended local region, and bind the surrogate contract to the
+    model and k-grid. This function verifies the projections and master rasters;
+    corrected predictions remain surrogate-only and are not uncertainty bounds.
+    """
+    from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, project_perturbed_band_order
+
+    contract = anchor.get('surrogate_contract_sha256')
+    if not contract or contract != candidate.get('surrogate_contract_sha256'):
+        raise ValueError('anchor and candidate surrogate contracts differ')
+    if (anchor.get('lower_band_one_based') != candidate.get('lower_band_one_based')
+            or anchor.get('target_frequency') != candidate.get('target_frequency')):
+        raise ValueError('anchor and candidate target contracts differ')
+    for item in (anchor, candidate):
+        regenerated = project_perturbed_band_order(
+            {'status': item['original_status'], 'bands': item['raw_bands'], 'grid_sha256': item['grid_sha256']},
+            lower_band=item['lower_band_one_based'], target_frequency=item['target_frequency'],
+            surrogate_contract_sha256=contract)
+        if regenerated != item:
+            raise ValueError('projection evidence mismatch')
+    row = verified_anchor['row']
+    provenance = verified_anchor['provenance']
+    if (provenance.get('parameter_hash') != anchor_structure.parameter_hash
+            or not provenance.get('comparison_contract_sha256')
+            or row.get('lower_band_one_based') != anchor['lower_band_one_based']
+            or not all(row.get(key) is True for key in
+                       ('last_refinement_stable', 'resolution_stable', 'adaptive_refinement_converged'))):
+        raise ValueError('physical anchor identity or numerical gate mismatch')
+    offsets = tuple(provenance['offsets'])
+    def hashes(structure: Any) -> list[str]:
+        grids = periodic_perturbation_grids(structure, resolution=raster_resolution, offsets=offsets)
+        return [hashlib.sha256(np.ascontiguousarray(grid, dtype=np.uint8).tobytes()).hexdigest() for grid in grids]
+    if (anchor['grid_sha256'] != provenance['grid_sha256']
+            or anchor['grid_sha256'] != hashes(anchor_structure)
+            or candidate['grid_sha256'] != hashes(candidate_structure)):
+        raise ValueError('anchor or candidate perturbation geometry mismatch')
+    observed = np.asarray([row['refined_lower_edge_frequency'], row['refined_upper_edge_frequency']], dtype=np.float64)
+    if not np.isfinite(observed).all():
+        raise ValueError('physical anchor edges must be finite')
+    anchor_edges = np.asarray([anchor['gap']['lower_edge'], anchor['gap']['upper_edge']])
+    candidate_edges = np.asarray([candidate['gap']['lower_edge'], candidate['gap']['upper_edge']])
+    residual = observed - anchor_edges
+    corrected = candidate_edges + residual
+    target = float(candidate['target_frequency'])
+    margin = float(2 * min(target - corrected[0], corrected[1] - target) / target)
+    return {'status': 'calibrated_projected_surrogate_only', 'lower_band_one_based': anchor['lower_band_one_based'],
+            'target_frequency': target, 'surrogate_contract_sha256': contract,
+            'physical_comparison_contract_sha256': provenance['comparison_contract_sha256'],
+            'anchor_parameter_hash': anchor_structure.parameter_hash,
+            'candidate_parameter_hash': candidate_structure.parameter_hash,
+            'anchor_original_status': anchor['original_status'], 'candidate_original_status': candidate['original_status'],
+            'anchor_edge_residual': residual.tolist(), 'corrected_edges': corrected.tolist(),
+            'corrected_target_margin': margin}
