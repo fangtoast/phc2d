@@ -44,12 +44,26 @@ def build_paired_search_requests(
     if (config.get('experiment_id') != manifest.get('experiment_id')
             or audit.get('status') != 'pass' or audit.get('manifest_sha256') != manifest_sha
             or audit.get('config_sha256') != config_sha or audit.get('reconstructed_count') != len(manifest['rows'])
+            or audit.get('scope') != 'source_identity_only_no_physical_validation'
+            or audit.get('verified_resolutions') != [geometry['model_input_resolution'],
+                geometry['generation_audit_resolution'], geometry['physical_master_raster_resolution']]
+            or pool.get('check_physical_grid_collisions') is not True
+            or manifest.get('scope') != 'new_source_development_not_physical'
+            or manifest.get('sample_count') != len(manifest['rows'])
             or selection.get('source_manifest_sha256') != manifest_sha or selection.get('status') != 'ready'
             or selection.get('seed') != pool['selection_seed'] or selection.get('per_stratum') != pool['per_stratum']
             or selection.get('lower_band') != target['lower_band_one_based']
             or selection.get('target_frequency') != target['frequency_a_over_lambda']
             or selection.get('margin_threshold') != pool['coarse_margin_threshold']):
         raise ValueError('source selection or audit contract mismatch')
+    offsets = physics.get('offsets_a')
+    if (geometry.get('family') != 'unified_fourier_binary'
+            or search.get('algorithm') != 'differential_evolution'
+            or surrogate.get('band_order_method') != 'ascending_projection_preserve_raw'
+            or not isinstance(offsets, list) or not offsets or offsets.count(0.0) != 1
+            or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not np.isfinite(v) for v in offsets)
+            or len(set(offsets)) != len(offsets)):
+        raise ValueError('unsupported search, geometry or projection contract')
     seeds = sorted(surrogate['checkpoint_sha256_by_seed'])
     seed_values = search['search_seeds']
     if (not seeds or set(seeds) != set(checkpoint_paths) or len(seeds) != len(seed_values)
