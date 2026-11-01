@@ -18,6 +18,44 @@ import numpy as np
 
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.fourier_search import search_fourier
+from phc2d.inverse.fourier_screen import screen_fourier_geometry
+from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, predict_perturbed_gap
+from phc2d.inverse.robust_gap import common_gap
+
+
+def _replay_selected_prediction(structure: FullCellStructureSpec, predictor: Any,
+                                options: Mapping[str, Any]) -> dict[str, Any]:
+    """Re-predict the selected design; this is not the original search evaluation."""
+    offsets = options.get('perturbation_offsets')
+    if offsets is not None:
+        grids = periodic_perturbation_grids(structure, resolution=options['source_resolution'],
+                                            offsets=tuple(offsets))
+        result = predict_perturbed_gap(grids, predictor, input_resolution=options['input_resolution'],
+            lower_band=options['lower_band'], target_frequency=options['target_frequency'])
+        return {'offsets': list(offsets), **result}
+    import torch
+    geometry = screen_fourier_geometry(structure, raster_method=options['raster_method'],
+        source_resolution=options['source_resolution'], input_resolution=options['input_resolution'],
+        material_fraction_bounds=options['material_fraction_bounds'],
+        geometry_constraints=options.get('geometry_constraints'))
+    if geometry.status != 'eligible':
+        return {'status': geometry.status, 'offsets': [0.0], 'gap': None}
+    with torch.no_grad():
+        bands = predictor.predict_tensor(torch.as_tensor(geometry.raster[None, ...], dtype=torch.float32)).detach().cpu().numpy()
+    if bands.ndim != 3 or bands.shape[0] != 1 or any(size == 0 for size in bands.shape):
+        raise ValueError('predictor must return [1,k,band] frequencies')
+    if not np.isfinite(bands).all():
+        return {'status': 'nonfinite_prediction', 'offsets': [0.0], 'gap': None}
+    if np.any(np.diff(bands, axis=2) < 0):
+        return {'status': 'band_order_violation', 'offsets': [0.0], 'gap': None, 'bands': bands.tolist()}
+    lower = options['lower_band']
+    if not 1 <= lower < bands.shape[2]:
+        raise ValueError('invalid target band')
+    pair = bands[:, :, lower-1:lower+1]
+    if np.any(pair < 0):
+        return {'status': 'negative_frequency', 'offsets': [0.0], 'gap': None, 'bands': bands.tolist()}
+    return {'status': 'surrogate_only', 'offsets': [0.0], 'bands': bands.tolist(),
+            'gap': asdict(common_gap(pair, lower_band=1, target_frequency=options['target_frequency']))}
 
 
 def run_surrogate_design(source: FullCellStructureSpec, predictor: Any, *, seeds: Sequence[int],
@@ -47,6 +85,7 @@ def run_surrogate_design(source: FullCellStructureSpec, predictor: Any, *, seeds
         result_dict = asdict(result)
         (folder/'search.json').write_text(json.dumps(result_dict, indent=2, allow_nan=False), encoding='utf8')
         structure_hash = None
+        response_status = 'not_available'
         if result.best_structure is not None:
             structure = FullCellStructureSpec.from_mapping(result.best_structure)
             structure_hash = structure.parameter_hash
@@ -54,8 +93,17 @@ def run_surrogate_design(source: FullCellStructureSpec, predictor: Any, *, seeds
             (folder/'structure.json').write_bytes(raw)
             raster = structure.rasterize((options['source_resolution'], options['source_resolution']))
             np.save(folder/'structure.npy', raster, allow_pickle=False)
+            response = _replay_selected_prediction(structure, predictor, options)
+            response_status = response['status']
+            response['prediction_stage'] = 'post_search_reprediction'
+            response['structure_parameter_hash'] = structure_hash
+            response['search_best_margin'] = result.best_margin
+            response['target_margin_difference'] = (None if response['gap'] is None else
+                response['gap']['target_margin'] - result.best_margin)
+            (folder/'predicted_response.json').write_text(json.dumps(response, indent=2, allow_nan=False), encoding='utf8')
         records.append({'seed': seed, 'status': result.status, 'structure_parameter_hash': structure_hash,
-                        'predicted_target_margin': result.best_margin, 'evaluation_count': len(result.evaluations)})
+                        'predicted_target_margin': result.best_margin, 'evaluation_count': len(result.evaluations),
+                        'response_reprediction_status': response_status})
     overall_status = 'surrogate_only' if any(item['structure_parameter_hash'] is not None for item in records) else 'no_valid_candidates'
     output = {'status': overall_status, 'physical_validation': 'not_run',
               'source_parameter_hash': source.parameter_hash, 'provenance': dict(provenance),

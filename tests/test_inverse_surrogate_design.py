@@ -50,6 +50,11 @@ def test_search_returns_reconstructible_structure_and_preserves_prediction_scope
         trace=json.loads((folder/'search.json').read_text())
         assert trajectory['evaluation_count']==len(trace['evaluations'])
         assert trajectory['predicted_target_margin']==trace['best_margin']
+        response=json.loads((folder/'predicted_response.json').read_text())
+        assert response['prediction_stage']=='post_search_reprediction'
+        assert response['structure_parameter_hash']==structure.parameter_hash
+        assert np.asarray(response['bands']).shape==(1,1,2)
+        assert response['target_margin_difference']==pytest.approx(0)
     with pytest.raises(FileExistsError):
         run_surrogate_design(source,Predictor(),seeds=[0],search_options=options,
                              output_root=tmp_path/'design',provenance={'checkpoint_sha256':'a'*64})
@@ -64,6 +69,56 @@ def test_no_valid_candidate_does_not_create_structure(tmp_path):
     assert result['trajectories'][0]['status']=='no_valid_candidates'
     assert result['trajectories'][0]['structure_parameter_hash'] is None
     assert not (tmp_path/'empty'/'seed_0'/'structure.json').exists()
+
+
+def test_perturbed_response_contains_all_offsets_and_search_margin(tmp_path):
+    source,options=inputs()
+    options['perturbation_offsets']=(-1/16,0,1/16)
+    out=tmp_path/'design'
+    result=run_surrogate_design(source,Predictor(),seeds=[0],search_options=options,
+        output_root=out,provenance={'test':True})
+    response=json.loads((out/'seed_0'/'predicted_response.json').read_text())
+    assert response['offsets']==[-1/16,0,1/16]
+    assert np.asarray(response['bands']).shape==(3,1,2)
+    assert len(response['grid_sha256'])==3
+    assert response['target_margin_difference']==pytest.approx(0)
+    assert result['trajectories'][0]['response_reprediction_status']=='surrogate_only'
+
+
+def test_failed_reprediction_is_recorded_without_claiming_response_success(tmp_path):
+    class ChangingPredictor(Predictor):
+        def __init__(self):
+            self.calls=0
+        def predict_tensor(self, raster):
+            self.calls+=1
+            if self.calls > 5:
+                return torch.full((len(raster),1,2), float('nan'))
+            return super().predict_tensor(raster)
+    source,options=inputs()
+    out=tmp_path/'design'
+    result=run_surrogate_design(source,ChangingPredictor(),seeds=[0],search_options=options,
+        output_root=out,provenance={'test':True})
+    response=json.loads((out/'seed_0'/'predicted_response.json').read_text())
+    assert response['status']=='nonfinite_prediction'
+    assert response['gap'] is None and response['target_margin_difference'] is None
+    assert result['trajectories'][0]['response_reprediction_status']=='nonfinite_prediction'
+
+
+def test_finite_reprediction_drift_is_exposed(tmp_path):
+    class DriftingPredictor(Predictor):
+        def __init__(self):
+            self.calls=0
+        def predict_tensor(self, raster):
+            self.calls+=1
+            bands=super().predict_tensor(raster)
+            return bands + (0.01 if self.calls > 5 else 0)
+    source,options=inputs()
+    out=tmp_path/'design'
+    run_surrogate_design(source,DriftingPredictor(),seeds=[0],search_options=options,
+        output_root=out,provenance={'test':True})
+    response=json.loads((out/'seed_0'/'predicted_response.json').read_text())
+    assert response['status']=='surrogate_only'
+    assert abs(response['target_margin_difference'])>0.001
 
 
 def test_replay_request_binds_selected_structure_and_original_k_grid(tmp_path):
