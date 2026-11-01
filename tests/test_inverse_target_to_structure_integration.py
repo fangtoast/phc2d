@@ -11,12 +11,14 @@ import runpy
 from pathlib import Path
 
 import numpy as np
+import pytest
 import torch
 
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.paired_physical_handoff import build_paired_physical_batch
 from phc2d.inverse.paired_search_contract import build_paired_search_requests
 from phc2d.inverse.paired_search_materialization import materialize_paired_search_requests, audit_paired_search_requests
+from phc2d.inverse.paired_search_collection import collect_paired_search_locks
 from phc2d.inverse.surrogate_design import run_surrogate_design
 from phc2d.inverse.trace_selection import lock_paired_trace_selection
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
@@ -46,7 +48,7 @@ def test_target_search_trace_to_deduplicated_physical_request(tmp_path):
     points = np.asarray([[0.,0.],[.25,.25]],dtype=np.float64)
     k_sha = hashlib.sha256(np.ascontiguousarray(points,dtype=np.float32).tobytes()).hexdigest()
     locks = []
-    for request in batch['requests']:
+    for request_index, request in enumerate(batch['requests']):
         sid, model_seed, seed = request['source_index'],request['model_seed'],request['search_seed']
         config_raw = (inputs/f'configs/source_{sid:04d}_model_{model_seed}.json').read_bytes()
         source_raw = (inputs/f'sources/source_{sid:04d}.json').read_bytes()
@@ -57,7 +59,7 @@ def test_target_search_trace_to_deduplicated_physical_request(tmp_path):
         options['bounds'] = tuple(tuple(x) for x in options['bounds'])
         options['material_fraction_bounds'] = tuple(options['material_fraction_bounds'])
         options['perturbation_offsets'] = tuple(options['perturbation_offsets'])
-        output = tmp_path/f'run_{sid}_{model_seed}'
+        output = tmp_path/'outputs'/f'task_{request_index}'
         predictor = ToyPredictor(config['checkpoint_sha256'],k_sha)
         run_surrogate_design(source,predictor,seeds=[seed],search_options=options,output_root=output,
             provenance={'config_sha256':hashlib.sha256(config_raw).hexdigest(),
@@ -70,6 +72,31 @@ def test_target_search_trace_to_deduplicated_physical_request(tmp_path):
             search_seed=seed,random_choice_seed=19)
         assert lock['status'] == 'locked_surrogate_only' and lock['physical_validation'] == 'not_run'
         locks.append(lock)
+    jobs = [{'request_index':i,'job_id':f'array_{i}','state':'COMPLETED','exit_code':'0:0'}
+            for i in range(len(batch['requests']))]
+    collected = collect_paired_search_locks(batch,request_root=inputs,output_root=tmp_path/'outputs',
+        job_records=jobs,expected_k_points_sha256=k_sha,random_choice_seed=19)
+    assert collected['status'] == 'locked_surrogate_only' and collected['locks'] == locks
+    pending_jobs = [dict(row) for row in jobs]
+    pending_jobs[0].update(state='RUNNING',exit_code=None)
+    pending = collect_paired_search_locks(batch,request_root=inputs,output_root=tmp_path/'outputs',
+        job_records=pending_jobs,expected_k_points_sha256=k_sha,random_choice_seed=19)
+    assert pending['status'] == 'incomplete_running_or_unknown' and len(pending['locks']) == 8
+    failed_jobs = [dict(row) for row in jobs]
+    failed_jobs[0].update(state='FAILED',exit_code='1:0')
+    failed = collect_paired_search_locks(batch,request_root=inputs,output_root=tmp_path/'outputs',
+        job_records=failed_jobs,expected_k_points_sha256=k_sha,random_choice_seed=19)
+    assert failed['status'] == 'unscoreable_failed_tasks_or_artifacts' and len(failed['locks']) == 8
+    with pytest.raises(ValueError,match='scheduler record roster incomplete'):
+        collect_paired_search_locks(batch,request_root=inputs,output_root=tmp_path/'outputs',
+            job_records=jobs[:-1],expected_k_points_sha256=k_sha,random_choice_seed=19)
+    summary = tmp_path/'outputs/task_0/summary.json'
+    original = summary.read_bytes()
+    summary.write_text('{}')
+    damaged = collect_paired_search_locks(batch,request_root=inputs,output_root=tmp_path/'outputs',
+        job_records=jobs,expected_k_points_sha256=k_sha,random_choice_seed=19)
+    assert damaged['status'] == 'unscoreable_failed_tasks_or_artifacts' and damaged['statuses'][0]['status'] == 'invalid_artifact'
+    summary.write_bytes(original)
     source_map = {r['source_index']:{'source_index':r['source_index'],'stratum':r['stratum'],
                   'parameter_hash':FullCellStructureSpec.from_mapping(r['source']).parameter_hash,
                   'structure':r['source']} for r in batch['requests']}
