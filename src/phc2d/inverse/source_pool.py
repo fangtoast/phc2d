@@ -19,7 +19,7 @@ import numpy as np
 
 
 def _source(index: int, *, prefix: str, seed: int, generator_config: dict[str, Any],
-            low_resolution: int, master_resolution: int) -> dict[str, Any]:
+            low_resolution: int, master_resolution: int, physical_resolution: int | None) -> dict[str, Any]:
     from phc2d.data.full_cell_hashing import hash_raster_content
     from phc2d.data.full_cell_raster import block_mean_downsample
     from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
@@ -28,11 +28,16 @@ def _source(index: int, *, prefix: str, seed: int, generator_config: dict[str, A
         material_fraction_bin=0, config=generator_config)
     grid = np.ascontiguousarray(structure.rasterize((master_resolution, master_resolution)), dtype=np.uint8)
     low = block_mean_downsample(grid, low_resolution)
-    return {'source_index': index, 'label': 'anchor', 'parameter_hash': structure.parameter_hash,
+    result = {'source_index': index, 'label': 'anchor', 'parameter_hash': structure.parameter_hash,
             f'content_hash_r{low_resolution}': hash_raster_content(low, material_kind='area_fraction'),
             f'content_hash_r{master_resolution}': hash_raster_content(grid, material_kind='binary'),
             'geometry_hash': structure.geometry_hash, 'master_grid_sha256': hashlib.sha256(grid.tobytes()).hexdigest(),
             'structure': structure.to_mapping()}
+    if physical_resolution is not None:
+        physical = np.ascontiguousarray(structure.rasterize((physical_resolution, physical_resolution)), dtype=np.uint8)
+        result['physical_grid_sha256'] = hashlib.sha256(physical.tobytes()).hexdigest()
+        result['physical_grid_resolution'] = physical_resolution
+    return result
 
 
 def generate_source_pool(*, config: Path, scope: Path, scope_sha256: str, exclusions: Path,
@@ -74,11 +79,17 @@ def generate_source_pool(*, config: Path, scope: Path, scope_sha256: str, exclus
         raise ValueError('unsupported source geometry family')
     count, seed = pool['count'], pool['generator_seed']
     low, master = geometry['model_input_resolution'], geometry['generation_audit_resolution']
+    check_physical = pool.get('check_physical_grid_collisions', False)
+    if not isinstance(check_physical, bool):
+        raise ValueError('invalid physical collision setting')
+    physical = geometry.get('physical_master_raster_resolution') if check_physical else None
     if (isinstance(count, bool) or not isinstance(count, int) or count < 1
             or isinstance(seed, bool) or not isinstance(seed, int) or seed < 0
             or not isinstance(low, int) or not isinstance(master, int)
             or low <= 0 or master <= low or master % low):
         raise ValueError('invalid source count, seed or raster resolution')
+    if check_physical and (isinstance(physical, bool) or not isinstance(physical, int) or physical < master):
+        raise ValueError('invalid physical raster resolution')
     prefix = contract.get('sample_id_prefix')
     if not isinstance(prefix, str) or not prefix:
         raise ValueError('frozen sample identity prefix required')
@@ -103,6 +114,13 @@ def generate_source_pool(*, config: Path, scope: Path, scope_sha256: str, exclus
         if not isinstance(values, list) or len(set(values)) != len(values) or not all(isinstance(v, str) and v for v in values):
             raise ValueError('invalid exclusion identity set')
         known[key] = set(values)
+    if physical is not None:
+        values = excluded.get('prior_candidate_master_grid_sha256')
+        if (not isinstance(values, list) or not all(isinstance(v, str) and v for v in values)
+                or len(set(values)) != len(values)):
+            raise ValueError('invalid physical raster exclusions')
+        known['physical_grid_sha256'] = set(values)
+        keys = (*keys, 'physical_grid_sha256')
     generator_config = {'fourier_cutoff': geometry['cutoff'], 'audit_resolution': master,
         'epsilon_air': geometry['epsilon_air'], 'epsilon_material': geometry['epsilon_material'],
         'binary_target_material_fraction_range': geometry['target_material_fraction_range']}
@@ -110,7 +128,7 @@ def generate_source_pool(*, config: Path, scope: Path, scope_sha256: str, exclus
         raise FileExistsError('source output exists; reconcile before retry')
     from functools import partial
     work = partial(_source, prefix=prefix, seed=seed, generator_config=generator_config,
-                   low_resolution=low, master_resolution=master)
+                   low_resolution=low, master_resolution=master, physical_resolution=physical)
     rows = []
     with ProcessPoolExecutor(max_workers=workers) as executor:
         for row in executor.map(work, range(count), chunksize=1):

@@ -94,3 +94,33 @@ def test_pool_rejects_capacity_and_source_contract_mismatch(tmp_path,monkeypatch
     with pytest.raises(ValueError,match='reference hash'):
         generate_source_pool(**args)
     assert not args['output'].exists()
+
+
+def test_pool_checks_physical_raster_collisions(tmp_path, monkeypatch):
+    monkeypatch.delenv('SLURM_CPUS_PER_TASK', raising=False)
+    monkeypatch.delenv('SLURM_MEM_PER_NODE', raising=False)
+    args = fixture_inputs(tmp_path)
+    config = yaml.safe_load(args['config'].read_text())
+    config['geometry']['physical_master_raster_resolution'] = 32
+    config['source_pool']['check_physical_grid_collisions'] = True
+    args['config'].write_text(yaml.safe_dump(config))
+    excluded = json.loads(args['exclusions'].read_bytes())
+    excluded['config_sha256'] = hashlib.sha256(args['config'].read_bytes()).hexdigest()
+    excluded['prior_candidate_master_grid_sha256'] = []
+    args['exclusions'].write_text(json.dumps(excluded))
+    scope = json.loads(args['scope'].read_bytes())
+    scope['config_sha256'] = excluded['config_sha256']
+    scope['exclusions_sha256'] = hashlib.sha256(args['exclusions'].read_bytes()).hexdigest()
+    args['scope'].write_text(json.dumps(scope))
+    args['scope_sha256'] = hashlib.sha256(args['scope'].read_bytes()).hexdigest()
+    generate_source_pool(**args)
+    row = json.loads(args['output'].read_bytes())['rows'][0]
+    assert row['physical_grid_resolution'] == 32
+    excluded['prior_candidate_master_grid_sha256'] = [row['physical_grid_sha256']]
+    args['exclusions'].write_text(json.dumps(excluded))
+    scope['exclusions_sha256'] = hashlib.sha256(args['exclusions'].read_bytes()).hexdigest()
+    args['scope'].write_text(json.dumps(scope))
+    args.update(scope_sha256=hashlib.sha256(args['scope'].read_bytes()).hexdigest(), output=tmp_path/'collision.json')
+    with pytest.raises(ValueError, match='collision'):
+        generate_source_pool(**args)
+    assert not args['output'].exists()

@@ -24,6 +24,7 @@ geometry:
 source_pool:
   generator_seed: 2026110302
   count: 1024
+  check_physical_grid_collisions: true
   selection_seed: 2026110303
   per_stratum: 4
   coarse_margin_threshold: 0.005
