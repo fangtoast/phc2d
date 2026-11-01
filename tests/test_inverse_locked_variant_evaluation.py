@@ -9,7 +9,8 @@ import copy
 
 import pytest
 
-from phc2d.inverse.locked_variant_evaluation import evaluate_locked_variants
+from phc2d.inverse.locked_variant_evaluation import (adjudicate_projected_anchor_development,
+                                                     evaluate_locked_variants)
 
 
 def fixture():
@@ -99,3 +100,30 @@ def test_inconsistent_locked_evidence_is_rejected(failure):
         physical['rows'][0]['parameter_hash'] = 'changed'
     with pytest.raises(ValueError):
         evaluate_locked_variants(choices, manifest, physical, **args)
+
+
+def test_projected_development_decision_requires_crosscheck_and_checks_grid():
+    choices, manifest, physical, args = fixture()
+    evaluation = evaluate_locked_variants(choices, manifest, physical, **args)
+    summary = evaluation['methods']['projected_anchor']['summary']
+    summary.update(selected_minus_random_mean=.2, bootstrap_95_low=.1, bootstrap_95_high=.3)
+    evidence = {'evaluation': evaluation, 'manifest_sha256': 'a'*64,
+                'anchor_archive_sha256': 'b'*64, 'nonanchor_archive_sha256': 'c'*64}
+    offset = {'offset': 0., 'grid_match': True, 'k_points_match': True, 'gates_match': True,
+              'solver_identity_match': True, 'max_frequency_difference': 1e-7, 'passed': True}
+    cross = {'manifest_sha256': 'a'*64, 'anchor_archive_sha256': 'b'*64,
+             'nonanchor_archive_sha256': 'c'*64, 'frequency_absolute_tolerance': 1e-6,
+             'cases': [{'case_index': i, 'offsets': [copy.deepcopy(offset)], 'passed': True} for i in (0, 1)],
+             'all_passed': True}
+    params = {'bootstrap_seed': 8, 'bootstrap_samples': 50, 'model_seeds': [0,1,2],
+              'expected_source_count': 4, 'expected_case_indices': [0,1],
+              'expected_offsets': [0.], 'frequency_tolerance': 1e-6}
+    assert adjudicate_projected_anchor_development(evidence, None, **params)['status'] == 'unavailable'
+    verdict = adjudicate_projected_anchor_development(evidence, cross, **params)
+    assert verdict['status'] == 'pass' and verdict['p2_gate'] == 'not_evaluated'
+    cross['cases'][0]['offsets'][0].update(grid_match=False, passed=False)
+    cross['cases'][0]['passed'] = cross['all_passed'] = False
+    assert adjudicate_projected_anchor_development(evidence, cross, **params)['status'] == 'fail'
+    cross['anchor_archive_sha256'] = 'd'*64
+    with pytest.raises(ValueError, match='archive identity'):
+        adjudicate_projected_anchor_development(evidence, cross, **params)

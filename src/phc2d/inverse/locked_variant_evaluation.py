@@ -7,10 +7,13 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from typing import Any, Mapping, Sequence
 
-from phc2d.inverse.audit_refined_reconcile import summarize_multiseed_eligible_stratified
+from phc2d.inverse.audit_refined_reconcile import (adjudicate_locked_choice_development,
+                                                   summarize_multiseed_eligible_stratified)
 
 
 def evaluate_locked_variants(
@@ -113,3 +116,52 @@ def evaluate_locked_variants(
         stratum_weights=stratum_weights, bootstrap_seed=bootstrap_seed, bootstrap_samples=bootstrap_samples,
         require_shared_eligible=True) for name, by_seed in groups.items()}
     return {'status': 'descriptive_variant_evaluation', 'physical_acceptance': 'not_evaluated', 'methods': result}
+
+
+def adjudicate_projected_anchor_development(
+    evidence: Mapping[str, Any], crosscheck: Mapping[str, Any] | None, *,
+    bootstrap_seed: int, bootstrap_samples: int, model_seeds: Sequence[int], expected_source_count: int,
+    expected_case_indices: Sequence[int], expected_offsets: Sequence[float], frequency_tolerance: float,
+) -> dict[str, Any]:
+    """Combine calibrated-variant statistics with finite cross-environment checks.
+
+    The caller authenticates the two solver archives, the choice lock, all
+    worker and replay evidence and the frozen protocol. This is a conditional
+    development decision, not an independent P2 or continuous-BZ certificate.
+    """
+    evaluation = evidence.get('evaluation')
+    if not isinstance(evaluation, Mapping) or evaluation.get('status') != 'descriptive_variant_evaluation':
+        raise ValueError('locked variant evaluation required')
+    methods = evaluation.get('methods')
+    if not isinstance(methods, Mapping) or not isinstance(methods.get('projected_anchor'), Mapping):
+        raise ValueError('projected anchor summary required')
+    archives = [evidence.get('anchor_archive_sha256'), evidence.get('nonanchor_archive_sha256')]
+    if any(not isinstance(x, str) or len(x) != 64 or any(c not in '0123456789abcdef' for c in x) for x in archives):
+        raise ValueError('physical archive digests required')
+    archive_digest = hashlib.sha256(json.dumps(archives, separators=(',', ':')).encode()).hexdigest()
+    corrected = methods['projected_anchor']
+    ready = corrected.get('status') == 'ranking_summary_ready'
+    if not ready and corrected.get('status') != 'ranking_summary_unavailable':
+        raise ValueError('invalid projected anchor summary status')
+    normalized = {'manifest_sha256': evidence.get('manifest_sha256'), 'archive_sha256': archive_digest,
+                  'locked_choice_evaluation': {'status': 'ready' if ready else 'unavailable', 'corrected': corrected}}
+    check = None
+    if crosscheck is not None:
+        if (crosscheck.get('anchor_archive_sha256') != archives[0]
+                or crosscheck.get('nonanchor_archive_sha256') != archives[1]):
+            raise ValueError('crosscheck physical archive identity differs')
+        cases = []
+        for case in crosscheck.get('cases', []):
+            offsets = []
+            for row in case.get('offsets', []):
+                if not isinstance(row.get('grid_match'), bool) or not isinstance(row.get('k_points_match'), bool):
+                    raise ValueError('grid and k-point decisions must be boolean')
+                offsets.append({**row, 'k_points_match': row['grid_match'] and row['k_points_match']})
+            cases.append({**case, 'offsets': offsets})
+        check = {'manifest_sha256': crosscheck.get('manifest_sha256'), 'archive_sha256': archive_digest,
+                 'frequency_absolute_tolerance': crosscheck.get('frequency_absolute_tolerance'),
+                 'cases': cases, 'all_passed': crosscheck.get('all_passed')}
+    return adjudicate_locked_choice_development(normalized, check, bootstrap_seed=bootstrap_seed,
+        bootstrap_samples=bootstrap_samples, model_seeds=model_seeds, expected_source_count=expected_source_count,
+        expected_case_indices=expected_case_indices, expected_offsets=expected_offsets,
+        frequency_tolerance=frequency_tolerance)
