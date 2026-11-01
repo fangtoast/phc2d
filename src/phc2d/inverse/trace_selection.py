@@ -49,6 +49,8 @@ def lock_paired_trace_selection(
     anchor_hash = hashlib.sha256(anchor_grid.tobytes()).hexdigest()
     trace_raw = (Path(output_root)/f'seed_{search_seed}'/'search.json').read_bytes()
     trace = json.loads(trace_raw)
+    summary_raw = (Path(output_root)/'summary.json').read_bytes()
+    summary = json.loads(summary_raw)
     zero_index = list(offsets).index(0.0)
     eligible = []
     duplicate_indices = []
@@ -70,10 +72,13 @@ def lock_paired_trace_selection(
         'source_index': source_index, 'model_seed': model_seed, 'search_seed': search_seed,
         'random_choice_seed': random_choice_seed, 'source_parameter_hash': source.parameter_hash,
         'source_grid_sha256': anchor_hash, 'checkpoint_sha256': checkpoint_sha256,
+        'checkpoint_k_points_sha256': summary['provenance'].get('k_points_sha256'),
+        'source_resolution': options['source_resolution'], 'perturbation_offsets': list(offsets),
+        'lower_band': options['lower_band'], 'target_frequency': options['target_frequency'],
         'config_sha256': hashlib.sha256(config_bytes).hexdigest(),
         'source_sha256': hashlib.sha256(source_bytes).hexdigest(),
         'trace_sha256': hashlib.sha256(trace_raw).hexdigest(),
-        'summary_sha256': hashlib.sha256((Path(output_root)/'summary.json').read_bytes()).hexdigest(),
+        'summary_sha256': hashlib.sha256(summary_raw).hexdigest(),
         'eligible_indices': [row['candidate_index'] for row in eligible],
         'excluded_duplicate_indices': duplicate_indices,
         'baseline_unit': 'unique_nominal_grid_earliest_evaluation', 'audit_status': audit['status'],

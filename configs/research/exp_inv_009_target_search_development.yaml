@@ -67,6 +67,7 @@ physics:
   cross_environment_absolute_spectral_tolerance: 1.0e-6
   cross_environment_cases: 6
   cross_environment_rule: lowest_source_index_per_stratum_anchor_and_seed0_selected_candidate
+  duplicate_cross_environment_geometry_rule: unscoreable_no_replacement
 metrics:
   compare: selected_minus_random_common_band_target_margin
   average_model_search_seed_within_source_before_bootstrap: true
