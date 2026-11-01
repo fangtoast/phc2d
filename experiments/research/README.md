@@ -53,6 +53,8 @@
 
 ## Inverse 与 replay
 
+- [投影校正独立开发验证](EXP-INV-008-投影校正独立开发.md)：EXP-INV-008，三 seed、新来源、物理锚点及统一数值门；已登记，尚未执行。
+
 - [`generative_inverse.md`](generative_inverse.md)：条件生成式 inverse 的候选/replay 协议历史入口；当前 mixture conditional generator 不是 cVAE 或 diffusion。
 - [`a2_inverse_single_seed.md`](a2_inverse_single_seed.md)：A2 单 seed benchmark 与分阶段恢复语义。
 - [`a2_inverse_objective_bridge_seed0_v1.md`](a2_inverse_objective_bridge_seed0_v1.md)：Objective-Bridge 100-target seed0。

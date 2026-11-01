@@ -1,0 +1,95 @@
+# Independent development protocol; not an executable launch manifest.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+experiment_id: EXP-INV-008
+status: registered_not_executed
+scope: independent_development_not_formal_p5
+target:
+  polarization: TE
+  lower_band_one_based: 4
+  frequency_a_over_lambda: 0.57
+  checkpoint_k_points_sha256: f5de7cede402e868753397416feefb5fc629e3d5e0a1b9695051eecac92a5173
+geometry:
+  family: unified_fourier_binary
+  cutoff: 5
+  epsilon_air: 1.0
+  epsilon_material: 8.9
+  target_material_fraction_range: [0.5, 0.9]
+  generation_audit_resolution: 256
+  physical_master_raster_resolution: 512
+  model_input_resolution: 64
+  model_raster_method: master_block_mean_v1
+source_pool:
+  generator_seed: 2026110102
+  count: 1024
+  split: new_generator_seed_development_only
+  collision_keys: [parameter_hash, content_hash_r64, content_hash_r256]
+  exclusion_scope: all_available_k5_k20_splits_and_all_preceding_inverse_development_pools
+  coarse_margin_threshold: 0.005
+  coarse_solver: {resolution: 64, mesh_size: 3, eigensolver_tolerance: 1.0e-7, num_bands: 10, band_guard_count: 4, band_order_policy: frequency_ascending}
+  stratum_rules: {positive: "margin > 0.005", near_zero: "abs(margin) <= 0.005", negative: "margin < -0.005"}
+  stratum_order: [positive, near_zero, negative]
+  selection_seed: 2026110103
+  per_stratum: 4
+  selection_rule: sorted_source_indices_then_rng_choice_without_replacement_in_stratum_order
+  shortage_rule: stop_without_resampling_or_test_supplement
+candidate_family:
+  candidates_per_source: 5
+  coefficient_delta: 0.1
+  threshold_delta: 0.05
+  max_mode_radius: 1.0
+  order: [anchor, coefficient_minus, coefficient_plus, threshold_minus, threshold_plus]
+  collision_scope: source_pool_prior_candidates_and_within_new_batch
+surrogate:
+  architecture: global_local_channel_gate_v1
+  checkpoints:
+    - {seed: 0, sha256: 2610465e52cdddbab2e1752eb9f6a6f96f36884ecc07e544da4e47d9184ec059}
+    - {seed: 1, sha256: 723402527aa184420a1a9f5877151e90fd537507c60ccab575bfff2e3ac108b4}
+    - {seed: 2, sha256: 439140f81e53174f68f1ee67f5a6fcf366d6bacd81a925bfaa34f32c11439e30}
+  device_parity_absolute_tolerance: 0.00005
+  preserve_original_spectrum_and_status: true
+  variant: ascending_frequency_projection_per_k_and_perturbation
+  correction: gated_physical_anchor_edge_residual
+  target_band_must_be_finite_nonnegative: true
+  tie_rule: candidate_family_order
+physics:
+  protocol_sha256: 4fd331126f1f0204ab372ddadda76c8f1c2e0f2198b378b6bda8509fa1bf7592
+  offsets_a: [-0.001953125, 0.0, 0.001953125]
+  resolution: 160
+  verification_resolution: 192
+  mesh_size: 7
+  num_bands: 10
+  band_guard_count: 4
+  band_order_policy: frequency_ascending
+  eigensolver_tolerance: 1.0e-9
+  sampled_k_and_local_refinement: true
+  cross_environment_absolute_spectral_tolerance: 1.0e-6
+  cross_environment_case_indices: [0, 4, 20, 24, 40, 44]
+sequence:
+  - freeze_scope_and_materialize_collision_checked_sources
+  - screen_complete_source_pool_and_freeze_stratified_selection
+  - materialize_candidates_and_lock_all_raw_and_projected_predictions
+  - solve_all_anchors_and_freeze_raw_projected_and_corrected_choices
+  - solve_all_nonanchors_without_replacing_failures
+  - validate_frozen_wsl_cases_and_calculate_paired_source_statistics
+metrics:
+  unit_of_resampling: source
+  physical_data_shared_by_model_seeds: true
+  average_seed_differences_within_source_first: true
+  stratum_weights: {positive: 0.3333333333333333, near_zero: 0.3333333333333333, negative: 0.3333333333333333}
+  bootstrap_seed: 2026110104
+  bootstrap_replicates: 10000
+  ranking_reference: uniform_over_identical_eligible_nonanchor_candidates
+  pass_rule: all_12_sources_and_three_seeds_scoreable_all_60_physical_gates_six_wsl_checks_and_positive_corrected_minus_uniform_lower_95_percent_endpoint
+  report_raw_invalid_and_projected_status_separately: true
+resources:
+  cpu_platform: M9
+  gpu_platforms: [N40, N56]
+  worker_instrumentation_pilot_required: true
+  coarse_screen: {shards: 32, cases_per_shard: 32, workers: 4, cpus: 4, memory_mib: 12288, wallclock_minutes: 30, max_concurrent_shards: 4, max_allocated_core_hours: 64}
+  physical: {cases: 60, workers: 4, cpus: 4, memory_mib: 12288, wallclock_minutes: 45, max_concurrent_shards: 4, max_allocated_core_hours: 45}
+  gpu: {jobs: 3, gpus_per_job: 1, cpus_per_job: 6, wallclock_minutes: 30, max_allocated_gpu_hours: 1.5}
+  wsl_replays: 6
+  retry_costs: recorded_separately_no_inflight_duplicate
+  anchor_cost: included_in_every_anchor_conditioned_method
