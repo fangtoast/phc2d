@@ -20,7 +20,8 @@ def fixture_contract():
         'source_pool':{'selection_seed':7,'per_stratum':1,'coarse_margin_threshold':.005,
                        'stratum_order':['positive','near_zero','negative']},
         'geometry':{'physical_master_raster_resolution':32,'model_input_resolution':8,
-                    'model_raster_method':'master_block_mean_v1','material_fraction_bounds':[.5,.9]},
+                    'model_raster_method':'master_block_mean_v1','material_fraction_bounds':[.5,.9],
+                    'epsilon_air':1.,'epsilon_material':8.9},
         'search':{'search_seeds':[10,11,12],'coefficient_keys':[[0,'cos']],
                   'coefficient_radius':.1,'threshold_radius':.05,'max_mode_radius':1.,
                   'population_size':5,'evaluation_budget_per_source_seed':20},
@@ -77,3 +78,12 @@ def test_requests_reject_wrong_identity_and_duplicate_selection():
             expected_selection_sha256=hashlib.sha256(raw).hexdigest()))
     with pytest.raises(ValueError,match='checkpoint or search seed roster'):
         build_paired_search_requests(**dict(args,checkpoint_paths={0:'/only'}))
+    config = yaml.safe_load(args['config_bytes'])
+    config['geometry']['epsilon_material'] = 4.0
+    config_raw = yaml.safe_dump(config).encode()
+    audit = json.loads(args['source_audit_bytes'])
+    audit['config_sha256'] = hashlib.sha256(config_raw).hexdigest()
+    audit_raw = json.dumps(audit).encode()
+    with pytest.raises(ValueError,match='selected source identity mismatch'):
+        build_paired_search_requests(**dict(args,config_bytes=config_raw,source_audit_bytes=audit_raw,
+            expected_source_audit_sha256=hashlib.sha256(audit_raw).hexdigest()))

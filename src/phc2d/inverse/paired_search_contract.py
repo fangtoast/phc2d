@@ -77,7 +77,8 @@ def build_paired_search_requests(
     for item in selected:
         index = item['index']
         source = FullCellStructureSpec.from_mapping(source_by_index[index]['structure'])
-        if source.material_kind != 'binary' or source.parameter_hash != source_by_index[index]['parameter_hash']:
+        if (source.material_kind != 'binary' or source.parameter_hash != source_by_index[index]['parameter_hash']
+                or source.epsilon_air != geometry['epsilon_air'] or source.epsilon_material != geometry['epsilon_material']):
             raise ValueError('selected source identity mismatch')
         source_raw = json.dumps(source.to_mapping(), sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
         bounds = []
