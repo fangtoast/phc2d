@@ -55,7 +55,7 @@
 
 > 后续 [EXP-INV-008 独立开发批](experiments/research/EXP-INV-008-投影校正独立开发.md)60 候选中 58 个通过冻结数值门，预选六例 M9–WSL 全谱对照通过；因两个非锚点数值失败，完整来源统计不可判定。该批不满足全部候选数值门，不改变上一批 P2 未通过结论。[条件判定](runs/20261101/EXP-INV-008_202611011652/development_decision.json)
 
-> [EXP-INV-009 目标驱动代理搜索](experiments/research/EXP-INV-009-目标驱动代理搜索.md)的 36 条代理搜索已锁定；冻结前遗漏两份共 10,064 条 forward 数据，事后未发现精确身份碰撞，但不能满足事前完整排除条件，84 例物理验证未准入。[EXP-INV-010](experiments/research/EXP-INV-010-事前排除目标搜索.md)为后续独立开发草案，须先解决历史数据身份及完整事前清单；P2 与 P5 状态不变。
+> [EXP-INV-009 目标驱动代理搜索](experiments/research/EXP-INV-009-目标驱动代理搜索.md)的 36 条代理搜索已锁定；冻结前遗漏两份共 10,064 条 forward 数据，事后未发现精确身份碰撞，但不能满足事前完整排除条件，84 例物理验证未准入。[EXP-INV-010](experiments/research/EXP-INV-010-事前排除目标搜索.md)为后续独立开发草案，须先核查远端新发现的二值数据、历史几何身份并完成事前清单；P2 与 P5 状态不变。
 
 # PROJECT MAP
 
