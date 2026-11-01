@@ -91,7 +91,10 @@ def adjudicate_paired_development(
     else:
         raise ValueError('unexpected paired evaluation status')
     cross = 'pass' if all(checks) else 'fail'
-    decision = 'development_criterion_met' if stat == 'pass' and cross == 'pass' else 'development_criterion_not_met'
+    if stat == 'unscoreable':
+        decision = 'development_criterion_unscoreable'
+    else:
+        decision = 'development_criterion_met' if stat == 'pass' and cross == 'pass' else 'development_criterion_not_met'
     return {'status':decision, 'statistical_criterion':stat, 'cross_environment_criterion':cross,
             'batch_sha256':evaluation['batch_sha256'], 'p2_gate':'not_evaluated',
             'scope':'conditional_finite_grid_development_not_p5'}

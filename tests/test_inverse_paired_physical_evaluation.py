@@ -126,4 +126,4 @@ def test_locked_comparison_requires_every_physical_gate(tmp_path):
     failed_comparison = compare_locked_robust_environments(**dict(cross_args,
         reference_results=failed_reference,replay_results=failed_replay))
     decision = adjudicate_paired_development(actual,failed_comparison,**decision_args)
-    assert decision['statistical_criterion'] == 'unscoreable' and decision['status'] == 'development_criterion_not_met'
+    assert decision['statistical_criterion'] == 'unscoreable' and decision['status'] == 'development_criterion_unscoreable'
