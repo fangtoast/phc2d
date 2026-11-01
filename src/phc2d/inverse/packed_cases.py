@@ -21,7 +21,7 @@ def run_packed_cases(*, mode: str, manifest: Path, manifest_sha256: str,
                      output_root: Path, start: int, end: int, workers: int, cpu_limit: int,
                      memory_budget_mib: int, worker_memory_mib: int, setup_reserve_mib: int,
                      protocol: Path | None = None, protocol_sha256: str | None = None,
-                     worker_resource_report: bool = False) -> dict:
+                     worker_resource_report: bool = False, case_indices: list[int] | None = None) -> dict:
     """Run disjoint sampled or refined cases; never overwrite existing evidence."""
     if mode not in ('sampled', 'refined'):
         raise ValueError('unsupported packed case mode')
@@ -49,14 +49,25 @@ def run_packed_cases(*, mode: str, manifest: Path, manifest_sha256: str,
     payload = json.loads(manifest.read_bytes())
     if not isinstance(payload.get('rows'), list) or end > len(payload['rows']):
         raise ValueError('case range exceeds manifest')
+    if case_indices is None:
+        indices = list(range(start, end))
+        control_name = f'packed_{start:04d}_{end:04d}'
+    else:
+        if (not isinstance(case_indices, list) or not case_indices
+                or any(isinstance(i, bool) or not isinstance(i, int) or not start <= i < end for i in case_indices)
+                or case_indices != sorted(set(case_indices))):
+            raise ValueError('case indices must be sorted, unique and inside the case range')
+        indices = case_indices
+        selection = json.dumps(indices, separators=(',', ':')).encode()
+        control_name = f'packed_selection_{hashlib.sha256(selection).hexdigest()}'
     if 'SLURM_CPUS_PER_TASK' in os.environ and cpu_limit > int(os.environ['SLURM_CPUS_PER_TASK']):
         raise ValueError('CPU limit exceeds scheduler allocation')
     if 'SLURM_MEM_PER_NODE' in os.environ and memory_budget_mib > int(os.environ['SLURM_MEM_PER_NODE']):
         raise ValueError('memory budget exceeds scheduler allocation')
     output_root.mkdir(parents=True, exist_ok=True)
-    if any((output_root / f'case_{i:04d}').exists() for i in range(start, end)):
+    if any((output_root / f'case_{i:04d}').exists() for i in indices):
         raise FileExistsError('case output exists; reconcile before retry')
-    control = output_root / f'packed_{start:04d}_{end:04d}'
+    control = output_root / control_name
     control.mkdir(exist_ok=False)
     env = dict(os.environ)
     env.update({name: '1' for name in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMEXPR_NUM_THREADS')})
@@ -90,7 +101,7 @@ def run_packed_cases(*, mode: str, manifest: Path, manifest_sha256: str,
         return record
 
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        outcomes = list(executor.map(run_one, range(start, end)))
+        outcomes = list(executor.map(run_one, indices))
     result = {'manifest_sha256': manifest_sha256, 'workers': workers, 'cpu_limit': cpu_limit,
               'memory_budget_mib': memory_budget_mib, 'worker_memory_mib': worker_memory_mib,
               'setup_reserve_mib': setup_reserve_mib, 'cases': outcomes,
@@ -99,6 +110,8 @@ def run_packed_cases(*, mode: str, manifest: Path, manifest_sha256: str,
         result['protocol_sha256'] = protocol_sha256
     else:
         result['mode'] = 'sampled'
+    if case_indices is not None:
+        result['case_indices'] = indices
     if worker_resource_report:
         result['worker_resource_reporting'] = 'gnu_time_per_process_not_cgroup_peak'
         result['all_worker_resources_reported'] = all(item.get('resource_status') == 'reported' for item in outcomes)

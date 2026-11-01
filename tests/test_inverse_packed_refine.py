@@ -88,6 +88,28 @@ def test_packed_refuses_existing_physical_output_before_launch(tmp_path, monkeyp
     assert not (args['output_root']/'packed_0000_0003').exists()
 
 
+def test_sparse_case_selection_preserves_manifest_indices_and_rejects_overlap(tmp_path, monkeypatch):
+    args = arguments(tmp_path)
+    seen = []
+    def fake_run(command, *, stdout, stderr, env, check):
+        seen.append(int(command[command.index('--case-index') + 1]))
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr('phc2d.inverse.packed_cases.subprocess.run', fake_run)
+    monkeypatch.delenv('SLURM_CPUS_PER_TASK', raising=False)
+    monkeypatch.delenv('SLURM_MEM_PER_NODE', raising=False)
+    (args['output_root']/'case_0001').mkdir(parents=True)
+    result = run_packed_refinement(**args, case_indices=[0, 2])
+    assert sorted(seen) == [0, 2] and result['case_indices'] == [0, 2]
+    assert [row['case_index'] for row in result['cases']] == [0, 2]
+    controls = list(args['output_root'].glob('packed_selection_*/summary.json'))
+    assert len(controls) == 1 and json.loads(controls[0].read_text()) == result
+    with pytest.raises(FileExistsError):
+        run_packed_refinement(**args, case_indices=[0, 2])
+    for invalid in ([], [2, 0], [0, 0], [0, 3], [True, 2]):
+        with pytest.raises(ValueError, match='case indices'):
+            run_packed_refinement(**args, case_indices=invalid)
+
+
 @pytest.mark.skipif(not os.access('/usr/bin/time', os.X_OK), reason='GNU time required')
 def test_optional_worker_resource_reporting_measures_each_real_subprocess(tmp_path, monkeypatch):
     args = arguments(tmp_path)
