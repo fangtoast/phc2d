@@ -12,7 +12,8 @@ import pytest
 torch = pytest.importorskip('torch')
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
-from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, predict_perturbed_gap, solve_perturbed_gap
+from phc2d.inverse.perturbation_screen import (periodic_perturbation_grids, predict_perturbed_gap,
+                                               project_perturbed_band_order, solve_perturbed_gap)
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
@@ -70,3 +71,40 @@ def test_nonfinite_prediction_preserves_locations_without_nonstandard_json():
     assert result['nonfinite_spectrum'][1][0][1] == '+inf'
     assert result['nonfinite_spectrum'][2][0][0] == '-inf'
     json.dumps(result, allow_nan=False)
+
+
+def test_projection_retains_raw_invalid_spectrum_and_scores_new_output():
+    import copy
+    _, grids = setup()
+    class Predictor:
+        def predict_tensor(self, x):
+            return torch.tensor([[[.2, .8, .7]]] * len(x))
+    original=predict_perturbed_gap(grids, Predictor(), input_resolution=8, lower_band=1, target_frequency=.5)
+    snapshot=copy.deepcopy(original)
+    projected=project_perturbed_band_order(original,lower_band=1,target_frequency=.5)
+    assert original==snapshot and original['status']=='band_order_violation'
+    assert projected['status']=='projected_surrogate_only'
+    assert projected['original_status']=='band_order_violation'
+    assert projected['raw_band_order_violations']==3
+    assert projected['projection_max_abs_change']==pytest.approx(.1)
+    assert projected['raw_bands'][0][0]==pytest.approx([.2,.8,.7])
+    assert projected['projected_bands'][0][0]==pytest.approx([.2,.7,.8])
+    assert projected['gap']['upper_edge']==pytest.approx(.7)
+
+
+def test_projection_refuses_nonfinite_negative_target_and_forged_status():
+    with pytest.raises(ValueError,match='finite raw'):
+        project_perturbed_band_order({'status':'nonfinite_prediction'},lower_band=1,target_frequency=.5)
+    raw={'status':'negative_frequency','bands':[[[-.2,.1,.8]]],'grid_sha256':['x']}
+    with pytest.raises(ValueError,match='negative frequency'):
+        project_perturbed_band_order(raw,lower_band=1,target_frequency=.5)
+    with pytest.raises(ValueError,match='status disagrees'):
+        project_perturbed_band_order(dict(raw,status='surrogate_only'),lower_band=1,target_frequency=.5)
+
+
+def test_projection_preserves_count_of_negative_non_target_frequencies():
+    raw={'status':'surrogate_only','bands':[[[-.01,.3,.7]]],'grid_sha256':['x']}
+    result=project_perturbed_band_order(raw,lower_band=2,target_frequency=.5)
+    assert result['raw_negative_frequency_count']==1
+    assert result['projection_max_abs_change']==0
+    assert result['gap']['target_margin']==pytest.approx(.8)

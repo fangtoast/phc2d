@@ -102,6 +102,42 @@ def predict_perturbed_gap(grids: tuple[np.ndarray, ...], predictor: Any, *,
             'grid_sha256': hashes}
 
 
+def project_perturbed_band_order(prediction: dict[str, Any], *, lower_band: int,
+                                 target_frequency: float) -> dict[str, Any]:
+    """Score an explicitly transformed spectrum without changing its raw status.
+
+    Sorting is a model variant, not evidence that the original prediction was
+    valid or physically accurate. Negative non-target bands are retained and
+    counted; a negative projected target band or nonfinite spectrum is rejected.
+    """
+    raw = np.asarray(prediction.get('bands'), dtype=np.float64)
+    if raw.ndim != 3 or any(size == 0 for size in raw.shape) or not np.isfinite(raw).all():
+        raise ValueError('finite raw [perturbation,k,band] spectrum required')
+    if isinstance(lower_band, bool) or not isinstance(lower_band, (int, np.integer)) or not 1 <= lower_band < raw.shape[2]:
+        raise ValueError('lower_band must select an adjacent band pair')
+    hashes = prediction.get('grid_sha256')
+    if not isinstance(hashes, list) or len(hashes) != raw.shape[0] or not all(isinstance(x, str) and x for x in hashes):
+        raise ValueError('one grid identity per perturbation is required')
+    violations = int(np.count_nonzero(np.diff(raw, axis=2) < 0))
+    raw_pair = raw[:, :, lower_band-1:lower_band+1]
+    expected = ('band_order_violation' if violations else
+                'negative_frequency' if np.any(raw_pair < 0) else 'surrogate_only')
+    if prediction.get('status') != expected:
+        raise ValueError('raw prediction status disagrees with spectrum')
+    projected = np.sort(raw, axis=2)
+    pair = projected[:, :, lower_band-1:lower_band+1]
+    if np.any(pair < 0):
+        raise ValueError('projected target bands contain negative frequency')
+    gap = common_gap(pair, lower_band=1, target_frequency=target_frequency)
+    return {'status': 'projected_surrogate_only', 'original_status': expected,
+            'transformation': 'ascending_per_k_and_perturbation',
+            'raw_band_order_violations': violations,
+            'raw_negative_frequency_count': int(np.count_nonzero(raw < 0)),
+            'projection_max_abs_change': float(np.max(np.abs(projected - raw))),
+            'grid_sha256': list(hashes), 'raw_bands': raw.tolist(),
+            'projected_bands': projected.tolist(), 'gap': asdict(gap)}
+
+
 def solve_perturbed_gap(grids: tuple[np.ndarray, ...], *, k_points: np.ndarray,
                         config: FullCellMpbBandSolverConfig, lower_band: int,
                         target_frequency: float,
