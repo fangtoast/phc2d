@@ -107,7 +107,8 @@ def search_fourier(
             input_resolution=input_resolution, material_fraction_bounds=material_fraction_bounds,
             lower_band=lower_band, target_frequency=target_frequency, geometry_constraints=geometry_constraints,
         )
-        row = {"candidate_index": index, "parameters": vector.tolist(), **asdict(result)}
+        row = {"candidate_index": index, "parameters": vector.tolist(),
+               "structure": candidate.to_mapping(), **asdict(result)}
         if result.status == 'surrogate_only' and perturbation_offsets is not None:
             grids = periodic_perturbation_grids(candidate, resolution=source_resolution,
                                                 offsets=perturbation_offsets)

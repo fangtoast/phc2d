@@ -25,6 +25,27 @@ from phc2d.inverse.robust_gap import common_gap
 from phc2d.inverse.fourier_design import update_fourier_binary
 
 
+def _verify_candidate_snapshot(row: Mapping[str, Any], rebuilt: FullCellStructureSpec) -> None:
+    """Verify saved identity and permit only tiny cross-platform reduction drift."""
+    saved = FullCellStructureSpec.from_mapping(row['structure'])
+    if saved.parameter_hash != row['parameter_hash'] or saved.sample_id != row['sample_id']:
+        raise ValueError('candidate identity mismatch')
+    expected = rebuilt.to_mapping()
+    observed = saved.to_mapping()
+    for name in ('normalization_mean', 'normalization_std', 'target_material_fraction'):
+        local, original = expected['parameters'][name], observed['parameters'][name]
+        tolerance = 1e-12 if name != 'target_material_fraction' else 0.0
+        if not np.isfinite([local, original]).all() or not np.isclose(local, original, rtol=0, atol=tolerance):
+            raise ValueError('candidate derived geometry mismatch')
+        expected['parameters'][name] = original
+        index = expected['parameter_names'].index(name)
+        expected['parameter_vector'][index] = observed['parameter_vector'][index]
+        if observed['parameter_vector'][index] != original:
+            raise ValueError('candidate parameter vector mismatch')
+    if expected != observed:
+        raise ValueError('candidate structure does not match source and parameters')
+
+
 def audit_surrogate_design(output_root: Path, *, config_bytes: bytes,
                            source_bytes: bytes, checkpoint_sha256: str) -> dict[str, Any]:
     """Audit search artifacts against externally supplied input identities.
@@ -86,7 +107,9 @@ def audit_surrogate_design(output_root: Path, *, config_bytes: bytes,
             candidate = update_fourier_binary(source, sample_id=row['sample_id'],
                 coefficients={key: float(vector[i]) for i, key in enumerate(keys)},
                 threshold=float(vector[-1]), max_mode_radius=options['max_mode_radius'])
-            if candidate.parameter_hash != row['parameter_hash']:
+            if 'structure' in row:
+                _verify_candidate_snapshot(row, candidate)
+            elif candidate.parameter_hash != row['parameter_hash']:
                 raise ValueError('candidate identity mismatch')
             if row['status'] == 'surrogate_only':
                 score = row['selection_score']

@@ -93,6 +93,56 @@ def test_artifact_audit_rejects_altered_candidate_trace(tmp_path):
                                checkpoint_sha256='a'*64)
 
 
+def test_candidate_snapshot_audits_small_reduction_drift_but_rejects_larger(monkeypatch, tmp_path):
+    import phc2d.inverse.surrogate_design as module
+    source,options=inputs()
+    source_bytes=json.dumps(source.to_mapping()).encode()
+    config_bytes=json.dumps({'search_options':options,'seeds':[0],
+                             'checkpoint_sha256':'a'*64}).encode()
+    out=tmp_path/'design'
+    run_surrogate_design(source,Predictor(),seeds=[0],search_options=options,output_root=out,
+        provenance={'config_sha256':hashlib.sha256(config_bytes).hexdigest(),
+        'source_sha256':hashlib.sha256(source_bytes).hexdigest(),'checkpoint_sha256':'a'*64})
+    original=module.update_fourier_binary
+    drift=[1e-14]
+    def rebuild(*args,**kwargs):
+        candidate=original(*args,**kwargs)
+        mapping=candidate.to_mapping()
+        mapping['parameters']['normalization_mean']+=drift[0]
+        index=mapping['parameter_names'].index('normalization_mean')
+        mapping['parameter_vector'][index]=mapping['parameters']['normalization_mean']
+        return FullCellStructureSpec.from_mapping(mapping)
+    monkeypatch.setattr(module,'update_fourier_binary',rebuild)
+    args={'config_bytes':config_bytes,'source_bytes':source_bytes,'checkpoint_sha256':'a'*64}
+    assert audit_surrogate_design(out,**args)['status']=='artifact_consistent'
+    drift[0]=1e-6
+    with pytest.raises(ValueError,match='derived geometry mismatch'):
+        audit_surrogate_design(out,**args)
+
+
+def test_candidate_snapshot_rejects_changed_unchosen_mode(tmp_path):
+    source,options=inputs()
+    source_bytes=json.dumps(source.to_mapping()).encode()
+    config_bytes=json.dumps({'search_options':options,'seeds':[0],
+                             'checkpoint_sha256':'a'*64}).encode()
+    out=tmp_path/'design'
+    run_surrogate_design(source,Predictor(),seeds=[0],search_options=options,output_root=out,
+        provenance={'config_sha256':hashlib.sha256(config_bytes).hexdigest(),
+        'source_sha256':hashlib.sha256(source_bytes).hexdigest(),'checkpoint_sha256':'a'*64})
+    path=out/'seed_0'/'search.json'
+    trace=json.loads(path.read_text())
+    row=trace['evaluations'][0]
+    mapping=row['structure']
+    mapping['parameters']['modes'][1]['cos']+=0.25
+    index=mapping['parameter_names'].index('modes[1].cos')
+    mapping['parameter_vector'][index]=mapping['parameters']['modes'][1]['cos']
+    row['parameter_hash']=FullCellStructureSpec.from_mapping(mapping).parameter_hash
+    path.write_text(json.dumps(trace))
+    with pytest.raises(ValueError,match='structure does not match'):
+        audit_surrogate_design(out,config_bytes=config_bytes,source_bytes=source_bytes,
+                               checkpoint_sha256='a'*64)
+
+
 def test_artifact_audit_preserves_failed_search_status(tmp_path):
     source,options=inputs()
     options['material_fraction_bounds']=(0,0)
