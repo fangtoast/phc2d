@@ -25,12 +25,18 @@ if (( workers > 1 )); then
   : "${SLURM_MEM_PER_NODE:?node memory allocation required}"
   : "${PHC2D_WORKER_MEMORY_MIB:?measured per-worker memory budget required}"
   : "${PHC2D_SETUP_RESERVE_MIB:?measured shared memory reserve required}"
+  resource_flags=()
+  case "${PHC2D_RECORD_WORKER_RESOURCES:-0}" in
+    0) ;;
+    1) resource_flags+=(--worker-resource-report) ;;
+    *) echo 'PHC2D_RECORD_WORKER_RESOURCES must be 0 or 1' >&2; exit 2 ;;
+  esac
   python -m phc2d.inverse.packed_refine --manifest "$PHC2D_MANIFEST" \
     --manifest-sha256 "$PHC2D_MANIFEST_SHA256" --protocol "$PHC2D_PROTOCOL" \
     --protocol-sha256 "$PHC2D_PROTOCOL_SHA256" --output-root "$PHC2D_OUTPUT_ROOT" \
     --start "$start" --end "$end" --workers "$workers" --cpu-limit "$SLURM_CPUS_PER_TASK" \
     --memory-budget-mib "$SLURM_MEM_PER_NODE" --worker-memory-mib "$PHC2D_WORKER_MEMORY_MIB" \
-    --setup-reserve-mib "$PHC2D_SETUP_RESERVE_MIB"
+    --setup-reserve-mib "$PHC2D_SETUP_RESERVE_MIB" "${resource_flags[@]}"
   exit $?
 fi
 for ((index=start; index<end && index<PHC2D_CASE_COUNT; index++)); do

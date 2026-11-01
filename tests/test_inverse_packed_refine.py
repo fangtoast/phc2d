@@ -9,6 +9,9 @@ import hashlib
 import json
 import threading
 import time
+import os
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -83,3 +86,39 @@ def test_packed_refuses_existing_physical_output_before_launch(tmp_path, monkeyp
     with pytest.raises(FileExistsError, match='case output exists'):
         run_packed_refinement(**args)
     assert not (args['output_root']/'packed_0000_0003').exists()
+
+
+@pytest.mark.skipif(not os.access('/usr/bin/time', os.X_OK), reason='GNU time required')
+def test_optional_worker_resource_reporting_measures_each_real_subprocess(tmp_path, monkeypatch):
+    args = arguments(tmp_path)
+    actual_run = subprocess.run
+    def substitute_solver(command, *, stdout, stderr, env, check):
+        index = int(command[command.index('--case-index') + 1])
+        program = f"data=bytearray(1000000); sum(data); raise SystemExit({int(index == 1)})"
+        return actual_run([*command[:6], sys.executable, '-c', program],
+                          stdout=stdout, stderr=stderr, env=env, check=check)
+    monkeypatch.setattr('phc2d.inverse.packed_refine.subprocess.run', substitute_solver)
+    monkeypatch.delenv('SLURM_CPUS_PER_TASK', raising=False)
+    monkeypatch.delenv('SLURM_MEM_PER_NODE', raising=False)
+    result = run_packed_refinement(**args, worker_resource_report=True)
+    assert not result['all_succeeded'] and result['all_worker_resources_reported']
+    assert [row['returncode'] for row in result['cases']] == [0, 1, 0]
+    assert all(row['resource_status']=='reported' and row['max_rss_kib'] > 0
+               and row['elapsed_seconds'] >= 0 for row in result['cases'])
+    assert len(list((args['output_root']/'packed_0000_0003').glob('*.resources'))) == 3
+
+
+@pytest.mark.skipif(not os.access('/usr/bin/time', os.X_OK), reason='GNU time required')
+def test_invalid_worker_resource_output_is_visible(tmp_path, monkeypatch):
+    args = arguments(tmp_path)
+    def fake_run(command, *, stdout, stderr, env, check):
+        path = command[command.index('-o')+1]
+        with open(path, 'w') as stream:
+            stream.write('invalid')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr('phc2d.inverse.packed_refine.subprocess.run', fake_run)
+    monkeypatch.delenv('SLURM_CPUS_PER_TASK', raising=False)
+    monkeypatch.delenv('SLURM_MEM_PER_NODE', raising=False)
+    result = run_packed_refinement(**args, worker_resource_report=True)
+    assert result['all_succeeded'] and not result['all_worker_resources_reported']
+    assert all(row['resource_status']=='unavailable_or_invalid' for row in result['cases'])
