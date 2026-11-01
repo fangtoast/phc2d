@@ -285,6 +285,56 @@ def test_projected_search_audit_rebuilds_transform_and_perturbation_identity(tmp
         audit_surrogate_design(out,**args)
 
 
+def test_paired_trace_lock_uses_audited_nonanchor_candidates(tmp_path):
+    from phc2d.inverse.trace_selection import lock_paired_trace_selection
+    source, options = inputs()
+    options.update(perturbation_offsets=(-1/16, 0, 1/16), projection_contract_sha256='b'*64,
+                   evaluation_budget=10)
+    source_bytes = json.dumps(source.to_mapping()).encode()
+    config_bytes = json.dumps({'search_options': options, 'seeds': [0],
+                               'checkpoint_sha256': 'a'*64}).encode()
+    root = tmp_path/'design'
+    run_surrogate_design(source, Predictor(), seeds=[0], search_options=options, output_root=root,
+        provenance={'config_sha256': hashlib.sha256(config_bytes).hexdigest(),
+                    'source_sha256': hashlib.sha256(source_bytes).hexdigest(), 'checkpoint_sha256': 'a'*64})
+    args = dict(config_bytes=config_bytes, source_bytes=source_bytes, checkpoint_sha256='a'*64,
+                source_index=7, model_seed=2, search_seed=0, random_choice_seed=19)
+    first = lock_paired_trace_selection(root, **args)
+    assert first == lock_paired_trace_selection(root, **args)
+    assert first['status'] == 'locked_surrogate_only'
+    assert first['physical_validation'] == 'not_run' and 0 not in first['eligible_indices']
+    trace = json.loads((root/'seed_0'/'search.json').read_text())
+    eligible = [trace['evaluations'][i] for i in first['eligible_indices']]
+    grids = [row['perturbation_grid_sha256'][1] for row in eligible]
+    assert len(grids) == len(set(grids))
+    assert first['surrogate_choice']['candidate_index'] == max(eligible, key=lambda x: x['selection_score'])['candidate_index']
+    rng = np.random.default_rng(np.random.SeedSequence([19, 7, 2]))
+    assert first['random_choice']['candidate_index'] == first['eligible_indices'][int(rng.integers(len(eligible)))]
+    assert first['surrogate_choice']['nominal_grid_sha256'] != first['source_grid_sha256']
+    with pytest.raises(ValueError, match='provenance'):
+        lock_paired_trace_selection(root, **dict(args, checkpoint_sha256='c'*64))
+
+
+def test_paired_trace_lock_preserves_insufficient_nonanchor_status(tmp_path):
+    from phc2d.inverse.trace_selection import lock_paired_trace_selection
+    source, options = inputs()
+    threshold = source.parameters['threshold']
+    options.update(bounds=((threshold-1e-12, threshold+1e-12),),
+                   perturbation_offsets=(0,), projection_contract_sha256='b'*64)
+    source_bytes = json.dumps(source.to_mapping()).encode()
+    config_bytes = json.dumps({'search_options': options, 'seeds': [0],
+                               'checkpoint_sha256': 'a'*64}).encode()
+    root = tmp_path/'design'
+    run_surrogate_design(source, Predictor(), seeds=[0], search_options=options, output_root=root,
+        provenance={'config_sha256': hashlib.sha256(config_bytes).hexdigest(),
+                    'source_sha256': hashlib.sha256(source_bytes).hexdigest(), 'checkpoint_sha256': 'a'*64})
+    locked = lock_paired_trace_selection(root, config_bytes=config_bytes, source_bytes=source_bytes,
+        checkpoint_sha256='a'*64, source_index=0, model_seed=0, search_seed=0, random_choice_seed=19)
+    assert locked['status'] == 'unscoreable_insufficient_eligible'
+    assert locked['eligible_indices'] == [] and locked['excluded_duplicate_indices']
+    assert locked['surrogate_choice'] is None and locked['random_choice'] is None
+
+
 def test_failed_reprediction_is_recorded_without_claiming_response_success(tmp_path):
     class ChangingPredictor(Predictor):
         def __init__(self):

@@ -43,7 +43,8 @@ search:
   max_mode_radius: 1.0
   population_size: 5
   evaluation_budget_per_source_seed: 20
-  comparison: uniformly_selected_eligible_nonanchor_from_same_trace
+  comparison: uniformly_selected_eligible_unique_nonanchor_grid_from_same_trace
+  duplicate_nominal_grid_rule: earliest_evaluation_record_exclusions
   random_choice_seed: 2026110313
   random_choice_rule: numpy_seedsequence_base_source_index_model_seed_then_choice_sorted_evaluation_indices
   selection_tie_rule: earliest_evaluation
