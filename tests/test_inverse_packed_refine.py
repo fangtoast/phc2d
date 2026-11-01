@@ -47,7 +47,7 @@ def test_packed_cases_run_concurrently_and_record_failure(tmp_path, monkeypatch)
             active -= 1
         return SimpleNamespace(returncode=1 if index == 1 else 0)
 
-    monkeypatch.setattr('phc2d.inverse.packed_refine.subprocess.run', fake_run)
+    monkeypatch.setattr('phc2d.inverse.packed_cases.subprocess.run', fake_run)
     monkeypatch.delenv('SLURM_CPUS_PER_TASK', raising=False)
     monkeypatch.delenv('SLURM_MEM_PER_NODE', raising=False)
     result = run_packed_refinement(**args)
@@ -97,7 +97,7 @@ def test_optional_worker_resource_reporting_measures_each_real_subprocess(tmp_pa
         program = f"data=bytearray(1000000); sum(data); raise SystemExit({int(index == 1)})"
         return actual_run([*command[:6], sys.executable, '-c', program],
                           stdout=stdout, stderr=stderr, env=env, check=check)
-    monkeypatch.setattr('phc2d.inverse.packed_refine.subprocess.run', substitute_solver)
+    monkeypatch.setattr('phc2d.inverse.packed_cases.subprocess.run', substitute_solver)
     monkeypatch.delenv('SLURM_CPUS_PER_TASK', raising=False)
     monkeypatch.delenv('SLURM_MEM_PER_NODE', raising=False)
     result = run_packed_refinement(**args, worker_resource_report=True)
@@ -116,7 +116,7 @@ def test_invalid_worker_resource_output_is_visible(tmp_path, monkeypatch):
         with open(path, 'w') as stream:
             stream.write('invalid')
         return SimpleNamespace(returncode=0)
-    monkeypatch.setattr('phc2d.inverse.packed_refine.subprocess.run', fake_run)
+    monkeypatch.setattr('phc2d.inverse.packed_cases.subprocess.run', fake_run)
     monkeypatch.delenv('SLURM_CPUS_PER_TASK', raising=False)
     monkeypatch.delenv('SLURM_MEM_PER_NODE', raising=False)
     result = run_packed_refinement(**args, worker_resource_report=True)
