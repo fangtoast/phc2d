@@ -44,6 +44,7 @@ def build_paired_search_requests(
     if (config.get('experiment_id') != manifest.get('experiment_id')
             or audit.get('status') != 'pass' or audit.get('manifest_sha256') != manifest_sha
             or audit.get('config_sha256') != config_sha or audit.get('reconstructed_count') != len(manifest['rows'])
+            or audit.get('seed_regenerated_count') != len(manifest['rows'])
             or audit.get('scope') != 'source_identity_only_no_physical_validation'
             or audit.get('verified_resolutions') != [geometry['model_input_resolution'],
                 geometry['generation_audit_resolution'], geometry['physical_master_raster_resolution']]

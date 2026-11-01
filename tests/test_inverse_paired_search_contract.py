@@ -42,7 +42,8 @@ def fixture_contract():
     manifest_sha = hashlib.sha256(manifest).hexdigest()
     audit = json.dumps({'status':'pass','manifest_sha256':manifest_sha,
                         'config_sha256':hashlib.sha256(config_raw).hexdigest(),'reconstructed_count':3,
-                        'scope':'source_identity_only_no_physical_validation','verified_resolutions':[8,16,32]}).encode()
+                        'scope':'source_identity_only_no_physical_validation','verified_resolutions':[8,16,32],
+                        'seed_regenerated_count':3}).encode()
     selection = json.dumps({'status':'ready','source_manifest_sha256':manifest_sha,'seed':7,
         'per_stratum':1,'lower_band':1,'target_frequency':.5,'margin_threshold':.005,
         'selected':[{'index':i,'stratum':s} for i,s in enumerate(config['source_pool']['stratum_order'])]}).encode()
@@ -93,6 +94,12 @@ def test_requests_reject_wrong_identity_and_duplicate_selection():
             expected_source_audit_sha256=hashlib.sha256(audit_raw).hexdigest()))
     audit = json.loads(args['source_audit_bytes'])
     audit['verified_resolutions'] = [8,16]
+    audit_raw = json.dumps(audit).encode()
+    with pytest.raises(ValueError,match='source selection or audit contract'):
+        build_paired_search_requests(**dict(args,source_audit_bytes=audit_raw,
+            expected_source_audit_sha256=hashlib.sha256(audit_raw).hexdigest()))
+    audit = json.loads(args['source_audit_bytes'])
+    audit['seed_regenerated_count'] = 2
     audit_raw = json.dumps(audit).encode()
     with pytest.raises(ValueError,match='source selection or audit contract'):
         build_paired_search_requests(**dict(args,source_audit_bytes=audit_raw,
