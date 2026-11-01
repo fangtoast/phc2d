@@ -21,6 +21,95 @@ from phc2d.inverse.fourier_search import search_fourier
 from phc2d.inverse.fourier_screen import screen_fourier_geometry
 from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, predict_perturbed_gap
 from phc2d.inverse.robust_gap import common_gap
+from phc2d.inverse.fourier_design import update_fourier_binary
+
+
+def audit_surrogate_design(output_root: Path, *, config_bytes: bytes,
+                           source_bytes: bytes, checkpoint_sha256: str) -> dict[str, Any]:
+    """Audit search artifacts against externally supplied input identities.
+
+    This checks internal consistency, not whether model execution or the
+    claimed checkpoint identity actually occurred on a remote machine.
+    """
+    root = Path(output_root)
+    config = json.loads(config_bytes)
+    source = FullCellStructureSpec.from_mapping(json.loads(source_bytes))
+    summary = json.loads((root/'summary.json').read_bytes())
+    provenance = summary['provenance']
+    if (provenance.get('config_sha256') != hashlib.sha256(config_bytes).hexdigest()
+            or provenance.get('source_sha256') != hashlib.sha256(source_bytes).hexdigest()
+            or provenance.get('checkpoint_sha256') != checkpoint_sha256
+            or config.get('checkpoint_sha256') != checkpoint_sha256):
+        raise ValueError('input provenance mismatch')
+    if (summary['source_parameter_hash'] != source.parameter_hash
+            or summary['search_options'] != config['search_options']
+            or summary['physical_validation'] != 'not_run'):
+        raise ValueError('search contract mismatch')
+    records = summary['trajectories']
+    if [row['seed'] for row in records] != config['seeds']:
+        raise ValueError('seed roster mismatch')
+    options = config['search_options']
+    keys = tuple(tuple(key) for key in options['coefficient_keys'])
+    checks = []
+    for item in records:
+        folder = root/f"seed_{item['seed']}"
+        trace = json.loads((folder/'search.json').read_bytes())
+        rows = trace['evaluations']
+        if (trace['status'] != item['status'] or len(rows) != item['evaluation_count']
+                or not options['population_size'] <= len(rows) <= options['evaluation_budget']):
+            raise ValueError('search trace count or status mismatch')
+        eligible = []
+        for index, row in enumerate(rows):
+            vector = np.asarray(row['parameters'], dtype=np.float64)
+            bounds = np.asarray(options['bounds'], dtype=np.float64)
+            if (row['candidate_index'] != index or vector.shape != (len(keys)+1,)
+                    or not np.isfinite(vector).all()
+                    or np.any(vector < bounds[:, 0]) or np.any(vector > bounds[:, 1])
+                    or row['sample_id'] != f"{source.sample_id}-search-{item['seed']}-{index}"):
+                raise ValueError('invalid candidate trace')
+            candidate = update_fourier_binary(source, sample_id=row['sample_id'],
+                coefficients={key: float(vector[i]) for i, key in enumerate(keys)},
+                threshold=float(vector[-1]), max_mode_radius=options['max_mode_radius'])
+            if candidate.parameter_hash != row['parameter_hash']:
+                raise ValueError('candidate identity mismatch')
+            if row['status'] == 'surrogate_only':
+                score = row['selection_score']
+                gap = row['predicted_gap']
+                lower, upper, width, margin = (gap[name] for name in
+                    ('lower_edge', 'upper_edge', 'signed_width', 'target_margin'))
+                target = options['target_frequency']
+                if (not np.isfinite([score, lower, upper, width, margin]).all()
+                        or score != margin or width != upper-lower
+                        or margin != 2*min(target-lower, upper-target)/target
+                        or gap['contains_target'] != (margin > 0)):
+                    raise ValueError('invalid surrogate score')
+                eligible.append(row)
+        if not eligible:
+            if (item['status'] != 'no_valid_candidates' or item['structure_parameter_hash'] is not None
+                    or trace['best_structure'] is not None or trace['best_margin'] is not None
+                    or item['predicted_target_margin'] is not None
+                    or (folder/'structure.json').exists() or (folder/'structure.npy').exists()):
+                raise ValueError('empty search result mismatch')
+        else:
+            best = max(eligible, key=lambda row: row['selection_score'])
+            structure = FullCellStructureSpec.from_mapping(json.loads((folder/'structure.json').read_bytes()))
+            expected = structure.rasterize((options['source_resolution'], options['source_resolution']))
+            raster = np.load(folder/'structure.npy', allow_pickle=False)
+            if (item['status'] != 'surrogate_only' or best['parameter_hash'] != structure.parameter_hash
+                    or structure.parameter_hash != item['structure_parameter_hash']
+                    or FullCellStructureSpec.from_mapping(trace['best_structure']).parameter_hash != structure.parameter_hash
+                    or trace['best_margin'] != best['selection_score']
+                    or item['predicted_target_margin'] != trace['best_margin']
+                    or not np.array_equal(raster, expected)):
+                raise ValueError('selected structure or raster mismatch')
+        checks.append({'seed': item['seed'], 'evaluation_count': len(rows),
+                       'eligible_count': len(eligible), 'status': item['status']})
+    expected_status = 'surrogate_only' if any(row['eligible_count'] for row in checks) else 'no_valid_candidates'
+    if summary['status'] != expected_status:
+        raise ValueError('overall search status mismatch')
+    return {'status': 'artifact_consistent', 'physical_validation': 'not_run',
+            'checkpoint_k_identity_recorded': bool(provenance.get('k_points_sha256')),
+            'trajectories': checks}
 
 
 def _replay_selected_prediction(structure: FullCellStructureSpec, predictor: Any,

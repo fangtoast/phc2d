@@ -14,7 +14,7 @@ torch = pytest.importorskip('torch')
 
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
-from phc2d.inverse.surrogate_design import build_surrogate_replay_request, run_surrogate_design
+from phc2d.inverse.surrogate_design import audit_surrogate_design, build_surrogate_replay_request, run_surrogate_design
 from phc2d.inverse.audit_perturb_refine import run_case
 from phc2d.inverse.feedback_handoff import validate_robust_observation
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
@@ -35,6 +35,68 @@ def inputs():
         source_resolution=16,input_resolution=8,material_fraction_bounds=(0,1),
         lower_band=1,target_frequency=.5)
     return source,options
+
+
+def test_artifact_audit_detects_tampering_and_accepts_legacy_provenance(tmp_path):
+    source,options=inputs()
+    source_bytes=json.dumps(source.to_mapping()).encode()
+    config_bytes=json.dumps({'search_options':options,'seeds':[0],
+                             'checkpoint_sha256':'a'*64}).encode()
+    provenance={'config_sha256':hashlib.sha256(config_bytes).hexdigest(),
+                'source_sha256':hashlib.sha256(source_bytes).hexdigest(),
+                'checkpoint_sha256':'a'*64}
+    out=tmp_path/'design'
+    run_surrogate_design(source,Predictor(),seeds=[0],search_options=options,
+                         output_root=out,provenance=provenance)
+    args={'config_bytes':config_bytes,'source_bytes':source_bytes,'checkpoint_sha256':'a'*64}
+    audit=audit_surrogate_design(out,**args)
+    assert audit['status']=='artifact_consistent' and not audit['checkpoint_k_identity_recorded']
+    assert audit['trajectories'][0]['evaluation_count']==5
+    with pytest.raises(ValueError,match='provenance'):
+        audit_surrogate_design(out,**dict(args,checkpoint_sha256='b'*64))
+    raster_path=out/'seed_0'/'structure.npy'
+    raster=np.load(raster_path)
+    raster[0,0]=1-raster[0,0]
+    np.save(raster_path,raster)
+    with pytest.raises(ValueError,match='raster mismatch'):
+        audit_surrogate_design(out,**args)
+
+
+def test_artifact_audit_rejects_altered_candidate_trace(tmp_path):
+    source,options=inputs()
+    source_bytes=json.dumps(source.to_mapping()).encode()
+    config_bytes=json.dumps({'search_options':options,'seeds':[0],
+                             'checkpoint_sha256':'a'*64}).encode()
+    out=tmp_path/'design'
+    run_surrogate_design(source,Predictor(),seeds=[0],search_options=options,output_root=out,
+        provenance={'config_sha256':hashlib.sha256(config_bytes).hexdigest(),
+        'source_sha256':hashlib.sha256(source_bytes).hexdigest(),'checkpoint_sha256':'a'*64})
+    path=out/'seed_0'/'search.json'
+    trace=json.loads(path.read_text())
+    trace['evaluations'][0]['parameter_hash']='0'*64
+    path.write_text(json.dumps(trace))
+    with pytest.raises(ValueError,match='candidate identity'):
+        audit_surrogate_design(out,config_bytes=config_bytes,source_bytes=source_bytes,
+                               checkpoint_sha256='a'*64)
+
+
+def test_artifact_audit_preserves_failed_search_status(tmp_path):
+    source,options=inputs()
+    options['material_fraction_bounds']=(0,0)
+    source_bytes=json.dumps(source.to_mapping()).encode()
+    config_bytes=json.dumps({'search_options':options,'seeds':[0],
+                             'checkpoint_sha256':'a'*64}).encode()
+    out=tmp_path/'design'
+    run_surrogate_design(source,Predictor(),seeds=[0],search_options=options,output_root=out,
+        provenance={'config_sha256':hashlib.sha256(config_bytes).hexdigest(),
+        'source_sha256':hashlib.sha256(source_bytes).hexdigest(),'checkpoint_sha256':'a'*64})
+    args={'config_bytes':config_bytes,'source_bytes':source_bytes,'checkpoint_sha256':'a'*64}
+    result=audit_surrogate_design(out,**args)
+    assert result['trajectories'][0]['status']=='no_valid_candidates'
+    assert result['trajectories'][0]['eligible_count']==0
+    (out/'seed_0'/'structure.json').write_text('{}')
+    with pytest.raises(ValueError,match='empty search result'):
+        audit_surrogate_design(out,**args)
 
 
 def test_search_returns_reconstructible_structure_and_preserves_prediction_scope(tmp_path):
