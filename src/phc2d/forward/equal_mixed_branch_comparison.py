@@ -134,13 +134,31 @@ def compare(suites: list[Path], historical: Path, output: Path) -> dict:
                       for k, v in sorted(grouped.items())]
     if len(paired_summary) != 96 or any(r["seed_count"] != 3 for r in paired_summary):
         raise ValueError("incomplete paired three-seed groups")
+    ref_groups = defaultdict(list)
+    for row in references:
+        ref_groups[(row["lane"], row["variant"], row["kernel"], row["target"], row["reference_source"])].append(row)
+    reference_summary = []
+    for key, rows in sorted(ref_groups.items()):
+        if {row["seed"] for row in rows} != {0, 1, 2}:
+            raise ValueError("incomplete historical reference seed group")
+        summary = dict(lane=key[0], variant=key[1], kernel=key[2], target=key[3], reference_source=key[4],
+                       single_split_status=rows[0]["single_split_status"], mixed16_split_status=rows[0]["mixed16_split_status"])
+        for field in ("mixed8k_mre", "single8k_mre", "mixed16k_mre"):
+            values = [row[field] for row in rows]
+            summary[field + "_mean"] = statistics.mean(values)
+            summary[field + "_sample_sd"] = statistics.stdev(values)
+        summary["seed_count"] = len(rows)
+        reference_summary.append(summary)
+    if len(reference_summary) != 240:
+        raise ValueError("unexpected historical reference summary count")
     output.mkdir(parents=True, exist_ok=False)
     for name, rows in (("mixed8k_cells.csv", list(cells.values())), ("mixed8k_summary.csv", summaries),
                        ("paired_branch_cells.csv", paired), ("paired_branch_summary.csv", paired_summary),
-                       ("historical_reference_comparison.csv", references)):
+                       ("historical_reference_comparison.csv", references),
+                       ("historical_reference_summary.csv", reference_summary)):
         write_table(output / name, rows)
     record = dict(status="complete_pending_independent_review", mixed_cells=288, seed_groups=96,
-                  paired_branch_cells=len(paired), reference_rows=len(references),
+                  paired_branch_cells=len(paired), reference_rows=len(references), reference_groups=len(reference_summary),
                   historical_audit_sha256=file_digest(historical / "comparison_audit.json"),
                   suite_audit_sha256={str(s): file_digest(s / "test_audit.json") for s in suites},
                   output_sha256={p.name: file_digest(p) for p in output.glob("*.csv")},

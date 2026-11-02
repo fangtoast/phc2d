@@ -77,6 +77,7 @@ def test_complete_mixed_comparison_and_target_split_gate(tmp_path):
     output = tmp_path/"comparison"
     result = compare([binary, graded], historical, output)
     assert (result["mixed_cells"], result["seed_groups"], result["paired_branch_cells"], result["reference_rows"]) == (288, 96, 288, 720)
+    assert result["reference_groups"] == 240
     with (output/"paired_branch_cells.csv").open(newline="") as f:
         assert all(abs(float(row["branch_minus_full_pct_points"])-1.0)<1e-12 for row in csv.DictReader(f))
     with pytest.raises(FileExistsError):
