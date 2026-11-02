@@ -65,6 +65,33 @@ def test_indices(handle, *, external: bool) -> np.ndarray:
     return indices
 
 
+def inspect_test_target(path: Path, *, dataset_sha256: str, grid_field: str, external: bool) -> dict:
+    """Verify target bytes, input metadata, k points and held-out index identity."""
+    import h5py
+
+    if file_digest(path) != dataset_sha256:
+        raise ValueError(f"target data hash mismatch: {path}")
+    with h5py.File(path, "r") as handle:
+        indices = test_indices(handle, external=external)
+        return dict(dataset=str(path), grid_field=grid_field, external=str(external), dataset_sha256=dataset_sha256,
+                    target_shape=list(handle["Wh"].shape[1:]), grid_shape=list(handle[grid_field].shape[1:]),
+                    sample_count=len(indices), split_sha256=hashlib.sha256(indices.tobytes()).hexdigest(),
+                    k_points_hash=hashlib.sha256(np.asarray(handle["k_points"], dtype=np.float32).tobytes()).hexdigest())
+
+
+def evaluation_role(source_domain: str, target_name: str, *, external: bool) -> str:
+    """Distinguish mixed-source held-out targets from unseen-domain transfer."""
+    if external:
+        return "new_geometry_transfer"
+    if target_name == source_domain:
+        return "native_test"
+    if source_domain in {"mixed_binary", "mixed_graded"}:
+        lane = source_domain.removeprefix("mixed_")
+        if target_name in {f"k5_{lane}", f"k20_{lane}"}:
+            return "seen_source_domain_test"
+    return "cross_domain_test"
+
+
 def evaluate(run: Path, completed: Path, dataset: Path, dataset_sha256: str,
              grid_field: str, output: Path, *, external: bool = False,
              save_predictions: bool = False, expected_experiment: str = "EXP-FWD-031") -> dict:
@@ -80,7 +107,7 @@ def evaluate(run: Path, completed: Path, dataset: Path, dataset_sha256: str,
     if file_digest(dataset) != dataset_sha256:
         raise ValueError("target dataset SHA-256 mismatch")
     config = yaml.safe_load((run / "config.resolved.yaml").read_text(encoding="utf-8"))
-    if (expected_experiment not in {"EXP-FWD-031", "EXP-FWD-032"}
+    if (expected_experiment not in {"EXP-FWD-031", "EXP-FWD-032", "EXP-FWD-033"}
             or config["experiment"]["experiment_id"].split("_", 1)[0] != expected_experiment):
         raise ValueError("unexpected source experiment")
     if file_digest(Path(config["dataset"]["path"])) != config["dataset"]["expected_dataset_sha256"]:
@@ -178,8 +205,7 @@ def evaluate(run: Path, completed: Path, dataset: Path, dataset_sha256: str,
                   target_split_sha256=hashlib.sha256(indices.tobytes()).hexdigest(),
                   grid_field=grid_field, source_run=str(run), sample_count=len(rows), external=external,
                   evaluation_source_sha256=file_digest(Path(__file__)),
-                  evaluation_role="native_test" if target_name == source_domain else
-                                  "new_geometry_transfer" if external else "cross_domain_test",
+                  evaluation_role=evaluation_role(source_domain, target_name, external=external),
                   input_distribution_shift=(source_domain.endswith("graded") and
                                             (external or target_name.endswith("binary"))))
     (output / "results.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
@@ -199,7 +225,7 @@ def main() -> None:
     parser.add_argument("--external", action="store_true")
     parser.add_argument("--save-predictions", action="store_true",
                         help="Export de-normalized arrays in frozen sample order")
-    parser.add_argument("--experiment-id", choices=["EXP-FWD-031", "EXP-FWD-032"], default="EXP-FWD-031")
+    parser.add_argument("--experiment-id", choices=["EXP-FWD-031", "EXP-FWD-032", "EXP-FWD-033"], default="EXP-FWD-031")
     args = parser.parse_args()
     evaluate(args.run, args.completed, args.dataset, args.dataset_sha256, args.grid_field,
              args.output, external=args.external, save_predictions=args.save_predictions,

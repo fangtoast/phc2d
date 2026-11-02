@@ -56,7 +56,8 @@ def test_report_per_band_validation_agrees_with_aggregates(tmp_path, experiment_
     assert (run / "per_band_validation.json").is_file()
 
 
-def test_exp032_requires_explicit_identity_and_keeps_test_unread(tmp_path, monkeypatch):
+@pytest.mark.parametrize("experiment", ["EXP-FWD-032", "EXP-FWD-033"])
+def test_branch_campaign_requires_explicit_identity_and_keeps_test_unread(tmp_path, monkeypatch, experiment):
     torch = pytest.importorskip("torch")
     h5py = pytest.importorskip("h5py")
     import phc2d.models
@@ -84,9 +85,9 @@ def test_exp032_requires_explicit_identity_and_keeps_test_unread(tmp_path, monke
         test_executed=False, model="global_local_band_operator_v1", checkpoint_sha256=file_digest(checkpoint))))
     (run / "metrics.json").write_text(json.dumps(dict(bands_1_10_mre_pct=0., bands_2_10_mre_pct=0.)))
     (run / "config.resolved.yaml").write_text(yaml.safe_dump(dict(
-        experiment=dict(experiment_id="EXP-FWD-032_n8000_e1000"),
+        experiment=dict(experiment_id=experiment + "_n8000_e1000"),
         dataset=dict(path=str(data), grid_field="grid", expected_dataset_sha256=file_digest(data)))))
     with pytest.raises(ValueError, match="identity mismatch"):
         report_per_band_validation(run)
-    report = report_per_band_validation(run, batch_size=1, expected_experiment="EXP-FWD-032")
+    report = report_per_band_validation(run, batch_size=1, expected_experiment=experiment)
     assert report["validation_count"] == 2 and not report["test_executed"]

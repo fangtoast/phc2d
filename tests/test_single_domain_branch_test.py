@@ -12,17 +12,30 @@ import numpy as np
 import pytest
 
 from phc2d.forward.budget_confirmation import file_digest
+from phc2d.forward.official_comparison_test import evaluation_role
 from phc2d.forward.single_domain_branch_test import freeze_test, test_rows as read_test_rows
 
 
-def test_freeze_requires_authorization_and_binds_target_split(tmp_path, monkeypatch):
+def test_mixed_source_roles_are_not_mislabeled_as_unseen_domain():
+    assert evaluation_role("mixed_binary", "k5_binary", external=False) == "seen_source_domain_test"
+    assert evaluation_role("mixed_binary", "k20_binary", external=False) == "seen_source_domain_test"
+    assert evaluation_role("mixed_binary", "k5_graded", external=False) == "cross_domain_test"
+    assert evaluation_role("mixed_binary", "f50_binary", external=False) == "cross_domain_test"
+    assert evaluation_role("mixed_binary", "exp_dat_007_12k", external=True) == "new_geometry_transfer"
+    assert evaluation_role("k5_binary", "k5_binary", external=False) == "native_test"
+
+
+@pytest.mark.parametrize(("experiment", "domains", "expected"), [
+    ("EXP-FWD-032", ("k5_binary", "f50_graded"), 216),
+    ("EXP-FWD-033", ("mixed_binary",), 144),
+])
+def test_freeze_requires_authorization_and_binds_target_split(tmp_path, monkeypatch, experiment, domains, expected):
     h5py = pytest.importorskip("h5py")
     from phc2d.forward import single_domain_branch_test as module
 
     tasks = []
-    domains = ("k5_binary", "f50_graded")
     for domain in domains:
-        for variant in range(6):
+        for variant in range(6 if experiment == "EXP-FWD-032" else 8):
             for seed in range(3):
                 tasks.append(dict(case_id=f"{domain}_v{variant}_s{seed}", domain=domain, variant=str(variant),
                                   seed=seed, model="model", run_dir=str(tmp_path / "training" / f"{domain}_{variant}_{seed}")))
@@ -30,8 +43,9 @@ def test_freeze_requires_authorization_and_binds_target_split(tmp_path, monkeypa
     monkeypatch.setattr(module, "ready_checkpoint", lambda *a: {"checkpoint_sha256": "checkpoint"})
     points = np.arange(162, dtype=np.float32).reshape(81, 2)
     k_hash = hashlib.sha256(points.tobytes()).hexdigest()
-    (tmp_path / "datasets.json").write_text(json.dumps({d: {"k_points_hash": k_hash} for d in domains}))
-    (tmp_path / "training_audit.json").write_text(json.dumps(dict(task_count=36, status="training_artifacts_complete_pending_independent_review")))
+    (tmp_path / "datasets.json").write_text(json.dumps({d: {"k_points_hash": k_hash, "grid_shape": [64, 64], "target_shape": [81, 10]} for d in domains}))
+    (tmp_path / "training_audit.json").write_text(json.dumps(dict(task_count=len(tasks), status="training_artifacts_complete_pending_independent_review")))
+    (tmp_path / "suite.json").write_text(json.dumps(dict(experiment_id=experiment, expected_tasks=len(tasks), expected_test_cells=expected)))
     targets = []
     for i in range(6):
         path = tmp_path / f"data{i}.h5"
@@ -55,7 +69,7 @@ def test_freeze_requires_authorization_and_binds_target_split(tmp_path, monkeypa
         freeze_test(tmp_path, "")
     freeze_test(tmp_path, "test-authorized")
     rows = read_test_rows(tmp_path)
-    assert len(rows) == 216
+    assert len(rows) == expected
     assert all(row["checkpoint_sha256"] == "checkpoint" and int(row["sample_count"]) == 1 for row in rows)
     with (tmp_path / "test_manifest.csv").open("a") as stream:
         stream.write("tampered")

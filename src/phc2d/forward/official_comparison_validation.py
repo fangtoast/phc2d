@@ -34,7 +34,7 @@ def report_per_band_validation(run: Path, *, batch_size: int = 16, device: str =
     metrics = json.loads((run / "metrics.json").read_text(encoding="utf-8"))
     config = yaml.safe_load((run / "config.resolved.yaml").read_text(encoding="utf-8"))
     experiment_id = config["experiment"]["experiment_id"]
-    if expected_experiment not in {"EXP-FWD-031", "EXP-FWD-032"} or experiment_id.split("_", 1)[0] != expected_experiment:
+    if expected_experiment not in {"EXP-FWD-031", "EXP-FWD-032", "EXP-FWD-033"} or experiment_id.split("_", 1)[0] != expected_experiment:
         raise ValueError("per-band validation experiment identity mismatch")
     if result["selection_split"] != "validation" or result["test_executed"]:
         raise ValueError("only validation-selected checkpoints are admissible")
@@ -90,7 +90,7 @@ def main() -> None:
     parser.add_argument("--run", required=True, type=Path)
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--device", default="cpu")
-    parser.add_argument("--experiment-id", choices=["EXP-FWD-031", "EXP-FWD-032"], default="EXP-FWD-031")
+    parser.add_argument("--experiment-id", choices=["EXP-FWD-031", "EXP-FWD-032", "EXP-FWD-033"], default="EXP-FWD-031")
     args = parser.parse_args()
     if args.batch_size < 1:
         raise ValueError("batch-size must be positive")

@@ -6,6 +6,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 """
 
 from pathlib import Path
+import hashlib
 import json
 from types import SimpleNamespace
 import subprocess
@@ -14,7 +15,9 @@ import numpy as np
 import pytest
 import yaml
 
-from phc2d.data.full_cell_mixed import file_sha256, materialize_mixed_validation
+from phc2d.data.full_cell_mixed import (file_sha256, materialize_mixed_validation,
+                                        materialize_nested_mixed_validation, resolve_nested_train_subset)
+from phc2d.data.sampling import select_nested_sample_indices
 from phc2d.forward.global_local_branch_capability import finalize, freeze, parameter_controls, submit, task
 
 
@@ -30,6 +33,7 @@ def source(tmp_path: Path, name: str, overlap: bool = False) -> dict:
         h["idx_train"] = np.arange(4)
         h["idx_val"] = np.array([0 if overlap else 4])
         h["idx_test"] = np.array([5])
+        h["sample_id"] = np.array([f"sample-{i}".encode() for i in range(6)])
     return {"path": str(path), "sha256": file_sha256(path), "grid_field": "grid"}
 
 
@@ -60,6 +64,79 @@ def test_mixed_materialization_rejects_source_hash_drift(tmp_path):
     sources["k5"]["sha256"] = "invalid"
     with pytest.raises(RuntimeError, match="hash mismatch"):
         materialize_mixed_validation(sources, tmp_path / "mixed.h5", train_per_domain=4, validation_per_domain=1)
+
+
+def test_mixed_materialization_accepts_frozen_nested_train_subsets(tmp_path):
+    h5py = pytest.importorskip("h5py")
+    sources = {x: source(tmp_path, x) for x in ("k5", "k20")}
+    parent = np.array([0, 1, 2, 3], dtype=np.int64)
+    for spec in sources.values():
+        spec.update(parent_train_indices=parent, parent_train_indices_sha256=hashlib.sha256(parent.tobytes()).hexdigest(),
+                    selected_train_indices=np.array([3, 1], dtype=np.int64))
+    result = materialize_mixed_validation(sources, tmp_path / "mixed.h5", train_per_domain=2, validation_per_domain=1)
+    assert result["n_train"] == 4 and result["n_val"] == 2
+    assert result["lineage"][0]["parent_train_indices_sha256"] == sources["k5"]["parent_train_indices_sha256"]
+    with h5py.File(tmp_path / "mixed.h5") as handle:
+        assert handle["source_row_index"][:].tolist() == [1, 3, 1, 3, 4, 4]
+        assert np.isfinite(handle["Wh"][:]).all()
+
+
+@pytest.mark.parametrize("change", ["missing", "hash", "outside_parent", "duplicate", "noninteger"])
+def test_mixed_materialization_rejects_unverified_nested_subsets(tmp_path, change):
+    sources = {x: source(tmp_path, x) for x in ("k5", "k20")}
+    parent = np.array([0, 1, 2], dtype=np.int64)
+    for spec in sources.values():
+        spec.update(parent_train_indices=parent, parent_train_indices_sha256=hashlib.sha256(parent.tobytes()).hexdigest(),
+                    selected_train_indices=np.array([0, 1], dtype=np.int64))
+    if change == "missing":
+        del sources["k5"]["parent_train_indices_sha256"]
+    elif change == "hash":
+        sources["k5"]["parent_train_indices_sha256"] = "0" * 64
+    elif change == "outside_parent":
+        sources["k5"]["selected_train_indices"] = [0, 3]
+    elif change == "duplicate":
+        sources["k5"]["selected_train_indices"] = [0, 0]
+    else:
+        sources["k5"]["selected_train_indices"] = [0.0, 1.0]
+    with pytest.raises(ValueError):
+        materialize_mixed_validation(sources, tmp_path / "mixed.h5", train_per_domain=2, validation_per_domain=1)
+    assert not (tmp_path / "mixed.h5").exists()
+
+
+def test_resolve_nested_subset_reproduces_frozen_parent_and_rejects_drift(tmp_path):
+    spec = source(tmp_path, "k5")
+    values = np.arange(4, dtype=np.int64)
+    ids = [f"sample-{i}" for i in values]
+    parent = select_nested_sample_indices(values, ids, size=3, salt="frozen")
+    parent_hash = hashlib.sha256(parent.tobytes()).hexdigest()
+    subset = resolve_nested_train_subset(spec, parent_size=3, selected_size=2, salt="frozen",
+                                         expected_parent_sha256=parent_hash)
+    assert np.array_equal(parent, subset["parent_train_indices"])
+    assert np.isin(subset["selected_train_indices"], parent).all()
+    assert np.array_equal(subset["selected_train_indices"],
+                          resolve_nested_train_subset(spec, parent_size=3, selected_size=2, salt="frozen",
+                                                      expected_parent_sha256=parent_hash)["selected_train_indices"])
+    with pytest.raises(ValueError, match="parent subset hash"):
+        resolve_nested_train_subset(spec, parent_size=3, selected_size=2, salt="frozen", expected_parent_sha256="0" * 64)
+
+
+def test_nested_materialization_rejects_changed_selected_identity_before_output(tmp_path):
+    sources = {x: source(tmp_path, x) for x in ("k5", "k20")}
+    parent_hash = hashlib.sha256(np.arange(4, dtype=np.int64).tobytes()).hexdigest()
+    parents = {x: parent_hash for x in sources}
+    selected = {x: resolve_nested_train_subset(spec, parent_size=4, selected_size=2, salt="frozen",
+                                               expected_parent_sha256=parent_hash)["selected_train_indices_sha256"]
+                for x, spec in sources.items()}
+    changed = {**selected, "k20": "0" * 64}
+    with pytest.raises(ValueError, match="selected train subset hash"):
+        materialize_nested_mixed_validation(sources, tmp_path / "bad.h5", parent_size=4, selected_size=2,
+                                            validation_per_domain=1, salt="frozen", expected_parent_hashes=parents,
+                                            expected_selected_hashes=changed)
+    assert not (tmp_path / "bad.h5").exists()
+    result = materialize_nested_mixed_validation(sources, tmp_path / "mixed.h5", parent_size=4, selected_size=2,
+                                                 validation_per_domain=1, salt="frozen", expected_parent_hashes=parents,
+                                                 expected_selected_hashes=selected)
+    assert result["n_train"] == 4 and result["n_val"] == 2 and result["test_targets_loaded"] is False
 
 
 def test_independent_branches_are_physically_removed_and_full_remains_compatible():

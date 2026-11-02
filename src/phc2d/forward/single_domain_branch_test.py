@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import os
 import statistics
@@ -16,16 +15,31 @@ from pathlib import Path
 
 from phc2d.forward.budget_confirmation import file_digest, read_tasks, write_json, write_table
 from phc2d.forward.official_comparison_campaign import claim_task
-from phc2d.forward.official_comparison_test import evaluate, ready_checkpoint, test_indices
+from phc2d.forward.official_comparison_test import evaluate, inspect_test_target, ready_checkpoint
 from phc2d.forward.official_comparison_test_audit import audit_cell
 from phc2d.forward.official_comparison_validation import report_per_band_validation
+
+
+def _suite_contract(suite: Path) -> tuple[int, int, str]:
+    """Read explicit campaign sizes while preserving the EXP-FWD-032 contract."""
+    path = suite / "suite.json"
+    info = json.loads(path.read_text()) if path.exists() else {}
+    experiment = info.get("experiment_id", "EXP-FWD-032")
+    allowed = {"EXP-FWD-032": (36, 216), "EXP-FWD-033": (24, 144)}
+    if experiment not in allowed:
+        raise ValueError("unsupported branch test experiment")
+    tasks, cells = allowed[experiment]
+    if info.get("expected_tasks", tasks) != tasks or info.get("expected_test_cells", cells) != cells:
+        raise ValueError("branch test matrix contract changed")
+    return tasks, cells, experiment
 
 
 def validation_worker(suite: Path) -> None:
     """Re-evaluate selected validation checkpoints with exclusive claims."""
     rows = read_tasks(suite)
     audit = json.loads((suite / "training_audit.json").read_text())
-    if audit["task_count"] != 36 or any(not (suite / "train_claims" / (suite.name + "_" + row["case_id"]) / "completed.json").is_file() for row in rows):
+    task_count, _, experiment = _suite_contract(suite)
+    if len(rows) != task_count or audit["task_count"] != task_count or any(not (suite / "train_claims" / (suite.name + "_" + row["case_id"]) / "completed.json").is_file() for row in rows):
         raise ValueError("all training must be complete before validation export")
     for row in rows:
         out = Path(row["run_dir"])
@@ -36,7 +50,7 @@ def validation_worker(suite: Path) -> None:
         try:
             if (out / "per_band_validation.json").exists():
                 raise FileExistsError(out / "per_band_validation.json")
-            result = report_per_band_validation(out, batch_size=16, device="cuda:0", expected_experiment="EXP-FWD-032")
+            result = report_per_band_validation(out, batch_size=16, device="cuda:0", expected_experiment=experiment)
             if result["checkpoint_sha256"] != json.loads(marker.read_text())["checkpoint_sha256"]:
                 raise ValueError("training marker and validation checkpoint differ")
             write_json(claim / "completed.json", dict(status="completed", checkpoint_sha256=result["checkpoint_sha256"]))
@@ -47,14 +61,12 @@ def validation_worker(suite: Path) -> None:
 
 def freeze_test(suite: Path, authorization_id: str) -> None:
     """Bind completed checkpoints to verified target bytes and frozen test indices."""
-    import h5py
-    import numpy as np
-
     if not authorization_id:
         raise ValueError("explicit test authorization is required")
+    task_count, cell_count, _ = _suite_contract(suite)
     audit = json.loads((suite / "training_audit.json").read_text())
-    if audit["task_count"] != 36 or audit["status"] != "training_artifacts_complete_pending_independent_review":
-        raise ValueError("all 36 local training artifacts must be audited")
+    if audit["task_count"] != task_count or audit["status"] != "training_artifacts_complete_pending_independent_review":
+        raise ValueError("all local training artifacts must be audited")
     tasks = {r["case_id"]: r for r in read_tasks(suite)}
     freeze = json.loads((suite / "freeze.json").read_text())
     target_path = suite / "test_target_manifest.csv"
@@ -62,7 +74,7 @@ def freeze_test(suite: Path, authorization_id: str) -> None:
         raise ValueError("planned test target manifest changed")
     with target_path.open(newline="", encoding="utf-8") as stream:
         targets = list(csv.DictReader(stream))
-    if len(targets) != 216 or len({(r["case_id"], r["target"]) for r in targets}) != 216:
+    if len(tasks) != task_count or len(targets) != cell_count or len({(r["case_id"], r["target"]) for r in targets}) != cell_count:
         raise ValueError("test target identities incomplete")
     source_data = json.loads((suite / "datasets.json").read_text())
     verified_targets, rows = {}, []
@@ -72,21 +84,13 @@ def freeze_test(suite: Path, authorization_id: str) -> None:
         result = ready_checkpoint(Path(row["run_dir"]), marker)
         key = entry["target"]
         if key not in verified_targets:
-            path = Path(entry["dataset"])
-            if file_digest(path) != entry["dataset_sha256"]:
-                raise ValueError(f"target data hash mismatch: {path}")
-            with h5py.File(path, "r") as handle:
-                external = entry["external"] == "True"
-                indices = test_indices(handle, external=external)
-                k_hash = hashlib.sha256(np.asarray(handle["k_points"], dtype=np.float32).tobytes()).hexdigest()
-                verified_targets[key] = dict(dataset=entry["dataset"], grid_field=entry["grid_field"], external=entry["external"],
-                    dataset_sha256=entry["dataset_sha256"],
-                    target_shape=list(handle["Wh"].shape[1:]), grid_shape=list(handle[entry["grid_field"]].shape[1:]),
-                    sample_count=len(indices), split_sha256=hashlib.sha256(indices.tobytes()).hexdigest(), k_points_hash=k_hash)
+            verified_targets[key] = inspect_test_target(Path(entry["dataset"]), dataset_sha256=entry["dataset_sha256"],
+                                                        grid_field=entry["grid_field"], external=entry["external"] == "True")
         target = verified_targets[key]
         if (any(entry[k] != target[k] for k in ("dataset", "grid_field", "external", "dataset_sha256"))
-                or target["target_shape"] != [81, 10]
-                or target["grid_shape"] != [64, 64] or target["k_points_hash"] != source_data[row["domain"]]["k_points_hash"]):
+                or target["target_shape"] != source_data[row["domain"]]["target_shape"]
+                or target["grid_shape"] != source_data[row["domain"]]["grid_shape"]
+                or target["k_points_hash"] != source_data[row["domain"]]["k_points_hash"]):
             raise ValueError("target shape, hash, or k-point identity changed")
         rows.append(dict(**{k: entry[k] for k in ("case_id", "target", "dataset", "dataset_sha256", "grid_field", "external")},
                          source_run=row["run_dir"], model=row["model"], seed=row["seed"], domain=row["domain"], variant=row["variant"],
@@ -108,12 +112,14 @@ def test_rows(suite: Path) -> list[dict]:
         raise ValueError("test authorization or frozen manifest changed")
     with path.open(newline="", encoding="utf-8") as stream:
         rows = list(csv.DictReader(stream))
-    if len(rows) != 216 or len({(r["case_id"], r["target"]) for r in rows}) != 216:
+    _, cell_count, _ = _suite_contract(suite)
+    if len(rows) != cell_count or len({(r["case_id"], r["target"]) for r in rows}) != cell_count:
         raise ValueError("test matrix is incomplete")
     return rows
 
 
 def test_worker(suite: Path) -> None:
+    _, _, experiment = _suite_contract(suite)
     for row in test_rows(suite):
         claim = claim_task(suite / "test_claims", row["case_id"] + "_" + row["target"],
                            dict(job_id=os.environ.get("SLURM_JOB_ID")))
@@ -126,7 +132,7 @@ def test_worker(suite: Path) -> None:
             marker = suite / "train_claims" / (suite.name + "_" + row["case_id"]) / "completed.json"
             record = evaluate(run, marker, Path(row["dataset"]), row["dataset_sha256"], row["grid_field"],
                               Path(row["result_dir"]), external=row["external"] == "True", save_predictions=True,
-                              expected_experiment="EXP-FWD-032")
+                              expected_experiment=experiment)
             if record["target_split_sha256"] != row["split_sha256"] or record["sample_count"] != int(row["sample_count"]):
                 raise ValueError("test output differs from frozen target split")
             write_json(claim / "completed.json", dict(status="completed", checkpoint_sha256=row["checkpoint_sha256"]))
@@ -163,8 +169,9 @@ def audit_test(suite: Path) -> dict:
         values = [c["bands_1_10_mre_pct"] for c in group]
         summaries.append(dict(domain=domain, variant=variant, target=target, mean=statistics.fmean(values),
                               sample_sd=statistics.stdev(values)))
-    if len(summaries) != 72:
-        raise ValueError("expected 72 three-seed groups")
+    _, cell_count, _ = _suite_contract(suite)
+    if len(summaries) != cell_count // 3:
+        raise ValueError("unexpected three-seed group count")
     record = dict(status="complete_pending_independent_review", cell_count=len(cells),
                   three_seed_group_count=len(summaries), cells=cells, summaries=summaries,
                   surrogate_only=True, physical_validation=False)

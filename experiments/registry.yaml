@@ -1094,6 +1094,25 @@ experiments:
       summary: 用户已授权同条件三seed与每平台8GPU；运行和收敛状态以新campaign原始证据为准，不覆盖固定预算结果。
     tags: [convergence, validation-only, three-seed, adaptive-optimization]
 
+  - id: EXP-FWD-033
+    title: K5与K20等总量混合分支消融
+    task: forward
+    status: planned
+    mapping_status: complete
+    research_question: 相同8k训练总量下，K5与K20混合来源对完整模型和单分支表现有何影响？
+    spec: [experiments/research/EXP-FWD-033-等量混合分支消融.md]
+    config: [configs/research/full_cell_equal_mixed_branch_exp_fwd_033_v1.yaml]
+    runs:
+      local: [runs/20261102/EXP-FWD-033_202611021031]
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments: [EXP-FWD-026, EXP-FWD-027, EXP-FWD-032]
+    decision:
+      state: pending
+      summary: 四来源4k选择及父8k身份通过只读核验；平台数据与配置待物化冻结，远程准入、训练和测试尚未授权。
+    tags: [equal-count, mixed-domain, global-local, ablation]
+
   - id: EXP-FWD-032
     title: K5与F50单域全局局部分支消融
     task: forward

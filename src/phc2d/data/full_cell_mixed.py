@@ -23,6 +23,64 @@ def file_sha256(path: str | Path) -> str:
     return digest.hexdigest()
 
 
+def resolve_nested_train_subset(
+    spec: Mapping[str, Any], *, parent_size: int, selected_size: int, salt: str,
+    expected_parent_sha256: str,
+) -> dict[str, Any]:
+    """Resolve source row identities inside an independently audited parent subset.
+
+    Only split metadata and training sample IDs are read; target labels are not.
+    The parent digest must come from the relevant historical training evidence.
+    """
+    import h5py
+
+    from phc2d.data.sampling import select_nested_sample_indices
+
+    path = Path(spec["path"])
+    if file_sha256(path) != spec["sha256"]:
+        raise ValueError("source dataset hash mismatch")
+    if not salt or not expected_parent_sha256 or not 0 < selected_size <= parent_size:
+        raise ValueError("invalid nested subset contract")
+    with h5py.File(path, "r") as handle:
+        train = np.sort(np.asarray(handle["idx_train"], dtype=np.int64))
+        if (train.ndim != 1 or len(np.unique(train)) != len(train)
+                or np.any(train < 0) or np.any(train >= len(handle["Wh"]))
+                or len(train) < parent_size):
+            raise ValueError("invalid or insufficient training split")
+        ids = np.asarray(handle["sample_id"][train]).astype("U").tolist()
+        if len(set(ids)) != len(ids):
+            raise ValueError("training sample IDs are not unique")
+        parent = (train if len(train) == parent_size else
+                  select_nested_sample_indices(train, ids, size=parent_size, salt=salt))
+        if hashlib.sha256(parent.tobytes()).hexdigest() != expected_parent_sha256:
+            raise ValueError("historical parent subset hash mismatch")
+        parent_ids = np.asarray(handle["sample_id"][parent]).astype("U").tolist()
+        selected = select_nested_sample_indices(parent, parent_ids, size=selected_size, salt=salt)
+    return dict(parent_train_indices=parent, parent_train_indices_sha256=expected_parent_sha256,
+                selected_train_indices=selected,
+                selected_train_indices_sha256=hashlib.sha256(selected.tobytes()).hexdigest(),
+                selection_rule="sha256-sample-id-nested-v1", selection_salt=salt)
+
+
+def materialize_nested_mixed_validation(
+    sources: Mapping[str, Mapping[str, Any]], output: str | Path, *,
+    parent_size: int, selected_size: int, validation_per_domain: int, salt: str,
+    expected_parent_hashes: Mapping[str, str], expected_selected_hashes: Mapping[str, str],
+) -> dict[str, Any]:
+    """Materialize a two-domain dataset only after both nested identities match."""
+    if len(sources) != 2 or set(sources) != set(expected_parent_hashes) or set(sources) != set(expected_selected_hashes):
+        raise ValueError("nested source and expected identity domains differ")
+    resolved = {}
+    for domain, source in sources.items():
+        selection = resolve_nested_train_subset(source, parent_size=parent_size, selected_size=selected_size,
+                                                salt=salt, expected_parent_sha256=expected_parent_hashes[domain])
+        if selection["selected_train_indices_sha256"] != expected_selected_hashes[domain]:
+            raise ValueError(f"selected train subset hash mismatch: {domain}")
+        resolved[domain] = {**source, **selection}
+    return materialize_mixed_validation(resolved, output, train_per_domain=selected_size,
+                                        validation_per_domain=validation_per_domain)
+
+
 def materialize_mixed_validation(
     sources: Mapping[str, Mapping[str, Any]],
     output: str | Path,
@@ -33,7 +91,10 @@ def materialize_mixed_validation(
     """Copy exactly two disjoint source splits with domain/source-index lineage.
 
     Source test indices are audited, but test grids/targets are never loaded.
-    All source train rows are required: no additional subset-selection variable.
+    By default all source train rows are required. A source may instead provide
+    explicit ``parent_train_indices``, its independently frozen
+    ``parent_train_indices_sha256``, and ``selected_train_indices``. Both are
+    original source row indices, not mixed-file positions.
     """
     import h5py
 
@@ -57,6 +118,26 @@ def materialize_mixed_validation(
                     raise ValueError(f"invalid split indices: {domain}:{s}")
             if any(np.intersect1d(indices[a], indices[b]).size for a, b in (("train", "val"), ("train", "test"), ("val", "test"))):
                 raise ValueError(f"source split overlap: {domain}")
+            subset_keys = {"parent_train_indices", "parent_train_indices_sha256", "selected_train_indices"}
+            present = subset_keys.intersection(spec)
+            if present and present != subset_keys:
+                raise ValueError(f"incomplete explicit subset contract: {domain}")
+            if present:
+                parent = np.asarray(spec["parent_train_indices"])
+                selected = np.asarray(spec["selected_train_indices"])
+                if (parent.ndim != 1 or selected.ndim != 1
+                        or parent.dtype.kind not in "iu" or selected.dtype.kind not in "iu"):
+                    raise ValueError(f"subset indices must be integer vectors: {domain}")
+                parent = np.sort(parent.astype(np.int64))
+                selected = np.sort(selected.astype(np.int64))
+                if (len(np.unique(parent)) != len(parent) or len(np.unique(selected)) != len(selected)
+                        or len(selected) != train_per_domain or not len(parent)
+                        or not np.isin(parent, indices["train"]).all()
+                        or not np.isin(selected, parent).all()):
+                    raise ValueError(f"invalid nested train subset: {domain}")
+                if hashlib.sha256(parent.tobytes()).hexdigest() != spec["parent_train_indices_sha256"]:
+                    raise ValueError(f"parent train subset hash mismatch: {domain}")
+                indices["train"] = selected
             if len(indices["train"]) != train_per_domain or len(indices["val"]) != validation_per_domain:
                 raise ValueError(f"source split size mismatch: {domain}")
             grid = str(spec["grid_field"])
@@ -100,6 +181,10 @@ def materialize_mixed_validation(
                 lineage.append({"domain": domain, "split": split, "count": len(selected), "mixed_start": offset,
                                 "source_sha256": spec["sha256"], "source_grid_field": spec["grid_field"],
                                 "source_indices_sha256": hashlib.sha256(selected.tobytes()).hexdigest()})
+                if split == "train" and "parent_train_indices_sha256" in spec:
+                    lineage[-1]["parent_train_indices_sha256"] = spec["parent_train_indices_sha256"]
+                    lineage[-1]["selection_rule"] = spec.get("selection_rule", "explicit-source-row-indices")
+                    lineage[-1]["selection_salt"] = spec.get("selection_salt")
                 offset += len(selected)
         h.attrs["domain_order_json"] = json.dumps(list(sources))
         h.attrs["lineage_json"] = json.dumps(lineage)

@@ -18,7 +18,7 @@ import numpy as np
 
 def validate_adaptive_contract(config: dict, experiment_id: str, training: dict, continuation: dict) -> None:
     """Keep adaptive optimization separate from immutable fixed-budget experiments."""
-    if experiment_id not in {"EXP-FWD-026", "EXP-FWD-027", "EXP-FWD-028", "EXP-FWD-031", "EXP-FWD-032"}:
+    if experiment_id not in {"EXP-FWD-026", "EXP-FWD-027", "EXP-FWD-028", "EXP-FWD-031", "EXP-FWD-032", "EXP-FWD-033"}:
         raise ValueError("adaptive optimization requires a registered adaptive experiment")
     expected = dict(start_epoch=300, minimum_extension=100, check_interval=20,
                     improvement_window=80, improvement_threshold=0.001,
@@ -36,7 +36,7 @@ def validate_adaptive_contract(config: dict, experiment_id: str, training: dict,
             raise ValueError("other-model comparison must start from scratch")
         if continuation.get("mode") != "epoch300_best_weights_optimizer_reset" or int(continuation.get("source_epoch", -1)) != 300:
             raise ValueError("adaptive warm start requires frozen epoch-300 validation-best weights")
-    elif experiment_id not in {"EXP-FWD-028", "EXP-FWD-031", "EXP-FWD-032"}:
+    elif experiment_id not in {"EXP-FWD-028", "EXP-FWD-031", "EXP-FWD-032", "EXP-FWD-033"}:
         raise ValueError("core and branch extensions require a source run")
 
 

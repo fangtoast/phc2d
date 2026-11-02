@@ -1,0 +1,43 @@
+# Planned equal-count K5+K20 campaign; not an execution authorization.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+experiment_id: EXP-FWD-033
+status: planned
+source_profile: configs/research/full_cell_core_confirmation_exp_fwd_024_v1.yaml
+variant_profile: configs/research/full_cell_single_domain_branch_ablation_exp_fwd_032_v1.yaml
+adaptive_profile: configs/research/official_comparison_exp_fwd_031_v1.yaml
+lanes: [binary, graded]
+seeds: [0, 1, 2]
+data:
+  domains: [k5, k20]
+  parent_train_per_domain: 8000
+  train_per_domain: 4000
+  validation_per_domain: 1000
+  subset_salt: exp-fwd-021-domain-ranking-v1
+  parent_evidence_experiment: EXP-FWD-026
+training:
+  initialization: from_scratch
+  train_size: 8000
+  micro_batch_size: 64
+  effective_batch_size: 64
+  optimizer: adamw
+  learning_rate: 0.0005
+  weight_decay: 0.00001
+  loss: normalized_full_matrix_mse
+  checkpoint_selection: validation_bands_2_10_mre
+  max_epochs: 1000
+platforms:
+  n40: {lanes: [binary], partition: gpu_4090, cpus_per_gpu: 6, max_gpus: 8}
+  n56: {lanes: [graded], partition: gpu_5090, cpus_per_gpu: 8, max_gpus: 8}
+test:
+  targets: [k5_binary, k5_graded, f50_binary, f50_graded, exp_dat_007_12k, exp_dat_008_24k]
+  primary_metric: bands_1_10_mre_pct
+  batch_size: 16
+execution:
+  manifest_status: not_frozen
+  admission_status: not_run
+  remote_submission_authorized: false
+  test_authorized: false
+  automatic_retry: false
+  automatic_migration: false
