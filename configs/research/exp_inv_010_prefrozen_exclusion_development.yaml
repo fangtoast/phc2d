@@ -3,7 +3,7 @@
 # Email: fangtoast@foxmail.com
 # Copyright (c) 2026 fangtoast. All rights reserved.
 experiment_id: EXP-INV-010
-status: draft_blocked_not_authorized_to_launch
+status: registered_limited_development
 scope: limited_development_not_claiming_complete_historical_independence_or_formal_p5
 target:
   polarization: TE
@@ -94,7 +94,7 @@ resources:
   retry_costs: recorded_separately_no_inflight_duplicate
 
 prelaunch_requirements:
-  status: blocked_pending_limited_exclusion_manifest_and_independent_audit
+  status: limited_exclusion_audit_required_before_source_generation
   require_pre_frozen_all_forward_splits_and_prior_inverse_sources_and_all_candidates: false
   include_exp_inv_009_all_1024_sources_and_all_720_evaluations: true
   require_explicit_field_and_legacy_geometry_identity_resolution: false
