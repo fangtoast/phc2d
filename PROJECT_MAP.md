@@ -5,7 +5,7 @@
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
-> 2026-11-02 [EXP-FWD-033 等量混合分支消融](experiments/research/EXP-FWD-033-等量混合分支消融.md)：K5/K20 各 4k、两材料路线、48 项训练和 288 个测试 cell 已规划；来源选择和冻结合同待验收，远程准入、训练及测试尚未授权，不存在新结果。
+> 2026-11-02 [EXP-FWD-033 等量混合分支消融](experiments/research/EXP-FWD-033-等量混合分支消融.md)：K5/K20 各 4k、两材料路线的混合数据与 48 项训练、288 个测试目标已冻结；两机数据逐行、模型身份与六目标合同通过准备审计。远程准入、训练及测试尚未授权，不存在新结果；证据和资源预算见 `runs/20261102/EXP-FWD-033_202611021031/`。
 
 > 2026-11-02 [EXP-FWD-032 单域分支消融](docs/results/forward/EXP-FWD-032-单域分支消融.md)：72 个新增 checkpoint 的 432 个六目标代理测试 cell 完成；四个原域的普通 Full 三 seed 平均 MRE 均低于普通单支，容量对照不保持该顺序。N40 接管原 N56 测试并保留来源；3 个 F50 Graded 容量对照 seed 耗尽训练预算，历史 3×3 逐 cell split 哈希待回查。结果为 Draft，物理验收未包含。
 

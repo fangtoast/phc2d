@@ -1110,7 +1110,7 @@ experiments:
     related_experiments: [EXP-FWD-026, EXP-FWD-027, EXP-FWD-032]
     decision:
       state: pending
-      summary: 四来源4k选择及父8k身份通过只读核验；平台数据与配置待物化冻结，远程准入、训练和测试尚未授权。
+      summary: 四来源4k选择、两机混合数据、48项配置与288个测试目标已冻结并通过准备审计；远程准入、训练和测试尚未授权。
     tags: [equal-count, mixed-domain, global-local, ablation]
 
   - id: EXP-FWD-032
