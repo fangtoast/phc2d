@@ -4,7 +4,7 @@
 # Copyright (c) 2026 fangtoast. All rights reserved.
 experiment_id: EXP-INV-010
 status: draft_blocked_not_authorized_to_launch
-scope: independent_development_not_formal_p5
+scope: limited_development_not_claiming_complete_historical_independence_or_formal_p5
 target:
   polarization: TE
   lower_band_one_based: 4
@@ -30,7 +30,7 @@ source_pool:
   coarse_margin_threshold: 0.005
   coarse_solver: {resolution: 64, mesh_size: 3, eigensolver_tolerance: 1.0e-7, num_bands: 10, band_guard_count: 4, band_order_policy: frequency_ascending}
   stratum_order: [positive, near_zero, negative]
-  exclusion_scope: all_available_forward_splits_and_all_previous_inverse_development_sources_and_candidates
+  exclusion_scope: authenticated_available_64_and_parameter_identities_and_existing_prior_inverse_identities
   shortage_rule: stop_without_replacement_or_using_test
 surrogate:
   architecture: global_local_channel_gate_v1
@@ -94,9 +94,12 @@ resources:
   retry_costs: recorded_separately_no_inflight_duplicate
 
 prelaunch_requirements:
-  status: blocked_unresolved_inventory_and_exclusion_identity
-  require_pre_frozen_all_forward_splits_and_prior_inverse_sources_and_all_candidates: true
+  status: blocked_pending_limited_exclusion_manifest_and_independent_audit
+  require_pre_frozen_all_forward_splits_and_prior_inverse_sources_and_all_candidates: false
   include_exp_inv_009_all_1024_sources_and_all_720_evaluations: true
-  require_explicit_field_and_legacy_geometry_identity_resolution: true
+  require_explicit_field_and_legacy_geometry_identity_resolution: false
+  require_record_unresolved_historical_geometry_and_scope_limits: true
+  require_authenticated_available_original_64_grid_identities: true
+  require_historical_256_512_reconstruction_for_all_sources: false
   require_frozen_inventory_and_input_hashes_before_source_generation: true
   require_independent_audit_of_exclusion_coverage_before_launch: true
