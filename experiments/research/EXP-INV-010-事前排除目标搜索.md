@@ -21,6 +21,8 @@ F50 全部 50,000 条原存 64 栅格的无损提取已与原 HDF 逐点独立�
 
 DAT-007 和 DAT-008 的原存 64/256 栅格哈希已对照各自原 HDF 独立逐行复算，分别覆盖 12,000 和 24,000 条（[DAT-007](../../runs/20261102/EXP-INV-010_202611020411/n40_stored_hashes_5529217/dat007.stored_hashes.independent_audit.json)、[DAT-008](../../runs/20261102/EXP-INV-010_202611020411/n40_stored_hashes_5529217/dat008.stored_hashes.independent_audit.json)）。[来源行及哈希集合检查](../../runs/20261102/EXP-INV-010_202611020411/n40_stored_hashes_5529217/local_stream_identity_audit.json)显示，两库在这些参数及原存栅格哈希上无精确交集；库内分别有 9,660 和 21,705 个不同的原存 256 栅格。该比较不覆盖其他库、512 栅格或连续几何等价，也不构成排除清单准入。
 
+N56 的 K8、K10、K15 各 10,000 条原存 64/256 栅格哈希也已对照原 HDF 逐行复算（[K8](../../runs/20261102/EXP-INV-010_202611020411/n56_stored_hashes_1759199/k8.stored_hashes.independent_audit.json)、[K10](../../runs/20261102/EXP-INV-010_202611020411/n56_stored_hashes_1759199/k10.stored_hashes.independent_audit.json)、[K15](../../runs/20261102/EXP-INV-010_202611020411/n56_stored_hashes_1759199/k15.stored_hashes.independent_audit.json)）。[六库原存栅格集合检查](../../runs/20261102/EXP-INV-010_202611020411/stored_grid_six_library_overlap_audit.json)的两两精确交集在 64 栅格均为零；有原存 256 栅格的五库之间也均为零。这不包含 F50 的 256/512 重建或未盘点数据，不能推论物理等价的完整排除。
+
 清单、各输入哈希、生成代码、配置、参考 k 点、检查范围及处理未知项的决定经独立核验并固定后，才可按新种子生成 1,024 来源；再逐例重建身份、检查排除及 k 点，固定网格粗筛后按预定三层各选 4 个来源。层不足则停止，不改种子补样。后续候选也必须逐条检查固定排除集；发现碰撞或身份不明应按预先冻结的规则保留并停止判定，不抹除轨迹。
 
 ## 搜索、物理和统计合同
