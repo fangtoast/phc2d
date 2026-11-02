@@ -27,6 +27,7 @@ primary_layer: L3
 
 | Experiment ID | 证据层级 | 状态 | 当前结论 | 阅读入口 |
 |---|---|---|---|---|
+| `EXP-FWD-032` | surrogate held-out / cross-domain / external transfer | 432 个新增测试 cell 完成，Draft review | 四个原域的普通 Full 三 seed 平均 MRE 均低于普通单支；容量对照不保持该顺序，3 个训练 seed 未通过停止门 | [Draft 结果页](../results/forward/EXP-FWD-032-单域分支消融.md) |
 | `EXP-FWD-024` | surrogate training overlap / native held-out / external geometry transfer | 54 项训练和原生测试、162 个新评估单元完成；Draft review | F50 Binary ConvNeXt 在 DAT-007 12k / DAT-008 24k 的三 seed Bands 1–10 MRE 为 0.217% / 0.354%；13/54 训练过收敛门，新几何分辨率与正式 WSL MPB 复算待验证 | [Draft 结果页](../results/forward/EXP-FWD-024-训练集与新几何迁移测试.md) |
 | `EXP-DAT-007/008` | real-MPB generation runtime | generated and delivered, acceptance pending | 36000结构、18族、失败0；旧/新批次求解工期11分53秒/21分02秒，WSL正式复算待完成 | [耗时汇总](../results/data-provenance/MPB形状数据计算耗时汇总.md) |
 | `EXP-PHY-001` | physical validation | completed | r64 满足当前 B/G 分布的预注册误差门并完成 WSL 交叉验收 | [短结果](EXP-PHY-001-MPB分辨率.md) · [详细证据](../results/data-provenance/全胞MPB分辨率收敛验证_20260817.md) |

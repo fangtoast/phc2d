@@ -149,6 +149,7 @@ nav:
           - EXP-PHY-001 MPB 分辨率: 结果/EXP-PHY-001-MPB分辨率.md
   - 实验与证据库:
       - 证据库总览: results/README.md
+      - 单域全局局部分支消融: results/forward/EXP-FWD-032-单域分支消融.md
       - 四域多指标补充评价: results/forward/EXP-FWD-031-多指标补充评价.md
       - V2 10k [10000,31,10]:
           - V2 10k 总览: results/V2-10k正式结果.md
