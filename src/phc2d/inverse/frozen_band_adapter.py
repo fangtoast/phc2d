@@ -8,28 +8,32 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 import hashlib
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
 
 class SingleSampleBudgetedPredictor:
-    """Count and cap actual singleton inferences, reusing only the last identical input.
+    """Count and cap singleton inferences, reusing identical inputs from a bounded cache.
 
     Use only with a frozen deterministic predictor and a fixed input contract.
     Failed calls consume budget; the caller persists counts and any failure.
     This wrapper does not account for calls made directly to the wrapped object.
     """
 
-    def __init__(self, predictor: Any, *, max_inferences: int) -> None:
+    def __init__(self, predictor: Any, *, max_inferences: int, cache_capacity: int = 1) -> None:
         if isinstance(max_inferences, bool) or not isinstance(max_inferences, int) or max_inferences < 1:
             raise ValueError('positive integer inference budget required')
+        if (isinstance(cache_capacity, bool) or not isinstance(cache_capacity, int)
+                or not 1 <= cache_capacity <= max_inferences):
+            raise ValueError('cache capacity must fit the inference budget')
         self.predictor = predictor
         self.max_inferences = max_inferences
         self.requests = 0
         self.inferences = 0
         self.cache_hits = 0
-        self._input_key = None
-        self._output = None
+        self.cache_capacity = cache_capacity
+        self._cache = OrderedDict()
 
     def predict_tensor(self, inputs: Any) -> Any:
         import torch
@@ -40,17 +44,19 @@ class SingleSampleBudgetedPredictor:
         array = inputs.detach().cpu().contiguous()
         key = (tuple(array.shape), array.numpy().tobytes())
         self.requests += 1
-        if key == self._input_key:
+        if key in self._cache:
             self.cache_hits += 1
-            return self._output.clone()
+            self._cache.move_to_end(key)
+            return self._cache[key].clone()
         if self.inferences >= self.max_inferences:
             raise ValueError('surrogate inference budget exhausted')
         self.inferences += 1
-        self._input_key, self._output = None, None
         output = self.predictor.predict_tensor(inputs)
         if not isinstance(output, torch.Tensor):
             raise ValueError('predictor must return a tensor')
-        self._input_key, self._output = key, output.detach().clone()
+        self._cache[key] = output.detach().clone()
+        if len(self._cache) > self.cache_capacity:
+            self._cache.popitem(last=False)
         return output
 
 

@@ -43,6 +43,22 @@ def test_failed_inference_consumes_budget():
         predictor.predict_tensor(torch.ones((1, 2, 2)))
 
 
+def test_bounded_cache_reuses_previous_input_and_evicts_least_recently_used():
+    class Predictor:
+        def predict_tensor(self, inputs):
+            return inputs.clone()
+    predictor = SingleSampleBudgetedPredictor(Predictor(), max_inferences=3, cache_capacity=2)
+    one = torch.ones((1, 2, 2))
+    two, three = 2 * one, 3 * one
+    predictor.predict_tensor(one)
+    predictor.predict_tensor(two)
+    predictor.predict_tensor(one)
+    predictor.predict_tensor(three)
+    assert predictor.inferences == 3 and predictor.cache_hits == 1
+    with pytest.raises(ValueError, match='budget exhausted'):
+        predictor.predict_tensor(two)
+
+
 def checkpoint(tmp_path):
     model = build_model("mlp", input_shape=(2,), output_shape=(2, 2))
     payload = dict(model_name="mlp", model_params={}, input_shape=(2,), output_shape=(2, 2),
