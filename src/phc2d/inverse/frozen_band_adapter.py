@@ -31,6 +31,7 @@ class SingleSampleBudgetedPredictor:
         self.max_inferences = max_inferences
         self.requests = 0
         self.inferences = 0
+        self.successful_inferences = 0
         self.cache_hits = 0
         self.cache_capacity = cache_capacity
         self._cache = OrderedDict()
@@ -54,10 +55,30 @@ class SingleSampleBudgetedPredictor:
         output = self.predictor.predict_tensor(inputs)
         if not isinstance(output, torch.Tensor):
             raise ValueError('predictor must return a tensor')
+        self.successful_inferences += 1
         self._cache[key] = output.detach().clone()
         if len(self._cache) > self.cache_capacity:
             self._cache.popitem(last=False)
         return output
+
+    def save_prediction_archive(self, path: str | Path) -> None:
+        """Save complete input/output tensors without JSON float conversion.
+
+        A cache covering the budget is required so no successful output can be
+        silently omitted. The caller binds this artifact to the trajectory and
+        independently audits identities and completeness.
+        """
+        import numpy as np
+
+        if self.cache_capacity != self.max_inferences or len(self._cache) != self.successful_inferences:
+            raise ValueError('complete prediction cache required')
+        arrays = {}
+        for index, (key, output) in enumerate(self._cache.items()):
+            shape, raw = key
+            arrays[f'input_{index:04d}'] = np.frombuffer(raw, dtype=np.float32).reshape(shape).copy()
+            arrays[f'output_{index:04d}'] = output.cpu().contiguous().numpy()
+        with Path(path).open('xb') as stream:
+            np.savez(stream, **arrays)
 
 
 class FrozenBandAdapter:

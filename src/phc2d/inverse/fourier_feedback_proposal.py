@@ -58,10 +58,18 @@ def run_budgeted_nominal_feedback_proposal(state: FeedbackState, source: FullCel
         error = {'type': type(exc).__name__, 'message': str(exc)}
         raise
     finally:
+        archive_error = None
+        try:
+            wrapped.save_prediction_archive(root/'predictions.npz')
+        except Exception as exc:
+            archive_error = {'type': type(exc).__name__, 'message': str(exc)}
         cost = {'status': status, 'error': error, 'max_inferences': budget,
-                'requests': wrapped.requests, 'inferences': wrapped.inferences, 'cache_hits': wrapped.cache_hits}
+                'requests': wrapped.requests, 'inferences': wrapped.inferences, 'cache_hits': wrapped.cache_hits,
+                'successful_inferences': wrapped.successful_inferences, 'archive_error': archive_error}
         with (root/'cost.json').open('x', encoding='utf8') as stream:
             json.dump(cost, stream, sort_keys=True, allow_nan=False)
+        if archive_error is not None and error is None:
+            raise RuntimeError('prediction archive failed; see cost record')
 
 
 def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpec, predictor: Any, *,

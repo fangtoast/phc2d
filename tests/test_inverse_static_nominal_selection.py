@@ -7,6 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 import hashlib
 import json
+import numpy as np
 
 import pytest
 
@@ -116,6 +117,11 @@ def test_static_selected_spectrum_reuses_prior_inference_within_budget(tmp_path)
     for record in paired['trajectories']:
         assert record['inferences'] <= 10 and record['max_inferences'] == 10
         assert json.loads((tmp_path/'paired'/f"cost_{record['seed']}.json").read_bytes()) == record
+        with np.load(tmp_path/'paired'/f"predictions_{record['seed']}.npz", allow_pickle=False) as archive:
+            assert len(archive.files) == 2 * record['successful_inferences']
+            for index in range(record['successful_inferences']):
+                x = torch.as_tensor(archive[f'input_{index:04d}'])
+                assert np.array_equal(archive[f'output_{index:04d}'], Predictor().predict_tensor(x).numpy())
         assert audit_surrogate_design(tmp_path/'paired'/f"trajectory_{record['seed']}",
             config_bytes=(tmp_path/'paired'/f"config_{record['seed']}.json").read_bytes(),
             source_bytes=source_raw, checkpoint_sha256='a'*64)['status'] == 'artifact_consistent'

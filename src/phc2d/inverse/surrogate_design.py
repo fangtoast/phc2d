@@ -329,10 +329,18 @@ def run_budgeted_nominal_static_design(source: FullCellStructureSpec, predictor:
             error = {'type': type(exc).__name__, 'message': str(exc)}
             raise
         finally:
+            archive_error = None
+            try:
+                wrapped.save_prediction_archive(root/f'predictions_{seed}.npz')
+            except Exception as exc:
+                archive_error = {'type': type(exc).__name__, 'message': str(exc)}
             cost = {'seed': seed, 'status': status, 'error': error, 'max_inferences': budget,
-                    'requests': wrapped.requests, 'inferences': wrapped.inferences, 'cache_hits': wrapped.cache_hits}
+                    'requests': wrapped.requests, 'inferences': wrapped.inferences, 'cache_hits': wrapped.cache_hits,
+                    'successful_inferences': wrapped.successful_inferences, 'archive_error': archive_error}
             with (root/f'cost_{seed}.json').open('x', encoding='utf8') as stream:
                 json.dump(cost, stream, sort_keys=True, allow_nan=False)
+            if archive_error is not None and error is None:
+                raise RuntimeError('prediction archive failed; see cost record')
         records.append(cost)
     return {'scope': 'budgeted_nominal_static_surrogate_only', 'physical_validation': 'not_run',
             'trajectories': records}

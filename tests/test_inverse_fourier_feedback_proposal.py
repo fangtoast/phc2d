@@ -75,6 +75,11 @@ def test_search_proposal_respects_frozen_coordinates_and_feedback_identity(tmp_p
     assert json.loads((tmp_path/'feedback'/'proposal.json').read_bytes()) == artifact
     cost = json.loads((tmp_path/'feedback'/'cost.json').read_bytes())
     assert cost['inferences'] <= 10 and cost['cache_hits'] > 0
+    with np.load(tmp_path/'feedback'/'predictions.npz', allow_pickle=False) as archive:
+        assert len(archive.files) == 2 * cost['successful_inferences']
+        for index in range(cost['successful_inferences']):
+            assert np.array_equal(archive[f'output_{index:04d}'],
+                ToyPredictor().predict_tensor(torch.as_tensor(archive[f'input_{index:04d}'])).numpy())
     with pytest.raises(FileExistsError):
         run_budgeted_nominal_feedback_proposal(state, source, ToyPredictor(),
             output_root=tmp_path/'feedback', provenance={'scope': 'toy'}, **kwargs)
