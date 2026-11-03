@@ -162,6 +162,32 @@ def test_inconsistent_normalized_source_coordinates_are_rejected():
             lower_band=1, surrogate_contract_sha256='model')
 
 
+def test_nominal_feedback_audits_no_improvement_without_inventing_candidate(tmp_path):
+    class FlatPredictor:
+        def predict_tensor(self, raster):
+            return torch.tensor([[[.3, .7]]], dtype=torch.float32)
+    source = generate_unified_fourier_binary('source', master_seed=1, material_fraction_bin=1,
+        config={'fourier_cutoff': 2, 'audit_resolution': 16})
+    observation = {'row': {'lower_band_one_based': 1, 'refined_lower_edge_frequency': .3,
+        'refined_upper_edge_frequency': .7, 'last_refinement_stable': True, 'resolution_stable': True,
+        'adaptive_refinement_converged': True}, 'provenance': {'parameter_hash': source.parameter_hash,
+        'comparison_contract_sha256': 'solver'}}
+    threshold = source.parameters['threshold']
+    state = start_feedback(incumbent_hash=source.parameter_hash, incumbent_parameters=[threshold],
+        incumbent_observation=observation, target_frequency=.5, radius=.1, min_radius=.01,
+        max_radius=.2, candidate_budget=1)
+    artifact = run_budgeted_nominal_feedback_proposal(state, source, FlatPredictor(),
+        output_root=tmp_path/'flat', provenance={'scope': 'toy'}, coefficient_keys=(),
+        global_bounds=((threshold-.5, threshold+.5),), origin=[0], scales=[1], max_mode_radius=1,
+        seed=3, population_size=5, surrogate_budget=10, raster_method='master_block_mean_v1',
+        source_resolution=16, input_resolution=8, material_fraction_bounds=(0, 1), lower_band=1,
+        surrogate_contract_sha256='model', perturbation_offsets=(0.,))
+    assert artifact['result']['status'] == 'no_predicted_improvement'
+    assert artifact['result']['proposal'] is None
+    assert audit_budgeted_nominal_feedback_proposal(tmp_path/'flat',
+        expected_request_sha256=artifact['request_sha256'])['status'] == 'proposal_consistent_not_physical_validation'
+
+
 def test_projected_anchor_feedback_uses_gated_matching_physical_geometry():
     class ReversedPredictor(ToyPredictor):
         def predict_tensor(self, raster):
