@@ -16,7 +16,8 @@ import torch
 import yaml
 
 from phc2d.inverse.paired_search_contract import build_paired_search_requests
-from phc2d.inverse.paired_search_execution import execute_paired_search_request, inspect_nominal_static_request
+from phc2d.inverse.paired_search_execution import (execute_paired_search_request, inspect_nominal_static_request,
+                                                   audit_nominal_static_request)
 from phc2d.inverse.paired_search_materialization import materialize_paired_search_requests
 from phc2d.inverse.surrogate_design import audit_surrogate_design
 from phc2d.models import build_model
@@ -52,6 +53,50 @@ def test_inspect_two_seed_nominal_draft_preserves_identity(tmp_path):
     (root/'configs/source_0008.json').write_text('{}')
     with pytest.raises(ValueError, match='configuration hash'):
         inspect_nominal_static_request(root, **args)
+
+
+def test_nominal_draft_audit_rejects_rehashed_scientific_change(tmp_path):
+    from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
+    from phc2d.inverse.paired_search_contract import build_nominal_static_request
+
+    fixture = runpy.run_path(str(Path(__file__).with_name('test_inverse_paired_search_contract.py')))['fixture_contract']
+    prior = yaml.safe_load(fixture()['config_bytes'])
+    prior['target']['polarization'] = 'TE'
+    pilot = {'source_experiment': prior['experiment_id'], 'sources': {'positive': 8},
+             'target': prior['target'], 'model_seed': 1, 'checkpoint_sha256': 'b'*64,
+             'physics': {'master_raster_resolution': 32, 'model_input_resolution': 8, 'offset_a': 0.},
+             'search': {'coefficient_keys': [[0, 'cos']], 'scales': [.2, .1], 'initial_radius': .5,
+                        'population_size': 5, 'surrogate_evaluations_per_round': 20, 'seeds_by_round': [11, 12]}}
+    pilot_raw, prior_raw = yaml.safe_dump(pilot).encode(), yaml.safe_dump(prior).encode()
+    source = generate_unified_fourier_binary('pilot', master_seed=20, material_fraction_bin=1,
+                                             config={'fourier_cutoff': 2, 'audit_resolution': 16})
+    root = tmp_path/'requests'
+    (root/'sources').mkdir(parents=True)
+    (root/'configs').mkdir()
+    source_raw = json.dumps(source.to_mapping()).encode()
+    (root/'sources/source_0008.json').write_bytes(source_raw)
+    config = build_nominal_static_request(pilot_config_bytes=pilot_raw, prior_config_bytes=prior_raw,
+        source=source, source_index=8, source_path='/remote/requests/sources/source_0008.json',
+        checkpoint_path='/remote/checkpoint')
+    manifest = {'scope': 'static_request_materialization_not_executed', 'status': 'draft_not_execution_lock',
+        'remote_request_directory': '/remote/requests', 'pilot_config_sha256': hashlib.sha256(pilot_raw).hexdigest(),
+        'prior_config_sha256': hashlib.sha256(prior_raw).hexdigest(), 'records': [{
+            'source_index': 8, 'source_file': 'sources/source_0008.json', 'config_file': 'configs/source_0008.json',
+            'parameter_hash': source.parameter_hash, 'source_sha256': hashlib.sha256(source_raw).hexdigest()}]}
+    def save():
+        raw = json.dumps(config).encode()
+        (root/'configs/source_0008.json').write_bytes(raw)
+        manifest['records'][0]['config_sha256'] = hashlib.sha256(raw).hexdigest()
+        raw = json.dumps(manifest).encode()
+        (root/'manifest.json').write_bytes(raw)
+        return hashlib.sha256(raw).hexdigest()
+    args = {'source_index': 8, 'pilot_config_bytes': pilot_raw, 'prior_config_bytes': prior_raw,
+            'expected_source_sha256': hashlib.sha256(source_raw).hexdigest(),
+            'expected_checkpoint_path': '/remote/checkpoint'}
+    assert audit_nominal_static_request(root, manifest_sha256=save(), **args)['scope'] == 'draft_scientific_audit_not_execution_lock'
+    config['search_options']['evaluation_budget'] += 1
+    with pytest.raises(ValueError, match='scientific request differs'):
+        audit_nominal_static_request(root, manifest_sha256=save(), **args)
 
 
 def test_execute_one_frozen_request_and_reject_changed_inputs(tmp_path, monkeypatch):

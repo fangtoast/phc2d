@@ -71,6 +71,45 @@ def inspect_nominal_static_request(request_root: Path, *, manifest_sha256: str, 
             'checkpoint_sha256': checkpoint_sha256, 'seeds': list(expected_seeds)}
 
 
+def audit_nominal_static_request(request_root: Path, *, manifest_sha256: str, source_index: int,
+                                 pilot_config_bytes: bytes, prior_config_bytes: bytes,
+                                 expected_source_sha256: str, expected_checkpoint_path: str) -> dict[str, Any]:
+    """Rebuild the scientific request from authenticated pilot and prior configs.
+
+    The caller independently authenticates the manifest, source identity,
+    checkpoint path, and original physical evidence. This audit is not a launch
+    lock and does not verify checkpoint bytes or scheduler resources.
+    """
+    import yaml
+    from phc2d.data.full_cell_spec import FullCellStructureSpec
+    from phc2d.inverse.paired_search_contract import build_nominal_static_request
+
+    root = Path(request_root)
+    manifest = json.loads((root/'manifest.json').read_bytes())
+    if (hashlib.sha256(pilot_config_bytes).hexdigest() != manifest.get('pilot_config_sha256')
+            or hashlib.sha256(prior_config_bytes).hexdigest() != manifest.get('prior_config_sha256')):
+        raise ValueError('scientific config identity mismatch')
+    pilot = yaml.safe_load(pilot_config_bytes)
+    inspected = inspect_nominal_static_request(root, manifest_sha256=manifest_sha256,
+        source_index=source_index, expected_seeds=pilot['search']['seeds_by_round'],
+        checkpoint_sha256=pilot['checkpoint_sha256'])
+    if inspected['source_sha256'] != expected_source_sha256:
+        raise ValueError('independent source identity mismatch')
+    source_name = f'sources/source_{source_index:04d}.json'
+    config_name = f'configs/source_{source_index:04d}.json'
+    source = FullCellStructureSpec.from_mapping(json.loads((root/source_name).read_bytes()))
+    config = json.loads((root/config_name).read_bytes())
+    rebuilt = build_nominal_static_request(pilot_config_bytes=pilot_config_bytes, prior_config_bytes=prior_config_bytes,
+        source=source, source_index=source_index,
+        source_path=str(PurePosixPath(manifest['remote_request_directory'])/source_name),
+        checkpoint_path=expected_checkpoint_path)
+    if config != rebuilt:
+        raise ValueError('nominal scientific request differs from frozen configs')
+    return {**inspected, 'scope': 'draft_scientific_audit_not_execution_lock',
+            'pilot_config_sha256': manifest['pilot_config_sha256'],
+            'prior_config_sha256': manifest['prior_config_sha256']}
+
+
 def execute_paired_search_request(
     request_root: Path, *, manifest_sha256: str, request_index: int,
     output_root: Path, device: str,
