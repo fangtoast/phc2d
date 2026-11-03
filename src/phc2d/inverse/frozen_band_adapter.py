@@ -15,6 +15,70 @@ from pathlib import Path
 from typing import Any
 
 
+def audit_singleton_inference_evidence(directory: str | Path, *, max_inferences: int) -> dict[str, Any]:
+    """Inspect saved starts and outputs; an unfinished or orphan record remains unknown.
+
+    This validates internal evidence only. The caller authenticates its origin,
+    retains immutable copies and establishes that the original process stopped.
+    """
+    import numpy as np
+
+    if isinstance(max_inferences, bool) or not isinstance(max_inferences, int) or max_inferences < 1:
+        raise ValueError('positive integer inference budget required')
+    root = Path(directory)
+    requests = sorted(root.glob('request_*.json'))
+    known_names, known_inputs = set(), set()
+    starts, completed, hits, denials, unknown = 0, 0, 0, 0, []
+    for number, path in enumerate(requests, 1):
+        if path.name != f'request_{number:04d}.json' or path.is_symlink():
+            raise ValueError('inference request sequence mismatch')
+        known_names.add(path.name)
+        event = json.loads(path.read_bytes())
+        kind = event.get('kind')
+        if kind == 'inference_started':
+            starts += 1
+            if (starts > max_inferences or event.get('inference') != starts
+                    or event.get('input_file') != f'input_{starts:04d}.npy'):
+                raise ValueError('inference identity or budget mismatch')
+            input_path = root/event['input_file']
+            raw = input_path.read_bytes()
+            if input_path.is_symlink() or hashlib.sha256(raw).hexdigest() != event['input_file_sha256']:
+                raise ValueError('inference input file mismatch')
+            raster = np.load(input_path, allow_pickle=False)
+            if (raster.dtype != np.float32 or raster.ndim != 3 or raster.shape[0] != 1
+                    or hashlib.sha256(np.ascontiguousarray(raster).tobytes()).hexdigest() != event['input_sha256']):
+                raise ValueError('inference input identity mismatch')
+            known_names.add(input_path.name)
+            completion = root/f'completed_{starts:04d}.json'
+            if not completion.is_file():
+                unknown.append(starts)
+                continue
+            data = json.loads(completion.read_bytes())
+            output = root/f'output_{starts:04d}.npy'
+            if (completion.is_symlink() or output.is_symlink() or data.get('inference') != starts
+                    or data.get('output_file') != output.name
+                    or hashlib.sha256(output.read_bytes()).hexdigest() != data.get('output_file_sha256')):
+                raise ValueError('inference output file mismatch')
+            np.load(output, allow_pickle=False)
+            known_names.update((completion.name, output.name))
+            known_inputs.add(event['input_sha256'])
+            completed += 1
+        elif kind == 'cache_hit':
+            if event.get('input_sha256') not in known_inputs:
+                raise ValueError('cache hit has no completed input')
+            hits += 1
+        elif kind == 'budget_exhausted':
+            if starts < max_inferences:
+                raise ValueError('premature budget denial')
+            denials += 1
+        else:
+            raise ValueError('invalid inference event')
+    extras = sorted(path.name for path in root.iterdir() if path.name not in known_names)
+    return {'status': 'unknown' if unknown or extras else 'complete', 'requests': len(requests),
+            'started': starts, 'completed': completed, 'cache_hits': hits, 'budget_denials': denials,
+            'unknown_inferences': unknown, 'unmatched_files': extras}
+
+
 class SingleSampleBudgetedPredictor:
     """Count and cap singleton inferences, reusing identical inputs from a bounded cache.
 

@@ -11,7 +11,8 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from phc2d.inverse.frozen_band_adapter import FrozenBandAdapter, SingleSampleBudgetedPredictor
+from phc2d.inverse.frozen_band_adapter import (FrozenBandAdapter, SingleSampleBudgetedPredictor,
+                                              audit_singleton_inference_evidence)
 from phc2d.models import build_model
 
 
@@ -72,6 +73,8 @@ def test_inference_start_evidence_survives_predictor_failure(tmp_path):
     assert event['kind'] == 'inference_started' and event['inference'] == 1
     assert hashlib.sha256((directory/event['input_file']).read_bytes()).hexdigest() == event['input_file_sha256']
     assert not (directory/'completed_0001.json').exists()
+    audit = audit_singleton_inference_evidence(directory, max_inferences=1)
+    assert audit['status'] == 'unknown' and audit['unknown_inferences'] == [1]
     with pytest.raises(FileExistsError):
         SingleSampleBudgetedPredictor(Failed(), max_inferences=1, evidence_directory=directory)
 
@@ -91,6 +94,12 @@ def test_inference_evidence_distinguishes_completion_cache_and_denial(tmp_path):
     assert [event['kind'] for event in events] == ['inference_started', 'cache_hit', 'budget_exhausted']
     completed = json.loads((directory/'completed_0001.json').read_bytes())
     assert hashlib.sha256((directory/completed['output_file']).read_bytes()).hexdigest() == completed['output_file_sha256']
+    audit = audit_singleton_inference_evidence(directory, max_inferences=1)
+    assert audit['status'] == 'complete' and audit['completed'] == 1
+    assert audit['cache_hits'] == 1 and audit['budget_denials'] == 1
+    (directory/completed['output_file']).write_bytes(b'corrupted')
+    with pytest.raises(ValueError, match='output file mismatch'):
+        audit_singleton_inference_evidence(directory, max_inferences=1)
 
 
 def checkpoint(tmp_path):
