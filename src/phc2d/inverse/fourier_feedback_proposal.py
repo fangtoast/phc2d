@@ -8,6 +8,8 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 from dataclasses import asdict
+import json
+from pathlib import Path
 from typing import Any, Sequence
 
 import numpy as np
@@ -20,6 +22,46 @@ from phc2d.inverse.fourier_search import search_fourier
 from phc2d.inverse.local_edge_correction import LocalEdgeCorrection, correct_projected_with_anchor
 from phc2d.inverse.perturbation_screen import (periodic_perturbation_grids, predict_perturbed_gap,
                                                project_perturbed_band_order)
+
+
+def run_budgeted_nominal_feedback_proposal(state: FeedbackState, source: FullCellStructureSpec, predictor: Any, *,
+                                            output_root: Path, provenance: dict[str, Any],
+                                            **options: Any) -> dict[str, Any]:
+    """Save one strictly budgeted nominal proposal and its cost, including failures.
+
+    The caller binds the state to verified physics, freezes all options and
+    authenticates execution. This local operation does not submit a job or
+    advance feedback state.
+    """
+    from phc2d.inverse.frozen_band_adapter import SingleSampleBudgetedPredictor
+
+    budget = options.get('surrogate_budget')
+    if (isinstance(budget, bool) or not isinstance(budget, int) or budget < 1
+            or tuple(options.get('perturbation_offsets') or ()) != (0.0,)
+            or options.get('raster_method') != 'master_block_mean_v1'
+            or options.get('edge_correction') is not None or options.get('projected_anchor_calibration', False)
+            or not isinstance(provenance, dict) or not provenance):
+        raise ValueError('budgeted nominal feedback requires a zero-offset uncorrected contract')
+    root = Path(output_root)
+    root.mkdir(parents=True, exist_ok=False)
+    wrapped = SingleSampleBudgetedPredictor(predictor, max_inferences=budget, cache_capacity=budget)
+    status, error = 'failed', None
+    try:
+        result = propose_fourier_candidate(state, source, wrapped, **options)
+        payload = {'scope': 'budgeted_nominal_proposal_not_physical_validation', 'provenance': provenance,
+                   'result': result}
+        with (root/'proposal.json').open('x', encoding='utf8') as stream:
+            json.dump(payload, stream, sort_keys=True, allow_nan=False)
+        status = result['status']
+        return payload
+    except Exception as exc:
+        error = {'type': type(exc).__name__, 'message': str(exc)}
+        raise
+    finally:
+        cost = {'status': status, 'error': error, 'max_inferences': budget,
+                'requests': wrapped.requests, 'inferences': wrapped.inferences, 'cache_hits': wrapped.cache_hits}
+        with (root/'cost.json').open('x', encoding='utf8') as stream:
+            json.dump(cost, stream, sort_keys=True, allow_nan=False)
 
 
 def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpec, predictor: Any, *,
