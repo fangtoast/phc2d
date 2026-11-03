@@ -243,6 +243,27 @@ def validate_robust_observation(*, manifest_bytes: bytes, expected_manifest_sha2
     return {'row': aggregate['row'], 'provenance': {**aggregate['provenance'], 'solver_identity': identities[0]}}
 
 
+def validate_nominal_observation_from_robust(*, manifest_bytes: bytes, expected_manifest_sha256: str,
+                                             protocol_bytes: bytes, protocol_sha256: str,
+                                             case_index: int, result: Mapping[str, Any]) -> dict[str, Any]:
+    """Verify the entire recorded robust result before extracting its zero-offset observation.
+
+    The resulting comparison contract contains only the nominal offset, so it
+    can be compared with an independently validated zero-offset pixel solve.
+    It does not assert that the robust and nominal objectives are equivalent.
+    """
+    verified = validate_robust_observation(
+        manifest_bytes=manifest_bytes, expected_manifest_sha256=expected_manifest_sha256,
+        protocol_bytes=protocol_bytes, protocol_sha256=protocol_sha256,
+        case_index=case_index, result=result)
+    nominal = [trace for trace in result['observations'] if trace['offset'] == 0.0]
+    if len(nominal) != 1:
+        raise ValueError('exactly one zero-offset observation is required')
+    aggregate = aggregate_refined_perturbations(nominal, expected_offsets=[0.0])
+    return {'row': aggregate['row'],
+            'provenance': {**aggregate['provenance'], 'solver_identity': verified['provenance']['solver_identity']}}
+
+
 def consume_robust_solver_result(state: FeedbackState, *, manifest_bytes: bytes,
                                  expected_manifest_sha256: str, protocol_bytes: bytes,
                                  protocol_sha256: str, result: Mapping[str, Any]) -> FeedbackState:

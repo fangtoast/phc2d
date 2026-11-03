@@ -17,7 +17,8 @@ from phc2d.inverse.audit_perturb_refine import run_case as run_offset_case
 from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
 from phc2d.inverse.feedback_handoff import (build_nominal_solver_manifest, consume_nominal_solver_result,
                                             build_robust_solver_manifest, consume_robust_solver_result,
-                                            validate_robust_observation)
+                                            validate_robust_observation,
+                                            validate_nominal_observation_from_robust)
 from phc2d.inverse.feedback_state import propose_feedback, start_feedback
 from phc2d.inverse.fourier_design import update_fourier_binary
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
@@ -135,10 +136,29 @@ def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
         protocol_bytes=pp.read_bytes(), protocol_sha256=ph, case_index=0, result=result)
     assert validated['provenance']['parameter_hash'] == candidate.parameter_hash
     assert validated['provenance']['solver_identity']['solver_backend'] == 'mock'
+    nominal = validate_nominal_observation_from_robust(
+        manifest_bytes=mp.read_bytes(), expected_manifest_sha256=mh,
+        protocol_bytes=pp.read_bytes(), protocol_sha256=ph, case_index=0, result=result)
+    assert nominal['provenance']['offsets'] == [0.0]
+    assert nominal['provenance']['comparison_contract_sha256'] != validated['provenance']['comparison_contract_sha256']
+    assert nominal['row']['refined_lower_edge_frequency'] == result['observations'][1]['row']['refined_lower_edge_frequency']
+    assert nominal['row']['refined_upper_edge_frequency'] == result['observations'][1]['row']['refined_upper_edge_frequency']
+    nominal_protocol = tmp_path / 'nominal_protocol.json'
+    nominal_protocol.write_text(json.dumps({**protocol, 'offsets': [0.0]}), encoding='utf8')
+    nominal_ph = hashlib.sha256(nominal_protocol.read_bytes()).hexdigest()
+    nominal_output = run_offset_case(mp, expected_sha256=mh, protocol_path=nominal_protocol,
+        expected_protocol_sha256=nominal_ph, case_index=0, output_root=tmp_path/'nominal_cases', solver=solver)
+    single = validate_robust_observation(manifest_bytes=mp.read_bytes(), expected_manifest_sha256=mh,
+        protocol_bytes=nominal_protocol.read_bytes(), protocol_sha256=nominal_ph, case_index=0,
+        result=json.loads((nominal_output/'results.json').read_text()))
+    assert nominal == single
     final = consume_robust_solver_result(pending, manifest_bytes=mp.read_bytes(), expected_manifest_sha256=mh,
                                          protocol_bytes=pp.read_bytes(), protocol_sha256=ph, result=result)
     assert final.incumbent_hash == candidate.parameter_hash
     result['observations'][0]['provenance']['evaluated_grid_sha256'] = 'wrong'
+    with pytest.raises(ValueError, match='grid identity'):
+        validate_nominal_observation_from_robust(manifest_bytes=mp.read_bytes(), expected_manifest_sha256=mh,
+            protocol_bytes=pp.read_bytes(), protocol_sha256=ph, case_index=0, result=result)
     with pytest.raises(ValueError, match='grid identity'):
         consume_robust_solver_result(pending, manifest_bytes=mp.read_bytes(), expected_manifest_sha256=mh,
                                      protocol_bytes=pp.read_bytes(), protocol_sha256=ph, result=result)
