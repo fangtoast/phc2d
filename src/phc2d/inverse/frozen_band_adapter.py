@@ -79,6 +79,18 @@ def audit_singleton_inference_evidence(directory: str | Path, *, max_inferences:
             'unknown_inferences': unknown, 'unmatched_files': extras}
 
 
+def audit_completed_inference_cost(directory: str | Path, cost: dict[str, Any]) -> dict[str, Any]:
+    """Reconcile a successful cost record against the individual saved calls."""
+    if cost.get('error') is not None or cost.get('archive_error') is not None:
+        raise ValueError('successful complete cost record required')
+    audit = audit_singleton_inference_evidence(directory, max_inferences=cost['max_inferences'])
+    if (audit['status'] != 'complete' or audit['budget_denials'] != 0
+            or cost['requests'] != audit['requests'] or cost['inferences'] != audit['started']
+            or cost['successful_inferences'] != audit['completed'] or cost['cache_hits'] != audit['cache_hits']):
+        raise ValueError('cost record and inference evidence differ')
+    return {**audit, 'status': 'cost_consistent_not_source_authentication'}
+
+
 class SingleSampleBudgetedPredictor:
     """Count and cap singleton inferences, reusing identical inputs from a bounded cache.
 
