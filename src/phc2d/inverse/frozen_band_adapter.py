@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import hashlib
 from collections import OrderedDict
+import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +23,8 @@ class SingleSampleBudgetedPredictor:
     This wrapper does not account for calls made directly to the wrapped object.
     """
 
-    def __init__(self, predictor: Any, *, max_inferences: int, cache_capacity: int = 1) -> None:
+    def __init__(self, predictor: Any, *, max_inferences: int, cache_capacity: int = 1,
+                 evidence_directory: str | Path | None = None) -> None:
         if isinstance(max_inferences, bool) or not isinstance(max_inferences, int) or max_inferences < 1:
             raise ValueError('positive integer inference budget required')
         if (isinstance(cache_capacity, bool) or not isinstance(cache_capacity, int)
@@ -35,6 +38,25 @@ class SingleSampleBudgetedPredictor:
         self.cache_hits = 0
         self.cache_capacity = cache_capacity
         self._cache = OrderedDict()
+        self.evidence_directory = None if evidence_directory is None else Path(evidence_directory)
+        if self.evidence_directory is not None:
+            self.evidence_directory.mkdir(parents=False, exist_ok=False)
+
+    def _save_array(self, name: str, tensor: Any) -> str:
+        import numpy as np
+
+        path = self.evidence_directory/name
+        with path.open('xb') as stream:
+            np.save(stream, tensor.detach().cpu().contiguous().numpy(), allow_pickle=False)
+            stream.flush()
+            os.fsync(stream.fileno())
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def _save_event(self, name: str, event: dict[str, Any]) -> None:
+        with (self.evidence_directory/name).open('x', encoding='utf8') as stream:
+            json.dump(event, stream, sort_keys=True, allow_nan=False)
+            stream.flush()
+            os.fsync(stream.fileno())
 
     def predict_tensor(self, inputs: Any) -> Any:
         import torch
@@ -46,15 +68,33 @@ class SingleSampleBudgetedPredictor:
         key = (tuple(array.shape), array.numpy().tobytes())
         self.requests += 1
         if key in self._cache:
+            if self.evidence_directory is not None:
+                self._save_event(f'request_{self.requests:04d}.json',
+                    {'kind': 'cache_hit', 'input_sha256': hashlib.sha256(key[1]).hexdigest()})
             self.cache_hits += 1
             self._cache.move_to_end(key)
             return self._cache[key].clone()
         if self.inferences >= self.max_inferences:
+            if self.evidence_directory is not None:
+                self._save_event(f'request_{self.requests:04d}.json',
+                    {'kind': 'budget_exhausted', 'input_sha256': hashlib.sha256(key[1]).hexdigest()})
             raise ValueError('surrogate inference budget exhausted')
         self.inferences += 1
+        if self.evidence_directory is not None:
+            input_name = f'input_{self.inferences:04d}.npy'
+            input_file_sha = self._save_array(input_name, array)
+            self._save_event(f'request_{self.requests:04d}.json',
+                {'kind': 'inference_started', 'inference': self.inferences,
+                 'input_file': input_name, 'input_file_sha256': input_file_sha,
+                 'input_sha256': hashlib.sha256(key[1]).hexdigest()})
         output = self.predictor.predict_tensor(inputs)
         if not isinstance(output, torch.Tensor):
             raise ValueError('predictor must return a tensor')
+        if self.evidence_directory is not None:
+            output_name = f'output_{self.inferences:04d}.npy'
+            output_file_sha = self._save_array(output_name, output)
+            self._save_event(f'completed_{self.inferences:04d}.json',
+                {'inference': self.inferences, 'output_file': output_name, 'output_file_sha256': output_file_sha})
         self.successful_inferences += 1
         self._cache[key] = output.detach().clone()
         if len(self._cache) > self.cache_capacity:

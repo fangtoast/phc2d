@@ -44,7 +44,8 @@ def run_budgeted_nominal_feedback_proposal(state: FeedbackState, source: FullCel
         raise ValueError('budgeted nominal feedback requires a zero-offset uncorrected contract')
     root = Path(output_root)
     root.mkdir(parents=True, exist_ok=False)
-    wrapped = SingleSampleBudgetedPredictor(predictor, max_inferences=budget, cache_capacity=budget)
+    wrapped = SingleSampleBudgetedPredictor(predictor, max_inferences=budget, cache_capacity=budget,
+                                            evidence_directory=root/'inferences')
     status, error = 'failed', None
     try:
         result = propose_fourier_candidate(state, source, wrapped, **options)

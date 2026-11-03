@@ -313,7 +313,8 @@ def run_budgeted_nominal_static_design(source: FullCellStructureSpec, predictor:
     root.mkdir(parents=True, exist_ok=False)
     records = []
     for seed in seeds:
-        wrapped = SingleSampleBudgetedPredictor(predictor, max_inferences=budget, cache_capacity=budget)
+        wrapped = SingleSampleBudgetedPredictor(predictor, max_inferences=budget, cache_capacity=budget,
+                                                evidence_directory=root/f'inference_{seed}')
         seed_config = {**config, 'seeds': [seed]}
         seed_raw = json.dumps(seed_config, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf8')
         with (root/f'config_{seed}.json').open('xb') as stream:

@@ -59,6 +59,40 @@ def test_bounded_cache_reuses_previous_input_and_evicts_least_recently_used():
         predictor.predict_tensor(two)
 
 
+def test_inference_start_evidence_survives_predictor_failure(tmp_path):
+    import json
+    class Failed:
+        def predict_tensor(self, inputs):
+            raise RuntimeError('interrupted')
+    directory = tmp_path/'evidence'
+    predictor = SingleSampleBudgetedPredictor(Failed(), max_inferences=1, evidence_directory=directory)
+    with pytest.raises(RuntimeError, match='interrupted'):
+        predictor.predict_tensor(torch.ones((1, 2, 2)))
+    event = json.loads((directory/'request_0001.json').read_bytes())
+    assert event['kind'] == 'inference_started' and event['inference'] == 1
+    assert hashlib.sha256((directory/event['input_file']).read_bytes()).hexdigest() == event['input_file_sha256']
+    assert not (directory/'completed_0001.json').exists()
+    with pytest.raises(FileExistsError):
+        SingleSampleBudgetedPredictor(Failed(), max_inferences=1, evidence_directory=directory)
+
+
+def test_inference_evidence_distinguishes_completion_cache_and_denial(tmp_path):
+    import json
+    class Predictor:
+        def predict_tensor(self, inputs):
+            return inputs.clone()
+    directory = tmp_path/'evidence'
+    predictor = SingleSampleBudgetedPredictor(Predictor(), max_inferences=1, evidence_directory=directory)
+    predictor.predict_tensor(torch.ones((1, 2, 2)))
+    predictor.predict_tensor(torch.ones((1, 2, 2)))
+    with pytest.raises(ValueError, match='budget exhausted'):
+        predictor.predict_tensor(torch.zeros((1, 2, 2)))
+    events = [json.loads((directory/f'request_{index:04d}.json').read_bytes()) for index in range(1, 4)]
+    assert [event['kind'] for event in events] == ['inference_started', 'cache_hit', 'budget_exhausted']
+    completed = json.loads((directory/'completed_0001.json').read_bytes())
+    assert hashlib.sha256((directory/completed['output_file']).read_bytes()).hexdigest() == completed['output_file_sha256']
+
+
 def checkpoint(tmp_path):
     model = build_model("mlp", input_shape=(2,), output_shape=(2, 2))
     payload = dict(model_name="mlp", model_params={}, input_shape=(2,), output_shape=(2, 2),
