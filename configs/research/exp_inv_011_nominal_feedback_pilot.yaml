@@ -24,6 +24,10 @@ search:
   surrogate_evaluations_per_round: 20
   candidate_physical_attempts_per_method: 2
   seeds_by_round: [2026110501, 2026110502]
+  static_choice: top_two_distinct_nominal_grids_across_both_traces
+  duplicate_grid_rule: earliest_trace_then_earliest_evaluation
+  score_tie_rule: earliest_trace_then_earliest_evaluation
+  insufficient_candidates_rule: unscoreable_no_replacement
 physics:
   scope: nominal_only_no_manufacturing_robustness_claim
   master_raster_resolution: 512
