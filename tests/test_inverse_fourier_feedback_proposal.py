@@ -13,7 +13,7 @@ torch = pytest.importorskip('torch')
 
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
-from phc2d.inverse.feedback_state import propose_feedback, start_feedback
+from phc2d.inverse.feedback_state import finish_feedback, propose_feedback, start_feedback
 from phc2d.inverse.fourier_feedback_proposal import propose_fourier_candidate
 from phc2d.inverse.local_edge_correction import LocalEdgeCorrection
 from phc2d.inverse.perturbation_screen import periodic_perturbation_grids
@@ -36,7 +36,7 @@ def test_search_proposal_respects_frozen_coordinates_and_feedback_identity():
                                   'comparison_contract_sha256': 'solver'}}
     state = start_feedback(incumbent_hash=source.parameter_hash, incumbent_parameters=[threshold],
         incumbent_observation=observation, target_frequency=.5, radius=.1, min_radius=.01,
-        max_radius=.2, candidate_budget=1)
+        max_radius=.2, candidate_budget=2)
     result = propose_fourier_candidate(state, source, ToyPredictor(), coefficient_keys=(),
         global_bounds=((threshold-.5, threshold+.5),), origin=[0], scales=[1],
         max_mode_radius=1, seed=3, population_size=5, surrogate_budget=10,
@@ -49,6 +49,13 @@ def test_search_proposal_respects_frozen_coordinates_and_feedback_identity():
     assert len(result['trace']) <= 10
     pending = propose_feedback(state, **result['proposal'])
     assert pending.pending.parameter_hash == candidate.parameter_hash
+    unknown = finish_feedback(pending, failure_reason='missing worker exit', failure_status='worker_result_unknown')
+    with pytest.raises(ValueError, match='unknown worker result'):
+        propose_fourier_candidate(unknown, source, ToyPredictor(), coefficient_keys=(),
+            global_bounds=((threshold-.5, threshold+.5),), origin=[0], scales=[1],
+            max_mode_radius=1, seed=4, population_size=5, surrogate_budget=10,
+            raster_method='master_block_mean_v1', source_resolution=16, input_resolution=8,
+            material_fraction_bounds=(0, 1), lower_band=1, surrogate_contract_sha256='model')
     correction = LocalEdgeCorrection(np.array([threshold]), .1, np.array([[-.02, .02], [0., 0.]]),
                                      'solver', 'model', 1)
     corrected = propose_fourier_candidate(state, source, ToyPredictor(), coefficient_keys=(),

@@ -61,6 +61,15 @@ def test_failure_and_numerical_gate_consume_attempt_without_replacing_incumbent(
     assert result.history[-1]['status'] == 'solver_failure'
 
 
+def test_unknown_worker_blocks_next_round_after_restart():
+    pending = proposal(state(), 'b')
+    unknown = finish_feedback(pending, failure_reason='worker exit missing', failure_status='worker_result_unknown')
+    assert unknown.incumbent_hash == 'a' and unknown.remaining_evaluations == 2
+    restored = restore_feedback(asdict(unknown))
+    with pytest.raises(ValueError, match='unknown worker result'):
+        proposal(restored, 'c')
+
+
 def test_invalid_candidate_or_protocol_cannot_be_silently_consumed():
     current = state(budget=1)
     with pytest.raises(ValueError, match='outside'):

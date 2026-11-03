@@ -117,6 +117,8 @@ def propose_feedback(state: FeedbackState, *, parameter_hash: str, parameters: S
                      surrogate_contract_sha256: str) -> FeedbackState:
     """Reserve one new local candidate before a physical evaluation."""
     point = _parameters(parameters)
+    if any(entry.get('status') == 'worker_result_unknown' for entry in state.history):
+        raise ValueError('unknown worker result must be reconciled before further feedback')
     if state.pending is not None or state.remaining_evaluations <= 0:
         raise ValueError('pending candidate or evaluation budget exhausted')
     if not parameter_hash or parameter_hash in state.seen_hashes:

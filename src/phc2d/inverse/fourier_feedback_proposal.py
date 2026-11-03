@@ -39,6 +39,8 @@ def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpe
     Returned proposals remain surrogate-only. The caller persists the trace and
     uses the exact returned structure for a solver-gated feedback evaluation.
     """
+    if any(entry.get('status') == 'worker_result_unknown' for entry in state.history):
+        raise ValueError('unknown worker result must be reconciled before further feedback')
     if (source.parameter_hash != state.incumbent_hash or state.pending is not None
             or state.remaining_evaluations <= 0 or not surrogate_contract_sha256):
         raise ValueError('source, budget, pending state or surrogate identity is invalid')
