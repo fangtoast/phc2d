@@ -1,0 +1,45 @@
+# Draft scientific contract; not an executable scheduler manifest.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+experiment_id: EXP-INV-011
+status: draft_not_execution_ready
+scope: observed_development_sources_nominal_feedback_engineering_pilot
+source_experiment: EXP-INV-010
+source_selection_sha256: e045c909ebc4a8b7e0d6bdaa12ddc2d2cdee160327bb785061e297eac98eaabb
+physical_manifest_sha256: af907a719c50b422e3d19381b6e531ba0afc48f88321221fb208aae14c262c53
+physical_archive_sha256: 0eda076f5997ed4e2d5dc14f9623f5408084c4023d245e97057d85da63961684
+source_selection_rule: lowest_source_index_in_each_fixed_coarse_stratum
+sources: {positive: 8, near_zero: 491, negative: 348}
+target: {polarization: TE, lower_band_one_based: 4, frequency_a_over_lambda: 0.57}
+model_seed: 1
+checkpoint_sha256: 723402527aa184420a1a9f5877151e90fd537507c60ccab575bfff2e3ac108b4
+search:
+  coefficient_keys: [[0, cos]]
+  scales: [0.2, 0.1]
+  initial_radius: 0.5
+  min_radius: 0.1
+  max_radius: 1.0
+  population_size: 5
+  surrogate_evaluations_per_round: 20
+  candidate_physical_attempts_per_method: 2
+  seeds_by_round: [2026110501, 2026110502]
+physics:
+  scope: nominal_only_no_manufacturing_robustness_claim
+  master_raster_resolution: 512
+  model_input_resolution: 64
+  offset_a: 0.0
+  primary_resolution: 192
+  verification_resolution: 224
+  prior_protocol_sha256: ed93de18fea702e52ab8a20ec13c4019e8c6ee6294436196e2e2f5c20351f18f
+  cross_environment_absolute_spectral_tolerance: 1.0e-6
+resources:
+  new_physical_attempts_max: 12
+  physical_allocated_core_hours_cap_including_failures: 100
+  max_concurrent_cpu_jobs: 4
+  account_reused_anchor_and_wsl_and_gpu_costs_separately: true
+execution_gate:
+  require_prelaunch_lock_and_independent_input_audit: true
+  require_nominal_handoff_and_paired_baseline_validated: true
+  require_durable_submission_and_budget_recovery_test: true
+  require_live_resource_and_duplicate_check: true
