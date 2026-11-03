@@ -197,3 +197,77 @@ def restore_feedback_dispatch(payload: Mapping[str, Any]) -> FeedbackDispatchSta
         raise ValueError('invalid saved dispatch')
     return FeedbackDispatchState(restore_feedback(payload['feedback']), restore_resource_ledger(payload['ledger']),
                                  None if raw is None else Dispatch(**raw))
+
+
+@dataclass(frozen=True)
+class FeedbackCampaignState:
+    """Independent feedback lanes sharing one conservative allocation ledger.
+
+    Each dispatch covers one candidate. A single external controller must
+    persist transitions and authenticate scheduler records; this class does not
+    provide a lock, a journal, or scheduler access.
+    """
+    lanes: Mapping[str, FeedbackState]
+    dispatches: Mapping[str, Dispatch]
+    ledger: ResourceLedger
+    max_inflight: int
+    max_attempts: int
+
+    def __post_init__(self) -> None:
+        if (not isinstance(self.lanes, Mapping) or not self.lanes or not isinstance(self.dispatches, Mapping)
+                or not isinstance(self.ledger, ResourceLedger) or isinstance(self.max_inflight, bool)
+                or not isinstance(self.max_inflight, int) or self.max_inflight <= 0
+                or isinstance(self.max_attempts, bool) or not isinstance(self.max_attempts, int)
+                or self.max_attempts <= 0 or len(self.dispatches) > self.max_inflight
+                or not set(self.dispatches).issubset(self.lanes)
+                or any(not isinstance(k, str) or not k for k in self.lanes)):
+            raise ValueError('invalid campaign lanes or limits')
+        for lane, feedback in self.lanes.items():
+            FeedbackDispatchState(feedback, self.ledger, self.dispatches.get(lane))
+        task_ids = [item.task_id for item in self.dispatches.values()]
+        jobs = [(item.cluster_id, item.job_id) for item in self.dispatches.values() if item.job_id is not None]
+        reserved = {row.task_id for row in self.ledger.records if row.state == 'reserved'}
+        accounted = {identity for row in self.ledger.records for identity in row.allocation_ids}
+        if (len(task_ids) != len(set(task_ids)) or set(task_ids) != reserved
+                or len(jobs) != len(set(jobs)) or any(f'{cluster}:{job}' in accounted for cluster, job in jobs)
+                or len(self.ledger.records) > self.max_attempts):
+            raise ValueError('duplicate or unowned campaign reservations or jobs')
+
+
+def apply_campaign_event(state: FeedbackCampaignState, *, lane: str, operation: str,
+                         payload: Mapping[str, Any]) -> FeedbackCampaignState:
+    """Apply one validated lane transition to the shared ledger, without I/O.
+
+    Persist the returned state before external actions. Restore and verify it
+    under single-writer control; ambiguous submissions retain their reservation.
+    Released reservations count towards the conservative attempt cap.
+    """
+    operations = {'begin': begin_dispatch, 'submission_unknown': mark_submission_unknown,
+                  'confirm': confirm_submission, 'release': resolve_unstarted,
+                  'result': record_robust_result, 'failure': record_terminal_failure,
+                  'settle': settle_dispatch}
+    if lane not in state.lanes or operation not in operations or not isinstance(payload, Mapping):
+        raise ValueError('invalid campaign lane, operation or payload')
+    if operation == 'begin' and (len(state.dispatches) >= state.max_inflight
+                                 or len(state.ledger.records) >= state.max_attempts):
+        raise ValueError('campaign concurrency or attempt limit reached')
+    current = FeedbackDispatchState(state.lanes[lane], state.ledger, state.dispatches.get(lane))
+    updated = operations[operation](current, **dict(payload))
+    lanes, dispatches = dict(state.lanes), dict(state.dispatches)
+    lanes[lane] = updated.feedback
+    if updated.dispatch is None:
+        dispatches.pop(lane, None)
+    else:
+        dispatches[lane] = updated.dispatch
+    return FeedbackCampaignState(lanes, dispatches, updated.ledger, state.max_inflight, state.max_attempts)
+
+
+def restore_feedback_campaign(payload: Mapping[str, Any]) -> FeedbackCampaignState:
+    """Restore campaign state; independent journal and source verification are required."""
+    if not isinstance(payload, Mapping) or not isinstance(payload.get('lanes'), Mapping) \
+            or not isinstance(payload.get('dispatches'), Mapping):
+        raise ValueError('invalid saved feedback campaign')
+    ledger = restore_resource_ledger(payload['ledger'])
+    lanes = {name: restore_feedback(value) for name, value in payload['lanes'].items()}
+    dispatches = {name: Dispatch(**value) for name, value in payload['dispatches'].items()}
+    return FeedbackCampaignState(lanes, dispatches, ledger, payload['max_inflight'], payload['max_attempts'])
