@@ -11,8 +11,36 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from phc2d.inverse.frozen_band_adapter import FrozenBandAdapter
+from phc2d.inverse.frozen_band_adapter import FrozenBandAdapter, SingleSampleBudgetedPredictor
 from phc2d.models import build_model
+
+
+def test_singleton_budget_counts_actual_calls_and_reuses_only_identical_input():
+    class Predictor:
+        def predict_tensor(self, inputs):
+            return inputs[:, :1, :1].clone()
+    predictor = SingleSampleBudgetedPredictor(Predictor(), max_inferences=2)
+    first = torch.ones((1, 2, 2), dtype=torch.float32)
+    result = predictor.predict_tensor(first)
+    result.fill_(9)  # A caller cannot mutate the cached result.
+    assert predictor.predict_tensor(first.clone()).item() == 1
+    assert predictor.predict_tensor(first * 2).item() == 2
+    assert (predictor.requests, predictor.inferences, predictor.cache_hits) == (3, 2, 1)
+    with pytest.raises(ValueError, match='budget exhausted'):
+        predictor.predict_tensor(first)
+    with pytest.raises(ValueError, match='one non-gradient'):
+        predictor.predict_tensor(torch.ones((2, 2, 2)))
+
+
+def test_failed_inference_consumes_budget():
+    class Failed:
+        def predict_tensor(self, inputs):
+            raise RuntimeError('model failed')
+    predictor = SingleSampleBudgetedPredictor(Failed(), max_inferences=1)
+    with pytest.raises(RuntimeError, match='model failed'):
+        predictor.predict_tensor(torch.ones((1, 2, 2)))
+    with pytest.raises(ValueError, match='budget exhausted'):
+        predictor.predict_tensor(torch.ones((1, 2, 2)))
 
 
 def checkpoint(tmp_path):

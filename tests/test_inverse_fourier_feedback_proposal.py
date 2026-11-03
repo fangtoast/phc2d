@@ -15,6 +15,7 @@ from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.feedback_state import finish_feedback, propose_feedback, start_feedback
 from phc2d.inverse.fourier_feedback_proposal import propose_fourier_candidate
+from phc2d.inverse.frozen_band_adapter import SingleSampleBudgetedPredictor
 from phc2d.inverse.local_edge_correction import LocalEdgeCorrection
 from phc2d.inverse.perturbation_screen import periodic_perturbation_grids
 
@@ -47,6 +48,21 @@ def test_search_proposal_respects_frozen_coordinates_and_feedback_identity():
     assert candidate.parameter_hash == result['proposal']['parameter_hash']
     assert abs(result['proposal']['parameters'][0] - threshold) <= .1
     assert len(result['trace']) <= 10
+    budgeted = SingleSampleBudgetedPredictor(ToyPredictor(), max_inferences=10)
+    reused = propose_fourier_candidate(state, source, budgeted, coefficient_keys=(),
+        global_bounds=((threshold-.5, threshold+.5),), origin=[0], scales=[1],
+        max_mode_radius=1, seed=3, population_size=5, surrogate_budget=10,
+        raster_method='master_block_mean_v1', source_resolution=16, input_resolution=8,
+        material_fraction_bounds=(0, 1), lower_band=1, surrogate_contract_sha256='model',
+        perturbation_offsets=(0.,))
+    assert len(reused['trace']) == 10 and budgeted.inferences <= 10
+    uncached = propose_fourier_candidate(state, source, ToyPredictor(), coefficient_keys=(),
+        global_bounds=((threshold-.5, threshold+.5),), origin=[0], scales=[1],
+        max_mode_radius=1, seed=3, population_size=5, surrogate_budget=10,
+        raster_method='master_block_mean_v1', source_resolution=16, input_resolution=8,
+        material_fraction_bounds=(0, 1), lower_band=1, surrogate_contract_sha256='model',
+        perturbation_offsets=(0.,))
+    assert reused == uncached
     pending = propose_feedback(state, **result['proposal'])
     assert pending.pending.parameter_hash == candidate.parameter_hash
     unknown = finish_feedback(pending, failure_reason='missing worker exit', failure_status='worker_result_unknown')

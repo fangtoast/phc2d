@@ -12,6 +12,48 @@ from pathlib import Path
 from typing import Any
 
 
+class SingleSampleBudgetedPredictor:
+    """Count and cap actual singleton inferences, reusing only the last identical input.
+
+    Use only with a frozen deterministic predictor and a fixed input contract.
+    Failed calls consume budget; the caller persists counts and any failure.
+    This wrapper does not account for calls made directly to the wrapped object.
+    """
+
+    def __init__(self, predictor: Any, *, max_inferences: int) -> None:
+        if isinstance(max_inferences, bool) or not isinstance(max_inferences, int) or max_inferences < 1:
+            raise ValueError('positive integer inference budget required')
+        self.predictor = predictor
+        self.max_inferences = max_inferences
+        self.requests = 0
+        self.inferences = 0
+        self.cache_hits = 0
+        self._input_key = None
+        self._output = None
+
+    def predict_tensor(self, inputs: Any) -> Any:
+        import torch
+
+        if (not isinstance(inputs, torch.Tensor) or inputs.ndim != 3 or inputs.shape[0] != 1
+                or inputs.dtype != torch.float32 or inputs.requires_grad):
+            raise ValueError('one non-gradient float32 raster required')
+        array = inputs.detach().cpu().contiguous()
+        key = (tuple(array.shape), array.numpy().tobytes())
+        self.requests += 1
+        if key == self._input_key:
+            self.cache_hits += 1
+            return self._output.clone()
+        if self.inferences >= self.max_inferences:
+            raise ValueError('surrogate inference budget exhausted')
+        self.inferences += 1
+        self._input_key, self._output = None, None
+        output = self.predictor.predict_tensor(inputs)
+        if not isinstance(output, torch.Tensor):
+            raise ValueError('predictor must return a tensor')
+        self._input_key, self._output = key, output.detach().clone()
+        return output
+
+
 class FrozenBandAdapter:
     """Load a verified single-lane forward checkpoint without altering its identity.
 
