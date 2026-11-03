@@ -17,6 +17,7 @@ from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.feedback_state import finish_feedback, propose_feedback, start_feedback
 from phc2d.inverse.fourier_feedback_proposal import propose_fourier_candidate, run_budgeted_nominal_feedback_proposal
 from phc2d.inverse.frozen_band_adapter import SingleSampleBudgetedPredictor
+from phc2d.inverse.surrogate_design import audit_nominal_prediction_archive
 from phc2d.inverse.local_edge_correction import LocalEdgeCorrection
 from phc2d.inverse.perturbation_screen import periodic_perturbation_grids
 
@@ -75,6 +76,11 @@ def test_search_proposal_respects_frozen_coordinates_and_feedback_identity(tmp_p
     assert json.loads((tmp_path/'feedback'/'proposal.json').read_bytes()) == artifact
     cost = json.loads((tmp_path/'feedback'/'cost.json').read_bytes())
     assert cost['inferences'] <= 10 and cost['cache_hits'] > 0
+    assert audit_nominal_prediction_archive(trace={'evaluations': artifact['result']['trace']},
+        options={'perturbation_offsets': [0.0], 'raster_method': 'master_block_mean_v1',
+                 'source_resolution': 16, 'input_resolution': 8, 'material_fraction_bounds': [0, 1],
+                 'lower_band': 1, 'target_frequency': .5}, cost=cost,
+        archive_path=tmp_path/'feedback'/'predictions.npz')['status'] == 'archive_consistent_not_model_authentication'
     with np.load(tmp_path/'feedback'/'predictions.npz', allow_pickle=False) as archive:
         assert len(archive.files) == 2 * cost['successful_inferences']
         for index in range(cost['successful_inferences']):
