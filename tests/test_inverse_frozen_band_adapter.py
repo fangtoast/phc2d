@@ -102,6 +102,41 @@ def test_inference_evidence_distinguishes_completion_cache_and_denial(tmp_path):
         audit_singleton_inference_evidence(directory, max_inferences=1)
 
 
+def test_process_interruption_retains_unknown_inference(tmp_path):
+    import subprocess
+    import sys
+    import time
+    directory = tmp_path/'interrupted'
+    code = '''
+import sys, time, torch
+from pathlib import Path
+from phc2d.inverse.frozen_band_adapter import SingleSampleBudgetedPredictor
+class Slow:
+    def predict_tensor(self, inputs):
+        Path(sys.argv[2]).write_text('ready')
+        time.sleep(120)
+        return inputs
+p = SingleSampleBudgetedPredictor(Slow(), max_inferences=1, evidence_directory=sys.argv[1])
+p.predict_tensor(torch.ones((1, 2, 2)))
+'''
+    ready = tmp_path/'ready'
+    process = subprocess.Popen([sys.executable, '-c', code, str(directory), str(ready)])
+    try:
+        deadline = time.monotonic() + 40
+        while not ready.exists() and time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise AssertionError('toy process exited before inference start')
+            time.sleep(.05)
+        assert ready.is_file() and (directory/'request_0001.json').is_file()
+    finally:
+        process.kill()
+        process.wait(timeout=10)
+    audit = audit_singleton_inference_evidence(directory, max_inferences=1)
+    assert audit['status'] == 'unknown' and audit['unknown_inferences'] == [1]
+    with pytest.raises(FileExistsError):
+        SingleSampleBudgetedPredictor(None, max_inferences=1, evidence_directory=directory)
+
+
 def checkpoint(tmp_path):
     model = build_model("mlp", input_shape=(2,), output_shape=(2, 2))
     payload = dict(model_name="mlp", model_params={}, input_shape=(2,), output_shape=(2, 2),
