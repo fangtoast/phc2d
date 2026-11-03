@@ -91,6 +91,37 @@ def audit_completed_inference_cost(directory: str | Path, cost: dict[str, Any]) 
     return {**audit, 'status': 'cost_consistent_not_source_authentication'}
 
 
+def audit_prediction_archive_against_calls(directory: str | Path, archive_path: str | Path,
+                                           cost: dict[str, Any]) -> dict[str, Any]:
+    """Compare archived tensors bitwise with the separately persisted calls."""
+    import numpy as np
+
+    audit = audit_completed_inference_cost(directory, cost)
+    root = Path(directory)
+    expected = {}
+    for index in range(1, audit['completed'] + 1):
+        x = np.load(root/f'input_{index:04d}.npy', allow_pickle=False)
+        y = np.load(root/f'output_{index:04d}.npy', allow_pickle=False)
+        key = (x.dtype.str, x.shape, x.tobytes())
+        if key in expected:
+            raise ValueError('duplicate actual input evidence')
+        expected[key] = (y.dtype.str, y.shape, y.tobytes())
+    with np.load(archive_path, allow_pickle=False) as archive:
+        names = {f'{kind}_{index:04d}' for index in range(len(expected)) for kind in ('input', 'output')}
+        if set(archive.files) != names or len(archive.files) != len(names):
+            raise ValueError('prediction archive roster differs from calls')
+        observed = {}
+        for index in range(len(expected)):
+            x, y = archive[f'input_{index:04d}'], archive[f'output_{index:04d}']
+            key = (x.dtype.str, x.shape, x.tobytes())
+            if key in observed:
+                raise ValueError('duplicate archived input')
+            observed[key] = (y.dtype.str, y.shape, y.tobytes())
+    if observed != expected:
+        raise ValueError('prediction archive and call evidence differ')
+    return {'status': 'archive_matches_calls_not_source_authentication', 'unique_inferences': len(expected)}
+
+
 class SingleSampleBudgetedPredictor:
     """Count and cap singleton inferences, reusing identical inputs from a bounded cache.
 

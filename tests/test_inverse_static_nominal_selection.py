@@ -18,7 +18,8 @@ from phc2d.inverse.fourier_design import update_fourier_binary
 from phc2d.inverse.surrogate_design import (audit_surrogate_design, run_surrogate_design,
                                             run_budgeted_nominal_static_design, audit_nominal_prediction_archive)
 from phc2d.inverse.trace_selection import lock_static_nominal_candidates
-from phc2d.inverse.frozen_band_adapter import SingleSampleBudgetedPredictor, audit_completed_inference_cost
+from phc2d.inverse.frozen_band_adapter import (SingleSampleBudgetedPredictor, audit_completed_inference_cost,
+                                              audit_prediction_archive_against_calls)
 
 
 def test_static_selection_deduplicates_grids_and_breaks_ties_by_trace_order():
@@ -118,6 +119,15 @@ def test_static_selected_spectrum_reuses_prior_inference_within_budget(tmp_path)
         assert record['inferences'] <= 10 and record['max_inferences'] == 10
         assert json.loads((tmp_path/'paired'/f"cost_{record['seed']}.json").read_bytes()) == record
         assert audit_completed_inference_cost(tmp_path/'paired'/f"inference_{record['seed']}", record)['status'] == 'cost_consistent_not_source_authentication'
+        assert audit_prediction_archive_against_calls(tmp_path/'paired'/f"inference_{record['seed']}",
+            tmp_path/'paired'/f"predictions_{record['seed']}.npz", record)['status'] == 'archive_matches_calls_not_source_authentication'
+        with np.load(tmp_path/'paired'/f"predictions_{record['seed']}.npz", allow_pickle=False) as stored:
+            altered = {name: stored[name].copy() for name in stored.files}
+        altered['output_0000'][0, 0, 0] += 1
+        altered_path = tmp_path/f"altered_{record['seed']}.npz"
+        np.savez(altered_path, **altered)
+        with pytest.raises(ValueError, match='archive and call evidence differ'):
+            audit_prediction_archive_against_calls(tmp_path/'paired'/f"inference_{record['seed']}", altered_path, record)
         with pytest.raises(ValueError, match='cost record and inference evidence'):
             audit_completed_inference_cost(tmp_path/'paired'/f"inference_{record['seed']}",
                                            {**record, 'inferences': record['inferences'] - 1})
