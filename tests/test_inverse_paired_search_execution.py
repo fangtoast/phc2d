@@ -16,10 +16,42 @@ import torch
 import yaml
 
 from phc2d.inverse.paired_search_contract import build_paired_search_requests
-from phc2d.inverse.paired_search_execution import execute_paired_search_request
+from phc2d.inverse.paired_search_execution import execute_paired_search_request, inspect_nominal_static_request
 from phc2d.inverse.paired_search_materialization import materialize_paired_search_requests
 from phc2d.inverse.surrogate_design import audit_surrogate_design
 from phc2d.models import build_model
+
+
+def test_inspect_two_seed_nominal_draft_preserves_identity(tmp_path):
+    from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
+
+    root = tmp_path/'requests'
+    (root/'sources').mkdir(parents=True)
+    (root/'configs').mkdir()
+    source = generate_unified_fourier_binary('pilot', master_seed=20, material_fraction_bin=1,
+                                            config={'fourier_cutoff': 2, 'audit_resolution': 16})
+    source_raw = json.dumps(source.to_mapping()).encode()
+    config = {'source': '/remote/requests/sources/source_0008.json', 'checkpoint_sha256': 'a'*64,
+              'seeds': [11, 12], 'search_options': {'perturbation_offsets': [0.0]}}
+    config_raw = json.dumps(config).encode()
+    (root/'sources/source_0008.json').write_bytes(source_raw)
+    (root/'configs/source_0008.json').write_bytes(config_raw)
+    record = {'source_index': 8, 'source_file': 'sources/source_0008.json',
+              'config_file': 'configs/source_0008.json', 'parameter_hash': source.parameter_hash,
+              'source_sha256': hashlib.sha256(source_raw).hexdigest(),
+              'config_sha256': hashlib.sha256(config_raw).hexdigest()}
+    manifest = {'scope': 'static_request_materialization_not_executed', 'status': 'draft_not_execution_lock',
+                'remote_request_directory': '/remote/requests', 'records': [record]}
+    raw = json.dumps(manifest).encode()
+    (root/'manifest.json').write_bytes(raw)
+    args = {'manifest_sha256': hashlib.sha256(raw).hexdigest(), 'source_index': 8,
+            'expected_seeds': [11, 12], 'checkpoint_sha256': 'a'*64}
+    assert inspect_nominal_static_request(root, **args)['scope'] == 'draft_inspection_not_execution_lock'
+    with pytest.raises(ValueError, match='seeds'):
+        inspect_nominal_static_request(root, **dict(args, expected_seeds=[12, 11]))
+    (root/'configs/source_0008.json').write_text('{}')
+    with pytest.raises(ValueError, match='configuration hash'):
+        inspect_nominal_static_request(root, **args)
 
 
 def test_execute_one_frozen_request_and_reject_changed_inputs(tmp_path, monkeypatch):
