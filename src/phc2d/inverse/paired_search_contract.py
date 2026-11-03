@@ -16,6 +16,69 @@ import numpy as np
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 
 
+def build_nominal_static_request(
+    *, pilot_config_bytes: bytes, prior_config_bytes: bytes, source: FullCellStructureSpec,
+    source_index: int, source_path: str, checkpoint_path: str,
+) -> dict[str, Any]:
+    """Build the static pilot's two independent searches around one frozen source.
+
+    The caller authenticates both configs, the source and checkpoint, locks the
+    returned request before execution, and accounts resources. This function
+    does not authorize execution or validate the source's physical observation.
+    """
+    import yaml
+
+    pilot = yaml.safe_load(pilot_config_bytes)
+    prior = yaml.safe_load(prior_config_bytes)
+    target, search, physics = pilot['target'], pilot['search'], pilot['physics']
+    original_target, original_geometry = prior['target'], prior['geometry']
+    if (pilot['source_experiment'] != prior['experiment_id']
+            or isinstance(source_index, bool) or not isinstance(source_index, int)
+            or source_index not in pilot['sources'].values()
+            or source.material_kind != 'binary' or source.epsilon_air != original_geometry['epsilon_air']
+            or source.epsilon_material != original_geometry['epsilon_material']
+            or not isinstance(source_path, str) or not source_path
+            or not isinstance(checkpoint_path, str) or not checkpoint_path
+            or target['lower_band_one_based'] != original_target['lower_band_one_based']
+            or target['frequency_a_over_lambda'] != original_target['frequency_a_over_lambda']
+            or target['polarization'] != original_target['polarization']
+            or physics['master_raster_resolution'] != original_geometry['physical_master_raster_resolution']
+            or physics['model_input_resolution'] != original_geometry['model_input_resolution']
+            or physics['offset_a'] != 0.0
+            or pilot['checkpoint_sha256'] != prior['surrogate']['checkpoint_sha256_by_seed'][pilot['model_seed']]):
+        raise ValueError('pilot source, model, target or raster contract mismatch')
+    keys = tuple(tuple(key) for key in search['coefficient_keys'])
+    if not keys or len(set(keys)) != len(keys):
+        raise ValueError('invalid coefficient keys')
+    modes = source.parameters['modes']
+    if any(isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < len(modes)
+           or name not in ('cos', 'sin') for index, name in keys):
+        raise ValueError('invalid coefficient key')
+    center = np.asarray([modes[index][name] for index, name in keys]
+                        + [source.parameters['threshold']], dtype=np.float64)
+    scales = np.asarray(search['scales'], dtype=np.float64)
+    radius = float(search['initial_radius'])
+    if (scales.shape != center.shape or not np.isfinite(center).all() or not np.isfinite(scales).all()
+            or not np.isfinite(radius) or radius <= 0 or np.any(scales <= 0)):
+        raise ValueError('invalid pilot normalization or radius')
+    half_width = min(radius / np.sqrt(len(center)), 1.0) * scales
+    seeds = search['seeds_by_round']
+    if (not isinstance(seeds, list) or len(seeds) != 2 or len(set(seeds)) != len(seeds)
+            or any(isinstance(seed, bool) or not isinstance(seed, int) or seed < 0 for seed in seeds)):
+        raise ValueError('two distinct static search seeds required')
+    options = {'coefficient_keys': [list(key) for key in keys],
+        'bounds': np.stack((center-half_width, center+half_width), axis=1).tolist(),
+        'max_mode_radius': prior['search']['max_mode_radius'],
+        'population_size': search['population_size'], 'evaluation_budget': search['surrogate_evaluations_per_round'],
+        'raster_method': original_geometry['model_raster_method'],
+        'source_resolution': physics['master_raster_resolution'], 'input_resolution': physics['model_input_resolution'],
+        'material_fraction_bounds': original_geometry['material_fraction_bounds'],
+        'lower_band': target['lower_band_one_based'], 'target_frequency': target['frequency_a_over_lambda'],
+        'perturbation_offsets': [0.0]}
+    return {'source': source_path, 'checkpoint': checkpoint_path, 'checkpoint_sha256': pilot['checkpoint_sha256'],
+            'seeds': seeds, 'search_options': options}
+
+
 def build_paired_search_requests(
     *, config_bytes: bytes, source_manifest_bytes: bytes, source_audit_bytes: bytes,
     selection_bytes: bytes, expected_source_audit_sha256: str, expected_selection_sha256: str,

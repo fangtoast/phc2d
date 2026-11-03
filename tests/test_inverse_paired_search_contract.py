@@ -12,7 +12,35 @@ import pytest
 import yaml
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
-from phc2d.inverse.paired_search_contract import build_paired_search_requests
+from phc2d.inverse.paired_search_contract import build_nominal_static_request, build_paired_search_requests
+
+
+def test_nominal_static_request_matches_initial_feedback_region_and_identity():
+    prior = yaml.safe_load(fixture_contract()['config_bytes'])
+    prior['target']['polarization'] = 'TE'
+    pilot = {'source_experiment': prior['experiment_id'], 'sources': {'positive': 8},
+        'target': prior['target'], 'model_seed': 1, 'checkpoint_sha256': 'b'*64,
+        'physics': {'master_raster_resolution': 32, 'model_input_resolution': 8, 'offset_a': 0.},
+        'search': {'coefficient_keys': [[0, 'cos']], 'scales': [.2, .1], 'initial_radius': .5,
+                   'population_size': 5, 'surrogate_evaluations_per_round': 20,
+                   'seeds_by_round': [11, 12]}}
+    source = generate_unified_fourier_binary('pilot', master_seed=20, material_fraction_bin=1,
+                                              config={'fourier_cutoff': 2, 'audit_resolution': 16})
+    args = {'pilot_config_bytes': yaml.safe_dump(pilot).encode(), 'prior_config_bytes': yaml.safe_dump(prior).encode(),
+            'source': source, 'source_index': 8, 'source_path': '/source', 'checkpoint_path': '/checkpoint'}
+    request = build_nominal_static_request(**args)
+    assert request['seeds'] == [11, 12]
+    assert request['search_options']['perturbation_offsets'] == [0.]
+    center = [source.parameters['modes'][0]['cos'], source.parameters['threshold']]
+    for i, scale in enumerate([.2, .1]):
+        lo, hi = request['search_options']['bounds'][i]
+        assert lo == pytest.approx(center[i] - .5*scale/(2**.5))
+        assert hi == pytest.approx(center[i] + .5*scale/(2**.5))
+    with pytest.raises(ValueError, match='pilot source'):
+        build_nominal_static_request(**dict(args, source_index=9))
+    pilot['checkpoint_sha256'] = 'c'*64
+    with pytest.raises(ValueError, match='pilot source'):
+        build_nominal_static_request(**dict(args, pilot_config_bytes=yaml.safe_dump(pilot).encode()))
 
 
 def fixture_contract():
