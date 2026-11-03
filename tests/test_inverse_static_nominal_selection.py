@@ -16,7 +16,7 @@ torch = pytest.importorskip('torch')
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.fourier_design import update_fourier_binary
 from phc2d.inverse.surrogate_design import (audit_surrogate_design, run_surrogate_design,
-                                            run_budgeted_nominal_static_design)
+                                            run_budgeted_nominal_static_design, audit_nominal_prediction_archive)
 from phc2d.inverse.trace_selection import lock_static_nominal_candidates
 from phc2d.inverse.frozen_band_adapter import SingleSampleBudgetedPredictor
 
@@ -125,6 +125,14 @@ def test_static_selected_spectrum_reuses_prior_inference_within_budget(tmp_path)
         assert audit_surrogate_design(tmp_path/'paired'/f"trajectory_{record['seed']}",
             config_bytes=(tmp_path/'paired'/f"config_{record['seed']}.json").read_bytes(),
             source_bytes=source_raw, checkpoint_sha256='a'*64)['status'] == 'artifact_consistent'
+        trace = json.loads((tmp_path/'paired'/f"trajectory_{record['seed']}"/f"seed_{record['seed']}"/'search.json').read_bytes())
+        assert audit_nominal_prediction_archive(trace=trace, options=options, cost=record,
+            archive_path=tmp_path/'paired'/f"predictions_{record['seed']}.npz")['status'] == 'archive_consistent_not_model_authentication'
+        bad_trace = json.loads(json.dumps(trace))
+        bad_trace['evaluations'][0]['predicted_gap']['target_margin'] += .01
+        with pytest.raises(ValueError, match='candidate score differ'):
+            audit_nominal_prediction_archive(trace=bad_trace, options=options, cost=record,
+                archive_path=tmp_path/'paired'/f"predictions_{record['seed']}.npz")
     with pytest.raises(FileExistsError):
         run_budgeted_nominal_static_design(source, Predictor(), seeds=[2026110501, 2026110502],
             search_options=options, output_root=tmp_path/'paired', provenance=provenance, config_bytes=config_raw)

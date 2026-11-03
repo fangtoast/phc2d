@@ -346,6 +346,74 @@ def run_budgeted_nominal_static_design(source: FullCellStructureSpec, predictor:
             'trajectories': records}
 
 
+def audit_nominal_prediction_archive(*, trace: Mapping[str, Any], options: Mapping[str, Any],
+                                     cost: Mapping[str, Any], archive_path: Path) -> dict[str, Any]:
+    """Match each nominal candidate to saved raw inputs and independently rescore spectra.
+
+    This audits artifact consistency, not model or scheduler authenticity.
+    The separate trajectory audit must validate source, bounds and identity.
+    """
+    from phc2d.inverse.fourier_screen import screen_fourier_geometry
+
+    if (list(options.get('perturbation_offsets') or ()) != [0.0]
+            or options.get('raster_method') != 'master_block_mean_v1'
+            or cost.get('error') is not None or cost.get('archive_error') is not None):
+        raise ValueError('complete uncorrected nominal trajectory required')
+    count, total = cost['successful_inferences'], cost['inferences']
+    if (isinstance(count, bool) or not isinstance(count, int) or count < 0 or count != total
+            or total > cost['max_inferences'] or cost['requests'] != total + cost['cache_hits']):
+        raise ValueError('inference cost record inconsistent')
+    spectra = {}
+    with np.load(archive_path, allow_pickle=False) as archive:
+        expected = {f'{kind}_{index:04d}' for index in range(count) for kind in ('input', 'output')}
+        if set(archive.files) != expected or len(archive.files) != len(expected):
+            raise ValueError('prediction archive roster mismatch')
+        for index in range(count):
+            raster, bands = archive[f'input_{index:04d}'], archive[f'output_{index:04d}']
+            if (raster.dtype != np.float32 or raster.shape != (1, options['input_resolution'], options['input_resolution'])
+                    or bands.ndim != 3 or bands.shape[0] != 1 or any(n == 0 for n in bands.shape)):
+                raise ValueError('prediction archive shape mismatch')
+            key = np.ascontiguousarray(raster).tobytes()
+            if key in spectra:
+                raise ValueError('duplicate archived input')
+            spectra[key] = bands.copy()
+    used = set()
+    for row in trace['evaluations']:
+        structure = FullCellStructureSpec.from_mapping(row['structure'])
+        geometry = screen_fourier_geometry(structure, raster_method=options['raster_method'],
+            source_resolution=options['source_resolution'], input_resolution=options['input_resolution'],
+            material_fraction_bounds=tuple(options['material_fraction_bounds']),
+            geometry_constraints=options.get('geometry_constraints'))
+        if geometry.status != 'eligible':
+            if row['status'] != geometry.status:
+                raise ValueError('geometry rejection mismatch')
+            continue
+        key = np.ascontiguousarray(geometry.raster[None, ...], dtype=np.float32).tobytes()
+        if key not in spectra:
+            raise ValueError('candidate prediction missing from archive')
+        used.add(key)
+        bands = spectra[key]
+        band = options['lower_band']
+        if not 1 <= band < bands.shape[2]:
+            raise ValueError('prediction archive band count mismatch')
+        if not np.isfinite(bands).all():
+            status, gap = 'nonfinite_prediction', None
+        elif np.any(np.diff(bands, axis=2) < 0):
+            status, gap = 'band_order_violation', None
+        elif np.any(bands[:, :, band-1:band+1] < 0):
+            status, gap = 'negative_frequency', None
+        else:
+            status = 'surrogate_only'
+            gap = asdict(common_gap(bands[:, :, band-1:band+1], lower_band=1,
+                                    target_frequency=options['target_frequency']))
+        if row['status'] != status or row['predicted_gap'] != gap:
+            raise ValueError('archived spectrum and candidate score differ')
+    if used != set(spectra):
+        raise ValueError('unmatched prediction in nominal static archive')
+    return {'status': 'archive_consistent_not_model_authentication', 'candidates': len(trace['evaluations']),
+            'unique_model_inputs': count}
+
+
 def build_surrogate_replay_request(*, summary_bytes: bytes, summary_sha256: str,
                                    structure_bytes: bytes, seed: int, k_points: Any,
                                    k_points_sha256: str, solver_config: Any,
