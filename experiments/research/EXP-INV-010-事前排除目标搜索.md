@@ -7,7 +7,7 @@
 
 # EXP-INV-010：事前排除后的目标驱动代理搜索
 
-**状态：Draft，限定开发方案已登记；来源生成前须冻结并审核输入。** 本有限开发实验拟检验给定目标频率时，冻结 Global–Local 能否在同一搜索轨迹中选出优于均匀随机选择的结构。[机器参数草案](../../configs/research/exp_inv_010_prefrozen_exclusion_development.yaml)沿用 EXP-INV-009 的数值门与资源上限，使用不同随机种子；在限定范围的排除清单及输入身份通过事前审核前不得生成来源。该开发实验不声称全面历史独立，也不代表 P2 或 P5。
+**状态：Draft，有限开发条件已满足，待人工审阅。** 冻结 Global–Local 的选择在 12 个来源、3 个模型种子的预注册同轨迹对照中，物理目标裕量较随机选择平均高 0.01757，分层 bootstrap 95% 区间为 [0.01041, 0.02643]。84/84 个 M9 案例通过冻结数值门，6/6 个预选案例通过 WSL 有限网格全谱对照（[物理统计](../../runs/20261102/EXP-INV-010_202611020411/source_generation_authorized/physical_complete/paired_physical_evaluation.json)、[跨环境对照](../../runs/20261102/EXP-INV-010_202611020411/source_generation_authorized/wsl_crosscheck/comparison.json)、[条件判定](../../runs/20261102/EXP-INV-010_202611020411/source_generation_authorized/development_decision.json)）。[机器参数](../../configs/research/exp_inv_010_prefrozen_exclusion_development.yaml)沿用 EXP-INV-009 的数值门与资源上限；本开发实验不声称全面历史独立，也不代表原 P2 或 P5 通过。
 
 ## 事前准入
 
