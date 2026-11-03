@@ -5,10 +5,16 @@ Email: fangtoast@foxmail.com
 Copyright (c) 2026 fangtoast. All rights reserved.
 """
 
+import hashlib
+import json
+
 import pytest
+
+torch = pytest.importorskip('torch')
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.fourier_design import update_fourier_binary
+from phc2d.inverse.surrogate_design import audit_surrogate_design, run_surrogate_design
 from phc2d.inverse.trace_selection import lock_static_nominal_candidates
 
 
@@ -39,3 +45,36 @@ def test_static_selection_deduplicates_grids_and_breaks_ties_by_trace_order():
     traces[1][1]['parameter_hash'] = 'tampered'
     with pytest.raises(ValueError, match='parameter identity'):
         lock_static_nominal_candidates(source, traces, raster_resolution=32, candidates=2, evaluations_per_trace=2)
+
+
+def test_two_audited_static_searches_feed_locked_selection(tmp_path):
+    class Predictor:
+        def predict_tensor(self, raster):
+            mean = raster.mean(dim=(1, 2))
+            return torch.stack((.2 + .1 * mean, .8 - .1 * mean), dim=1).unsqueeze(1)
+
+    source = generate_unified_fourier_binary('pilot', master_seed=1, material_fraction_bin=1,
+        config={'fourier_cutoff': 2, 'audit_resolution': 16})
+    threshold = source.parameters['threshold']
+    options = {'coefficient_keys': (), 'bounds': ((threshold-.2, threshold+.2),),
+        'max_mode_radius': 1, 'population_size': 5, 'evaluation_budget': 10,
+        'raster_method': 'master_block_mean_v1', 'source_resolution': 16,
+        'input_resolution': 8, 'material_fraction_bounds': (0, 1),
+        'lower_band': 1, 'target_frequency': .5}
+    seeds = [2026110501, 2026110502]
+    source_raw = json.dumps(source.to_mapping()).encode()
+    config_raw = json.dumps({'search_options': options, 'seeds': seeds, 'checkpoint_sha256': 'a'*64}).encode()
+    provenance = {'source_sha256': hashlib.sha256(source_raw).hexdigest(),
+        'config_sha256': hashlib.sha256(config_raw).hexdigest(), 'checkpoint_sha256': 'a'*64}
+    out = tmp_path/'static'
+    run_surrogate_design(source, Predictor(), seeds=seeds, search_options=options,
+                         output_root=out, provenance=provenance)
+    assert audit_surrogate_design(out, config_bytes=config_raw, source_bytes=source_raw,
+                                  checkpoint_sha256='a'*64)['status'] == 'artifact_consistent'
+    traces = [json.loads((out/f'seed_{seed}'/'search.json').read_bytes())['evaluations'] for seed in seeds]
+    locked = lock_static_nominal_candidates(source, traces, raster_resolution=16,
+                                             candidates=2, evaluations_per_trace=10)
+    assert locked['status'] == 'locked_surrogate_only'
+    assert locked['physical_validation'] == 'not_run'
+    assert len({row['nominal_grid_sha256'] for row in locked['selected']}) == 2
+    assert locked['selected'][0]['selection_score'] >= locked['selected'][1]['selection_score']
