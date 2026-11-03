@@ -37,6 +37,13 @@ physics:
   verification_resolution: 224
   prior_protocol_sha256: ed93de18fea702e52ab8a20ec13c4019e8c6ee6294436196e2e2f5c20351f18f
   cross_environment_absolute_spectral_tolerance: 1.0e-6
+metrics:
+  nominal_success: validated_best_nominal_target_margin_strictly_positive
+  success_unit: source_method
+  success_denominator: all_preregistered_sources
+  incomplete_or_failed: report_separately_no_imputation
+  report_matched_source_outcomes_and_budget_curves: true
+  robustness_claim: not_evaluated
 resources:
   new_physical_attempts_max: 12
   physical_allocated_core_hours_cap_including_failures: 100
