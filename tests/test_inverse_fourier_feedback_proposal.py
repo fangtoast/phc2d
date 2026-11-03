@@ -74,6 +74,9 @@ def test_search_proposal_respects_frozen_coordinates_and_feedback_identity(tmp_p
     artifact = run_budgeted_nominal_feedback_proposal(state, source, ToyPredictor(),
         output_root=tmp_path/'feedback', provenance={'scope': 'toy'}, **kwargs)
     assert artifact['result'] == uncached
+    request_raw = (tmp_path/'feedback'/'request.json').read_bytes()
+    assert artifact['request_sha256'] == hashlib.sha256(request_raw).hexdigest()
+    assert json.loads(request_raw)['state']['incumbent_hash'] == source.parameter_hash
     assert json.loads((tmp_path/'feedback'/'proposal.json').read_bytes()) == artifact
     cost = json.loads((tmp_path/'feedback'/'cost.json').read_bytes())
     assert cost['inferences'] <= 10 and cost['cache_hits'] > 0

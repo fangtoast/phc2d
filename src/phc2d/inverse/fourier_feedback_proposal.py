@@ -8,7 +8,9 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 from dataclasses import asdict
+import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -44,13 +46,19 @@ def run_budgeted_nominal_feedback_proposal(state: FeedbackState, source: FullCel
         raise ValueError('budgeted nominal feedback requires a zero-offset uncorrected contract')
     root = Path(output_root)
     root.mkdir(parents=True, exist_ok=False)
+    request = {'scope': 'nominal_feedback_request_not_execution_lock', 'state': asdict(state),
+               'source': source.to_mapping(), 'options': options, 'provenance': provenance}
+    with (root/'request.json').open('x', encoding='utf8') as stream:
+        json.dump(request, stream, sort_keys=True, allow_nan=False)
+        stream.flush()
+        os.fsync(stream.fileno())
     wrapped = SingleSampleBudgetedPredictor(predictor, max_inferences=budget, cache_capacity=budget,
                                             evidence_directory=root/'inferences')
     status, error = 'failed', None
     try:
         result = propose_fourier_candidate(state, source, wrapped, **options)
         payload = {'scope': 'budgeted_nominal_proposal_not_physical_validation', 'provenance': provenance,
-                   'result': result}
+                   'request_sha256': hashlib.sha256((root/'request.json').read_bytes()).hexdigest(), 'result': result}
         with (root/'proposal.json').open('x', encoding='utf8') as stream:
             json.dump(payload, stream, sort_keys=True, allow_nan=False)
         status = result['status']
