@@ -17,10 +17,11 @@ from phc2d.inverse.audit_perturb_refine import run_case as run_offset_case
 from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
 from phc2d.inverse.feedback_handoff import (build_nominal_solver_manifest, consume_nominal_solver_result,
                                             build_robust_solver_manifest, consume_robust_solver_result,
-                                            validate_robust_observation,
+                                            validate_robust_observation, consume_robust_worker_group,
                                             validate_nominal_observation_from_robust)
 from phc2d.inverse.feedback_state import propose_feedback, start_feedback
 from phc2d.inverse.fourier_design import update_fourier_binary
+from phc2d.inverse.resource_ledger import ResourceAmount, ResourceLedger, reserve_resources, settle_slurm_worker_group
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
@@ -152,6 +153,40 @@ def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
         protocol_bytes=nominal_protocol.read_bytes(), protocol_sha256=nominal_ph, case_index=0,
         result=json.loads((nominal_output/'results.json').read_text()))
     assert nominal == single
+    other = update_fourier_binary(source, sample_id='other', coefficients={},
+                                  threshold=source.parameters['threshold']-.1, max_mode_radius=1)
+    other_pending = propose_feedback(state, parameter_hash=other.parameter_hash, parameters=[-.1],
+        predicted_center=.4, predicted_candidate=.5, surrogate_contract_sha256='model')
+    other_manifest = build_robust_solver_manifest(other_pending, other, k_points=points, config=config,
+                                                  lower_band=1, source_index=3)
+    other_raw = json.dumps(other_manifest).encode()
+    def worker(exit_code, manifest_raw, manifest_hash, result_raw, reason):
+        return {'exit_code': exit_code, 'manifest_bytes': manifest_raw, 'manifest_sha256': manifest_hash,
+                'protocol_bytes': pp.read_bytes(), 'protocol_sha256': ph,
+                'result_bytes': result_raw, 'failure_reason': reason}
+    states = {'success': pending, 'failure': other_pending}
+    records = {'success': worker(0, mp.read_bytes(), mh, (output/'results.json').read_bytes(), None),
+               'failure': worker(137, other_raw, hashlib.sha256(other_raw).hexdigest(), None, 'worker OOM')}
+    updated, outcomes = consume_robust_worker_group(states, records)
+    assert updated['success'].remaining_evaluations == 0
+    assert updated['failure'].history[-1]['status'] == 'solver_failure'
+    assert updated['failure'].remaining_evaluations == 0
+    assert outcomes['success']['result_sha256'] == hashlib.sha256((output/'results.json').read_bytes()).hexdigest()
+    assert outcomes['failure']['exit_code'] == 137 and outcomes['failure']['result_sha256'] is None
+    ledger = reserve_resources(ResourceLedger(ResourceAmount(40, 0)), task_id='batch', amount=ResourceAmount(40, 0))
+    ledger, accounting = settle_slurm_worker_group(ledger, task_id='batch', cluster_id='m9', job_id='100',
+        accounting_bytes=b'100|FAILED|10|4|cpu=4,node=1\n', expected_gpus=0,
+        expected_workers={name: item.pending.parameter_hash for name, item in states.items()}, worker_outcomes=outcomes)
+    assert ledger.totals()['actual'] == ResourceAmount(40, 0) and accounting['failed_workers'] == ['failure']
+    assert states['success'].pending is not None and states['failure'].pending is not None
+    with pytest.raises(ValueError, match='roster'):
+        consume_robust_worker_group(states, {'success': records['success']})
+    bad = dict(records)
+    bad['failure'] = {**records['failure'], 'manifest_sha256': '0'*64}
+    with pytest.raises(ValueError, match='digest mismatch'):
+        consume_robust_worker_group(states, bad)
+    with pytest.raises(ValueError, match='duplicate worker candidate'):
+        consume_robust_worker_group({'success': pending, 'failure': pending}, records)
     final = consume_robust_solver_result(pending, manifest_bytes=mp.read_bytes(), expected_manifest_sha256=mh,
                                          protocol_bytes=pp.read_bytes(), protocol_sha256=ph, result=result)
     assert final.incumbent_hash == candidate.parameter_hash

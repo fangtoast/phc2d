@@ -286,3 +286,66 @@ def consume_robust_solver_result(state: FeedbackState, *, manifest_bytes: bytes,
     if state.incumbent_observation['provenance'].get('solver_identity') != observation['provenance']['solver_identity']:
         raise ValueError('incumbent and candidate solver identity mismatch')
     return finish_feedback(state, observation=observation)
+
+
+def consume_robust_worker_group(
+    states_by_worker: Mapping[str, FeedbackState], results_by_worker: Mapping[str, Mapping[str, Any]],
+) -> tuple[dict[str, FeedbackState], dict[str, dict[str, Any]]]:
+    """Reconcile all workers of one batch without mutating any input state.
+
+    Each record supplies exit_code, manifest_bytes, manifest_sha256,
+    protocol_bytes, protocol_sha256, result_bytes and failure_reason. Success
+    requires a fully validated solver result; failures consume one pending
+    attempt. The returned outcomes can feed worker-group resource settlement.
+    Scheduler identity, worker exit authenticity and evidence persistence must
+    be verified externally before this pure operation is committed.
+    """
+    if (not isinstance(states_by_worker, Mapping) or not states_by_worker
+            or not isinstance(results_by_worker, Mapping) or set(states_by_worker) != set(results_by_worker)
+            or any(not isinstance(worker, str) or not worker.strip() for worker in states_by_worker)):
+        raise ValueError('complete worker group roster required')
+    required = {'exit_code', 'manifest_bytes', 'manifest_sha256', 'protocol_bytes',
+                'protocol_sha256', 'result_bytes', 'failure_reason'}
+    updated, outcomes, identities = {}, {}, set()
+    for worker, state in states_by_worker.items():
+        item = results_by_worker[worker]
+        if (not isinstance(state, FeedbackState) or state.pending is None
+                or not isinstance(item, Mapping) or set(item) != required):
+            raise ValueError('worker pending state or result fields invalid')
+        candidate = state.pending.parameter_hash
+        if candidate in identities:
+            raise ValueError('duplicate worker candidate identity')
+        identities.add(candidate)
+        manifest_raw, protocol_raw = item['manifest_bytes'], item['protocol_bytes']
+        if (not isinstance(manifest_raw, bytes) or not isinstance(protocol_raw, bytes)
+                or hashlib.sha256(manifest_raw).hexdigest() != item['manifest_sha256']
+                or hashlib.sha256(protocol_raw).hexdigest() != item['protocol_sha256']):
+            raise ValueError('worker request or protocol digest mismatch')
+        manifest, protocol = json.loads(manifest_raw), json.loads(protocol_raw)
+        rows = manifest.get('rows')
+        if (manifest.get('status') != 'feedback_robust_solver_request' or not isinstance(rows, list) or len(rows) != 1
+                or rows[0].get('label') != 'candidate' or rows[0].get('parameter_hash') != candidate
+                or FullCellStructureSpec.from_mapping(rows[0]['structure']).parameter_hash != candidate
+                or manifest.get('surrogate_contract_sha256') != state.pending.surrogate_contract_sha256
+                or manifest.get('target_frequency') != state.target_frequency
+                or manifest.get('lower_band') != state.incumbent_observation['row']['lower_band_one_based']
+                or not isinstance(protocol, dict)):
+            raise ValueError('worker request does not match pending candidate')
+        code = item['exit_code']
+        if isinstance(code, bool) or not isinstance(code, int) or code < 0:
+            raise ValueError('invalid worker exit code')
+        if code == 0:
+            if not isinstance(item['result_bytes'], bytes) or item['failure_reason'] is not None:
+                raise ValueError('successful worker requires only raw solver result')
+            updated[worker] = consume_robust_solver_result(state, manifest_bytes=manifest_raw,
+                expected_manifest_sha256=item['manifest_sha256'], protocol_bytes=protocol_raw,
+                protocol_sha256=item['protocol_sha256'], result=json.loads(item['result_bytes']))
+            result_sha = hashlib.sha256(item['result_bytes']).hexdigest()
+        else:
+            reason = item['failure_reason']
+            if item['result_bytes'] is not None or not isinstance(reason, str) or not reason.strip():
+                raise ValueError('failed worker requires a reason and no success result')
+            updated[worker] = finish_feedback(state, failure_reason=reason)
+            result_sha = None
+        outcomes[worker] = {'candidate_sha256': candidate, 'exit_code': code, 'result_sha256': result_sha}
+    return updated, outcomes
