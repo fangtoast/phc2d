@@ -17,7 +17,7 @@ import yaml
 
 from phc2d.inverse.paired_search_contract import build_paired_search_requests
 from phc2d.inverse.paired_search_execution import (execute_paired_search_request, inspect_nominal_static_request,
-                                                   audit_nominal_static_request)
+                                                   audit_nominal_static_request, execute_budgeted_nominal_static_request)
 from phc2d.inverse.paired_search_materialization import materialize_paired_search_requests
 from phc2d.inverse.surrogate_design import audit_surrogate_design
 from phc2d.models import build_model
@@ -97,6 +97,62 @@ def test_nominal_draft_audit_rejects_rehashed_scientific_change(tmp_path):
     config['search_options']['evaluation_budget'] += 1
     with pytest.raises(ValueError, match='scientific request differs'):
         audit_nominal_static_request(root, manifest_sha256=save(), **args)
+
+
+def test_budgeted_nominal_request_executes_both_synthetic_trajectories(tmp_path, monkeypatch):
+    from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
+    from phc2d.inverse.paired_search_contract import build_nominal_static_request
+    from phc2d.inverse.frozen_band_adapter import audit_prediction_archive_against_calls
+    monkeypatch.setenv('OMP_NUM_THREADS', '1')
+    torch.manual_seed(42)
+    model = build_model('mlp', input_shape=(8, 8), output_shape=(2, 2))
+    checkpoint = tmp_path/'model.pt'
+    torch.save({'model_name': 'mlp', 'model_params': {}, 'input_shape': (8, 8), 'output_shape': (2, 2),
+        'state_dict': model.state_dict(), 'target_mean': torch.tensor([[.2, .8], [.2, .8]]),
+        'target_std': torch.full((2, 2), .00001)}, checkpoint)
+    ck_sha = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+    fixture = runpy.run_path(str(Path(__file__).with_name('test_inverse_paired_search_contract.py')))['fixture_contract']
+    prior = yaml.safe_load(fixture()['config_bytes'])
+    prior['target']['polarization'] = 'TE'
+    prior['surrogate']['checkpoint_sha256_by_seed'][1] = ck_sha
+    pilot = {'source_experiment': prior['experiment_id'], 'sources': {'positive': 8}, 'target': prior['target'],
+        'model_seed': 1, 'checkpoint_sha256': ck_sha,
+        'physics': {'master_raster_resolution': 32, 'model_input_resolution': 8, 'offset_a': 0.},
+        'search': {'coefficient_keys': [[0, 'cos']], 'scales': [.2, .1], 'initial_radius': .5,
+                   'population_size': 5, 'surrogate_evaluations_per_round': 5, 'seeds_by_round': [11, 12]}}
+    pilot_raw, prior_raw = yaml.safe_dump(pilot).encode(), yaml.safe_dump(prior).encode()
+    source = generate_unified_fourier_binary('pilot', master_seed=20, material_fraction_bin=1,
+                                             config={'fourier_cutoff': 2, 'audit_resolution': 16})
+    root = tmp_path/'requests'
+    (root/'sources').mkdir(parents=True)
+    (root/'configs').mkdir()
+    source_raw = json.dumps(source.to_mapping()).encode()
+    source_path = root/'sources/source_0008.json'
+    source_path.write_bytes(source_raw)
+    config = build_nominal_static_request(pilot_config_bytes=pilot_raw, prior_config_bytes=prior_raw,
+        source=source, source_index=8, source_path=str(source_path), checkpoint_path=str(checkpoint))
+    config_raw = json.dumps(config).encode()
+    (root/'configs/source_0008.json').write_bytes(config_raw)
+    manifest = {'scope': 'static_request_materialization_not_executed', 'status': 'draft_not_execution_lock',
+        'remote_request_directory': str(root), 'pilot_config_sha256': hashlib.sha256(pilot_raw).hexdigest(),
+        'prior_config_sha256': hashlib.sha256(prior_raw).hexdigest(), 'records': [{'source_index': 8,
+            'source_file': 'sources/source_0008.json', 'config_file': 'configs/source_0008.json',
+            'parameter_hash': source.parameter_hash, 'source_sha256': hashlib.sha256(source_raw).hexdigest(),
+            'config_sha256': hashlib.sha256(config_raw).hexdigest()}]}
+    manifest_raw = json.dumps(manifest).encode()
+    (root/'manifest.json').write_bytes(manifest_raw)
+    args = {'manifest_sha256': hashlib.sha256(manifest_raw).hexdigest(), 'source_index': 8,
+        'pilot_config_bytes': pilot_raw, 'prior_config_bytes': prior_raw,
+        'expected_source_sha256': hashlib.sha256(source_raw).hexdigest(), 'checkpoint_path': str(checkpoint),
+        'device': 'cpu', 'output_root': tmp_path/'output'}
+    result = execute_budgeted_nominal_static_request(root, **args)
+    assert [row['seed'] for row in result['trajectories']] == [11, 12]
+    for row in result['trajectories']:
+        assert row['inferences'] <= 5
+        assert audit_prediction_archive_against_calls(tmp_path/'output'/f"inference_{row['seed']}",
+            tmp_path/'output'/f"predictions_{row['seed']}.npz", row)['unique_inferences'] == row['inferences']
+    with pytest.raises(FileExistsError):
+        execute_budgeted_nominal_static_request(root, **args)
 
 
 def test_execute_one_frozen_request_and_reject_changed_inputs(tmp_path, monkeypatch):

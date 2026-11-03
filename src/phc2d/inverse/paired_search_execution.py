@@ -110,6 +110,59 @@ def audit_nominal_static_request(request_root: Path, *, manifest_sha256: str, so
             'prior_config_sha256': manifest['prior_config_sha256']}
 
 
+def execute_budgeted_nominal_static_request(request_root: Path, *, manifest_sha256: str, source_index: int,
+                                            pilot_config_bytes: bytes, prior_config_bytes: bytes,
+                                            expected_source_sha256: str, checkpoint_path: str,
+                                            device: str, output_root: Path) -> dict[str, Any]:
+    """Execute one audited nominal request; the caller must enforce admission.
+
+    This primitive does not authenticate a prelaunch lock, resource quota,
+    scheduler state or experiment chronology. It must not be used as a job
+    controller or substitute for the independent admission audit.
+    """
+    from phc2d.data.full_cell_spec import FullCellStructureSpec
+    from phc2d.inverse.frozen_band_adapter import FrozenBandAdapter
+    from phc2d.inverse.surrogate_design import run_budgeted_nominal_static_design
+
+    root, output = Path(request_root).resolve(), Path(output_root).resolve()
+    if (not isinstance(device, str) or not re.fullmatch(r'cpu|cuda(?::[0-9]+)?', device)
+            or output == root or root in output.parents):
+        raise ValueError('invalid device or output location')
+    if output.exists():
+        raise FileExistsError('search output exists; reconcile before retry')
+    inspected = audit_nominal_static_request(root, manifest_sha256=manifest_sha256, source_index=source_index,
+        pilot_config_bytes=pilot_config_bytes, prior_config_bytes=prior_config_bytes,
+        expected_source_sha256=expected_source_sha256, expected_checkpoint_path=checkpoint_path)
+    source_path = root/f'sources/source_{source_index:04d}.json'
+    config_path = root/f'configs/source_{source_index:04d}.json'
+    config_raw, source_raw = config_path.read_bytes(), source_path.read_bytes()
+    if (hashlib.sha256(config_raw).hexdigest() != inspected['config_sha256']
+            or hashlib.sha256(source_raw).hexdigest() != expected_source_sha256):
+        raise ValueError('request files changed after audit')
+    config = json.loads(config_raw)
+    if Path(config['source']).resolve() != source_path.resolve():
+        raise ValueError('deployed source path differs from frozen request')
+    predictor = FrozenBandAdapter(checkpoint_path, sha256=config['checkpoint_sha256'], device=device)
+    source = FullCellStructureSpec.from_mapping(json.loads(source_raw))
+    options = dict(config['search_options'])
+    if (predictor.input_shape != (options['input_resolution'], options['input_resolution'])
+            or len(predictor.output_shape) != 2 or predictor.output_shape[1] <= options['lower_band']):
+        raise ValueError('checkpoint shape differs from nominal request')
+    options['coefficient_keys'] = tuple(tuple(key) for key in options['coefficient_keys'])
+    options['bounds'] = tuple(tuple(bound) for bound in options['bounds'])
+    options['material_fraction_bounds'] = tuple(options['material_fraction_bounds'])
+    options['perturbation_offsets'] = tuple(options['perturbation_offsets'])
+    provenance = {'config_sha256': hashlib.sha256(config_raw).hexdigest(),
+        'source_sha256': hashlib.sha256(source_raw).hexdigest(), 'checkpoint_sha256': predictor.checkpoint_sha256,
+        'model_name': predictor.model_name, 'k_points_sha256': predictor.k_points_sha256,
+        'device': device, 'request_manifest_sha256': manifest_sha256}
+    result = run_budgeted_nominal_static_design(source, predictor, seeds=config['seeds'], search_options=options,
+        output_root=output, provenance=provenance, config_bytes=config_raw)
+    return {'scope': 'budgeted_nominal_search_not_execution_lock', 'source_index': source_index,
+            'request_manifest_sha256': manifest_sha256, 'request_config_sha256': inspected['config_sha256'],
+            'trajectories': result['trajectories']}
+
+
 def execute_paired_search_request(
     request_root: Path, *, manifest_sha256: str, request_index: int,
     output_root: Path, device: str,
