@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -51,6 +52,23 @@ def _write_once(path: Path, raw: bytes) -> None:
         stream.write(raw)
         stream.flush()
         os.fsync(stream.fileno())
+
+
+@contextmanager
+def _journal_writer_guard(target: Path):
+    """Exclude cooperating writers; a hard crash leaves a guard to reconcile."""
+    guard = target/'.writer.lock'
+    try:
+        fd = os.open(guard, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise ValueError('campaign writer guard exists; reconcile before writing') from exc
+    try:
+        os.write(fd, f'{os.getpid()}\n'.encode('ascii'))
+        os.fsync(fd)
+        yield
+    finally:
+        os.close(fd)
+        guard.unlink()
 
 
 def _validate_request(request: dict[str, Any]) -> tuple[FeedbackState, bytes, bytes]:
@@ -445,14 +463,7 @@ def append_campaign_event(directory: str | Path, *, initial_sha256: str, expecte
     or external head custody is provided by this function.
     """
     target = Path(directory)
-    guard = target/'.writer.lock'
-    try:
-        fd = os.open(guard, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    except FileExistsError as exc:
-        raise ValueError('campaign writer guard exists; reconcile before writing') from exc
-    try:
-        os.write(fd, f'{os.getpid()}\n'.encode('ascii'))
-        os.fsync(fd)
+    with _journal_writer_guard(target):
         state, head, count = replay_campaign_journal(target, initial_sha256=initial_sha256)
         if head != expected_head:
             raise ValueError('campaign journal head differs; reconcile before writing')
@@ -462,9 +473,6 @@ def append_campaign_event(directory: str | Path, *, initial_sha256: str, expecte
         raw = _serialize(event)
         _write_once(target/'events'/f'{count+1:08d}.json', raw)
         return updated, _hash(raw)
-    finally:
-        os.close(fd)
-        guard.unlink()
 
 
 def verify_campaign_journal(directory: str | Path, *, initial_sha256: str,
@@ -478,6 +486,135 @@ def verify_campaign_journal(directory: str | Path, *, initial_sha256: str,
     if head != expected_head:
         raise ValueError('campaign journal head differs; reconcile before use')
     return state, count
+
+
+def _apply_batch_event(state: Any, batch_id: str, operation: str, payload: dict[str, Any]) -> Any:
+    """Decode persisted evidence and apply one multi-worker state transition."""
+    from phc2d.inverse import feedback_batch_dispatch as batch
+    from phc2d.inverse.resource_ledger import ResourceAmount
+
+    fields = {
+        'prepare': {'task_id', 'cluster_id', 'workers', 'proposals', 'reservation'},
+        'submission_unknown': {'reason'}, 'confirm': {'job_id', 'confirmation_source'},
+        'release': {'confirmed_not_started', 'confirmed_no_future_execution', 'confirmation_source'},
+        'reconcile': {'workers'}, 'settle': {'accounting', 'expected_gpus'},
+    }
+    if (not isinstance(batch_id, str) or not batch_id or not isinstance(operation, str)
+            or operation not in fields or not isinstance(payload, dict) or set(payload) != fields[operation]):
+        raise ValueError('unknown batch operation or unexpected payload fields')
+    if operation == 'prepare':
+        reservation = payload['reservation']
+        if not isinstance(reservation, dict) or set(reservation) != {'cpu_core_seconds', 'gpu_seconds'}:
+            raise ValueError('invalid batch reservation')
+        return batch.prepare_worker_batch(state, batch_id=batch_id, task_id=payload['task_id'],
+            cluster_id=payload['cluster_id'], workers=payload['workers'], proposals=payload['proposals'],
+            reservation=ResourceAmount(**reservation))
+    if operation == 'submission_unknown':
+        return batch.mark_batch_submission_unknown(state, batch_id=batch_id, **payload)
+    if operation == 'confirm':
+        return batch.confirm_worker_batch(state, batch_id=batch_id, **payload)
+    if operation == 'release':
+        return batch.release_unstarted_worker_batch(state, batch_id=batch_id, **payload)
+    try:
+        if operation == 'settle':
+            updated, _ = batch.settle_worker_batch(state, batch_id=batch_id,
+                accounting_bytes=base64.b64decode(payload['accounting'], validate=True),
+                expected_gpus=payload['expected_gpus'])
+            return updated
+        if not isinstance(payload['workers'], dict):
+            raise ValueError('worker evidence must be a mapping')
+        records = {}
+        worker_fields = {'exit_code', 'manifest', 'manifest_sha256', 'protocol',
+                         'protocol_sha256', 'result', 'failure_reason'}
+        for worker, row in payload['workers'].items():
+            if not isinstance(row, dict) or set(row) != worker_fields:
+                raise ValueError('unexpected worker evidence fields')
+            records[worker] = {'exit_code': row['exit_code'],
+                'manifest_bytes': base64.b64decode(row['manifest'], validate=True),
+                'manifest_sha256': row['manifest_sha256'],
+                'protocol_bytes': base64.b64decode(row['protocol'], validate=True),
+                'protocol_sha256': row['protocol_sha256'],
+                'result_bytes': None if row['result'] is None else base64.b64decode(row['result'], validate=True),
+                'failure_reason': row['failure_reason']}
+        return batch.reconcile_worker_batch(state, batch_id=batch_id, results_by_worker=records)
+    except (TypeError, ValueError) as exc:
+        raise ValueError('invalid batch event or encoded evidence') from exc
+
+
+def create_batch_journal(directory: str | Path, *, initial: Any) -> str:
+    """Create a multi-worker journal; caller retains its initial hash externally."""
+    from phc2d.inverse.feedback_batch_dispatch import FeedbackBatchState, restore_feedback_batch_state
+
+    if not isinstance(initial, FeedbackBatchState) or initial.batches:
+        raise ValueError('batch journal must start without active batches')
+    restored = restore_feedback_batch_state(asdict(initial))
+    raw = _serialize({'schema': 'feedback_batch_journal_v1', 'state': asdict(restored)})
+    target = Path(directory)
+    target.mkdir(parents=False, exist_ok=False)
+    (target/'events').mkdir()
+    _write_once(target/'initial.json', raw)
+    return _hash(raw)
+
+
+def replay_batch_journal(directory: str | Path, *, initial_sha256: str) -> tuple[Any, str, int]:
+    """Replay batch evidence and state; authenticate the returned head externally."""
+    from phc2d.inverse.feedback_batch_dispatch import restore_feedback_batch_state
+
+    target = Path(directory)
+    raw = (target/'initial.json').read_bytes()
+    if _hash(raw) != initial_sha256:
+        raise ValueError('batch journal initial hash differs')
+    initial = json.loads(raw)
+    if set(initial) != {'schema', 'state'} or initial['schema'] != 'feedback_batch_journal_v1':
+        raise ValueError('invalid batch journal initial record')
+    state = restore_feedback_batch_state(initial['state'])
+    if state.batches:
+        raise ValueError('batch journal begins with active batches')
+    entries = sorted((target/'events').iterdir(), key=lambda path: path.name)
+    head = initial_sha256
+    for number, path in enumerate(entries, start=1):
+        if path.name != f'{number:08d}.json' or not path.is_file() or path.is_symlink():
+            raise ValueError('batch journal event sequence differs')
+        event_raw = path.read_bytes()
+        event = json.loads(event_raw)
+        if (set(event) != {'schema', 'number', 'previous_sha256', 'batch_id', 'operation', 'payload', 'state_sha256'}
+                or event['schema'] != 'feedback_batch_event_v1' or isinstance(event['number'], bool)
+                or event['number'] != number or event['previous_sha256'] != head):
+            raise ValueError('batch journal event identity differs')
+        state = _apply_batch_event(state, event['batch_id'], event['operation'], event['payload'])
+        if _hash(_serialize(asdict(state))) != event['state_sha256']:
+            raise ValueError('batch journal transition differs')
+        head = _hash(event_raw)
+    return state, head, len(entries)
+
+
+def verify_batch_journal(directory: str | Path, *, initial_sha256: str, expected_head: str) -> tuple[Any, int]:
+    """Replay against an externally retained head; caller authenticates evidence."""
+    state, head, count = replay_batch_journal(directory, initial_sha256=initial_sha256)
+    if head != expected_head:
+        raise ValueError('batch journal head differs; reconcile before use')
+    return state, count
+
+
+def append_batch_event(directory: str | Path, *, initial_sha256: str, expected_head: str,
+                       batch_id: str, operation: str, payload: dict[str, Any]) -> tuple[Any, str]:
+    """Persist one event under the shared exclusive writer guard.
+
+    The caller must authenticate scheduler and worker evidence, preserve the
+    trusted head outside this directory, and reconcile a guard left by a crash.
+    """
+    target = Path(directory)
+    with _journal_writer_guard(target):
+        state, head, count = replay_batch_journal(target, initial_sha256=initial_sha256)
+        if head != expected_head:
+            raise ValueError('batch journal head differs; reconcile before writing')
+        updated = _apply_batch_event(state, batch_id, operation, payload)
+        event = {'schema': 'feedback_batch_event_v1', 'number': count+1, 'previous_sha256': head,
+                 'batch_id': batch_id, 'operation': operation, 'payload': payload,
+                 'state_sha256': _hash(_serialize(asdict(updated)))}
+        raw = _serialize(event)
+        _write_once(target/'events'/f'{count+1:08d}.json', raw)
+        return updated, _hash(raw)
 
 
 def summarize_dispatch_journal(directory: str | Path, *, initial_sha256: str,

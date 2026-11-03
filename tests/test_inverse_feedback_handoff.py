@@ -7,6 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 import hashlib
 import json
+import base64
 from dataclasses import asdict
 
 import numpy as np
@@ -26,6 +27,7 @@ from phc2d.inverse.feedback_handoff import (build_nominal_solver_manifest, consu
 from phc2d.inverse.feedback_state import propose_feedback, start_feedback
 from phc2d.inverse.fourier_design import update_fourier_binary
 from phc2d.inverse.resource_ledger import ResourceAmount, ResourceLedger, reserve_resources, settle_slurm_worker_group
+from phc2d.inverse.feedback_journal import create_batch_journal, append_batch_event, verify_batch_journal
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
@@ -203,6 +205,48 @@ def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
         accounting_bytes=b'100|FAILED|10|4|cpu=4,node=1\n', expected_gpus=0)
     assert batch_state.ledger.totals()['actual'] == ResourceAmount(40, 0)
     assert batch_audit['failed_workers'] == ['failure'] and batch_state.attempts == 2
+    initial_batch = FeedbackBatchState({'success': state, 'failure': state}, {},
+        ResourceLedger(ResourceAmount(40, 0)), max_inflight=2, max_attempts=4)
+    journal = tmp_path/'batch-journal'
+    initial_hash = create_batch_journal(journal, initial=initial_batch)
+    head = initial_hash
+    def add(operation, payload):
+        nonlocal head
+        next_state, head = append_batch_event(journal, initial_sha256=initial_hash, expected_head=head,
+                                               batch_id='batch', operation=operation, payload=payload)
+        return next_state
+    add('prepare', {'task_id': 'task', 'cluster_id': 'm9', 'workers': worker_lanes, 'proposals': proposals,
+                    'reservation': {'cpu_core_seconds': 40, 'gpu_seconds': 0}})
+    add('submission_unknown', {'reason': 'persisted before scheduler'})
+    unknown, count = verify_batch_journal(journal, initial_sha256=initial_hash, expected_head=head)
+    assert count == 2 and unknown.batches['batch'].phase == 'submission_unknown'
+    with pytest.raises(ValueError, match='head differs'):
+        append_batch_event(journal, initial_sha256=initial_hash, expected_head=initial_hash,
+            batch_id='batch', operation='confirm', payload={'job_id': '100', 'confirmation_source': 'scheduler'})
+    add('confirm', {'job_id': '100', 'confirmation_source': 'scheduler'})
+    def encoded(raw):
+        return base64.b64encode(raw).decode('ascii')
+    worker_payload = {name: {'exit_code': item['exit_code'], 'manifest': encoded(item['manifest_bytes']),
+        'manifest_sha256': item['manifest_sha256'], 'protocol': encoded(item['protocol_bytes']),
+        'protocol_sha256': item['protocol_sha256'],
+        'result': None if item['result_bytes'] is None else encoded(item['result_bytes']),
+        'failure_reason': item['failure_reason']} for name, item in records.items()}
+    corrupted_payload = dict(worker_payload)
+    corrupted_payload['success'] = {**worker_payload['success'], 'result': 'not-base64!'}
+    with pytest.raises(ValueError, match='invalid batch event'):
+        add('reconcile', {'workers': corrupted_payload})
+    with pytest.raises(ValueError, match='invalid batch event'):
+        add('reconcile', {'workers': {'success': worker_payload['success']}})
+    add('reconcile', {'workers': worker_payload})
+    completed = add('settle', {'accounting': encoded(b'100|FAILED|10|4|cpu=4,node=1\n'), 'expected_gpus': 0})
+    verified, count = verify_batch_journal(journal, initial_sha256=initial_hash, expected_head=head)
+    assert verified == completed and count == 5 and verified.ledger.totals()['actual'] == ResourceAmount(40, 0)
+    last = journal/'events'/'00000005.json'
+    saved = last.read_bytes()
+    last.unlink()
+    with pytest.raises(ValueError, match='head differs'):
+        verify_batch_journal(journal, initial_sha256=initial_hash, expected_head=head)
+    last.write_bytes(saved)
     assert states['success'].pending is not None and states['failure'].pending is not None
     with pytest.raises(ValueError, match='roster'):
         consume_robust_worker_group(states, {'success': records['success']})
