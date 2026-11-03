@@ -169,6 +169,49 @@ def settle_slurm_resources(ledger: ResourceLedger, *, task_id: str, cluster_id: 
     return replace(settled, records=tuple(records))
 
 
+def settle_slurm_worker_group(
+    ledger: ResourceLedger, *, task_id: str, cluster_id: str, job_id: str,
+    accounting_bytes: bytes, expected_gpus: int, expected_workers: Mapping[str, str],
+    worker_outcomes: Mapping[str, Mapping[str, Any]],
+) -> tuple[ResourceLedger, dict[str, Any]]:
+    """Settle one allocation once after checking every frozen worker identity.
+
+    Keys are worker IDs; expected values are candidate SHA-256 identities.
+    Outcomes contain candidate_sha256, integer exit_code and result_sha256
+    (required on success; optional on failure). Raw output validation, worker
+    outcome authenticity, job-to-worker mapping and requeue status remain the
+    caller's responsibility. This operation does not assign job cost to workers
+    or judge numerical/physical success.
+    """
+    digest = re.compile(r'^[0-9a-f]{64}$')
+    if (not isinstance(expected_workers, Mapping) or not expected_workers
+            or not isinstance(worker_outcomes, Mapping) or set(worker_outcomes) != set(expected_workers)
+            or any(not isinstance(worker, str) or not worker.strip() for worker in expected_workers)
+            or any(not isinstance(value, str) or not digest.fullmatch(value) for value in expected_workers.values())
+            or len(set(expected_workers.values())) != len(expected_workers)):
+        raise ValueError('invalid or incomplete frozen worker roster')
+    failed = []
+    for worker, candidate in expected_workers.items():
+        result = worker_outcomes[worker]
+        if not isinstance(result, Mapping) or set(result) != {'candidate_sha256', 'exit_code', 'result_sha256'}:
+            raise ValueError('invalid worker outcome fields')
+        code, result_sha = result['exit_code'], result['result_sha256']
+        if (result['candidate_sha256'] != candidate or isinstance(code, bool) or not isinstance(code, int) or code < 0
+                or (result_sha is not None and (not isinstance(result_sha, str) or not digest.fullmatch(result_sha)))
+                or (code == 0 and result_sha is None)):
+            raise ValueError('worker identity, exit or result digest mismatch')
+        if code != 0:
+            failed.append(worker)
+    parsed = parse_terminal_allocations(accounting_bytes, expected_gpus={job_id: expected_gpus})
+    settled = settle_slurm_resources(ledger, task_id=task_id, cluster_id=cluster_id,
+                                     accounting_bytes=accounting_bytes, expected_gpus={job_id: expected_gpus})
+    return settled, {'scope': 'worker_identity_and_single_allocation_only_not_physical_validation',
+        'job_id': job_id, 'allocation_state': parsed['allocations'][0].state,
+        'worker_count': len(expected_workers), 'failed_workers': failed,
+        'cpu_core_seconds': parsed['cpu_core_seconds'], 'gpu_seconds': parsed['gpu_seconds'],
+        'accounting_sha256': parsed['source_sha256']}
+
+
 def release_unstarted(ledger: ResourceLedger, *, task_id: str, confirmed_not_started: bool,
                       confirmation_source: str) -> ResourceLedger:
     """Release a reservation only after external confirmation that it never ran."""

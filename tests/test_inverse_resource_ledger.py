@@ -12,8 +12,44 @@ import pytest
 
 from phc2d.inverse.resource_ledger import (
     ResourceAmount, ResourceLedger, release_unstarted, reserve_resources, settle_resources,
-    settle_slurm_resources, restore_resource_ledger, audit_slurm_ledger,
+    settle_slurm_resources, settle_slurm_worker_group, restore_resource_ledger, audit_slurm_ledger,
 )
+
+
+def test_worker_group_accounts_one_allocation_and_keeps_worker_failure():
+    ledger = reserve_resources(ResourceLedger(ResourceAmount(40, 0)), task_id='batch', amount=ResourceAmount(40, 0))
+    workers = {'slot-a': 'a'*64, 'slot-b': 'b'*64}
+    outcomes = {'slot-a': {'candidate_sha256': 'a'*64, 'exit_code': 0, 'result_sha256': 'c'*64},
+                'slot-b': {'candidate_sha256': 'b'*64, 'exit_code': 1, 'result_sha256': None}}
+    args = {'task_id': 'batch', 'cluster_id': 'm9', 'job_id': '100',
+            'accounting_bytes': b'100|FAILED|10|4|cpu=4,node=1\n100.batch|FAILED|10|4|cpu=4,node=1\n',
+            'expected_gpus': 0, 'expected_workers': workers, 'worker_outcomes': outcomes}
+    completed, audit = settle_slurm_worker_group(ledger, **args)
+    assert completed.totals()['actual'] == ResourceAmount(40, 0)
+    assert completed.records[0].allocation_ids == ('m9:100',)
+    assert audit['worker_count'] == 2 and audit['failed_workers'] == ['slot-b']
+    assert audit['allocation_state'] == 'FAILED'
+    with pytest.raises(ValueError):
+        settle_slurm_worker_group(completed, **args)
+    second = reserve_resources(completed, task_id='second-batch', amount=ResourceAmount(0, 0))
+    with pytest.raises(ValueError, match='already accounted'):
+        settle_slurm_worker_group(second, **dict(args, task_id='second-batch'))
+    with pytest.raises(ValueError, match='roster'):
+        settle_slurm_worker_group(ledger, **dict(args, worker_outcomes={'slot-a': outcomes['slot-a']}))
+    bad = {**outcomes, 'slot-a': {**outcomes['slot-a'], 'candidate_sha256': 'd'*64}}
+    with pytest.raises(ValueError, match='identity'):
+        settle_slurm_worker_group(ledger, **dict(args, worker_outcomes=bad))
+    bad = {**outcomes, 'slot-a': {**outcomes['slot-a'], 'result_sha256': None}}
+    with pytest.raises(ValueError, match='result digest'):
+        settle_slurm_worker_group(ledger, **dict(args, worker_outcomes=bad))
+    with pytest.raises(ValueError, match='roster'):
+        settle_slurm_worker_group(ledger, **dict(args, expected_workers={'slot-a': 'a'*64, 'slot-b': 'a'*64}))
+    with pytest.raises(ValueError, match='not terminal'):
+        settle_slurm_worker_group(ledger, **dict(args, accounting_bytes=b'100|RUNNING|10|4|cpu=4,node=1\n'))
+    overrun, _ = settle_slurm_worker_group(ledger, **dict(args,
+        accounting_bytes=b'100|FAILED|11|4|cpu=4,node=1\n'))
+    assert overrun.totals()['actual'] == ResourceAmount(44, 0)
+    assert overrun.status() == 'budget_exceeded'
 
 
 def test_reservation_and_settlement_account_for_cpu_and_gpu_separately():
