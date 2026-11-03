@@ -438,16 +438,33 @@ def replay_campaign_journal(directory: str | Path, *, initial_sha256: str) -> tu
 
 def append_campaign_event(directory: str | Path, *, initial_sha256: str, expected_head: str,
                           lane: str, operation: str, payload: dict[str, Any]) -> tuple[Any, str]:
-    """Append one immutable transition after verifying the externally held head."""
-    state, head, count = replay_campaign_journal(directory, initial_sha256=initial_sha256)
-    if head != expected_head:
-        raise ValueError('campaign journal head differs; reconcile before writing')
-    updated = _apply_campaign_event(state, lane, operation, payload)
-    event = {'schema': 'feedback_campaign_event_v1', 'number': count+1, 'previous_sha256': head,
-             'lane': lane, 'operation': operation, 'payload': payload, 'state_sha256': _hash(_serialize(asdict(updated)))}
-    raw = _serialize(event)
-    _write_once(Path(directory)/'events'/f'{count+1:08d}.json', raw)
-    return updated, _hash(raw)
+    """Append under an exclusive guard after checking the externally held head.
+
+    A hard process crash can leave the guard file behind; reconcile ownership
+    and the trusted chain before manually clearing it. No scheduler operation
+    or external head custody is provided by this function.
+    """
+    target = Path(directory)
+    guard = target/'.writer.lock'
+    try:
+        fd = os.open(guard, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise ValueError('campaign writer guard exists; reconcile before writing') from exc
+    try:
+        os.write(fd, f'{os.getpid()}\n'.encode('ascii'))
+        os.fsync(fd)
+        state, head, count = replay_campaign_journal(target, initial_sha256=initial_sha256)
+        if head != expected_head:
+            raise ValueError('campaign journal head differs; reconcile before writing')
+        updated = _apply_campaign_event(state, lane, operation, payload)
+        event = {'schema': 'feedback_campaign_event_v1', 'number': count+1, 'previous_sha256': head,
+                 'lane': lane, 'operation': operation, 'payload': payload, 'state_sha256': _hash(_serialize(asdict(updated)))}
+        raw = _serialize(event)
+        _write_once(target/'events'/f'{count+1:08d}.json', raw)
+        return updated, _hash(raw)
+    finally:
+        os.close(fd)
+        guard.unlink()
 
 
 def verify_campaign_journal(directory: str | Path, *, initial_sha256: str,

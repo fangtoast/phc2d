@@ -95,6 +95,14 @@ def test_campaign_journal_replays_interleaved_lanes_and_rejects_stale_heads(tmp_
     journal = tmp_path/'campaign'
     initial_sha = create_campaign_journal(journal, initial=initial)
     head = initial_sha
+    guard = journal/'.writer.lock'
+    guard.write_text('other writer', encoding='ascii')
+    with pytest.raises(ValueError, match='writer guard'):
+        append_campaign_event(journal, initial_sha256=initial_sha, expected_head=head,
+            lane='a', operation='submission_unknown', payload={'reason': 'not dispatched'})
+    assert guard.read_text(encoding='ascii') == 'other writer'
+    assert not list((journal/'events').iterdir())
+    guard.unlink()
     def append(lane, operation, payload):
         nonlocal head
         state, head = append_campaign_event(journal, initial_sha256=initial_sha, expected_head=head,
@@ -107,6 +115,7 @@ def test_campaign_journal_replays_interleaved_lanes_and_rejects_stale_heads(tmp_
     with pytest.raises(ValueError, match='head differs'):
         append_campaign_event(journal, initial_sha256=initial_sha, expected_head=initial_sha,
             lane='a', operation='confirm', payload={'job_id': '100', 'confirmation_source': 'scheduler'})
+    assert not guard.exists()
     append('a', 'confirm', {'job_id': '100', 'confirmation_source': 'scheduler'})
     with pytest.raises(ValueError, match='duplicate'):
         append('b', 'confirm', {'job_id': '100', 'confirmation_source': 'scheduler'})
