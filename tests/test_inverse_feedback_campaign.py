@@ -201,3 +201,29 @@ def test_campaign_journal_consumes_checked_nominal_solver_result_and_other_lane_
     assert state.ledger.totals()['actual'] == ResourceAmount(60, 0)
     restored, _ = verify_campaign_journal(journal, initial_sha256=initial_sha, expected_head=head)
     assert restored == state
+    second = update_fourier_binary(source, sample_id='second', coefficients={},
+        threshold=source.parameters['threshold']+.05, max_mode_radius=1)
+    second_proposal = {**proposal(second.parameter_hash), 'parameters': [.05]}
+    append('a', 'begin', {'proposal': second_proposal, 'task_id': 'task-a2', 'cluster_id': 'm9',
+        'reservation': {'cpu_core_seconds': 20, 'gpu_seconds': 0}})
+    append('a', 'submission_unknown', {'reason': 'persisted before scheduler call'})
+    state = append('a', 'confirm', {'job_id': '102', 'confirmation_source': 'scheduler'})
+    request2 = build_robust_solver_manifest(state.lanes['a'], second, k_points=points, config=config,
+                                             lower_band=1, source_index=3)
+    request2_raw = json.dumps(request2).encode()
+    request2_sha = hashlib.sha256(request2_raw).hexdigest()
+    request2_path = tmp_path/'manifest2.json'
+    request2_path.write_bytes(request2_raw)
+    run2 = run_case(request2_path, expected_sha256=request2_sha, protocol_path=protocol_path,
+                    expected_protocol_sha256=protocol_sha, case_index=0, output_root=tmp_path/'solver2', solver=solver)
+    result2 = {'manifest': enc(request2_raw), 'manifest_sha256': request2_sha,
+               'protocol': enc(protocol_raw), 'protocol_sha256': protocol_sha,
+               'result': enc((run2/'results.json').read_bytes())}
+    state = append('a', 'result', result2)
+    assert state.lanes['a'].remaining_evaluations == 0
+    assert len(state.lanes['a'].history) == 2
+    assert all(row['status'] == 'compared' for row in state.lanes['a'].history)
+    state = append('a', 'settle', {'accounting': enc(b'102|COMPLETED|5|3|cpu=3,node=1\n'), 'allocated_gpus': 0})
+    assert state.ledger.totals()['actual'] == ResourceAmount(75, 0)
+    restored, _ = verify_campaign_journal(journal, initial_sha256=initial_sha, expected_head=head)
+    assert restored == state
