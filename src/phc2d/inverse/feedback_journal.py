@@ -500,7 +500,10 @@ def _apply_batch_event(state: Any, batch_id: str, operation: str, payload: dict[
         'reconcile': {'workers'}, 'settle': {'accounting', 'expected_gpus'},
     }
     if (not isinstance(batch_id, str) or not batch_id or not isinstance(operation, str)
-            or operation not in fields or not isinstance(payload, dict) or set(payload) != fields[operation]):
+            or operation not in fields or not isinstance(payload, dict)):
+        raise ValueError('unknown batch operation or unexpected payload fields')
+    valid_fields = (fields[operation], fields[operation] | {'terminal_accounting', 'expected_gpus'}) if operation == 'reconcile' else (fields[operation],)
+    if set(payload) not in valid_fields:
         raise ValueError('unknown batch operation or unexpected payload fields')
     if operation == 'prepare':
         reservation = payload['reservation']
@@ -536,7 +539,10 @@ def _apply_batch_event(state: Any, batch_id: str, operation: str, payload: dict[
                 'protocol_sha256': row['protocol_sha256'],
                 'result_bytes': None if row['result'] is None else base64.b64decode(row['result'], validate=True),
                 'failure_reason': row['failure_reason']}
-        return batch.reconcile_worker_batch(state, batch_id=batch_id, results_by_worker=records)
+        terminal = (None if 'terminal_accounting' not in payload else
+                    base64.b64decode(payload['terminal_accounting'], validate=True))
+        return batch.reconcile_worker_batch(state, batch_id=batch_id, results_by_worker=records,
+            terminal_accounting_bytes=terminal, expected_gpus=payload.get('expected_gpus'))
     except (TypeError, ValueError) as exc:
         raise ValueError('invalid batch event or encoded evidence') from exc
 
@@ -554,6 +560,15 @@ def create_batch_journal(directory: str | Path, *, initial: Any) -> str:
     (target/'events').mkdir()
     _write_once(target/'initial.json', raw)
     return _hash(raw)
+
+
+def _batch_state_hash(state: Any) -> str:
+    """Keep v1 state hashes stable when the new optional evidence is absent."""
+    payload = asdict(state)
+    for batch in payload['batches'].values():
+        if batch['terminal_accounting_sha256'] is None:
+            del batch['terminal_accounting_sha256']
+    return _hash(_serialize(payload))
 
 
 def replay_batch_journal(directory: str | Path, *, initial_sha256: str) -> tuple[Any, str, int]:
@@ -582,7 +597,7 @@ def replay_batch_journal(directory: str | Path, *, initial_sha256: str) -> tuple
                 or event['number'] != number or event['previous_sha256'] != head):
             raise ValueError('batch journal event identity differs')
         state = _apply_batch_event(state, event['batch_id'], event['operation'], event['payload'])
-        if _hash(_serialize(asdict(state))) != event['state_sha256']:
+        if _batch_state_hash(state) != event['state_sha256']:
             raise ValueError('batch journal transition differs')
         head = _hash(event_raw)
     return state, head, len(entries)
@@ -611,7 +626,7 @@ def append_batch_event(directory: str | Path, *, initial_sha256: str, expected_h
         updated = _apply_batch_event(state, batch_id, operation, payload)
         event = {'schema': 'feedback_batch_event_v1', 'number': count+1, 'previous_sha256': head,
                  'batch_id': batch_id, 'operation': operation, 'payload': payload,
-                 'state_sha256': _hash(_serialize(asdict(updated)))}
+                 'state_sha256': _batch_state_hash(updated)}
         raw = _serialize(event)
         _write_once(target/'events'/f'{count+1:08d}.json', raw)
         return updated, _hash(raw)

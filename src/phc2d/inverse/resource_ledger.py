@@ -177,8 +177,8 @@ def settle_slurm_worker_group(
     """Settle one allocation once after checking every frozen worker identity.
 
     Keys are worker IDs; expected values are candidate SHA-256 identities.
-    Outcomes contain candidate_sha256, integer exit_code and result_sha256
-    (required on success; optional on failure). Raw output validation, worker
+    Outcomes contain candidate_sha256, integer or unknown (None) exit_code and
+    result_sha256 (required on success; optional otherwise). Raw output validation, worker
     outcome authenticity, job-to-worker mapping and requeue status remain the
     caller's responsibility. This operation does not assign job cost to workers
     or judge numerical/physical success.
@@ -190,24 +190,27 @@ def settle_slurm_worker_group(
             or any(not isinstance(value, str) or not digest.fullmatch(value) for value in expected_workers.values())
             or len(set(expected_workers.values())) != len(expected_workers)):
         raise ValueError('invalid or incomplete frozen worker roster')
-    failed = []
+    failed, unknown = [], []
     for worker, candidate in expected_workers.items():
         result = worker_outcomes[worker]
         if not isinstance(result, Mapping) or set(result) != {'candidate_sha256', 'exit_code', 'result_sha256'}:
             raise ValueError('invalid worker outcome fields')
         code, result_sha = result['exit_code'], result['result_sha256']
-        if (result['candidate_sha256'] != candidate or isinstance(code, bool) or not isinstance(code, int) or code < 0
+        if (result['candidate_sha256'] != candidate
+                or (code is not None and (isinstance(code, bool) or not isinstance(code, int) or code < 0))
                 or (result_sha is not None and (not isinstance(result_sha, str) or not digest.fullmatch(result_sha)))
                 or (code == 0 and result_sha is None)):
             raise ValueError('worker identity, exit or result digest mismatch')
-        if code != 0:
+        if code is None:
+            unknown.append(worker)
+        elif code != 0:
             failed.append(worker)
     parsed = parse_terminal_allocations(accounting_bytes, expected_gpus={job_id: expected_gpus})
     settled = settle_slurm_resources(ledger, task_id=task_id, cluster_id=cluster_id,
                                      accounting_bytes=accounting_bytes, expected_gpus={job_id: expected_gpus})
     return settled, {'scope': 'worker_identity_and_single_allocation_only_not_physical_validation',
         'job_id': job_id, 'allocation_state': parsed['allocations'][0].state,
-        'worker_count': len(expected_workers), 'failed_workers': failed,
+        'worker_count': len(expected_workers), 'failed_workers': failed, 'unknown_workers': unknown,
         'cpu_core_seconds': parsed['cpu_core_seconds'], 'gpu_seconds': parsed['gpu_seconds'],
         'accounting_sha256': parsed['source_sha256']}
 

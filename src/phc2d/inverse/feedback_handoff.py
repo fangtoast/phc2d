@@ -296,7 +296,8 @@ def consume_robust_worker_group(
     Each record supplies exit_code, manifest_bytes, manifest_sha256,
     protocol_bytes, protocol_sha256, result_bytes and failure_reason. Success
     requires a fully validated solver result; failures consume one pending
-    attempt. The returned outcomes can feed worker-group resource settlement.
+    attempt. A missing exit (None) is recorded as unknown, not as a proved
+    solver failure. The returned outcomes can feed worker-group settlement.
     Scheduler identity, worker exit authenticity and evidence persistence must
     be verified externally before this pure operation is committed.
     """
@@ -332,7 +333,7 @@ def consume_robust_worker_group(
                 or not isinstance(protocol, dict)):
             raise ValueError('worker request does not match pending candidate')
         code = item['exit_code']
-        if isinstance(code, bool) or not isinstance(code, int) or code < 0:
+        if code is not None and (isinstance(code, bool) or not isinstance(code, int) or code < 0):
             raise ValueError('invalid worker exit code')
         if code == 0:
             if not isinstance(item['result_bytes'], bytes) or item['failure_reason'] is not None:
@@ -345,7 +346,8 @@ def consume_robust_worker_group(
             reason = item['failure_reason']
             if item['result_bytes'] is not None or not isinstance(reason, str) or not reason.strip():
                 raise ValueError('failed worker requires a reason and no success result')
-            updated[worker] = finish_feedback(state, failure_reason=reason)
+            updated[worker] = finish_feedback(state, failure_reason=reason,
+                failure_status='worker_result_unknown' if code is None else 'solver_failure')
             result_sha = None
         outcomes[worker] = {'candidate_sha256': candidate, 'exit_code': code, 'result_sha256': result_sha}
     return updated, outcomes

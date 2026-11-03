@@ -8,9 +8,11 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import hashlib
 import re
 from typing import Any, Mapping
 
+from phc2d.hpc.slurm_accounting import parse_terminal_allocations
 from phc2d.inverse.feedback_handoff import consume_robust_worker_group
 from phc2d.inverse.feedback_state import FeedbackState, propose_feedback, restore_feedback
 from phc2d.inverse.resource_ledger import (ResourceAmount, ResourceLedger, release_unstarted, reserve_resources,
@@ -28,6 +30,7 @@ class WorkerBatch:
     job_id: str | None = None
     confirmation_source: str | None = None
     outcomes: Mapping[str, Mapping[str, Any]] | None = None
+    terminal_accounting_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -67,10 +70,12 @@ class FeedbackBatchState:
                     or batch.phase not in {'prepared', 'submission_unknown', 'submitted', 'awaiting_accounting'}):
                 raise ValueError('invalid worker batch')
             if batch.phase == 'prepared':
-                if batch.job_id is not None or batch.confirmation_source is not None or batch.outcomes is not None:
+                if (batch.job_id is not None or batch.confirmation_source is not None or batch.outcomes is not None
+                        or batch.terminal_accounting_sha256 is not None):
                     raise ValueError('prepared batch cannot claim submission')
             elif batch.phase == 'submission_unknown':
-                if batch.job_id is not None or not batch.confirmation_source or batch.outcomes is not None:
+                if (batch.job_id is not None or not batch.confirmation_source or batch.outcomes is not None
+                        or batch.terminal_accounting_sha256 is not None):
                     raise ValueError('ambiguous batch needs a reason and no job')
             else:
                 if (not isinstance(batch.job_id, str) or not re.fullmatch(r'[0-9]+(?:_[0-9]+)?', batch.job_id)
@@ -79,6 +84,11 @@ class FeedbackBatchState:
                 jobs.append((batch.cluster_id, batch.job_id))
                 if (batch.phase == 'submitted') != (batch.outcomes is None):
                     raise ValueError('batch outcomes differ from phase')
+                if (batch.phase == 'submitted' and batch.terminal_accounting_sha256 is not None
+                        or batch.terminal_accounting_sha256 is not None and
+                           (not isinstance(batch.terminal_accounting_sha256, str) or
+                            not re.fullmatch(r'[0-9a-f]{64}', batch.terminal_accounting_sha256))):
+                    raise ValueError('invalid terminal accounting identity')
             if batch.outcomes is not None and set(batch.outcomes) != set(batch.workers):
                 raise ValueError('batch outcome roster mismatch')
             for worker, lane in batch.workers.items():
@@ -88,16 +98,18 @@ class FeedbackBatchState:
                             or state.history[-1]['parameter_hash'] != batch.candidates[worker]
                             or not isinstance(batch.outcomes[worker], Mapping)
                             or set(batch.outcomes[worker]) != {'candidate_sha256', 'exit_code', 'result_sha256'}
-                            or batch.outcomes[worker].get('candidate_sha256') != batch.candidates[worker]
-                            or isinstance(batch.outcomes[worker].get('exit_code'), bool)
-                            or not isinstance(batch.outcomes[worker].get('exit_code'), int)
-                            or batch.outcomes[worker]['exit_code'] < 0
-                            or ((state.history[-1]['status'] == 'solver_failure') !=
-                                (batch.outcomes[worker]['exit_code'] != 0))
-                            or (batch.outcomes[worker]['exit_code'] == 0 and
-                                (not isinstance(batch.outcomes[worker]['result_sha256'], str) or
-                                 not re.fullmatch(r'[0-9a-f]{64}', batch.outcomes[worker]['result_sha256'])))
-                            or (batch.outcomes[worker]['exit_code'] != 0 and batch.outcomes[worker]['result_sha256'] is not None)):
+                            or batch.outcomes[worker].get('candidate_sha256') != batch.candidates[worker]):
+                        raise ValueError('settled worker and lane differ')
+                    code, result_sha = batch.outcomes[worker]['exit_code'], batch.outcomes[worker]['result_sha256']
+                    status = state.history[-1]['status']
+                    if (code is None and (status != 'worker_result_unknown' or result_sha is not None
+                                          or batch.terminal_accounting_sha256 is None)
+                            or code is not None and (isinstance(code, bool) or not isinstance(code, int) or code < 0)
+                            or isinstance(code, int) and not isinstance(code, bool) and code == 0
+                               and (status in ('solver_failure', 'worker_result_unknown') or not isinstance(result_sha, str)
+                                    or not re.fullmatch(r'[0-9a-f]{64}', result_sha))
+                            or isinstance(code, int) and not isinstance(code, bool) and code > 0
+                               and (status != 'solver_failure' or result_sha is not None)):
                         raise ValueError('settled worker and lane differ')
                 elif state.pending is None or state.pending.parameter_hash != batch.candidates[worker]:
                     raise ValueError('pending worker and lane differ')
@@ -178,18 +190,32 @@ def release_unstarted_worker_batch(state: FeedbackBatchState, *, batch_id: str, 
 
 
 def reconcile_worker_batch(state: FeedbackBatchState, *, batch_id: str,
-                           results_by_worker: Mapping[str, Mapping[str, Any]]) -> FeedbackBatchState:
-    """Consume a complete batch only after its external evidence is authenticated."""
+                           results_by_worker: Mapping[str, Mapping[str, Any]],
+                           terminal_accounting_bytes: bytes | None = None,
+                           expected_gpus: int | None = None) -> FeedbackBatchState:
+    """Reconcile outcomes; unknown exits additionally require terminal accounting.
+
+    The caller authenticates the accounting and confirms the job cannot be
+    requeued. Missing exits stay unknown and consume the attempt conservatively.
+    """
     batch = state.batches[batch_id]
     if batch.phase != 'submitted':
         raise ValueError('confirmed submitted batch required')
+    if not isinstance(results_by_worker, Mapping):
+        raise ValueError('worker result mapping required')
+    has_unknown = any(isinstance(row, Mapping) and row.get('exit_code') is None for row in results_by_worker.values())
+    if has_unknown:
+        if not isinstance(terminal_accounting_bytes, bytes) or expected_gpus is None:
+            raise ValueError('terminal accounting required for unknown worker exits')
+        parse_terminal_allocations(terminal_accounting_bytes, expected_gpus={batch.job_id: expected_gpus})
     pending = {worker: state.lanes[lane] for worker, lane in batch.workers.items()}
     updated, outcomes = consume_robust_worker_group(pending, results_by_worker)
     lanes = dict(state.lanes)
     for worker, lane in batch.workers.items():
         lanes[lane] = updated[worker]
     batches = dict(state.batches)
-    batches[batch_id] = replace(batch, phase='awaiting_accounting', outcomes=outcomes)
+    batches[batch_id] = replace(batch, phase='awaiting_accounting', outcomes=outcomes,
+        terminal_accounting_sha256=hashlib.sha256(terminal_accounting_bytes).hexdigest() if has_unknown else None)
     return replace(state, lanes=lanes, batches=batches)
 
 
@@ -199,6 +225,10 @@ def settle_worker_batch(state: FeedbackBatchState, *, batch_id: str,
     batch = state.batches[batch_id]
     if batch.phase != 'awaiting_accounting':
         raise ValueError('complete worker outcomes required before settlement')
+    if (batch.terminal_accounting_sha256 is not None
+            and (not isinstance(accounting_bytes, bytes)
+                 or hashlib.sha256(accounting_bytes).hexdigest() != batch.terminal_accounting_sha256)):
+        raise ValueError('terminal accounting differs from unknown-worker evidence')
     ledger, audit = settle_slurm_worker_group(state.ledger, task_id=batch.task_id, cluster_id=batch.cluster_id,
         job_id=batch.job_id, accounting_bytes=accounting_bytes, expected_gpus=expected_gpus,
         expected_workers=batch.candidates, worker_outcomes=batch.outcomes)

@@ -197,6 +197,25 @@ def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
         release_unstarted_worker_batch(restored, batch_id='batch', confirmed_not_started=True,
             confirmed_no_future_execution=False, confirmation_source='scheduler')
     batch_state = confirm_worker_batch(restored, batch_id='batch', job_id='100', confirmation_source='scheduler')
+    unknown_records = dict(records)
+    unknown_records['failure'] = {**records['failure'], 'exit_code': None,
+                                  'failure_reason': 'terminal job; worker exit unavailable'}
+    with pytest.raises(ValueError, match='terminal accounting required'):
+        reconcile_worker_batch(batch_state, batch_id='batch', results_by_worker=unknown_records)
+    with pytest.raises(ValueError, match='not terminal'):
+        reconcile_worker_batch(batch_state, batch_id='batch', results_by_worker=unknown_records,
+            terminal_accounting_bytes=b'100|RUNNING|10|4|cpu=4,node=1\n', expected_gpus=0)
+    unknown_batch = reconcile_worker_batch(batch_state, batch_id='batch', results_by_worker=unknown_records,
+        terminal_accounting_bytes=b'100|FAILED|10|4|cpu=4,node=1\n', expected_gpus=0)
+    assert unknown_batch.lanes['failure'].history[-1]['status'] == 'worker_result_unknown'
+    unknown_batch = restore_feedback_batch_state(json.loads(json.dumps(asdict(unknown_batch))))
+    with pytest.raises(ValueError, match='terminal accounting differs'):
+        settle_worker_batch(unknown_batch, batch_id='batch',
+            accounting_bytes=b'100|FAILED|11|4|cpu=4,node=1\n', expected_gpus=0)
+    unknown_batch, unknown_audit = settle_worker_batch(unknown_batch, batch_id='batch',
+        accounting_bytes=b'100|FAILED|10|4|cpu=4,node=1\n', expected_gpus=0)
+    assert unknown_audit['unknown_workers'] == ['failure'] and unknown_audit['failed_workers'] == []
+    assert unknown_batch.lanes['failure'].remaining_evaluations == 0
     batch_state = reconcile_worker_batch(batch_state, batch_id='batch', results_by_worker=records)
     assert batch_state.lanes['success'] == updated['success']
     assert batch_state.lanes['failure'] == updated['failure']
@@ -247,6 +266,29 @@ def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
     with pytest.raises(ValueError, match='head differs'):
         verify_batch_journal(journal, initial_sha256=initial_hash, expected_head=head)
     last.write_bytes(saved)
+    journal_unknown = tmp_path/'batch-journal-unknown'
+    unknown_initial_hash = create_batch_journal(journal_unknown, initial=initial_batch)
+    unknown_head = unknown_initial_hash
+    def add_unknown(operation, payload):
+        nonlocal unknown_head
+        next_state, unknown_head = append_batch_event(journal_unknown, initial_sha256=unknown_initial_hash,
+            expected_head=unknown_head, batch_id='batch', operation=operation, payload=payload)
+        return next_state
+    add_unknown('prepare', {'task_id': 'task', 'cluster_id': 'm9', 'workers': worker_lanes, 'proposals': proposals,
+                            'reservation': {'cpu_core_seconds': 40, 'gpu_seconds': 0}})
+    add_unknown('submission_unknown', {'reason': 'persisted before scheduler'})
+    add_unknown('confirm', {'job_id': '100', 'confirmation_source': 'scheduler'})
+    unknown_payload = dict(worker_payload)
+    unknown_payload['failure'] = {**worker_payload['failure'], 'exit_code': None,
+                                  'failure_reason': 'terminal job; worker exit unavailable'}
+    with pytest.raises(ValueError, match='invalid batch event'):
+        add_unknown('reconcile', {'workers': unknown_payload})
+    add_unknown('reconcile', {'workers': unknown_payload,
+        'terminal_accounting': encoded(b'100|FAILED|10|4|cpu=4,node=1\n'), 'expected_gpus': 0})
+    completed_unknown = add_unknown('settle', {'accounting': encoded(b'100|FAILED|10|4|cpu=4,node=1\n'),
+                                                 'expected_gpus': 0})
+    replayed, _ = verify_batch_journal(journal_unknown, initial_sha256=unknown_initial_hash, expected_head=unknown_head)
+    assert replayed == completed_unknown and replayed.lanes['failure'].history[-1]['status'] == 'worker_result_unknown'
     assert states['success'].pending is not None and states['failure'].pending is not None
     with pytest.raises(ValueError, match='roster'):
         consume_robust_worker_group(states, {'success': records['success']})

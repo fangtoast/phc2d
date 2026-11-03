@@ -130,13 +130,15 @@ def propose_feedback(state: FeedbackState, *, parameter_hash: str, parameters: S
 
 
 def finish_feedback(state: FeedbackState, *, observation: Mapping[str, Any] | None = None,
-                    failure_reason: str | None = None) -> FeedbackState:
+                    failure_reason: str | None = None, failure_status: str = 'solver_failure') -> FeedbackState:
     """Consume one physical attempt and retain the incumbent unless improvement is verified."""
     pending = state.pending
     if pending is None or (observation is None) == (failure_reason is None):
         raise ValueError('provide exactly one observation or failure for the pending candidate')
     if failure_reason is not None and not failure_reason.strip():
         raise ValueError('failure reason must be nonempty')
+    if failure_status not in ('solver_failure', 'worker_result_unknown') or (observation is not None and failure_status != 'solver_failure'):
+        raise ValueError('invalid failure status')
     base = {'parameter_hash': pending.parameter_hash, 'parameters': list(pending.parameters),
             'surrogate_contract_sha256': pending.surrogate_contract_sha256,
             'predicted_center': pending.predicted_center, 'predicted_candidate': pending.predicted_candidate}
@@ -144,7 +146,7 @@ def finish_feedback(state: FeedbackState, *, observation: Mapping[str, Any] | No
     incumbent_observation = state.incumbent_observation
     radius = state.radius
     if failure_reason is not None:
-        entry = {**base, 'status': 'solver_failure', 'reason': failure_reason, 'accepted': False}
+        entry = {**base, 'status': failure_status, 'reason': failure_reason, 'accepted': False}
     else:
         if observation.get('provenance', {}).get('parameter_hash') != pending.parameter_hash:
             raise ValueError('candidate observation identity mismatch')
