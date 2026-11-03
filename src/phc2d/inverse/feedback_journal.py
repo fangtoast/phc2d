@@ -372,6 +372,84 @@ def append_dispatch_event(directory: str | Path, *, initial_sha256: str, expecte
     return next_state, _hash(raw)
 
 
+def _apply_campaign_event(state: Any, lane: str, operation: str, payload: dict[str, Any]) -> Any:
+    """Reuse existing dispatch validation while retaining a shared campaign ledger."""
+    from phc2d.inverse.feedback_dispatch import FeedbackCampaignState, FeedbackDispatchState
+
+    if not isinstance(lane, str) or lane not in state.lanes:
+        raise ValueError('unknown campaign lane')
+    current = FeedbackDispatchState(state.lanes[lane], state.ledger, state.dispatches.get(lane))
+    updated = _apply_dispatch_event(current, operation, payload)
+    lanes, dispatches = dict(state.lanes), dict(state.dispatches)
+    lanes[lane] = updated.feedback
+    if updated.dispatch is None:
+        dispatches.pop(lane, None)
+    else:
+        dispatches[lane] = updated.dispatch
+    return FeedbackCampaignState(lanes, dispatches, updated.ledger, state.max_inflight, state.max_attempts)
+
+
+def create_campaign_journal(directory: str | Path, *, initial: Any) -> str:
+    """Create a single-writer campaign journal; retain the initial hash externally."""
+    from phc2d.inverse.feedback_dispatch import FeedbackCampaignState, restore_feedback_campaign
+
+    if not isinstance(initial, FeedbackCampaignState) or initial.dispatches:
+        raise ValueError('campaign journal must start without active dispatches')
+    restored = restore_feedback_campaign(asdict(initial))
+    raw = _serialize({'schema': 'feedback_campaign_journal_v1', 'state': asdict(restored)})
+    target = Path(directory)
+    target.mkdir(parents=False, exist_ok=False)
+    (target/'events').mkdir()
+    _write_once(target/'initial.json', raw)
+    return _hash(raw)
+
+
+def replay_campaign_journal(directory: str | Path, *, initial_sha256: str) -> tuple[Any, str, int]:
+    """Replay all lanes and reservations; the caller must authenticate the trusted head."""
+    from phc2d.inverse.feedback_dispatch import restore_feedback_campaign
+
+    target = Path(directory)
+    raw = (target/'initial.json').read_bytes()
+    if _hash(raw) != initial_sha256:
+        raise ValueError('campaign journal initial hash differs')
+    initial = json.loads(raw)
+    if set(initial) != {'schema', 'state'} or initial['schema'] != 'feedback_campaign_journal_v1':
+        raise ValueError('invalid campaign journal initial record')
+    state = restore_feedback_campaign(initial['state'])
+    if state.dispatches:
+        raise ValueError('campaign journal begins with active dispatches')
+    entries = sorted((target/'events').iterdir(), key=lambda path: path.name)
+    head = initial_sha256
+    for number, path in enumerate(entries, start=1):
+        if path.name != f'{number:08d}.json' or not path.is_file() or path.is_symlink():
+            raise ValueError('campaign journal event sequence differs')
+        event_raw = path.read_bytes()
+        event = json.loads(event_raw)
+        if (set(event) != {'schema', 'number', 'previous_sha256', 'lane', 'operation', 'payload', 'state_sha256'}
+                or event['schema'] != 'feedback_campaign_event_v1' or isinstance(event['number'], bool)
+                or event['number'] != number or event['previous_sha256'] != head):
+            raise ValueError('campaign journal event identity differs')
+        state = _apply_campaign_event(state, event['lane'], event['operation'], event['payload'])
+        if _hash(_serialize(asdict(state))) != event['state_sha256']:
+            raise ValueError('campaign journal transition differs')
+        head = _hash(event_raw)
+    return state, head, len(entries)
+
+
+def append_campaign_event(directory: str | Path, *, initial_sha256: str, expected_head: str,
+                          lane: str, operation: str, payload: dict[str, Any]) -> tuple[Any, str]:
+    """Append one immutable transition after verifying the externally held head."""
+    state, head, count = replay_campaign_journal(directory, initial_sha256=initial_sha256)
+    if head != expected_head:
+        raise ValueError('campaign journal head differs; reconcile before writing')
+    updated = _apply_campaign_event(state, lane, operation, payload)
+    event = {'schema': 'feedback_campaign_event_v1', 'number': count+1, 'previous_sha256': head,
+             'lane': lane, 'operation': operation, 'payload': payload, 'state_sha256': _hash(_serialize(asdict(updated)))}
+    raw = _serialize(event)
+    _write_once(Path(directory)/'events'/f'{count+1:08d}.json', raw)
+    return updated, _hash(raw)
+
+
 def summarize_dispatch_journal(directory: str | Path, *, initial_sha256: str,
                                expected_head: str) -> dict[str, Any]:
     """Inspect a chain against externally retained initial and head hashes."""
