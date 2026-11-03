@@ -286,6 +286,58 @@ def run_surrogate_design(source: FullCellStructureSpec, predictor: Any, *, seeds
     return output
 
 
+def run_budgeted_nominal_static_design(source: FullCellStructureSpec, predictor: Any, *, seeds: Sequence[int],
+                                       search_options: Mapping[str, Any], output_root: Path,
+                                       provenance: Mapping[str, Any], config_bytes: bytes) -> dict[str, Any]:
+    """Run independent nominal trajectories with separate strict inference budgets.
+
+    Each trajectory retains its ordinary search artifacts and a cost record,
+    including on failure. The caller must freeze and authenticate the complete
+    scientific and execution contracts; this function does not admit jobs.
+    """
+    from phc2d.inverse.frozen_band_adapter import SingleSampleBudgetedPredictor
+
+    options = dict(search_options)
+    budget = options.get('evaluation_budget')
+    config = json.loads(config_bytes)
+    if (tuple(options.get('perturbation_offsets') or ()) != (0.0,)
+            or options.get('raster_method') != 'master_block_mean_v1'
+            or isinstance(budget, bool) or not isinstance(budget, int) or budget < 1
+            or not seeds or any(isinstance(seed, bool) or not isinstance(seed, int) or seed < 0 for seed in seeds)
+            or len(set(seeds)) != len(seeds)
+            or config.get('seeds') != list(seeds)
+            or config.get('search_options') != json.loads(json.dumps(options))
+            or provenance.get('config_sha256') != hashlib.sha256(config_bytes).hexdigest()):
+        raise ValueError('budgeted nominal search requires distinct seeds and a zero-offset contract')
+    root = Path(output_root)
+    root.mkdir(parents=True, exist_ok=False)
+    records = []
+    for seed in seeds:
+        wrapped = SingleSampleBudgetedPredictor(predictor, max_inferences=budget, cache_capacity=budget)
+        seed_config = {**config, 'seeds': [seed]}
+        seed_raw = json.dumps(seed_config, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf8')
+        with (root/f'config_{seed}.json').open('xb') as stream:
+            stream.write(seed_raw)
+        seed_provenance = {**provenance, 'parent_config_sha256': provenance['config_sha256'],
+                           'config_sha256': hashlib.sha256(seed_raw).hexdigest()}
+        status, error = 'failed', None
+        try:
+            result = run_surrogate_design(source, wrapped, seeds=[seed], search_options=options,
+                output_root=root/f'trajectory_{seed}', provenance=seed_provenance)
+            status = result['status']
+        except Exception as exc:
+            error = {'type': type(exc).__name__, 'message': str(exc)}
+            raise
+        finally:
+            cost = {'seed': seed, 'status': status, 'error': error, 'max_inferences': budget,
+                    'requests': wrapped.requests, 'inferences': wrapped.inferences, 'cache_hits': wrapped.cache_hits}
+            with (root/f'cost_{seed}.json').open('x', encoding='utf8') as stream:
+                json.dump(cost, stream, sort_keys=True, allow_nan=False)
+        records.append(cost)
+    return {'scope': 'budgeted_nominal_static_surrogate_only', 'physical_validation': 'not_run',
+            'trajectories': records}
+
+
 def build_surrogate_replay_request(*, summary_bytes: bytes, summary_sha256: str,
                                    structure_bytes: bytes, seed: int, k_points: Any,
                                    k_points_sha256: str, solver_config: Any,

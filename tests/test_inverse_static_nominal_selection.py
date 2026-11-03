@@ -14,7 +14,8 @@ torch = pytest.importorskip('torch')
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.fourier_design import update_fourier_binary
-from phc2d.inverse.surrogate_design import audit_surrogate_design, run_surrogate_design
+from phc2d.inverse.surrogate_design import (audit_surrogate_design, run_surrogate_design,
+                                            run_budgeted_nominal_static_design)
 from phc2d.inverse.trace_selection import lock_static_nominal_candidates
 from phc2d.inverse.frozen_band_adapter import SingleSampleBudgetedPredictor
 
@@ -104,3 +105,30 @@ def test_static_selected_spectrum_reuses_prior_inference_within_budget(tmp_path)
     for name in ('search.json', 'predicted_response.json'):
         assert json.loads((tmp_path/'cached'/'seed_2026110501'/name).read_bytes()) == json.loads(
             (tmp_path/'reference'/'seed_2026110501'/name).read_bytes())
+    source_raw = json.dumps(source.to_mapping()).encode()
+    config_raw = json.dumps({'search_options': options, 'seeds': [2026110501, 2026110502],
+                             'checkpoint_sha256': 'a'*64}).encode()
+    provenance = {'source_sha256': hashlib.sha256(source_raw).hexdigest(),
+                  'config_sha256': hashlib.sha256(config_raw).hexdigest(), 'checkpoint_sha256': 'a'*64}
+    paired = run_budgeted_nominal_static_design(source, Predictor(), seeds=[2026110501, 2026110502],
+        search_options=options, output_root=tmp_path/'paired', provenance=provenance, config_bytes=config_raw)
+    assert len(paired['trajectories']) == 2
+    for record in paired['trajectories']:
+        assert record['inferences'] <= 10 and record['max_inferences'] == 10
+        assert json.loads((tmp_path/'paired'/f"cost_{record['seed']}.json").read_bytes()) == record
+        assert audit_surrogate_design(tmp_path/'paired'/f"trajectory_{record['seed']}",
+            config_bytes=(tmp_path/'paired'/f"config_{record['seed']}.json").read_bytes(),
+            source_bytes=source_raw, checkpoint_sha256='a'*64)['status'] == 'artifact_consistent'
+    with pytest.raises(FileExistsError):
+        run_budgeted_nominal_static_design(source, Predictor(), seeds=[2026110501, 2026110502],
+            search_options=options, output_root=tmp_path/'paired', provenance=provenance, config_bytes=config_raw)
+
+    class Failed:
+        def predict_tensor(self, raster):
+            raise RuntimeError('inference failed')
+    with pytest.raises(RuntimeError, match='inference failed'):
+        run_budgeted_nominal_static_design(source, Failed(), seeds=[2026110501, 2026110502],
+            search_options=options, output_root=tmp_path/'failed', provenance=provenance, config_bytes=config_raw)
+    failure = json.loads((tmp_path/'failed'/'cost_2026110501.json').read_bytes())
+    assert failure['status'] == 'failed' and failure['inferences'] == 1
+    assert not (tmp_path/'failed'/'cost_2026110502.json').exists()
