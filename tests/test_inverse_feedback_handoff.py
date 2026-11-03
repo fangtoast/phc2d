@@ -7,6 +7,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 
 import hashlib
 import json
+from dataclasses import asdict
 
 import numpy as np
 import pytest
@@ -15,6 +16,9 @@ from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.audit_refine import run_case
 from phc2d.inverse.audit_perturb_refine import run_case as run_offset_case
 from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
+from phc2d.inverse.feedback_batch_dispatch import (FeedbackBatchState, prepare_worker_batch,
+    mark_batch_submission_unknown, confirm_worker_batch, reconcile_worker_batch, settle_worker_batch,
+    release_unstarted_worker_batch, restore_feedback_batch_state)
 from phc2d.inverse.feedback_handoff import (build_nominal_solver_manifest, consume_nominal_solver_result,
                                             build_robust_solver_manifest, consume_robust_solver_result,
                                             validate_robust_observation, consume_robust_worker_group,
@@ -178,6 +182,27 @@ def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
         accounting_bytes=b'100|FAILED|10|4|cpu=4,node=1\n', expected_gpus=0,
         expected_workers={name: item.pending.parameter_hash for name, item in states.items()}, worker_outcomes=outcomes)
     assert ledger.totals()['actual'] == ResourceAmount(40, 0) and accounting['failed_workers'] == ['failure']
+    batch_state = FeedbackBatchState({'success': state, 'failure': state}, {},
+                                      ResourceLedger(ResourceAmount(40, 0)), max_inflight=2, max_attempts=4)
+    worker_lanes = {'success': 'success', 'failure': 'failure'}
+    proposals = {'success': asdict(pending.pending), 'failure': asdict(other_pending.pending)}
+    batch_state = prepare_worker_batch(batch_state, batch_id='batch', task_id='task', cluster_id='m9',
+                                      proposals=proposals, workers=worker_lanes, reservation=ResourceAmount(40, 0))
+    batch_state = mark_batch_submission_unknown(batch_state, batch_id='batch', reason='submitted, outcome uncertain')
+    restored = restore_feedback_batch_state(json.loads(json.dumps(asdict(batch_state))))
+    assert restored == batch_state and restored.ledger.totals()['reserved'] == ResourceAmount(40, 0)
+    with pytest.raises(ValueError, match='no-future-execution'):
+        release_unstarted_worker_batch(restored, batch_id='batch', confirmed_not_started=True,
+            confirmed_no_future_execution=False, confirmation_source='scheduler')
+    batch_state = confirm_worker_batch(restored, batch_id='batch', job_id='100', confirmation_source='scheduler')
+    batch_state = reconcile_worker_batch(batch_state, batch_id='batch', results_by_worker=records)
+    assert batch_state.lanes['success'] == updated['success']
+    assert batch_state.lanes['failure'] == updated['failure']
+    batch_state = restore_feedback_batch_state(json.loads(json.dumps(asdict(batch_state))))
+    batch_state, batch_audit = settle_worker_batch(batch_state, batch_id='batch',
+        accounting_bytes=b'100|FAILED|10|4|cpu=4,node=1\n', expected_gpus=0)
+    assert batch_state.ledger.totals()['actual'] == ResourceAmount(40, 0)
+    assert batch_audit['failed_workers'] == ['failure'] and batch_state.attempts == 2
     assert states['success'].pending is not None and states['failure'].pending is not None
     with pytest.raises(ValueError, match='roster'):
         consume_robust_worker_group(states, {'success': records['success']})
