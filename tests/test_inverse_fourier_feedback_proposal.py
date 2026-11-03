@@ -15,7 +15,8 @@ torch = pytest.importorskip('torch')
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.feedback_state import finish_feedback, propose_feedback, start_feedback
-from phc2d.inverse.fourier_feedback_proposal import propose_fourier_candidate, run_budgeted_nominal_feedback_proposal
+from phc2d.inverse.fourier_feedback_proposal import (propose_fourier_candidate, run_budgeted_nominal_feedback_proposal,
+                                                     audit_budgeted_nominal_feedback_proposal)
 from phc2d.inverse.frozen_band_adapter import (SingleSampleBudgetedPredictor, audit_completed_inference_cost,
                                               audit_prediction_archive_against_calls)
 from phc2d.inverse.surrogate_design import audit_nominal_prediction_archive
@@ -77,7 +78,17 @@ def test_search_proposal_respects_frozen_coordinates_and_feedback_identity(tmp_p
     request_raw = (tmp_path/'feedback'/'request.json').read_bytes()
     assert artifact['request_sha256'] == hashlib.sha256(request_raw).hexdigest()
     assert json.loads(request_raw)['state']['incumbent_hash'] == source.parameter_hash
+    assert audit_budgeted_nominal_feedback_proposal(tmp_path/'feedback',
+        expected_request_sha256=artifact['request_sha256'])['status'] == 'proposal_consistent_not_physical_validation'
     assert json.loads((tmp_path/'feedback'/'proposal.json').read_bytes()) == artifact
+    proposal_path = tmp_path/'feedback'/'proposal.json'
+    saved = proposal_path.read_bytes()
+    altered = json.loads(saved)
+    altered['result']['proposal']['predicted_center'] += .01
+    proposal_path.write_text(json.dumps(altered), encoding='utf8')
+    with pytest.raises(ValueError, match='candidate or prediction mismatch'):
+        audit_budgeted_nominal_feedback_proposal(tmp_path/'feedback', expected_request_sha256=artifact['request_sha256'])
+    proposal_path.write_bytes(saved)
     cost = json.loads((tmp_path/'feedback'/'cost.json').read_bytes())
     assert cost['inferences'] <= 10 and cost['cache_hits'] > 0
     assert audit_completed_inference_cost(tmp_path/'feedback'/'inferences', cost)['status'] == 'cost_consistent_not_source_authentication'

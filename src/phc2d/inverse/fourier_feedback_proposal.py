@@ -81,6 +81,98 @@ def run_budgeted_nominal_feedback_proposal(state: FeedbackState, source: FullCel
             raise RuntimeError('prediction archive failed; see cost record')
 
 
+def audit_budgeted_nominal_feedback_proposal(output_root: Path, *, expected_request_sha256: str) -> dict[str, Any]:
+    """Audit a saved successful nominal proposal against raw inference evidence.
+
+    This checks artifact consistency. The caller authenticates the original
+    state, execution, checkpoint and physical observation independently.
+    """
+    from phc2d.data.full_cell_raster import build_full_cell_raster_pyramid
+    from phc2d.inverse.feedback_state import restore_feedback
+    from phc2d.inverse.frozen_band_adapter import audit_prediction_archive_against_calls
+    from phc2d.inverse.robust_gap import common_gap
+    from phc2d.inverse.surrogate_design import audit_nominal_prediction_archive
+
+    root = Path(output_root)
+    raw = (root/'request.json').read_bytes()
+    if hashlib.sha256(raw).hexdigest() != expected_request_sha256:
+        raise ValueError('feedback request identity mismatch')
+    request = json.loads(raw)
+    payload = json.loads((root/'proposal.json').read_bytes())
+    cost = json.loads((root/'cost.json').read_bytes())
+    if (request.get('scope') != 'nominal_feedback_request_not_execution_lock'
+            or payload.get('scope') != 'budgeted_nominal_proposal_not_physical_validation'
+            or payload.get('request_sha256') != expected_request_sha256
+            or payload.get('provenance') != request['provenance']):
+        raise ValueError('feedback proposal provenance mismatch')
+    state = restore_feedback(request['state'])
+    source = FullCellStructureSpec.from_mapping(request['source'])
+    options, result = request['options'], payload['result']
+    if (source.parameter_hash != state.incumbent_hash or state.pending is not None
+            or cost['status'] != result['status'] or options.get('edge_correction') is not None
+            or options.get('projected_anchor_calibration', False)
+            or cost['max_inferences'] != options['surrogate_budget']):
+        raise ValueError('feedback state, method or budget mismatch')
+    audit_prediction_archive_against_calls(root/'inferences', root/'predictions.npz', cost)
+    nominal_options = {'raster_method': options['raster_method'], 'source_resolution': options['source_resolution'],
+        'input_resolution': options['input_resolution'], 'material_fraction_bounds': options['material_fraction_bounds'],
+        'lower_band': options['lower_band'], 'target_frequency': state.target_frequency,
+        'perturbation_offsets': options['perturbation_offsets'],
+        'geometry_constraints': options.get('geometry_constraints')}
+    trace = result['trace']
+    if (not isinstance(trace, list) or len(trace) < options['population_size']
+            or len(trace) > options['surrogate_budget']):
+        raise ValueError('feedback trace exceeds candidate budget')
+    bounds = np.asarray(options['global_bounds'], dtype=np.float64)
+    scales = np.asarray(options['scales'], dtype=np.float64)
+    origin = np.asarray(options['origin'], dtype=np.float64)
+    for index, row in enumerate(trace):
+        point = np.asarray(row['parameters'], dtype=np.float64)
+        structure = FullCellStructureSpec.from_mapping(row['structure'])
+        if (row['candidate_index'] != index or row['parameter_hash'] != structure.parameter_hash
+                or point.shape != origin.shape or scales.shape != origin.shape
+                or bounds.shape != (len(origin), 2) or not np.isfinite(point).all()
+                or not np.isfinite(origin).all() or not np.isfinite(scales).all() or not np.isfinite(bounds).all()
+                or np.any(scales <= 0) or np.any(point < bounds[:, 0]) or np.any(point > bounds[:, 1])
+                or np.linalg.norm((point-origin)/scales - state.incumbent_parameters) > state.radius + 1e-12):
+            raise ValueError('feedback trace candidate identity or bounds mismatch')
+    audit_nominal_prediction_archive(trace={'evaluations': trace}, options=nominal_options,
+                                    cost=cost, archive_path=root/'predictions.npz')
+    raster = build_full_cell_raster_pyramid(source, resolutions=[options['input_resolution']],
+        source_resolution=options['source_resolution'], method=options['raster_method']).grids[options['input_resolution']]
+    anchor = np.ascontiguousarray(raster[None, ...], dtype=np.float32)
+    with np.load(root/'predictions.npz', allow_pickle=False) as archive:
+        matches = [archive[name.replace('input_', 'output_', 1)] for name in archive.files
+                   if name.startswith('input_') and np.array_equal(archive[name], anchor)]
+    if len(matches) != 1:
+        raise ValueError('anchor prediction missing or duplicated')
+    bands = matches[0]
+    band = options['lower_band']
+    gap = asdict(common_gap(bands[:, :, band-1:band+1], lower_band=1, target_frequency=state.target_frequency))
+    if result['anchor_screen']['predicted_gap'] != gap:
+        raise ValueError('anchor score differs from archived spectrum')
+    eligible = [row for row in trace if row['status'] == 'surrogate_only' and row['parameter_hash'] not in state.seen_hashes]
+    eligible.sort(key=lambda row: (-float(row['selection_score']), row['candidate_index']))
+    best = eligible[0] if eligible else None
+    expected_status = ('no_unseen_candidate' if best is None else 'no_predicted_improvement'
+                       if float(best['selection_score']) <= gap['target_margin'] + 1e-12 else 'surrogate_proposal_only')
+    if result['status'] != expected_status:
+        raise ValueError('feedback candidate selection status mismatch')
+    if best is not None and expected_status == 'surrogate_proposal_only':
+        proposal = result['proposal']
+        candidate = FullCellStructureSpec.from_mapping(result['structure'])
+        normalized = ((np.asarray(best['parameters']) - np.asarray(options['origin'])) / np.asarray(options['scales'])).tolist()
+        if (candidate.parameter_hash != best['parameter_hash'] or proposal['parameter_hash'] != candidate.parameter_hash
+                or proposal['parameters'] != normalized or proposal['predicted_center'] != gap['target_margin']
+                or proposal['predicted_candidate'] != best['selection_score']
+                or proposal['surrogate_contract_sha256'] != options['surrogate_contract_sha256']):
+            raise ValueError('feedback candidate or prediction mismatch')
+    elif result['proposal'] is not None:
+        raise ValueError('unexpected feedback proposal')
+    return {'status': 'proposal_consistent_not_physical_validation', 'request_sha256': expected_request_sha256,
+            'candidate_rows': len(trace), 'actual_inferences': cost['inferences']}
+
+
 def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpec, predictor: Any, *,
                               coefficient_keys: tuple[tuple[int, str], ...],
                               global_bounds: Sequence[tuple[float, float]], origin: Sequence[float],
