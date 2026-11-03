@@ -14,7 +14,7 @@ from phc2d.inverse.feedback_dispatch import (FeedbackCampaignState, apply_campai
                                              restore_feedback_campaign)
 from phc2d.inverse.feedback_state import start_feedback
 from phc2d.inverse.feedback_journal import (append_campaign_event, create_campaign_journal,
-                                             replay_campaign_journal)
+                                             replay_campaign_journal, verify_campaign_journal)
 from phc2d.inverse.resource_ledger import ResourceAmount, ResourceLedger
 
 
@@ -111,6 +111,13 @@ def test_campaign_journal_replays_interleaved_lanes_and_rejects_stale_heads(tmp_
     assert restored.ledger.totals()['actual'] == ResourceAmount(30, 0)
     assert restored.ledger.totals()['reserved'] == ResourceAmount(40, 0)
     assert restored.dispatches['b'].job_id == '101'
+    assert verify_campaign_journal(journal, initial_sha256=initial_sha, expected_head=head) == (latest, 8)
+    last = journal/'events'/'00000008.json'
+    saved = last.read_bytes()
+    last.unlink()
+    with pytest.raises(ValueError, match='head differs'):
+        verify_campaign_journal(journal, initial_sha256=initial_sha, expected_head=head)
+    last.write_bytes(saved)
     path = journal/'events'/'00000004.json'
     record = json.loads(path.read_bytes())
     record['lane'] = 'a'

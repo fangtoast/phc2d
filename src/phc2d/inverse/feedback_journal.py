@@ -450,6 +450,19 @@ def append_campaign_event(directory: str | Path, *, initial_sha256: str, expecte
     return updated, _hash(raw)
 
 
+def verify_campaign_journal(directory: str | Path, *, initial_sha256: str,
+                            expected_head: str) -> tuple[Any, int]:
+    """Replay only when the journal also matches the externally retained head.
+
+    The initial and head hashes, single-writer ownership, source identities and
+    scheduler evidence must be authenticated independently by the caller.
+    """
+    state, head, count = replay_campaign_journal(directory, initial_sha256=initial_sha256)
+    if head != expected_head:
+        raise ValueError('campaign journal head differs; reconcile before use')
+    return state, count
+
+
 def summarize_dispatch_journal(directory: str | Path, *, initial_sha256: str,
                                expected_head: str) -> dict[str, Any]:
     """Inspect a chain against externally retained initial and head hashes."""
