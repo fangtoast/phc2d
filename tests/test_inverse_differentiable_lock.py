@@ -29,6 +29,12 @@ def test_lock_checks_identity_roster_and_hard_ranking():
     lock = combine_shards(shards)
     assert len(lock['records']) == 12
     assert lock['records'][-1]['duplicate_of'] == 9
+    takeover = copy.deepcopy(shards)
+    takeover['directions']['cluster_id'] = 'paracloud_n56'
+    takeover['adam']['cluster_id'] = 'paracloud_n56'
+    with pytest.raises(ValueError, match='platform'):
+        combine_shards(takeover)
+    assert set(combine_shards(takeover, n56_takeover=True)['platforms_by_role'].values()) == {'paracloud_n56'}
     altered = copy.deepcopy(shards)
     altered['de']['checkpoint_sha256'] = 'other'
     with pytest.raises(ValueError, match='identity'):

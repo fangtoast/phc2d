@@ -13,6 +13,7 @@ set -euo pipefail
 : "${PHC2D_BATCH_ROOT:?Set unique batch directory}"
 case "$PHC2D_GPU_PLATFORM:$PHC2D_ROLE" in
   n40:preflight|n56:preflight|n40:adam|n40:directions|n56:de|n56:random) ;;
+  n56:adam|n56:directions) [[ "${PHC2D_N56_TAKEOVER:-0}" == 1 ]] || { echo 'explicit N56 takeover required' >&2; exit 2; } ;;
   *) echo 'role is not assigned to this platform' >&2; exit 2 ;;
 esac
 export PHC2D_CONFIG="${PHC2D_CONFIG:-$PHC2D_ROOT/configs/research/exp_inv_012_origin_v1.json}"

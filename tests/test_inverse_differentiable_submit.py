@@ -55,6 +55,9 @@ def test_submission_receipt_and_platform_assignment(tmp_path):
     adam_env = {**env, 'PHC2D_ROLE': 'adam', 'PHC2D_SUBMIT_DRY_RUN': '1',
                 'PHC2D_PREFLIGHT_GATE': str(gate), 'PHC2D_PREFLIGHT_GATE_SHA256': gate_hash}
     assert subprocess.run(['bash', str(script)], env=adam_env, capture_output=True).returncode == 0
+    takeover = {**adam_env, 'PHC2D_GPU_PLATFORM': 'n56'}
+    assert subprocess.run(['bash', str(script)], env=takeover, capture_output=True).returncode != 0
+    assert subprocess.run(['bash', str(script)], env={**takeover, 'PHC2D_N56_TAKEOVER': '1'}, capture_output=True).returncode == 0
     bad = subprocess.run(['bash', str(script)], env={**adam_env, 'PHC2D_PREFLIGHT_GATE_SHA256': '0'*64},
                          capture_output=True, text=True)
     assert bad.returncode != 0

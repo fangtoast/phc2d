@@ -15,13 +15,15 @@ from typing import Any, Mapping
 import numpy as np
 
 
-def combine_shards(shards: Mapping[str, dict[str, Any]]) -> dict[str, Any]:
+def combine_shards(shards: Mapping[str, dict[str, Any]], *, n56_takeover: bool = False) -> dict[str, Any]:
     """Assemble the nine fixed direction roles and three algorithm Top-1 roles."""
     roles = ('directions', 'adam', 'de', 'random')
     if set(shards) != set(roles) or any(shards[r].get('role') != r for r in roles):
         raise ValueError('exactly one shard for each required role is needed')
     platforms = {'directions': 'paracloud_n40', 'adam': 'paracloud_n40',
                  'de': 'paracloud_n56', 'random': 'paracloud_n56'}
+    if n56_takeover:
+        platforms.update(directions='paracloud_n56', adam='paracloud_n56')
     if any(shards[role].get('cluster_id') != platforms[role] for role in roles):
         raise ValueError('shard platform assignment mismatch')
     fields = ('config_sha256', 'source_sha256', 'source_parameter_hash', 'checkpoint_sha256',
@@ -92,6 +94,7 @@ def combine_shards(shards: Mapping[str, dict[str, Any]]) -> dict[str, Any]:
             else:
                 seen[digest] = index
     return {'scope': 'surrogate_only_locked_origin_subbatch', 'records': records, 'device_parity_max_abs': parity,
+            'platforms_by_role': {role: shards[role]['cluster_id'] for role in roles},
             **{field: shards['directions'][field] for field in fields}}
 
 
@@ -100,6 +103,7 @@ def main() -> None:
     for role in ('directions', 'adam', 'de', 'random'):
         parser.add_argument('--' + role, required=True)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--n56-takeover', action='store_true')
     args = parser.parse_args()
     shards = {}
     hashes = {}
@@ -107,7 +111,7 @@ def main() -> None:
         raw = Path(getattr(args, role)).read_bytes()
         hashes[role] = hashlib.sha256(raw).hexdigest()
         shards[role] = json.loads(raw)
-    lock = combine_shards(shards)
+    lock = combine_shards(shards, n56_takeover=args.n56_takeover)
     lock['shard_sha256'] = hashes
     with Path(args.output).open('x', encoding='utf8') as stream:
         json.dump(lock, stream, indent=2, allow_nan=False)
