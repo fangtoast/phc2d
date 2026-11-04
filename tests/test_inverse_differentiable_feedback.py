@@ -15,6 +15,7 @@ from phc2d.inverse.differentiable_feedback import propose_corrected_design
 def test_corrected_proposal_fits_observations_and_screens_hard_structures():
     class Predictor:
         device = torch.device('cpu')
+        checkpoint_sha256 = 'checkpoint'
         def predict_tensor(self, image):
             value = image.mean(dim=(1, 2))
             low = 0.3 + 0.1 * value
@@ -30,11 +31,17 @@ def test_corrected_proposal_fits_observations_and_screens_hard_structures():
         'scales': [0.2, 0.1], 'lower': [-0.5, -0.5], 'upper': [0.5, 0.5],
         'source_resolution': 64, 'input_resolution': 16, 'temperature': 0.2, 'lower_band': 1,
         'target_frequency': 0.5, 'beta': 100, 'learning_rate': 0.05, 'steps': 3,
-        'max_mode_radius': 1, 'material_fraction_bounds': [0, 1]}
+        'max_mode_radius': 1, 'material_fraction_bounds': [0, 1],
+        'surrogate_contract_sha256': 'model', 'comparison_contract_sha256': 'physical',
+        'checkpoint_sha256': 'checkpoint'}
     result = propose_corrected_design(source, Predictor(), observations, config=config)
     assert result['status'] == 'proposal_ready'
     assert len(result['history']) == 4 and result['correction']['sample_count'] == 3
     assert result['hard_screening']['candidates'][result['selected_index']]['status'] == 'surrogate_only'
     observations[1]['numerical_gate_passed'] = False
     with pytest.raises(ValueError, match='numerical gates'):
+        propose_corrected_design(source, Predictor(), observations, config=config)
+    observations[1]['numerical_gate_passed'] = True
+    observations[1]['surrogate_contract_sha256'] = 'other-model'
+    with pytest.raises(ValueError, match='contracts differ'):
         propose_corrected_design(source, Predictor(), observations, config=config)

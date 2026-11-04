@@ -6,8 +6,11 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+import os
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from phc2d.inverse.differentiable_objective import optimize_corrected_fourier_adam
@@ -24,6 +27,13 @@ def propose_corrected_design(source: Any, predictor: Any, observations: Sequence
     never invokes the solver. Ranking uses corrected soft objectives among hard
     geometries that pass the unchanged GL validity screen.
     """
+    surrogate_contract = config['surrogate_contract_sha256']
+    physical_contract = config['comparison_contract_sha256']
+    if (predictor.checkpoint_sha256 != config['checkpoint_sha256']
+            or not surrogate_contract or not physical_contract
+            or any(row.get('surrogate_contract_sha256') != surrogate_contract
+                   or row.get('comparison_contract_sha256') != physical_contract for row in observations)):
+        raise ValueError('observation and configured feedback contracts differ')
     correction = fit_composite_edge_correction(observations, center=config['center'],
         radius=config['radius'], ridge=config['ridge'])
     keys = tuple((int(i), str(component)) for i, component in config['coefficient_keys'])
@@ -50,3 +60,42 @@ def propose_corrected_design(source: Any, predictor: Any, observations: Sequence
                 'comparison_contract_sha256': correction.comparison_contract_sha256,
                 'surrogate_contract_sha256': correction.surrogate_contract_sha256},
             'history': history, 'hard_screening': screening, 'selected_index': best}
+
+
+def main() -> None:
+    """Run one frozen feedback version from an explicitly configured observation batch."""
+    from phc2d.data.full_cell_spec import FullCellStructureSpec
+    from phc2d.inverse.audit_refine import read_checked_json
+    from phc2d.inverse.frozen_band_adapter import FrozenBandAdapter
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ('config', 'source', 'checkpoint', 'observations', 'output'):
+        parser.add_argument('--' + name, required=True)
+    parser.add_argument('--device', default='cpu')
+    args = parser.parse_args()
+    output = Path(args.output)
+    if output.exists():
+        raise FileExistsError(output)
+    config_raw = Path(args.config).read_bytes()
+    config = json.loads(config_raw)
+    source_raw, _ = read_checked_json(args.source, config['source_sha256'])
+    source = FullCellStructureSpec.from_mapping(source_raw)
+    predictor = FrozenBandAdapter(args.checkpoint, sha256=config['checkpoint_sha256'], device=args.device)
+    if (predictor.model_name != 'global_local_band_operator_v1'
+            or predictor.k_points_sha256 != config['k_points_sha256']
+            or predictor.input_shape != (config['input_resolution'],)*2):
+        raise ValueError('feedback checkpoint contract mismatch')
+    observation_payload, observation_digest = read_checked_json(args.observations, config['observations_sha256'])
+    observations = observation_payload['observations']
+    result = propose_corrected_design(source, predictor, observations, config=config)
+    result.update(config_sha256=hashlib.sha256(config_raw).hexdigest(),
+                  observation_file_sha256=observation_digest,
+                  source_sha256=config['source_sha256'], checkpoint_sha256=predictor.checkpoint_sha256,
+                  code_commit=os.environ.get('PHC2D_DEPLOYED_GIT_COMMIT'), device=args.device)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open('x', encoding='utf8') as stream:
+        json.dump(result, stream, indent=2, allow_nan=False)
+
+
+if __name__ == '__main__':
+    main()
