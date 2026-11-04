@@ -17,7 +17,8 @@ import yaml
 
 from phc2d.inverse.paired_search_contract import build_paired_search_requests
 from phc2d.inverse.paired_search_execution import (execute_paired_search_request, inspect_nominal_static_request,
-    audit_nominal_static_request, execute_budgeted_nominal_static_request, lock_budgeted_nominal_static_candidates)
+    audit_nominal_static_request, execute_budgeted_nominal_static_request, lock_budgeted_nominal_static_candidates,
+    lock_nominal_static_campaign)
 from phc2d.inverse.paired_search_materialization import materialize_paired_search_requests
 from phc2d.inverse.surrogate_design import audit_surrogate_design
 from phc2d.models import build_model
@@ -157,6 +158,23 @@ def test_budgeted_nominal_request_executes_both_synthetic_trajectories(tmp_path,
     selection = lock_budgeted_nominal_static_candidates(root, **selection_args, selection_path=tmp_path/'selection.json')
     assert selection['scope'] == 'one_source_static_selection_not_execution_lock'
     assert [row['seed'] for row in selection['evidence']] == [11, 12]
+    campaign_args = {'manifest_sha256': args['manifest_sha256'], 'pilot_config_bytes': pilot_raw,
+        'prior_config_bytes': prior_raw, 'checkpoint_path': str(checkpoint),
+        'source_hashes': {8: args['expected_source_sha256']}, 'output_roots': {8: args['output_root']},
+        'selection_paths': {8: tmp_path/'selection.json'}}
+    campaign = lock_nominal_static_campaign(root, **campaign_args, lock_path=tmp_path/'campaign.json')
+    assert campaign['status'] == selection['selection']['status']
+    with pytest.raises(ValueError, match='source roster'):
+        lock_nominal_static_campaign(root, **{**campaign_args, 'source_hashes': {}}, lock_path=tmp_path/'missing.json')
+    with pytest.raises(FileExistsError):
+        lock_nominal_static_campaign(root, **campaign_args, lock_path=tmp_path/'campaign.json')
+    saved_selection = (tmp_path/'selection.json').read_bytes()
+    altered = json.loads(saved_selection)
+    altered['selection']['eligible_count'] += 1
+    (tmp_path/'selection.json').write_text(json.dumps(altered), encoding='utf8')
+    with pytest.raises(ValueError, match='saved source selection differs'):
+        lock_nominal_static_campaign(root, **campaign_args, lock_path=tmp_path/'altered_campaign.json')
+    (tmp_path/'selection.json').write_bytes(saved_selection)
     with pytest.raises(FileExistsError):
         lock_budgeted_nominal_static_candidates(root, **selection_args, selection_path=tmp_path/'selection.json')
     cost_path = tmp_path/'output'/'cost_11.json'

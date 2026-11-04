@@ -166,7 +166,7 @@ def execute_budgeted_nominal_static_request(request_root: Path, *, manifest_sha2
 def lock_budgeted_nominal_static_candidates(request_root: Path, *, manifest_sha256: str, source_index: int,
                                              pilot_config_bytes: bytes, prior_config_bytes: bytes,
                                              expected_source_sha256: str, checkpoint_path: str,
-                                             output_root: Path, selection_path: Path) -> dict[str, Any]:
+                                             output_root: Path, selection_path: Path | None) -> dict[str, Any]:
     """Audit both saved trajectories, then write one source's static selection.
 
     Scheduler identity, independent request audit, chronology and all other
@@ -178,7 +178,7 @@ def lock_budgeted_nominal_static_candidates(request_root: Path, *, manifest_sha2
     from phc2d.inverse.trace_selection import lock_static_nominal_candidates
     import yaml
 
-    request_root, output_root, selection_path = Path(request_root), Path(output_root), Path(selection_path)
+    request_root, output_root = Path(request_root), Path(output_root)
     request = audit_nominal_static_request(request_root, manifest_sha256=manifest_sha256, source_index=source_index,
         pilot_config_bytes=pilot_config_bytes, prior_config_bytes=prior_config_bytes,
         expected_source_sha256=expected_source_sha256, expected_checkpoint_path=checkpoint_path)
@@ -222,7 +222,47 @@ def lock_budgeted_nominal_static_candidates(request_root: Path, *, manifest_sha2
     result = {'scope': 'one_source_static_selection_not_execution_lock', 'source_index': source_index,
               'request_manifest_sha256': manifest_sha256, 'source_sha256': expected_source_sha256,
               'request_config_sha256': request['config_sha256'], 'evidence': evidence, 'selection': selected}
-    with selection_path.open('xb') as stream:
+    if selection_path is not None:
+        with Path(selection_path).open('xb') as stream:
+            stream.write(json.dumps(result, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf8'))
+    return result
+
+
+def lock_nominal_static_campaign(request_root: Path, *, manifest_sha256: str, pilot_config_bytes: bytes,
+                                 prior_config_bytes: bytes, checkpoint_path: str,
+                                 source_hashes: dict[int, str], output_roots: dict[int, Path],
+                                 selection_paths: dict[int, Path], lock_path: Path) -> dict[str, Any]:
+    """Reaudit the complete preregistered roster before freezing static selections.
+
+    A campaign with insufficient eligible structures is explicitly unscoreable.
+    This file is a surrogate-selection lock, not permission to run physical jobs.
+    Caller authenticates source hashes, scheduler evidence and chronology.
+    """
+    import yaml
+
+    pilot = yaml.safe_load(pilot_config_bytes)
+    ids = list(pilot['sources'].values())
+    if (not ids or any(isinstance(x, bool) or not isinstance(x, int) or x < 0 for x in ids)
+            or len(set(ids)) != len(ids) or set(source_hashes) != set(ids)
+            or set(output_roots) != set(ids) or set(selection_paths) != set(ids)):
+        raise ValueError('complete unique static source roster required')
+    records = []
+    for source_index in ids:
+        expected = lock_budgeted_nominal_static_candidates(request_root, manifest_sha256=manifest_sha256,
+            source_index=source_index, pilot_config_bytes=pilot_config_bytes, prior_config_bytes=prior_config_bytes,
+            expected_source_sha256=source_hashes[source_index], checkpoint_path=checkpoint_path,
+            output_root=output_roots[source_index], selection_path=None)
+        raw = Path(selection_paths[source_index]).read_bytes()
+        if json.loads(raw) != expected:
+            raise ValueError('saved source selection differs from audited output')
+        records.append({'source_index': source_index, 'selection_sha256': hashlib.sha256(raw).hexdigest(),
+                        'status': expected['selection']['status']})
+    result = {'scope': 'static_campaign_selection_not_physical_execution_lock',
+              'status': ('locked_surrogate_only' if all(row['status'] == 'locked_surrogate_only' for row in records)
+                         else 'unscoreable_insufficient_eligible'),
+              'request_manifest_sha256': manifest_sha256, 'pilot_config_sha256': hashlib.sha256(pilot_config_bytes).hexdigest(),
+              'sources': records}
+    with Path(lock_path).open('xb') as stream:
         stream.write(json.dumps(result, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf8'))
     return result
 
