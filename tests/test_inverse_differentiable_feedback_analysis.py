@@ -35,6 +35,8 @@ def test_feedback_analysis_reproduces_pairing_interaction_and_prefit_errors():
     report = analyze_feedback(arms, baseline, {f'{seed}_{name}': records for name in names})
     assert report['complete_2x2_count'] == 1
     assert report['seeds'][0]['interaction'] == pytest.approx(-.1)
+    assert report['interaction_mean_across_sources'] == pytest.approx(-.1)
+    assert report['prefit_errors']['adam_residual']['corrected_edge_mae'] == pytest.approx(.01)
     round0 = report['seeds'][0]['arms']['adam_residual']['rounds'][0]
     assert round0['raw_edge_error'] == pytest.approx([.02, -.02])
     assert round0['corrected_edge_error'] == pytest.approx([.01, -.01])

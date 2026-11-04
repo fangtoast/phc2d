@@ -83,9 +83,38 @@ def analyze_feedback(arms: Mapping[str, Any], baseline: Mapping[str, Any],
         rows.append({'seed_id': seed, 'pure_adam': adam, 'pure_de': de,
                      'adam_trajectory': trajectory, 'adam_residual': corrected_adam,
                      'de_residual': corrected_de, 'interaction': interaction, 'arms': values})
+    summary = {}
+    for method in ('pure_adam', 'pure_de', 'adam_trajectory', 'adam_residual', 'de_residual'):
+        available = [row[method] for row in rows if row[method] is not None]
+        summary[method] = {'registered': len(rows), 'numerically_valid': len(available),
+                           'target_covered': sum(value > 0 for value in available),
+                           'mean_margin': float(np.mean(available)) if available else None,
+                           'median_margin': float(np.median(available)) if available else None}
+    paired = {}
+    for name, comparison, reference in (('trajectory_vs_pure_adam', 'adam_trajectory', 'pure_adam'),
+                                        ('residual_vs_trajectory', 'adam_residual', 'adam_trajectory'),
+                                        ('residual_adam_vs_pure', 'adam_residual', 'pure_adam'),
+                                        ('residual_de_vs_pure', 'de_residual', 'pure_de')):
+        values = [row[comparison]-row[reference] for row in rows
+                  if row[comparison] is not None and row[reference] is not None]
+        paired[name] = {'count': len(values), 'mean': float(np.mean(values)) if values else None,
+                        'median': float(np.median(values)) if values else None}
+    interaction_by_source: dict[str, list[float]] = {}
+    for row in rows:
+        if row['interaction'] is not None:
+            interaction_by_source.setdefault(row['seed_id'].split('_initial_', 1)[0], []).append(row['interaction'])
+    source_means = {key: float(np.mean(values)) for key, values in interaction_by_source.items()}
+    errors = {}
+    for method in ('adam_trajectory', 'adam_residual', 'de_residual'):
+        rounds = [round_row for row in rows for round_row in row['arms'][method]['rounds']]
+        errors[method] = {'observation_count': len(rounds),
+            'raw_edge_mae': float(np.mean([abs(value) for item in rounds for value in item['raw_edge_error']])) if rounds else None,
+            'corrected_edge_mae': float(np.mean([abs(value) for item in rounds for value in item['corrected_edge_error']])) if rounds else None}
     return {'scope': 'paired_development_feedback_comparison', 'seeds': rows,
             'registered_seed_count': len(rows),
-            'complete_2x2_count': sum(row['interaction'] is not None for row in rows)}
+            'complete_2x2_count': sum(row['interaction'] is not None for row in rows), 'method_summary': summary,
+            'paired_changes': paired, 'prefit_errors': errors, 'interaction_by_source': source_means,
+            'interaction_mean_across_sources': float(np.mean(list(source_means.values()))) if source_means else None}
 
 
 def main() -> None:
