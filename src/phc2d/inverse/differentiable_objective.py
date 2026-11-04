@@ -242,3 +242,44 @@ def optimize_fourier_black_box(source: Any, predictor: Any, *, coefficient_keys:
         z = torch.as_tensor(record['parameters'], dtype=base.dtype, device=base.device)
         record['fourier_parameters'] = (base + scale * z).detach().cpu().tolist()
     return history
+
+
+def optimize_corrected_fourier_adam(source: Any, predictor: Any, correction: Any, *,
+                                    coefficient_keys: Any, scales: Any, lower: Any, upper: Any,
+                                    master_resolution: int, input_resolution: int,
+                                    temperature: float, lower_band: int, target_frequency: float,
+                                    beta: float, learning_rate: float, steps: int) -> list[dict[str, Any]]:
+    """Optimize a frozen composite correction inside its local trust region.
+
+    The parameter center is relative to the original source. The inscribed
+    box keeps every optimizer evaluation within the fitted Euclidean radius.
+    Candidate screening and physical acceptance are separate responsibilities.
+    """
+    import torch
+
+    keys = tuple(coefficient_keys)
+    base = torch.tensor([float(source.parameters['modes'][i][component]) for i, component in keys]
+                        + [float(source.parameters['threshold'])], dtype=torch.float64,
+                        device=predictor.device)
+    scale = torch.as_tensor(scales, dtype=base.dtype, device=base.device)
+    center = torch.as_tensor(correction.center, dtype=base.dtype, device=base.device)
+    lo = torch.as_tensor(lower, dtype=base.dtype, device=base.device)
+    hi = torch.as_tensor(upper, dtype=base.dtype, device=base.device)
+    if (scale.shape != base.shape or center.shape != base.shape or lo.shape != base.shape
+            or hi.shape != base.shape or not torch.isfinite(scale).all() or (scale <= 0).any()):
+        raise ValueError('invalid corrected optimization dimensions or scales')
+    halfwidth = correction.radius / math.sqrt(len(base))
+    lo = torch.maximum(lo, center - halfwidth)
+    hi = torch.minimum(hi, center + halfwidth)
+
+    def objective(z: Any) -> Any:
+        return corrected_fourier_margin(source, predictor, base + scale*z, z, correction,
+            coefficient_keys=keys, master_resolution=master_resolution, input_resolution=input_resolution,
+            temperature=temperature, lower_band=lower_band, target_frequency=target_frequency, beta=beta)
+
+    history = optimize_adam(objective, center, lower=lo, upper=hi,
+                            learning_rate=learning_rate, steps=steps)
+    for row in history:
+        z = torch.as_tensor(row['parameters'], dtype=base.dtype, device=base.device)
+        row['fourier_parameters'] = (base + scale*z).detach().cpu().tolist()
+    return history

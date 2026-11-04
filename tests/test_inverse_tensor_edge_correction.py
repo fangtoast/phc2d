@@ -9,7 +9,7 @@ import pytest
 
 torch = pytest.importorskip('torch')
 from phc2d.inverse.local_edge_correction import LocalEdgeCorrection
-from phc2d.inverse.differentiable_objective import corrected_fourier_margin
+from phc2d.inverse.differentiable_objective import corrected_fourier_margin, optimize_corrected_fourier_adam
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 
 
@@ -27,6 +27,7 @@ def test_tensor_edge_correction_matches_numpy_and_derivative():
 
 def test_corrected_geometry_objective_keeps_physical_residual_derivative():
     class Predictor:
+        device = torch.device('cpu')
         def predict_tensor(self, image):
             value = image.mean(dim=(1, 2))
             return torch.stack((0.2 + 0.1 * value, 0.7 + 0.1 * value), dim=1).unsqueeze(1)
@@ -42,3 +43,10 @@ def test_corrected_geometry_objective_keeps_physical_residual_derivative():
             coefficient_keys=[(0, 'cos')], master_resolution=64, input_resolution=16,
             temperature=0.2, lower_band=1, target_frequency=0.5, beta=100)
     assert torch.autograd.gradcheck(objective, (point,), eps=1e-5, atol=1e-5, rtol=1e-4)
+    history = optimize_corrected_fourier_adam(source, Predictor(), correction,
+        coefficient_keys=[(0, 'cos')], scales=[0.2, 0.1], lower=[-0.5, -0.5], upper=[0.5, 0.5],
+        master_resolution=64, input_resolution=16, temperature=0.2, lower_band=1,
+        target_frequency=0.5, beta=100, learning_rate=0.1, steps=3)
+    assert len(history) == 4
+    assert history[-1]['objective'] > history[0]['objective']
+    assert all(np.linalg.norm(row['parameters']) <= 1 for row in history)
