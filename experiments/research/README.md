@@ -54,7 +54,11 @@
 
 ## Inverse 与 replay
 
-- [投影校正独立开发验证](EXP-INV-008-投影校正独立开发.md)：EXP-INV-008，三 seed、新来源、物理锚点及统一数值门；已登记，尚未执行。
+- [梯度链条开发验证](EXP-INV-012-梯度链条开发验证.md)：EXP-INV-012，别名 MVP-INV-001；来源 8、两个参数、冻结主模型、AD–FD 与硬几何 MPB 方向检查。Draft，尚未实施或运行；当前路线及后续 013–016 预留见[可微物理反馈研究](../../docs/planning/鲁棒带隙逆向/可微物理反馈路线.md)。
+- [旧名义物理反馈开发预检](EXP-INV-011-名义物理反馈开发预检.md)：原位保留 DE 静态/反馈草案与 YAML，规划已由新系列取代，编号不重用。
+- [事前排除目标搜索](EXP-INV-010-事前排除目标搜索.md)：有限开发选择证据；不支持新路线的梯度、反馈或正式泛化结论。
+- [目标驱动代理搜索](EXP-INV-009-目标驱动代理搜索.md)：保留事前排除不完整的历史失败与原合同。
+- [投影校正独立开发验证](EXP-INV-008-投影校正独立开发.md)：EXP-INV-008，保留三 seed、新来源与原数值门；已形成开发记录，具体覆盖和数值失败见[可用性审计](../../docs/results/inverse/鲁棒带隙逆向可用性审计.md)。
 
 - [`generative_inverse.md`](generative_inverse.md)：条件生成式 inverse 的候选/replay 协议历史入口；当前 mixture conditional generator 不是 cVAE 或 diffusion。
 - [`a2_inverse_single_seed.md`](a2_inverse_single_seed.md)：A2 单 seed benchmark 与分阶段恢复语义。

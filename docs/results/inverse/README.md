@@ -5,7 +5,7 @@ page_type: landing
 status: draft
 audience: 逆向设计研究者、复现执行者与证据审阅者
 owner: 研究生维护
-last_reviewed: 2026-08-14
+last_reviewed: 2026-11-04
 reading_time: 5 minutes
 primary_layer: L3
 ---
@@ -18,6 +18,8 @@ primary_layer: L3
 -->
 
 # 逆向设计结果
+
+当前方法规划见[可微物理反馈逆向路线](../../planning/鲁棒带隙逆向/可微物理反馈路线.md)。EXP-INV-012–016 为新登记/预留系列，尚无新结果；下列历史证据不因重规划升级为梯度或反馈有效性结论。
 
 探索性诊断：[鲁棒带隙逆向可用性审计](鲁棒带隙逆向可用性审计.md)。该 validation 审计的数值门尚未满足，不属于正式逆向结果。
 

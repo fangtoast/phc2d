@@ -5,12 +5,12 @@ page_type: plan
 status: draft
 audience: 项目负责人、研究执行者与代码维护者
 owner: 研究生维护，导师审阅科学目标与阶段准入
-last_reviewed: 2026-10-30
+last_reviewed: 2026-11-04
 reading_time: 6 minutes
 primary_layer: L0
-plan_state: active
+plan_state: superseded
 effective_date: 2026-10-30
-superseded_by: null
+superseded_by: docs/planning/鲁棒带隙逆向/可微物理反馈路线.md
 related_results:
   - docs/results/field-physics/EXP-PHY-007-validation带隙标签门.md
   - docs/reports/EXP-FWD-031四域完整测试结果_20261029.md
@@ -24,6 +24,8 @@ related_results:
 -->
 
 # 鲁棒带隙逆向研究计划
+
+> **规划已取代（2026-11-04）。** 当前入口为[可微物理反馈逆向路线](可微物理反馈路线.md)。下方原正文保留为历史合同；旧阶段、资源和未来安排不再作为新路线的默认执行指令，既有证据与失败状态不变。
 
 **在现有 phc2d 与 GitHub 仓库中开展独立研究：冻结正向模型，以受约束搜索和少量真实 MPB 反馈寻找目标频段内、制造扰动后仍保留的共同带隙。** 本组文档是待人工审阅的长期路线；当前已有探索性候选和真实 MPB 审计，[P2 数值条件尚未满足](../../results/inverse/鲁棒带隙逆向可用性审计.md)，不代表正式逆向设计完成。
 

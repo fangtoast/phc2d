@@ -5,7 +5,7 @@ page_type: landing
 status: draft
 audience: 研究用户、复现执行者与项目维护者
 owner: 研究生维护
-last_reviewed: 2026-08-27
+last_reviewed: 2026-11-04
 reading_time: 4 minutes
 primary_layer: L4
 ---
@@ -35,14 +35,14 @@ primary_layer: L4
 
 ## 仍可能约束后续工作的入口
 
-非生成式独立研究从[鲁棒带隙逆向长期计划](鲁棒带隙逆向/README.md)进入：包括方法、代码架构、实验验证与 N40/N56/M9 资源迭代。当前为 Draft 规划，下一 gate 是身份与审计协议冻结，未执行新逆向实验。
+非生成式独立研究从[可微物理反馈逆向路线](鲁棒带隙逆向/可微物理反馈路线.md)进入：先验证冻结 Global–Local 的参数梯度，再研究 MPB 轨迹反馈、局部残差及制造共同带隙。下一 gate 为 EXP-INV-012（MVP-INV-001）的模型身份、软硬几何合同与预算冻结；新系列尚未运行。[旧五页计划](鲁棒带隙逆向/README.md)已原位标记 superseded，原实验和失败证据保留。
 
 | 范围 | 入口 | 使用边界 |
 |---|---|---|
 | 研究阶段主线 | [FNO 与生成式网络研究计划](fno_generative_network_adjustment_plan_20260617.md) | 只约束其覆盖的任务族、gate 与 replay 边界；不自动覆盖后续 full-cell 任务 |
 | Full-cell forward loss | [工作频率与带隙损失探索计划](工作频率与带隙损失探索计划.md) | 先通过加密 band-edge 标签门；固定 backbone，只比较一个新 loss 候选 |
 | Full-cell forward 组件 | [FNO、TFNO 与 ConvNeXt 组件归因计划](FNO-TFNO-ConvNeXt组件归因计划.md) | 固定原 loss；先做冻结诊断，再做同家族最小消融和跨家族桥接 |
-| Full-cell inverse | [全胞逆向索引](全胞逆向索引.md) | codec、Stage-A、候选筛选与 replay 的现行协议入口 |
+| Full-cell inverse | [全胞逆向索引](全胞逆向索引.md) | 可微物理反馈当前路线；生成式协议和旧无梯度路线分别追溯 |
 | 架构治理 | [项目代码结构重构](项目代码结构重构/README.md) | 作为待复核的长期架构记录；不能据此断言重构已完成 |
 | 历史演进 | [时间线](时间线.md) | 用于查日期、取代关系和结果入口，不作为执行日志继续扩张 |
 

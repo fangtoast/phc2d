@@ -224,12 +224,16 @@ nav:
           - 全胞可复用接口与模块重构: planning/项目代码结构重构/全胞代码可复用接口与模块重构计划.md
       - 全胞逆向设计:
           - 专题索引: planning/全胞逆向索引.md
-          - 鲁棒带隙逆向计划: planning/鲁棒带隙逆向/README.md
+          - 可微物理反馈研究路线: planning/鲁棒带隙逆向/可微物理反馈路线.md
+          - 可微方法协议: planning/鲁棒带隙逆向/可微方法协议.md
+          - 实验矩阵与验收: planning/鲁棒带隙逆向/实验矩阵与验收.md
+          - 模块复用与实施: planning/鲁棒带隙逆向/模块复用与实施.md
           - 鲁棒逆向探索性审计: results/inverse/鲁棒带隙逆向可用性审计.md
-          - 鲁棒逆向研究方法: planning/鲁棒带隙逆向/研究方法.md
-          - 鲁棒逆向代码架构: planning/鲁棒带隙逆向/代码架构.md
-          - 鲁棒逆向实验与验证: planning/鲁棒带隙逆向/实验与验证.md
-          - 鲁棒逆向资源与迭代: planning/鲁棒带隙逆向/资源与迭代.md
+          - 旧路线（已取代）: planning/鲁棒带隙逆向/README.md
+          - 旧研究方法: planning/鲁棒带隙逆向/研究方法.md
+          - 旧代码架构: planning/鲁棒带隙逆向/代码架构.md
+          - 旧实验与验证: planning/鲁棒带隙逆向/实验与验证.md
+          - 旧资源与迭代: planning/鲁棒带隙逆向/资源与迭代.md
           - Full-cell inverse 扩展: planning/full_cell_forward_inverse_training/full_cell_inverse_design_extension_plan.md
       - 规划参考:
           - 参考索引: planning/reference/README.md

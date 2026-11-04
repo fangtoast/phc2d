@@ -5,6 +5,8 @@
   Copyright (c) 2026 fangtoast. All rights reserved.
 -->
 
+> 2026-11-04 逆向研究按作者要求重规划为[可微代理与物理反馈](docs/planning/鲁棒带隙逆向/可微物理反馈路线.md)：依次验证参数梯度、MPB 轨迹/残差校正和制造共同带隙。旧五页计划与 EXP-INV-011 草案原位封存，实验身份和失败证据保留。新 [EXP-INV-012（MVP-INV-001）](experiments/research/EXP-INV-012-梯度链条开发验证.md)仅登记 Draft；下一 gate 为来源 8、固定融合 3×3 checkpoint、软硬几何及预算冻结。本次未实现新算法、提交计算或新增物理结果；下方旧逆向快照为历史。
+
 > 2026-11-04 [EXP-FWD-033 等量混合分支消融](experiments/research/EXP-FWD-033-等量混合分支消融.md)：两机 48 项训练完成，训练产物的独立哈希、来源、模型身份与历史复核通过；N56 的 24 项 validation 重算通过，六目标测试数组 `1769140` 已提交。N40 的 validation 数组 `5532107` 等待调度，依赖作业 `5532109` 在重算及逐项核验通过后冻结并提交测试。新测试结果尚待完成和审计；原失败与补跑证据保留。
 
 > 2026-11-02 [EXP-FWD-032 单域分支消融](docs/results/forward/EXP-FWD-032-单域分支消融.md)：72 个新增 checkpoint 的 432 个六目标代理测试 cell 完成；四个原域的普通 Full 三 seed 平均 MRE 均低于普通单支，容量对照不保持该顺序。N40 接管原 N56 测试并保留来源；3 个 F50 Graded 容量对照 seed 耗尽训练预算，历史 3×3 逐 cell split 哈希待回查。结果为 Draft，物理验收未包含。
@@ -85,11 +87,11 @@
 
 ## 当前研究主线
 
-主线是 **Replay-Calibrated Hierarchical Inverse Design**：
+当前逆向研究为**可微 Global–Local + 真实 MPB 反馈校正 + 制造共同带隙验证**，见[研究协议入口](docs/planning/鲁棒带隙逆向/可微物理反馈路线.md)：
 
-`结构 → real-MPB 数据 → Full-Wh / Query / Field 代理 → 多候选生成 → 合法性/多样性/交叉代理门 → real-MPB replay`
+`目标带隙 → 可微 Fourier 参数化 → 冻结代理梯度优化 → 硬几何 MPB → 局部残差与轨迹校正 → 制造扰动及独立复核`
 
-近期重点是全胞、多形态、全 BZ 数据底座。现有 V2 p4m 数据继续支撑基线，但不能替代全胞数据上的重新验证。
+正向研究提供全胞数据与 Global–Local 底座；新逆向阶段先验证梯度有效性，再研究反馈和鲁棒性。旧生成式 Replay-Calibrated Hierarchical Inverse Design 保留独立历史与准入合同；V2 p4m 的既有 replay 不能替代新路线验证。
 
 ## 模块与当前进度
 
@@ -99,13 +101,14 @@
 | 表征与任务协议 | `rho`/`epsilon`、Full-Wh、Query、Field | spec、target 与 NPZ/HDF5 schema inspection 已实现；小样本表征实验仅属诊断 | [研究计划](docs/planning/fno_generative_network_adjustment_plan_20260617.md) · [公式手册](docs/reports/phc2d_physics_data_formula_guide_20260803.md) |
 | Forward / Query | 完整能带与任意 `(band,k)` 查询 | 10k 参考矩阵和 50k baseline 冻结评估均完成；五个升级模型的 50k native/cross-lane/resolution 主评估完成，ConvNeXt native 最优，threshold proxy 仍受 QoS 阻塞 | [全胞模型报告](docs/reports/全胞双路线正向与逆向模型报告_20260810.md) · [升级结果](docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md) · [50k baseline](docs/results/forward/full_cell_dual_lane_50000_forward_training_20260808.md) · [10k 结果](docs/results/forward/full_cell_dual_lane_forward_training_20260806.md) |
 | Field / adapted PINO | TE Bloch 本征场与物理残差 | U-Net、Field FNO、adapted PINO 已实现；介电加权指标需重算，residual–frequency 门未过，inverse 准入仍 `blocked` | [指标修正](docs/results/field-physics/field_electric_metric_correction_20260803.md) · [准入结果](docs/results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md) |
+| 可微物理反馈逆向 | 冻结代理参数梯度、MPB 校正与制造共同带隙 | 新路线与 MVP 草案已整理；tensor 几何链、可微残差和新主模型真实优化证据待补；010/011 用门控模型，不能冒充固定融合 3×3 | [路线](docs/planning/鲁棒带隙逆向/可微物理反馈路线.md) · [模块复用](docs/planning/鲁棒带隙逆向/模块复用与实施.md) |
 | 生成式逆向与 replay | 多候选、筛选、真实 MPB 复核 | objective-bridge 已完成 seed0 的 100-target 与 test625 replay；full-cell codec 与真实 10k 的 15-case Stage-A CPU 合同已通过，N40/正式训练/replay 尚未准入 | [逆向 seed0](docs/results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md) · [Stage-A CPU 预检](docs/results/inverse/full_cell_inverse_stage_a_cpu_preflight_20260806.md) |
 | 工程与证据治理 | CLI、配置、run 产物、审计 | 统一源码/配置/实验/运行结构已建立；CLI、模型与 inverse runtime 模块化已通过 WSL 完整工程回归；N40 已证明可同时分配 3×RTX4090，N50 登录仍受平台阻塞 | [架构说明](docs/architecture.md) · [协作治理](docs/collaboration.md) · [GPU 准备报告](docs/results/data-provenance/paracloud_gpu_preflight_20260806.md) · [仓库约定](docs/conventions.md) |
 
 ## 当前最重要的结论
 
-1. 核心成果是“**代理加速 + 多候选搜索 + real-MPB 最终裁判**”的闭环；只有 real-MPB replay 能支撑物理成功结论。
-2. Forward / Query 已形成正式对照基础；inverse 闭环可运行，但当前最强证据仍是单 seed，不能宣称架构普遍优越。
+1. 新逆向主张按“梯度有效 → MPB 反馈有效 → 制造鲁棒性有效”检验；当前是 Draft 规划，只有相应求解和数值验收能支持物理结论。
+2. Forward / Query 及旧生成式 inverse 已有各自对照；010 提供有限开发合同下的代理选择证据，尚不支持新路线的参数梯度、反馈校正或普遍优越。
 3. residual 下降不等于频率或 inverse 改善；adapted PINO 在校准通过前不得进入候选排序。
 4. 二值与渐变全胞 10k 均已通过固定 WSL real-MPB 跨环境验收；这只解除数据门，不等于模型训练已完成。
 5. M9 已补齐 binary/graded 两份 10k 数据并与 N40 使用同一静态部署 commit `b93cc2d`；这只完成文件/代码交接，不等于新的 M9 environment preflight 或 inverse replay。
@@ -133,11 +136,11 @@
 ## 下一步优先任务
 
 1. **P0：人工审阅 50k 全胞 Forward 与升级冻结结果**；确认 held-out、final-fit、native、cross-lane 和 resolution 角色，接受或要求修复 [baseline 报告](docs/results/forward/full_cell_dual_lane_50000_forward_training_20260808.md)、[升级报告](docs/results/forward/full_cell_forward_model_upgrade_50k_evaluation_20260810.md)与[模型综合报告](docs/reports/全胞双路线正向与逆向模型报告_20260810.md)。
-2. **P0：推进 full-cell inverse GPU admission**；另行授权 N40 Stage-A 正式训练；Stage B 使用已冻结 Forward surrogate 前仍需人工准入。
+2. **P0：冻结可微逆向 MVP 的输入与预算**；按 [EXP-INV-012](experiments/research/EXP-INV-012-梯度链条开发验证.md)绑定来源 8、固定融合 3×3 权重、可微 Fourier 标准化和软硬表示，先完成梯度链及物理方向开发验证。旧 Stage-A 训练不作为当前路线的前置任务。
 3. **P0：保持 M9-only 物理计算边界**；threshold MPB/Meep preflight、pilot 与 replay 均只能在 M9 执行且需要单独授权，本轮未提交。
 4. **P1：重做 Field/PINO 校准**；任一 frequency、dense-k、跨分辨率或 residual–error 门失败即保持 blocked。
 5. **P1：汇总 OOD / cross-dataset / cross-surrogate**；统一报告统计量、运行时间、失败案例和 surrogate–replay gap。
-6. **P1：冻结 full-cell inverse 的 forward ranker 与数据版本**；决定继续 10k 还是迁移 50k，更新 Stage-B admission、normalization 和 checkpoint manifests 后再单独授权训练/replay。
+6. **生成式参考：full-cell Stage-B 的 ranker 与数据版本**仍按旧协议单独冻结；该历史任务不自动启动，也不约束新可微路线的执行次序。
 7. **P1：把 gap-selection 纳入 forward→inverse gate**；先对完整 test split 做低成本 band/k/gap 一致率审计，再决定是否按失配类型扩大 real-MPB/Meep replay。
 
 ## 详细内容去哪里查看

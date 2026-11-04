@@ -5,7 +5,7 @@ page_type: landing
 status: draft
 audience: 研究使用者、开发者与 AI 协作者
 owner: 研究生维护
-last_reviewed: 2026-08-21
+last_reviewed: 2026-11-04
 reading_time: 2 minutes
 primary_layer: L4
 ---
@@ -28,6 +28,7 @@ primary_layer: L4
 | 结果对应的 run、metrics 与 solver 证据 | [实验与证据库](results/README.md) |
 | 研究概念与稳定方法 | [概念](概念/README.md) · [方法](方法/README.md) |
 | 实验协议与长期计划 | [实验协议与决策记录](planning/README.md) |
+| 可微代理、MPB 反馈与制造鲁棒逆向的新路线 | [可微物理反馈逆向研究](planning/鲁棒带隙逆向/可微物理反馈路线.md) |
 | 开始使用与具体操作 | [开始](开始/README.md) · [指南](指南/README.md) |
 | CLI、schema、模型身份与公式合同 | [参考](参考/README.md) |
 | 被取代计划、旧报告与阶段记录 | [历史档案](历史档案.md) |
