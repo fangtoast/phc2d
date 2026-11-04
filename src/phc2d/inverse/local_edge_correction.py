@@ -36,6 +36,22 @@ class LocalEdgeCorrection:
             raise ValueError('point lies outside the local correction radius')
         return edges + np.r_[1.0, displacement] @ self.coefficients
 
+    def correct_tensor(self, point: Any, predicted_edges: Any) -> Any:
+        """Evaluate the frozen affine correction without detaching input gradients."""
+        import torch
+
+        if not isinstance(point, torch.Tensor) or not isinstance(predicted_edges, torch.Tensor):
+            raise ValueError('point and edges must be tensors')
+        if tuple(point.shape) != self.center.shape or tuple(predicted_edges.shape) != (2,):
+            raise ValueError('invalid point or predicted edges')
+        center = torch.as_tensor(self.center, dtype=point.dtype, device=point.device)
+        coefficients = torch.as_tensor(self.coefficients, dtype=point.dtype, device=point.device)
+        delta = point - center
+        if (not torch.isfinite(point).all() or not torch.isfinite(predicted_edges).all()
+                or float(torch.linalg.vector_norm(delta).detach()) > self.radius + 1e-12):
+            raise ValueError('point outside correction radius or nonfinite input')
+        return predicted_edges + coefficients[0] + delta @ coefficients[1:]
+
 
 def fit_local_edge_correction(observations: Sequence[Mapping[str, Any]], *, center: Any,
                               radius: float, ridge: float) -> LocalEdgeCorrection:

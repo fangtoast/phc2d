@@ -8,7 +8,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 import pytest
 
 torch = pytest.importorskip('torch')
-from phc2d.inverse.differentiable_objective import optimize_adam, optimize_fourier_adam, smooth_target_margin
+from phc2d.inverse.differentiable_objective import optimize_adam, optimize_black_box, optimize_fourier_adam, optimize_fourier_black_box, smooth_target_margin
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 
 
@@ -28,6 +28,18 @@ def test_projected_adam_maximizes_and_records_final_point():
     assert history[-1]['objective'] > history[0]['objective']
 
 
+@pytest.mark.parametrize('method', ['random', 'de'])
+def test_black_box_respects_budget_and_is_reproducible(method):
+    def run():
+        return optimize_black_box(lambda x: -(x - 0.3).square().sum(), torch.zeros(2),
+                                  lower=[-0.5, -0.5], upper=[0.5, 0.5],
+                                  evaluations=20, seed=3, method=method)
+    first = run()
+    assert first == run()
+    assert len(first) == 20
+    assert all(-0.5 <= value <= 0.5 for row in first for value in row['parameters'])
+
+
 def test_fourier_adam_uses_geometry_and_preserves_input_gradients():
     class Predictor:
         device = torch.device('cpu')
@@ -45,3 +57,23 @@ def test_fourier_adam_uses_geometry_and_preserves_input_gradients():
     assert len(history) == 4
     assert history[-1]['objective'] > history[0]['objective']
     assert len(history[-1]['fourier_parameters']) == 2
+
+
+def test_fourier_black_box_shares_adam_initial_objective():
+    class Predictor:
+        device = torch.device('cpu')
+        def predict_tensor(self, image):
+            value = image.mean(dim=(1, 2))
+            return torch.stack((0.2 + 0.1 * value, 0.7 + 0.1 * value), dim=1).unsqueeze(1)
+
+    source = generate_unified_fourier_binary('source', master_seed=12, material_fraction_bin=1,
+                                             config={'fourier_cutoff': 3, 'audit_resolution': 32})
+    args = dict(coefficient_keys=[(0, 'cos')], scales=[0.2, 0.1], lower=[-0.5, -0.5],
+                upper=[0.5, 0.5], master_resolution=64, input_resolution=16, temperature=0.2,
+                lower_band=1, target_frequency=0.5, beta=100)
+    adam = optimize_fourier_adam(source, Predictor(), **args, learning_rate=0.1, steps=0)
+    for method in ('de', 'random'):
+        search = optimize_fourier_black_box(source, Predictor(), **args,
+                                             evaluations=5, seed=1, method=method)
+        assert search[0]['objective'] == pytest.approx(adam[0]['objective'])
+        assert search[0]['fourier_parameters'] == pytest.approx(adam[0]['fourier_parameters'])

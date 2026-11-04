@@ -88,6 +88,64 @@ def optimize_adam(objective: Any, initial: Any, *, lower: Any, upper: Any,
     return history
 
 
+def optimize_black_box(objective: Any, initial: Any, *, lower: Any, upper: Any,
+                       evaluations: int, seed: int, method: str) -> list[dict[str, Any]]:
+    """Run a reproducible random or differential-evolution soft-objective search."""
+    import numpy as np
+    import torch
+
+    x = torch.as_tensor(initial).detach()
+    lo = np.asarray(lower, dtype=float)
+    hi = np.asarray(upper, dtype=float)
+    if (x.ndim != 1 or not x.is_floating_point() or lo.shape != tuple(x.shape)
+            or hi.shape != lo.shape or not np.isfinite(lo).all() or not np.isfinite(hi).all()
+            or np.any(lo >= hi) or not torch.isfinite(x).all()
+            or np.any(x.cpu().numpy() < lo) or np.any(x.cpu().numpy() > hi)):
+        raise ValueError('invalid initial point or bounds')
+    if isinstance(evaluations, bool) or not isinstance(evaluations, int) or evaluations < 1:
+        raise ValueError('positive evaluation budget required')
+    if method not in ('random', 'de') or (method == 'de' and evaluations < 5):
+        raise ValueError('invalid method or DE budget')
+    rng = np.random.default_rng(seed)
+    history = []
+
+    def evaluate(vector: Any) -> float:
+        if len(history) >= evaluations:
+            raise RuntimeError('evaluation budget exhausted')
+        vector = np.asarray(vector, dtype=float)
+        with torch.no_grad():
+            value = objective(torch.as_tensor(vector, dtype=x.dtype, device=x.device))
+        if value.ndim != 0 or not torch.isfinite(value):
+            raise ValueError('objective must be a finite scalar')
+        score = float(value.detach().cpu())
+        history.append({'step': len(history), 'parameters': vector.tolist(), 'objective': score})
+        return score
+
+    if method == 'random':
+        evaluate(x.cpu().numpy())
+        for _ in range(evaluations - 1):
+            evaluate(rng.uniform(lo, hi))
+    else:
+        population_size = min(5, evaluations)
+        population = rng.uniform(lo, hi, size=(population_size, len(lo)))
+        population[0] = x.cpu().numpy()
+        scores = np.array([evaluate(v) for v in population])
+        while len(history) < evaluations:
+            for i in range(population_size):
+                if len(history) == evaluations:
+                    break
+                pool = np.delete(np.arange(population_size), i)
+                a, b, c = rng.choice(pool, size=3, replace=False)
+                mutant = np.clip(population[a] + 0.8 * (population[b] - population[c]), lo, hi)
+                mask = rng.random(len(lo)) < 0.7
+                mask[rng.integers(len(lo))] = True
+                trial = np.where(mask, mutant, population[i])
+                score = evaluate(trial)
+                if score > scores[i]:
+                    population[i], scores[i] = trial, score
+    return history
+
+
 def optimize_fourier_adam(source: Any, predictor: Any, *, coefficient_keys: Any,
                           scales: Any, lower: Any, upper: Any, master_resolution: int,
                           input_resolution: int, temperature: float, lower_band: int,
@@ -117,6 +175,37 @@ def optimize_fourier_adam(source: Any, predictor: Any, *, coefficient_keys: Any,
 
     history = optimize_adam(objective, torch.zeros_like(base), lower=lower, upper=upper,
                             learning_rate=learning_rate, steps=steps)
+    for record in history:
+        z = torch.as_tensor(record['parameters'], dtype=base.dtype, device=base.device)
+        record['fourier_parameters'] = (base + scale * z).detach().cpu().tolist()
+    return history
+
+
+def optimize_fourier_black_box(source: Any, predictor: Any, *, coefficient_keys: Any,
+                               scales: Any, lower: Any, upper: Any, master_resolution: int,
+                               input_resolution: int, temperature: float, lower_band: int,
+                               target_frequency: float, beta: float, evaluations: int,
+                               seed: int, method: str) -> list[dict[str, Any]]:
+    """Search the same normalized geometry and smooth objective as Fourier Adam."""
+    import torch
+
+    keys = tuple(coefficient_keys)
+    base = torch.tensor([float(source.parameters['modes'][i][component]) for i, component in keys]
+                        + [float(source.parameters['threshold'])], dtype=torch.float64,
+                        device=predictor.device)
+    scale = torch.as_tensor(scales, dtype=base.dtype, device=base.device)
+    if scale.shape != base.shape or not torch.isfinite(scale).all() or (scale <= 0).any():
+        raise ValueError('one finite positive scale per parameter required')
+
+    def objective(z: Any) -> Any:
+        return fourier_surrogate_margin(source, predictor, base + scale * z,
+                                        coefficient_keys=keys, master_resolution=master_resolution,
+                                        input_resolution=input_resolution, temperature=temperature,
+                                        lower_band=lower_band, target_frequency=target_frequency,
+                                        beta=beta)
+
+    history = optimize_black_box(objective, torch.zeros_like(base), lower=lower, upper=upper,
+                                 evaluations=evaluations, seed=seed, method=method)
     for record in history:
         z = torch.as_tensor(record['parameters'], dtype=base.dtype, device=base.device)
         record['fourier_parameters'] = (base + scale * z).detach().cpu().tolist()
