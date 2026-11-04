@@ -12,6 +12,7 @@ from phc2d.inverse.differentiable_morphology import periodic_soft_offset
 from phc2d.inverse.morphology import periodic_binary_offset
 from phc2d.inverse.differentiable_objective import fourier_surrogate_margin, robust_fourier_margin, optimize_robust_fourier_adam
 from phc2d.inverse.differentiable_selection import rank_robust_trajectory
+from phc2d.inverse.differentiable_robust import run_robust_shard
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 
 
@@ -71,3 +72,14 @@ def test_robust_margin_uses_shared_target_across_scenarios():
     assert len(candidate['robust_prediction']['grid_sha256']) == 3
     assert len(candidate['robust_prediction']['bands']) == 3
     assert candidate['robust_prediction']['gap']['target_margin'] <= candidate['predicted_gap']['target_margin'] + 1e-8
+    config = {'offsets': [-1/64, 0., 1/64], 'coefficient_keys': [(0, 'cos')], 'scales': [.2, .1],
+        'lower': [-.5, -.5], 'upper': [.5, .5], 'source_resolution': 64, 'input_resolution': 16,
+        'temperature': .2, 'lower_band': 1, 'target_frequency': .5, 'beta': 100, 'learning_rate': .05,
+        'evaluations': 2, 'initial': [.15, 0.], 'max_mode_radius': 1, 'material_fraction_bounds': [0., 1.]}
+    nominal_result = run_robust_shard(config, source, Predictor(), mode='nominal')
+    robust_result = run_robust_shard(config, source, Predictor(), mode='worst')
+    assert nominal_result['history'][0]['parameters'] == pytest.approx([.15, 0.])
+    assert robust_result['history'][0]['parameters'] == pytest.approx([.15, 0.])
+    assert nominal_result['selection']['status'] == 'selected' and nominal_result['robust_diagnostic'] is not None
+    assert robust_result['selection']['score'] == 'hard_common_target_margin'
+    assert robust_result['objective_evaluations'] == 2 and robust_result['scenario_inputs_per_objective'] == 3
