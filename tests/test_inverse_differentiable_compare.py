@@ -60,3 +60,10 @@ def test_physical_comparison_uses_original_k_and_retains_missing_roles():
     assert duplicate_report['physical_case_elapsed_s_sum'] == 3
     assert duplicate_report['roles'][0]['same_k_edge_error'] == pytest.approx([-0.01, -0.01])
     assert duplicate_report['roles'][1]['same_k_edge_error'] == pytest.approx([0.01, 0.01])
+    failure = {'case_index': 0, 'manifest_sha256': 'manifest', 'protocol_sha256': 'protocol',
+               'error_type': 'TimeoutError', 'elapsed_s': 4.5}
+    failed_report = compare_physical_results(duplicate_lock, duplicate_manifest, {}, failures={0: failure}, **args)
+    assert [row['status'] for row in failed_report['roles']] == ['physical_solver_failed'] * 2
+    assert failed_report['unique_cases_failed'] == 1 and failed_report['physical_case_elapsed_s_sum'] == 4.5
+    with pytest.raises(ValueError, match='both'):
+        compare_physical_results(lock, manifest, {0: result}, failures={0: failure}, **args)

@@ -18,7 +18,8 @@ import numpy as np
 def compare_physical_results(lock: Mapping[str, Any], manifest: Mapping[str, Any],
                              results: Mapping[int, Mapping[str, Any]], *,
                              lock_sha256: str, manifest_sha256: str,
-                             protocol_sha256: str) -> dict[str, Any]:
+                             protocol_sha256: str,
+                             failures: Mapping[int, Mapping[str, Any]] | None = None) -> dict[str, Any]:
     """Compare same-k bands and refined edges, retaining missing and failed roles."""
     if (manifest['selection_lock_sha256'] != lock_sha256 or manifest['protocol_sha256'] != protocol_sha256
             or len(lock['records']) != len(manifest['role_coverage'])):
@@ -29,6 +30,9 @@ def compare_physical_results(lock: Mapping[str, Any], manifest: Mapping[str, Any
     if points.ndim != 2 or points.shape[1] != 2 or not np.isfinite(points).all() or not np.isfinite(target) or target <= 0:
         raise ValueError('invalid physical comparison grid or target')
     predicted = {}
+    failures = {} if failures is None else failures
+    if set(results).intersection(failures):
+        raise ValueError('a physical case cannot be both successful and failed')
     for record in lock['records']:
         candidate = record['candidate']
         if candidate is not None and 'bands' in candidate:
@@ -41,6 +45,14 @@ def compare_physical_results(lock: Mapping[str, Any], manifest: Mapping[str, Any
         index = coverage['case_index']
         if index is None:
             rows.append({**entry, 'status': coverage['status']})
+            continue
+        if index in failures:
+            failure = failures[index]
+            if (failure['case_index'] != index or failure['manifest_sha256'] != manifest_sha256
+                    or failure['protocol_sha256'] != protocol_sha256):
+                raise ValueError('physical failure identity mismatch')
+            rows.append({**entry, 'status': 'physical_solver_failed',
+                         'error_type': failure['error_type'], 'elapsed_s': failure['elapsed_s']})
             continue
         if index not in results:
             rows.append({**entry, 'status': 'physical_result_missing'})
@@ -112,9 +124,12 @@ def compare_physical_results(lock: Mapping[str, Any], manifest: Mapping[str, Any
                     row['physical_refined_target_margin'] - center['physical_refined_target_margin'])
     case_indices = {row['case_index'] for row in rows if row['case_index'] is not None}
     completed = case_indices.intersection(results)
+    failed = case_indices.intersection(failures)
     return {'scope': 'locked_surrogate_vs_physical', 'roles': rows,
             'unique_cases_with_results': len(completed),
-            'physical_case_elapsed_s_sum': float(sum(float(results[i]['elapsed_s']) for i in completed))}
+            'unique_cases_failed': len(failed),
+            'physical_case_elapsed_s_sum': float(sum(float(results[i]['elapsed_s']) for i in completed)
+                                                   + sum(float(failures[i]['elapsed_s']) for i in failed))}
 
 
 def main() -> None:
@@ -122,6 +137,7 @@ def main() -> None:
     for name in ('lock', 'manifest', 'protocol', 'output'):
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--result', action='append', default=[])
+    parser.add_argument('--failure', action='append', default=[])
     args = parser.parse_args()
     raw_lock, raw_manifest, raw_protocol = (Path(getattr(args, key)).read_bytes()
                                              for key in ('lock', 'manifest', 'protocol'))
@@ -132,10 +148,17 @@ def main() -> None:
         if index in results:
             raise ValueError('duplicate physical case result')
         results[index] = result
+    failures = {}
+    for filename in args.failure:
+        failure = json.loads(Path(filename).read_bytes())
+        index = failure['case_index']
+        if index in failures:
+            raise ValueError('duplicate physical case failure')
+        failures[index] = failure
     report = compare_physical_results(json.loads(raw_lock), json.loads(raw_manifest), results,
         lock_sha256=hashlib.sha256(raw_lock).hexdigest(),
         manifest_sha256=hashlib.sha256(raw_manifest).hexdigest(),
-        protocol_sha256=hashlib.sha256(raw_protocol).hexdigest())
+        protocol_sha256=hashlib.sha256(raw_protocol).hexdigest(), failures=failures)
     with Path(args.output).open('x', encoding='utf8') as stream:
         json.dump(report, stream, indent=2, allow_nan=False)
 

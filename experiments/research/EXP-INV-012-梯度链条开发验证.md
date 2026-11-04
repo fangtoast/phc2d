@@ -23,7 +23,7 @@ N40 和 N56 各用 `jobs/paracloud_inverse_differentiable_mvp.sh` 的 `preflight
 
 使用 `python -m phc2d.inverse.differentiable_archive --config CONFIG_JSON --lock LOCK_JSON --directions DIRECTIONS_JSON --adam ADAM_JSON --de DE_JSON --random RANDOM_JSON --output RUN_DIR` 将四个原始分片和锁按项目 run 合同归档；归档状态为 `design_locked`，物理验证状态另行更新。
 
-求解后用 `python -m phc2d.inverse.differentiable_compare --lock LOCK_JSON --manifest MANIFEST_JSON --protocol PROTOCOL_JSON --result CASE_JSON --output COMPARISON_JSON` 比较原始同 k 频谱与加密带边；多个 case 重复传入 `--result`，缺失角色保留状态。采样和分辨率结果保留在原始 solver 输出，不与同 k 频谱误差合并。
+求解后用 `python -m phc2d.inverse.differentiable_compare --lock LOCK_JSON --manifest MANIFEST_JSON --protocol PROTOCOL_JSON --result CASE_JSON --output COMPARISON_JSON` 比较原始同 k 频谱与加密带边；多个 case 重复传入 `--result`，求解失败记录以 `--failure` 传入，缺失和失败角色分别保留。采样和分辨率结果保留在原始 solver 输出，不与同 k 频谱误差合并。
 
 ## 输入与冻结
 
