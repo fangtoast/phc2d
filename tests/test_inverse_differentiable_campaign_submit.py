@@ -42,6 +42,8 @@ def test_campaign_submission_is_bounded_and_idempotent(tmp_path):
     assert subprocess.run(['bash', str(script)], env=feedback_round, capture_output=True).returncode == 0
     robust = {**feedback, 'PHC2D_METHOD': 'worst'}
     assert subprocess.run(['bash', str(script)], env=robust, capture_output=True).returncode == 0
+    for method in ('robust_stencil', 'nominal_corrected', 'mean_corrected', 'worst_corrected'):
+        assert subprocess.run(['bash', str(script)], env={**feedback, 'PHC2D_METHOD': method}, capture_output=True).returncode == 0
     manifest.write_text('{"sources":[{"source_id":51},{"source_id":52},{"source_id":53},{"source_id":54}]}')
     dynamic = {**robust, 'PHC2D_MANIFEST_SHA256': hashlib.sha256(manifest.read_bytes()).hexdigest()}
     check = subprocess.run(['bash', str(script)], env=dynamic, capture_output=True, text=True)
