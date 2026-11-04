@@ -43,6 +43,15 @@ def test_feedback_round_freezes_predictions_before_observation(tmp_path):
     stored = save_round_completion(directory, physical=physical('b', .34, .66), composite=composite)
     assert stored == save_round_completion(directory, physical=physical('b', .34, .66), composite=composite)
     assert len(stored['next_observations']) == 2
+    cached_bank = [composite]
+    cached_proposal = copy.deepcopy(proposal)
+    cached_proposal['observation_sha256'] = hashlib.sha256(json.dumps(
+        cached_bank, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    cached_frozen = freeze_round(state, cached_proposal, cached_bank)
+    cached_dir = tmp_path/'cached_round'
+    save_round_request(cached_dir, frozen=cached_frozen, observations=cached_bank)
+    cached = save_round_completion(cached_dir, physical=physical('b', .34, .66), composite=composite)
+    assert cached['completion']['cached'] is True and len(cached['next_observations']) == 1
     bad = copy.deepcopy(composite); bad['predicted_edges'][0] += .01
     with pytest.raises(ValueError, match='prefit'):
         complete_round(frozen, physical=physical('b', .34, .66), composite=bad)

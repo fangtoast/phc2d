@@ -10,7 +10,7 @@ def test_seed_observations_reuse_only_identical_grids():
     records = [{'label': f'trial/offset_{i}', 'trial_id': 'trial', 'role': f'offset_{i}',
                 'point': [i * .1, 0.], 'candidate': {'parameter_hash': x, 'master_grid_sha256': 'grid'},
                 'surrogate_edges': edges} for i, x in enumerate(('a', 'b'))]
-    lock = {'purpose': 'feedback_initial_stencil', 'records': records}
+    lock = {'purpose': 'feedback_initial_stencil', 'manifest_sha256': 'design', 'records': records}
     manifest = {'selection_lock_sha256': 'lock', 'protocol_sha256': 'protocol', 'k_points': [[0., 0.]],
                 'rows': [{'parameter_hash': 'a', 'master_grid_sha256': 'grid'}],
                 'role_coverage': [{'label': r['label'], 'case_index': 0} for r in records]}

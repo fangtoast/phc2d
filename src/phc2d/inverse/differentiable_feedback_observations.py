@@ -75,7 +75,8 @@ def bind_seed_observations(seed_lock: Mapping[str, Any], manifest: Mapping[str, 
         if original_hash != expected['parameter_hash']:
             raise ValueError('feedback aggregate identity mismatch')
         physical['provenance']['parameter_hash'] = candidate['parameter_hash']
-        physical['provenance']['reused_from_parameter_hash'] = original_hash
+        reused_hash = result.get('source_evidence', {}).get('parameter_hash', original_hash)
+        physical['provenance']['reused_from_parameter_hash'] = reused_hash
         edges = record['surrogate_edges']
         physical_edges = [physical['row']['refined_lower_edge_frequency'], physical['row']['refined_upper_edge_frequency']]
         composite = composite_edge_observation(parameter_hash=candidate['parameter_hash'], parameters=record['point'],
@@ -84,9 +85,11 @@ def bind_seed_observations(seed_lock: Mapping[str, Any], manifest: Mapping[str, 
             comparison_contract_sha256=physical['provenance']['comparison_contract_sha256'],
             surrogate_contract_sha256=surrogate_sha, numerical_gate_passed=True)
         rows.append({**row, 'status': 'observed', 'physical': physical, 'composite': composite,
-                     'physical_reused_from_parameter_hash': original_hash})
+                     'physical_reused_from_parameter_hash': reused_hash,
+                     'source_evidence': result.get('source_evidence')})
     return {'scope': 'feedback_initial_observations', 'selection_lock_sha256': lock_sha256,
             'physical_manifest_sha256': manifest_sha256, 'surrogate_contract_sha256': surrogate_sha,
+            'design_manifest_sha256': seed_lock['manifest_sha256'],
             'records': rows}
 
 

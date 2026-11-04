@@ -24,6 +24,7 @@ class PendingCandidate:
     predicted_center: float
     predicted_candidate: float
     surrogate_contract_sha256: str
+    cached: bool = False
 
 
 @dataclass(frozen=True)
@@ -95,10 +96,13 @@ def restore_feedback(payload: Mapping[str, Any]) -> FeedbackState:
     history = tuple(copy.deepcopy(payload['history']))
     seen = tuple(payload['seen_hashes'])
     if (len(history) != total - remaining or len(seen) != len(history) + 1
-            or len(set(seen)) != len(seen) or not all(isinstance(x, str) and x for x in seen)
+            or not all(isinstance(x, str) and x for x in seen)
             or tuple(h['parameter_hash'] for h in history) != seen[1:]
             or payload['incumbent_hash'] not in seen):
         raise ValueError('saved history or identities are inconsistent')
+    for index, entry in enumerate(history):
+        if not isinstance(entry.get('cached', False), bool) or (seen[index + 1] in seen[:index + 1] and not entry.get('cached', False)):
+            raise ValueError('saved duplicate candidate is not an authenticated cache reuse')
     state = start_feedback(incumbent_hash=payload['incumbent_hash'],
                            incumbent_parameters=payload['incumbent_parameters'],
                            incumbent_observation=payload['incumbent_observation'],
@@ -111,26 +115,27 @@ def restore_feedback(payload: Mapping[str, Any]) -> FeedbackState:
         state = propose_feedback(state, parameter_hash=pending['parameter_hash'], parameters=pending['parameters'],
                                  predicted_center=pending['predicted_center'],
                                  predicted_candidate=pending['predicted_candidate'],
-                                 surrogate_contract_sha256=pending['surrogate_contract_sha256'])
+                                 surrogate_contract_sha256=pending['surrogate_contract_sha256'],
+                                 cached=pending.get('cached', False))
     return state
 
 
 def propose_feedback(state: FeedbackState, *, parameter_hash: str, parameters: Sequence[float],
                      predicted_center: float, predicted_candidate: float,
-                     surrogate_contract_sha256: str) -> FeedbackState:
+                     surrogate_contract_sha256: str, cached: bool = False) -> FeedbackState:
     """Reserve one new local candidate before a physical evaluation."""
     point = _parameters(parameters)
     if any(entry.get('status') == 'worker_result_unknown' for entry in state.history):
         raise ValueError('unknown worker result must be reconciled before further feedback')
     if state.pending is not None or state.remaining_evaluations <= 0:
         raise ValueError('pending candidate or evaluation budget exhausted')
-    if not parameter_hash or parameter_hash in state.seen_hashes:
+    if not isinstance(cached, bool) or not parameter_hash or (parameter_hash in state.seen_hashes and not cached):
         raise ValueError('candidate identity is missing or already evaluated')
     if len(point) != len(state.incumbent_parameters) or np.linalg.norm(np.asarray(point) - state.incumbent_parameters) > state.radius + 1e-12:
         raise ValueError('candidate outside local trust region')
     if not surrogate_contract_sha256 or not all(math.isfinite(x) for x in (predicted_center, predicted_candidate)):
         raise ValueError('candidate prediction or surrogate identity invalid')
-    pending = PendingCandidate(parameter_hash, point, float(predicted_center), float(predicted_candidate), surrogate_contract_sha256)
+    pending = PendingCandidate(parameter_hash, point, float(predicted_center), float(predicted_candidate), surrogate_contract_sha256, cached)
     return replace(state, pending=pending)
 
 
@@ -140,6 +145,8 @@ def finish_feedback(state: FeedbackState, *, observation: Mapping[str, Any] | No
     pending = state.pending
     if pending is None or (observation is None) == (failure_reason is None):
         raise ValueError('provide exactly one observation or failure for the pending candidate')
+    if pending.cached and observation is None:
+        raise ValueError('cached feedback requires its authenticated observation')
     if failure_reason is not None and not failure_reason.strip():
         raise ValueError('failure reason must be nonempty')
     if failure_status not in ('solver_failure', 'worker_result_unknown') or (observation is not None and failure_status != 'solver_failure'):
@@ -147,6 +154,8 @@ def finish_feedback(state: FeedbackState, *, observation: Mapping[str, Any] | No
     base = {'parameter_hash': pending.parameter_hash, 'parameters': list(pending.parameters),
             'surrogate_contract_sha256': pending.surrogate_contract_sha256,
             'predicted_center': pending.predicted_center, 'predicted_candidate': pending.predicted_candidate}
+    if pending.cached:
+        base['cached'] = True
     incumbent_hash, incumbent_point = state.incumbent_hash, state.incumbent_parameters
     incumbent_observation = state.incumbent_observation
     radius = state.radius

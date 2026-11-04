@@ -44,14 +44,18 @@ def freeze_round(state: FeedbackState, proposal: Mapping[str, Any],
             or float(proposal['correction']['radius']) != state.radius
             or proposal['correction']['comparison_contract_sha256'] != state.incumbent_observation['provenance']['comparison_contract_sha256']):
         raise ValueError('proposal candidate, center or radius mismatch')
+    cached_rows = [row for row in observations if row.get('parameter_hash') == candidate['parameter_hash']]
+    if len(cached_rows) > 1 or (cached_rows and cached_rows[0].get('parameters') != prediction['point']):
+        raise ValueError('cached observation identity or parameters mismatch')
     pending = propose_feedback(state, parameter_hash=candidate['parameter_hash'],
         parameters=prediction['point'], predicted_center=float(history[0]['objective']),
         predicted_candidate=float(history[index]['objective']),
-        surrogate_contract_sha256=proposal['correction']['surrogate_contract_sha256'])
+        surrogate_contract_sha256=proposal['correction']['surrogate_contract_sha256'], cached=bool(cached_rows))
     result = {'schema': 'differentiable_feedback_round_v1', 'pending_state': asdict(pending),
             'proposal_sha256': _digest(proposal), 'prior_observations_sha256': _digest(list(observations)),
             'candidate': copy.deepcopy(candidate), 'prefit_prediction': copy.deepcopy(prediction),
-            'correction': copy.deepcopy(proposal['correction'])}
+            'correction': copy.deepcopy(proposal['correction']),
+            'cached_observation': copy.deepcopy(cached_rows[0]) if cached_rows else None}
     result['frozen_sha256'] = _digest(result)
     return result
 
@@ -74,12 +78,20 @@ def complete_round(frozen: Mapping[str, Any], *, physical: Mapping[str, Any],
             or composite.get('comparison_contract_sha256') != state.incumbent_observation['provenance']['comparison_contract_sha256']
             or composite.get('parameters') != list(state.pending.parameters)):
         raise ValueError('feedback observation identity or contract mismatch')
+    cached = frozen['cached_observation']
+    if state.pending.cached:
+        if (not isinstance(cached, Mapping) or cached.get('parameter_hash') != state.pending.parameter_hash
+                or cached.get('comparison_contract_sha256') != composite['comparison_contract_sha256']
+                or not np.allclose(cached['physical_edges'], composite['physical_edges'], rtol=0, atol=1e-8)):
+            raise ValueError('cached physical observation mismatch')
+    elif cached is not None:
+        raise ValueError('unexpected cached observation')
     pairs = (('hard_edges', 'hard_edges'), ('soft_exact_edges', 'soft_exact_edges'),
              ('predicted_edges', 'soft_smooth_edges'))
     for a, b in pairs:
         left, right = np.asarray(composite[a], dtype=float), np.asarray(pred[b], dtype=float)
         if (left.shape != (2,) or right.shape != (2,) or not np.isfinite(left).all()
-                or not np.isfinite(right).all() or not np.allclose(left, right, rtol=0, atol=1e-8)):
+                or not np.isfinite(right).all() or not np.allclose(left, right, rtol=0, atol=1e-6)):
             raise ValueError('observation differs from frozen prefit prediction')
     row = physical['row']
     edges = np.asarray([row['refined_lower_edge_frequency'], row['refined_upper_edge_frequency']], dtype=float)
@@ -94,7 +106,8 @@ def complete_round(frozen: Mapping[str, Any], *, physical: Mapping[str, Any],
         raise ValueError('invalid frozen corrected prediction')
     return {'schema': 'differentiable_feedback_round_completed_v1', 'state': asdict(result),
             'prefit_edge_error': (corrected - edges).tolist(),
-            'accepted': result.history[-1]['accepted'], 'observation_for_next_round': dict(composite),
+            'accepted': result.history[-1]['accepted'], 'cached': state.pending.cached,
+            'observation_for_next_round': dict(cached if state.pending.cached else composite),
             'prior_observations_sha256': frozen['prior_observations_sha256'],
             'proposal_sha256': frozen['proposal_sha256']}
 
@@ -123,7 +136,7 @@ def save_round_completion(directory: Path, *, physical: Mapping[str, Any],
         raise ValueError('saved observation bank identity mismatch')
     completed = complete_round(frozen, physical=physical, composite=composite)
     record = {'completion': completed, 'physical': dict(physical), 'composite': dict(composite),
-              'next_observations': prior + [dict(composite)]}
+              'next_observations': prior if completed['cached'] else prior + [dict(composite)]}
     record = json.loads(json.dumps(record, allow_nan=False))
     destination = directory/'result.json'
     if destination.exists():

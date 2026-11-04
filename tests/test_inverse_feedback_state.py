@@ -104,3 +104,16 @@ def test_strict_physical_policy_persists_and_ignores_predicted_gain():
     rejected = finish_feedback(proposal(accepted, 'c', position=.15), observation=observation('c', .4, .6))
     assert rejected.incumbent_hash == 'b' and rejected.radius == .1
     assert restore_feedback(asdict(rejected)) == rejected
+
+
+def test_cached_repeat_consumes_round_without_a_new_physical_observation():
+    initial = start_feedback(incumbent_hash='a', incumbent_parameters=[0.],
+        incumbent_observation=observation('a', .4, .6), target_frequency=.5,
+        radius=.2, min_radius=.025, max_radius=.2, candidate_budget=3,
+        acceptance_policy='strict_physical_improvement')
+    pending = propose_feedback(initial, parameter_hash='a', parameters=[0.], predicted_center=.2,
+        predicted_candidate=.2, surrogate_contract_sha256='checkpoint', cached=True)
+    done = finish_feedback(pending, observation=observation('a', .4, .6))
+    assert done.radius == .1 and done.remaining_evaluations == 2
+    assert done.history[-1]['cached'] is True and done.history[-1]['accepted'] is False
+    assert restore_feedback(asdict(done)) == done
