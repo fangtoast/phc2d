@@ -7,6 +7,10 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 import hashlib
+import argparse
+import json
+import os
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -76,3 +80,58 @@ def predict_stencil_scenarios(stencil: Mapping[str, Any], source: Any, predictor
                      'hard_edges': hard_edges.tolist()})
     return {'scope': 'robust_stencil_surrogate_only', 'source_parameter_hash': source.parameter_hash,
             'initial': stencil['initial'], 'offsets': list(values), 'records': rows}
+
+
+def main() -> None:
+    from phc2d.inverse.differentiable_mvp import load_design_inputs
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ('manifest', 'source', 'checkpoint', 'stencil-directory', 'output'):
+        parser.add_argument('--' + name, required=True)
+    parser.add_argument('--source-id', required=True, type=int)
+    parser.add_argument('--device', default='cpu')
+    args = parser.parse_args()
+    raw = Path(args.manifest).read_bytes()
+    manifest = json.loads(raw)
+    if manifest.get('scope') != 'preregistered_robust_design':
+        raise ValueError('preregistered robust campaign required')
+    sources = [row for row in manifest['sources'] if row['source_id'] == args.source_id]
+    trials = [row for row in manifest['trials'] if row['source_id'] == args.source_id and row['status'] == 'ready']
+    if len(sources) != 1 or not trials:
+        raise ValueError('source is absent or has no valid initial')
+    source, predictor, runtime = load_design_inputs(trials[0]['config'], args.source, args.checkpoint, device=args.device)
+    if source.parameter_hash != sources[0]['source_parameter_hash']:
+        raise ValueError('robust stencil source identity mismatch')
+    root = Path(args.output)
+    root.mkdir(parents=True, exist_ok=True)
+    for initial in sources[0]['initials']:
+        index = initial['initial_index']
+        path = Path(args.stencil_directory)/f'source_{args.source_id:04d}_initial_{index}.json'
+        output = root/path.name
+        if output.exists():
+            raise FileExistsError('existing robust stencil must be reconciled before retry')
+        raw_stencil = path.read_bytes()
+        stencil = json.loads(raw_stencil)
+        if (stencil['source_id'] != args.source_id or stencil['initial_index'] != index
+                or stencil['design_manifest_sha256'] != manifest['parent_manifest_sha256']
+                or stencil['checkpoint_sha256'] != predictor.checkpoint_sha256
+                or stencil['k_points_sha256'] != predictor.k_points_sha256
+                or stencil['status'] != ('prepared' if initial['status'] == 'ready' else initial['status'])
+                or (initial['status'] == 'ready' and stencil['initial'] != initial['initial'])):
+            raise ValueError('nominal stencil does not match frozen robust campaign')
+        if initial['status'] == 'ready':
+            payload = predict_stencil_scenarios(stencil, source, predictor, base=trials[0]['config'],
+                                               offsets=manifest['offsets'])
+        else:
+            payload = {'scope': 'robust_stencil_surrogate_only', 'status': initial['status'], 'records': []}
+        payload.update(source_id=args.source_id, initial_index=index,
+            manifest_sha256=hashlib.sha256(raw).hexdigest(), stencil_sha256=hashlib.sha256(raw_stencil).hexdigest(),
+            checkpoint_sha256=predictor.checkpoint_sha256, k_points_sha256=predictor.k_points_sha256,
+            runtime=runtime, code_commit=os.environ['PHC2D_DEPLOYED_GIT_COMMIT'],
+            cluster_id=os.environ['PHC2D_CLUSTER_ID'])
+        with output.open('x', encoding='utf8') as stream:
+            json.dump(payload, stream, indent=2, allow_nan=False)
+
+
+if __name__ == '__main__':
+    main()
