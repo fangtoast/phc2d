@@ -18,12 +18,6 @@ set -euo pipefail
 : "${PHC2D_EXPECTED_COMMIT:?Set deployed code identity}"
 : "${PHC2D_ROUND:?Set feedback round index}"
 : "${SLURM_ARRAY_TASK_ID:?Set source shard index}"
-case "$SLURM_ARRAY_TASK_ID" in
-  0) source_id=8 ;;
-  1) source_id=491 ;;
-  2) source_id=348 ;;
-  *) echo 'invalid source shard index' >&2; exit 2 ;;
-esac
 if [[ "$PHC2D_GPU_PLATFORM" == n56 ]]; then
   export PHC2D_ENV="${PHC2D_ENV:-/data/run01/scxl892/envs/phc2d_gpu_cu128_torch271_r1}"
 fi
@@ -36,6 +30,7 @@ source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"
 [[ "$PHC2D_DEPLOYED_GIT_COMMIT" == "$PHC2D_EXPECTED_COMMIT" ]] || { echo 'deployment mismatch' >&2; exit 2; }
 printf '%s  %s\n' "$PHC2D_MANIFEST_SHA256" "$PHC2D_MANIFEST" | sha256sum -c -
 printf '%s  %s\n' "$PHC2D_ARMS_SHA256" "$PHC2D_ARMS" | sha256sum -c -
+source_id="$(python -m phc2d.inverse.campaign_source --manifest "$PHC2D_MANIFEST" --index "$SLURM_ARRAY_TASK_ID")"
 printf -v source_path '%s/source_%04d.json' "$PHC2D_SOURCE_DIRECTORY" "$source_id"
 python -m phc2d.inverse.differentiable_feedback_gpu --arms "$PHC2D_ARMS" \
   --base "$PHC2D_BASE_CONFIG" --campaign "$PHC2D_FEEDBACK_CONFIG" \

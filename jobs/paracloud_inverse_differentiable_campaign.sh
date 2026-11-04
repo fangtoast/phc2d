@@ -30,17 +30,7 @@ fi
 source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"
 [[ "$PHC2D_DEPLOYED_GIT_COMMIT" == "$PHC2D_EXPECTED_COMMIT" ]] || { echo 'deployment mismatch' >&2; exit 2; }
 printf '%s  %s\n' "$PHC2D_MANIFEST_SHA256" "$PHC2D_MANIFEST" | sha256sum -c -
-source_id="$(python - "$PHC2D_MANIFEST" "$SLURM_ARRAY_TASK_ID" <<'PY'
-import json, sys
-rows = json.load(open(sys.argv[1], encoding='utf8'))['sources']
-index = int(sys.argv[2])
-ids = [row['source_id'] for row in rows]
-if (not 0 <= index < len(ids) or len(ids) != len(set(ids))
-        or any(isinstance(x, bool) or not isinstance(x, int) or x < 0 for x in ids)):
-    raise SystemExit('invalid source shard index or roster')
-print(ids[index])
-PY
-)"
+source_id="$(python -m phc2d.inverse.campaign_source --manifest "$PHC2D_MANIFEST" --index "$SLURM_ARRAY_TASK_ID")"
 printf -v source_path '%s/source_%04d.json' "$PHC2D_SOURCE_DIRECTORY" "$source_id"
 python -m phc2d.inverse.differentiable_campaign_runner --manifest "$PHC2D_MANIFEST" \
   --source "$source_path" --source-id "$source_id" --checkpoint "$PHC2D_CHECKPOINT" \
