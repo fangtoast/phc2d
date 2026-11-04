@@ -72,6 +72,7 @@ def test_feedback_stencil_retains_all_roles_and_bounds():
         'trial_id': 'trial', 'role': 'offset_0', 'candidate': result['records'][0]['candidate'],
         'scenario_prediction': row}]}
     batch_manifest = {'selection_lock_sha256': 'lock', 'protocol_sha256': 'protocol', 'k_points': [[0., 0.]],
+        'campaign_manifest_sha256': 'campaign',
         'role_coverage': [{'label': 'trial/offset_0', 'case_index': 0}], 'rows': [
             {'parameter_hash': row['parameter_hash'], 'master_grid_sha256': row['hard']['grid_sha256'][1]}]}
     batch = bind_robust_stencil_batch(batch_lock, batch_manifest, {'offsets': offsets}, {0: physical},

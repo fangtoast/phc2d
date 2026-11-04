@@ -147,6 +147,7 @@ def bind_robust_stencil_batch(lock: Mapping[str, Any], manifest: Mapping[str, An
         rows.append({**entry, 'status': 'observed', 'scenarios': scenario_rows})
     return {'scope': 'robust_stencil_physical_observations', 'selection_lock_sha256': lock_sha256,
             'manifest_sha256': manifest_sha256, 'protocol_sha256': protocol_sha256,
+            'campaign_manifest_sha256': manifest['campaign_manifest_sha256'],
             'surrogate_contract_sha256': surrogate_sha, 'offsets': offsets, 'records': rows}
 
 
