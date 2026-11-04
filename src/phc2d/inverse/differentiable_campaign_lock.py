@@ -38,7 +38,7 @@ def lock_campaign(manifest: Mapping[str, Any], trials: Mapping[str, Mapping[str,
         if spec['status'] != 'ready':
             if item.get('status') != spec['status']:
                 raise ValueError('unavailable initial status mismatch')
-            records.append({'trial_id': spec['trial_id'], 'role': 'top1', 'candidate': None,
+            records.append({'label': f"{spec['trial_id']}/top1", 'trial_id': spec['trial_id'], 'role': 'top1', 'candidate': None,
                             'status': spec['status']})
             continue
         if (item.get('status') != 'completed' or item.get('role') != spec['method']
@@ -75,10 +75,23 @@ def lock_campaign(manifest: Mapping[str, Any], trials: Mapping[str, Mapping[str,
             if selected is not None or selection['status'] != 'no_valid_candidates':
                 raise ValueError('invalid empty selection')
             top = None
+        def diagnostic(index: int) -> dict[str, Any]:
+            candidate = dict(candidates[index])
+            if candidate['status'] == 'duplicate_geometry' and 'bands' not in candidate:
+                prior = candidate['duplicate_of']
+                if not isinstance(prior, int) or not 0 <= prior < index:
+                    raise ValueError('invalid duplicate reference')
+                original = candidates[prior]
+                if (original['status'] != 'surrogate_only' or 'bands' not in original
+                        or original['master_grid_sha256'] != candidate['master_grid_sha256']):
+                    raise ValueError('duplicate prediction identity mismatch')
+                candidate['bands'] = original['bands']
+                candidate['predicted_gap'] = original['predicted_gap']
+            return candidate
         for count in diagnostic_counts:
-            records.append({'trial_id': spec['trial_id'], 'role': f'evaluation_{count}',
-                            'candidate': candidates[count - 1]})
-        records.append({'trial_id': spec['trial_id'], 'role': 'top1', 'candidate': top,
+            records.append({'label': f"{spec['trial_id']}/evaluation_{count}", 'trial_id': spec['trial_id'], 'role': f'evaluation_{count}',
+                            'candidate': diagnostic(count - 1)})
+        records.append({'label': f"{spec['trial_id']}/top1", 'trial_id': spec['trial_id'], 'role': 'top1', 'candidate': top,
                         'status': 'selected' if top is not None else 'no_valid_candidate'})
     if len(commits) != 1:
         raise ValueError('trial code identities differ')

@@ -34,9 +34,12 @@ def plan_physical_resources(manifest: Mapping[str, Any], resources: Mapping[str,
     core_hours = count * cpus * physical['wall_seconds_per_shard'] / 3600
     if count > physical['max_shards'] or core_hours > physical['max_allocated_core_hours']:
         raise ValueError('physical allocation exceeds configured budget')
+    limit = physical.get('max_concurrent_shards')
+    if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= physical['max_shards']):
+        raise ValueError('invalid physical concurrency limit')
     shards = [{'shard': i, 'start': i*cases_per_shard,
                'end': min(len(rows), (i+1)*cases_per_shard)} for i in range(count)]
-    return {'status': 'prepared_not_submitted', 'manifest_sha256': manifest_sha256,
+    result = {'status': 'prepared_not_submitted', 'manifest_sha256': manifest_sha256,
             'selection_lock_sha256': manifest['selection_lock_sha256'],
             'case_count': len(rows), 'shards': shards, 'workers_per_shard': workers,
             'cpus_per_shard': cpus, 'memory_mib_per_shard': memory,
@@ -45,6 +48,9 @@ def plan_physical_resources(manifest: Mapping[str, Any], resources: Mapping[str,
             'wall_seconds_per_shard': physical['wall_seconds_per_shard'],
             'max_allocated_core_hours': core_hours, 'automatic_retry': False,
             'wsl_crosscheck': resources['wsl_crosscheck']}
+    if limit is not None:
+        result['max_concurrent_shards'] = min(limit, count)
+    return result
 
 
 def main() -> None:

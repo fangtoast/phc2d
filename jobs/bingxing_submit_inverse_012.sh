@@ -38,17 +38,18 @@ physical = resources['physical_replay']
 for item in (expected['case_count'], len(expected['shards']), physical['cases_per_shard'],
              physical['workers_per_shard'], physical['cpus_per_shard'],
              physical['memory_mib_per_shard'], physical['worker_memory_mib'],
-             physical['setup_reserve_mib'], physical['wall_seconds_per_shard']):
+             physical['setup_reserve_mib'], physical['wall_seconds_per_shard'],
+             expected.get('max_concurrent_shards', len(expected['shards']))):
     print(item)
 PY
 )"
 mapfile -t values <<< "$details"
-[[ "${#values[@]}" == 9 ]] || { echo 'invalid resource plan' >&2; exit 2; }
+[[ "${#values[@]}" == 10 ]] || { echo 'invalid resource plan' >&2; exit 2; }
 export PHC2D_CASE_COUNT="${values[0]}" PHC2D_CASES_PER_SHARD="${values[2]}"
 export PHC2D_WORKERS_PER_SHARD="${values[3]}" PHC2D_WORKER_MEMORY_MIB="${values[6]}"
 export PHC2D_SETUP_RESERVE_MIB="${values[7]}" PHC2D_RECORD_WORKER_RESOURCES=1
 export PHC2D_ROOT PHC2D_EXPECTED_COMMIT PHC2D_MANIFEST PHC2D_PROTOCOL PHC2D_OUTPUT_ROOT
-array="0-$((${values[1]}-1))%${values[1]}"
+array="0-$((${values[1]}-1))%${values[9]}"
 time_minutes="$(((${values[8]}+59)/60))"
 if [[ "${PHC2D_SUBMIT_DRY_RUN:-0}" == 1 ]]; then
   printf 'prepared cases=%s shards=%s cpus=%s memory_mib=%s wall_minutes=%s\n' \
