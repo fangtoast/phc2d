@@ -42,6 +42,7 @@ class FeedbackState:
     seen_hashes: tuple[str, ...]
     history: tuple[Mapping[str, Any], ...] = ()
     pending: PendingCandidate | None = None
+    acceptance_policy: str = 'ratio'
 
 
 def _parameters(values: Sequence[float]) -> tuple[float, ...]:
@@ -54,7 +55,7 @@ def _parameters(values: Sequence[float]) -> tuple[float, ...]:
 def start_feedback(*, incumbent_hash: str, incumbent_parameters: Sequence[float],
                    incumbent_observation: Mapping[str, Any], target_frequency: float,
                    radius: float, min_radius: float, max_radius: float,
-                   candidate_budget: int) -> FeedbackState:
+                   candidate_budget: int, acceptance_policy: str = 'ratio') -> FeedbackState:
     """Start from an independently solver-verified incumbent.
 
     The candidate budget excludes the initial incumbent solve. A campaign's
@@ -69,6 +70,8 @@ def start_feedback(*, incumbent_hash: str, incumbent_parameters: Sequence[float]
         raise ValueError('invalid target or radius')
     if not isinstance(candidate_budget, int) or isinstance(candidate_budget, bool) or candidate_budget < 0:
         raise ValueError('candidate budget must be a nonnegative integer')
+    if acceptance_policy not in ('ratio', 'strict_physical_improvement'):
+        raise ValueError('unknown acceptance policy')
     row = incumbent_observation['row']
     if not all(row.get(k) is True for k in ('last_refinement_stable', 'resolution_stable', 'adaptive_refinement_converged')):
         raise ValueError('incumbent numerical gate not passed')
@@ -79,7 +82,7 @@ def start_feedback(*, incumbent_hash: str, incumbent_parameters: Sequence[float]
         raise ValueError('incumbent band pair or edges invalid')
     return FeedbackState(incumbent_hash, point, copy.deepcopy(incumbent_observation), float(target_frequency),
                          float(radius), float(min_radius), float(max_radius), candidate_budget,
-                         candidate_budget, (incumbent_hash,))
+                         candidate_budget, (incumbent_hash,), acceptance_policy=acceptance_policy)
 
 
 def restore_feedback(payload: Mapping[str, Any]) -> FeedbackState:
@@ -101,7 +104,7 @@ def restore_feedback(payload: Mapping[str, Any]) -> FeedbackState:
                            incumbent_observation=payload['incumbent_observation'],
                            target_frequency=payload['target_frequency'], radius=payload['radius'],
                            min_radius=payload['min_radius'], max_radius=payload['max_radius'],
-                           candidate_budget=total)
+                           candidate_budget=total, acceptance_policy=payload.get('acceptance_policy', 'ratio'))
     state = replace(state, remaining_evaluations=remaining, seen_hashes=seen, history=history)
     pending = payload.get('pending')
     if pending is not None:
@@ -155,7 +158,8 @@ def finish_feedback(state: FeedbackState, *, observation: Mapping[str, Any] | No
         comparison = compare_refined_candidates(
             state.incumbent_observation, observation, target_frequency=state.target_frequency,
             predicted_center=pending.predicted_center, predicted_candidate=pending.predicted_candidate,
-            radius=state.radius, min_radius=state.min_radius, max_radius=state.max_radius)
+            radius=state.radius, min_radius=state.min_radius, max_radius=state.max_radius,
+            acceptance_policy=state.acceptance_policy)
         decision = comparison.get('decision')
         accepted = bool(decision and decision['accepted'])
         entry = {**base, 'status': comparison['status'], 'accepted': accepted, 'comparison': comparison}

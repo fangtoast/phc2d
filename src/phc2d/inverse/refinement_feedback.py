@@ -137,7 +137,7 @@ def aggregate_refined_perturbations(
 def compare_refined_candidates(
     center: Mapping[str, Any], candidate: Mapping[str, Any], *,
     target_frequency: float, predicted_center: float, predicted_candidate: float,
-    radius: float, min_radius: float, max_radius: float,
+    radius: float, min_radius: float, max_radius: float, acceptance_policy: str = 'ratio',
 ) -> dict[str, Any]:
     """Compare nominal candidates only after equivalent numerical gates pass.
 
@@ -166,6 +166,15 @@ def compare_refined_candidates(
             raise ValueError("refined edges must be finite")
         return 2 * min(target_frequency - lower, upper - target_frequency) / target_frequency
     center_margin, candidate_margin = margin(r0), margin(r1)
+    if acceptance_policy not in ('ratio', 'strict_physical_improvement'):
+        raise ValueError('unknown acceptance policy')
+    if acceptance_policy == 'strict_physical_improvement':
+        accepted = candidate_margin > center_margin
+        new_radius = radius if accepted else max(min_radius, radius * 0.5)
+        decision = {'accepted': accepted, 'ratio': None, 'radius': new_radius,
+                    'reason': 'physical_improvement' if accepted else 'physical_nonimprovement'}
+        return {'status': 'compared', 'center_margin': center_margin, 'candidate_margin': candidate_margin,
+                'decision': decision, 'radius': new_radius}
     decision = update_trust_region(predicted_center=predicted_center, predicted_candidate=predicted_candidate,
                                    actual_center=center_margin, actual_candidate=candidate_margin,
                                    radius=radius, min_radius=min_radius, max_radius=max_radius)

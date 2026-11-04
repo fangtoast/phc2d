@@ -89,3 +89,18 @@ def test_invalid_candidate_or_protocol_cannot_be_silently_consumed():
     finished = finish_feedback(pending, failure_reason='invalid solver record')
     with pytest.raises(ValueError, match='budget exhausted'):
         proposal(finished, 'c')
+
+
+def test_strict_physical_policy_persists_and_ignores_predicted_gain():
+    initial = start_feedback(incumbent_hash='a', incumbent_parameters=[0.],
+        incumbent_observation=observation('a', .4, .6), target_frequency=.5,
+        radius=.2, min_radius=.01, max_radius=.2, candidate_budget=2,
+        acceptance_policy='strict_physical_improvement')
+    pending = propose_feedback(initial, parameter_hash='b', parameters=[.1], predicted_center=.5,
+                               predicted_candidate=.4, surrogate_contract_sha256='checkpoint')
+    accepted = finish_feedback(restore_feedback(asdict(pending)), observation=observation('b', .35, .65))
+    assert accepted.incumbent_hash == 'b' and accepted.radius == .2
+    assert accepted.acceptance_policy == 'strict_physical_improvement'
+    rejected = finish_feedback(proposal(accepted, 'c', position=.15), observation=observation('c', .4, .6))
+    assert rejected.incumbent_hash == 'b' and rejected.radius == .1
+    assert restore_feedback(asdict(rejected)) == rejected
