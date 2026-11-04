@@ -46,3 +46,23 @@ def test_trial_failure_is_not_silently_retried(tmp_path, monkeypatch):
     assert (tmp_path/'trial_0.failure.json').exists()
     with pytest.raises(FileExistsError, match='reconciled'):
         runner.run_trials(**args)
+
+
+def test_robust_trials_share_evaluation_and_offset_contract(tmp_path, monkeypatch):
+    calls = []
+    def run(config, source, predictor, mode):
+        calls.append((config['initial'], mode))
+        return {'history': [{}] * config['evaluations'], 'selection': {'selected_index': 0}}
+    monkeypatch.setattr(runner, 'run_robust_shard', run)
+    cfg = {'initial': [0., 0.], 'evaluations': 12, 'checkpoint_sha256': 'checkpoint',
+           'source_sha256': 'source-digest', 'k_points_sha256': 'k-digest', 'offsets': [-.01, 0., .01]}
+    manifest = {'scope': 'preregistered_robust_design', 'evaluations': 12, 'offsets': cfg['offsets'],
+        'trials': [{'source_id': 8, 'method': 'mean', 'mode': 'mean', 'initial_index': i,
+                    'trial_id': f'trial_{i}', 'status': 'ready',
+                    'config': {**cfg, 'initial': [i * .1, 0.]}} for i in range(3)]}
+    args = dict(manifest=manifest, manifest_sha256='manifest', source_id=8, method='mean',
+                source=SimpleNamespace(parameter_hash='source'),
+                predictor=SimpleNamespace(checkpoint_sha256='checkpoint', k_points=torch.tensor([[0., 0.]])),
+                runtime={}, code_commit='commit', cluster_id='n56', output=tmp_path)
+    assert len(runner.run_trials(**args)) == len(calls) == 3
+    assert all(method == 'mean' for _, method in calls)

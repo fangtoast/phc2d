@@ -14,13 +14,16 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from phc2d.inverse.differentiable_mvp import load_design_inputs, run_shard
+from phc2d.inverse.differentiable_robust import run_robust_shard
 
 
 def run_trials(manifest: Mapping[str, Any], *, manifest_sha256: str, source_id: int,
                method: str, source: Any, predictor: Any, runtime: Mapping[str, Any],
                code_commit: str, cluster_id: str, output: Path) -> list[str]:
     """Save individual trials exclusively; resume only matching completed identities."""
-    if not manifest_sha256 or not code_commit or not cluster_id or method not in ('adam', 'de', 'random'):
+    robust = manifest.get('scope') == 'preregistered_robust_design'
+    methods = ('nominal', 'mean', 'worst') if robust else ('adam', 'de', 'random')
+    if not manifest_sha256 or not code_commit or not cluster_id or method not in methods:
         raise ValueError('missing campaign identity or invalid method')
     trials = [row for row in manifest['trials'] if row['source_id'] == source_id and row['method'] == method]
     if len(trials) != 3 or {row['initial_index'] for row in trials} != {0, 1, 2}:
@@ -45,11 +48,13 @@ def run_trials(manifest: Mapping[str, Any], *, manifest_sha256: str, source_id: 
             payload = {**identity, 'status': row['status'], 'initial_index': row['initial_index']}
         else:
             cfg = row['config']
-            if (cfg['initial'] is None or cfg['evaluations'] != 60
+            if (cfg['initial'] is None or cfg['evaluations'] != (manifest['evaluations'] if robust else 60)
+                    or (robust and (cfg['offsets'] != manifest['offsets'] or row['mode'] != method))
                     or cfg['checkpoint_sha256'] != predictor.checkpoint_sha256):
                 raise ValueError('invalid trial config or checkpoint identity')
             try:
-                result = run_shard(cfg, source, predictor, role=method)
+                result = (run_robust_shard(cfg, source, predictor, mode=method) if robust
+                          else run_shard(cfg, source, predictor, role=method))
                 if len(result['history']) != cfg['evaluations']:
                     raise ValueError('incomplete optimization trajectory')
                 result.update(identity, status='completed', source_id=source_id,
