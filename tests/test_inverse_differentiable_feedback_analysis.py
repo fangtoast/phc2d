@@ -37,6 +37,10 @@ def test_feedback_analysis_reproduces_pairing_interaction_and_prefit_errors():
     assert report['seeds'][0]['interaction'] == pytest.approx(-.1)
     assert report['interaction_mean_across_sources'] == pytest.approx(-.1)
     assert report['prefit_errors']['adam_residual']['corrected_edge_mae'] == pytest.approx(.01)
+    curve = [row for row in report['budget_curve'] if row['method'] == 'adam_residual']
+    assert [row['proxy_evaluations'] for row in curve] == [0, 20, 40, 60]
+    assert [row['maximum_online_physical_roles'] for row in curve] == [5, 6, 7, 8]
+    assert all(row['mean_physical_margin'] == pytest.approx(.4) for row in curve)
     round0 = report['seeds'][0]['arms']['adam_residual']['rounds'][0]
     assert round0['raw_edge_error'] == pytest.approx([.02, -.02])
     assert round0['corrected_edge_error'] == pytest.approx([.01, -.01])

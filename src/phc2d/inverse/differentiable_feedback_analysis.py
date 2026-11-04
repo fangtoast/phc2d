@@ -62,8 +62,13 @@ def analyze_feedback(arms: Mapping[str, Any], baseline: Mapping[str, Any],
                         or not all(np.isfinite(x).all() for x in (actual, original, corrected))
                         or not np.allclose(corrected-actual, completed['prefit_edge_error'], rtol=0, atol=1e-8)):
                     raise ValueError('feedback prefit error does not reproduce')
+                current = state_after.incumbent_observation['row']
+                current_margin = float(2 * min(target-float(current['refined_lower_edge_frequency']),
+                                               float(current['refined_upper_edge_frequency'])-target) / target)
                 item['rounds'].append({'round': index, 'accepted': completed['accepted'], 'cached': completed['cached'],
+                    'physical_incumbent_margin': current_margin,
                     'raw_edge_error': (original-actual).tolist(), 'corrected_edge_error': (corrected-actual).tolist()})
+            item['initial_margin'] = float(state.history[0]['comparison']['center_margin'])
         groups[seed][method] = item
     rows = []
     for seed, values in sorted(groups.items()):
@@ -110,10 +115,22 @@ def analyze_feedback(arms: Mapping[str, Any], baseline: Mapping[str, Any],
         errors[method] = {'observation_count': len(rounds),
             'raw_edge_mae': float(np.mean([abs(value) for item in rounds for value in item['raw_edge_error']])) if rounds else None,
             'corrected_edge_mae': float(np.mean([abs(value) for item in rounds for value in item['corrected_edge_error']])) if rounds else None}
+    budget_curve = []
+    for method in ('adam_trajectory', 'adam_residual', 'de_residual'):
+        for count in range(4):
+            values = [row['arms'][method]['initial_margin'] if count == 0 else
+                      row['arms'][method]['rounds'][count-1]['physical_incumbent_margin']
+                      for row in rows if row['arms'][method]['status'] == 'completed']
+            budget_curve.append({'method': method, 'rounds': count, 'proxy_evaluations': 20*count,
+                'maximum_online_physical_roles': 5+count, 'paired_trial_count': len(values),
+                'mean_physical_margin': float(np.mean(values)) if values else None,
+                'median_physical_margin': float(np.median(values)) if values else None,
+                'target_covered': sum(value > 0 for value in values)})
     return {'scope': 'paired_development_feedback_comparison', 'seeds': rows,
             'registered_seed_count': len(rows),
             'complete_2x2_count': sum(row['interaction'] is not None for row in rows), 'method_summary': summary,
-            'paired_changes': paired, 'prefit_errors': errors, 'interaction_by_source': source_means,
+            'paired_changes': paired, 'prefit_errors': errors, 'budget_curve': budget_curve,
+            'interaction_by_source': source_means,
             'interaction_mean_across_sources': float(np.mean(list(source_means.values()))) if source_means else None}
 
 
