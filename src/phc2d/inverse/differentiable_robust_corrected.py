@@ -10,6 +10,8 @@ import hashlib
 import json
 from typing import Any, Mapping, Sequence
 
+import numpy as np
+
 from phc2d.inverse.differentiable_objective import optimize_corrected_robust_adam
 from phc2d.inverse.differentiable_robust_feedback import fit_scenario_corrections
 from phc2d.inverse.differentiable_selection import rank_robust_trajectory
@@ -26,6 +28,8 @@ def propose_corrected_robust_design(source: Any, predictor: Any, observations: S
     center, radius = config['center'], float(config['radius'])
     corrections = fit_scenario_corrections(observations, offsets=offsets, center=center,
                                            radius=radius, ridge=config['ridge'])
+    hard_corrections = fit_scenario_corrections(observations, offsets=offsets, center=center,
+                                                radius=radius, ridge=config['ridge'], prediction_field='hard_edges')
     keys = tuple((int(i), str(component)) for i, component in config['coefficient_keys'])
     history = optimize_corrected_robust_adam(source, predictor, corrections, coefficient_keys=keys,
         scales=config['scales'], lower=config['lower'], upper=config['upper'],
@@ -39,8 +43,22 @@ def propose_corrected_robust_design(source: Any, predictor: Any, observations: S
         source_resolution=config['source_resolution'], input_resolution=config['input_resolution'],
         material_fraction_bounds=tuple(config['material_fraction_bounds']), lower_band=config['lower_band'],
         target_frequency=config['target_frequency'])
-    eligible = [row['index'] for row in screening['candidates'] if row['status'] == 'surrogate_only']
-    best = max(eligible, key=lambda index: (history[index]['objective'], -index)) if eligible else None
+    eligible = []
+    for row in screening['candidates']:
+        if row['status'] != 'surrogate_only':
+            continue
+        index = row['index']
+        bands = np.asarray(row['robust_prediction']['bands'], dtype=float)
+        pair, target = config['lower_band'], float(config['target_frequency'])
+        hard_edges = np.stack((bands[:, :, pair-1].max(axis=1), bands[:, :, pair].min(axis=1)), axis=1)
+        corrected_edges = np.stack([correction.correct(history[index]['parameters'], hard_edges[i])
+                                    for i, correction in enumerate(hard_corrections)])
+        margins = 2*np.minimum(target-corrected_edges[:, 0], corrected_edges[:, 1]-target)/target
+        score = float(margins.mean() if config.get('scenario_reduction', 'worst') == 'mean' else margins.min())
+        row['corrected_hard_edges'] = corrected_edges.tolist()
+        row['corrected_hard_selection_score'] = score
+        eligible.append(index)
+    best = max(eligible, key=lambda index: (screening['candidates'][index]['corrected_hard_selection_score'], -index)) if eligible else None
     prediction = None
     if best is not None:
         import torch
@@ -70,10 +88,14 @@ def propose_corrected_robust_design(source: Any, predictor: Any, observations: S
     digest = hashlib.sha256(json.dumps(list(observations), sort_keys=True, separators=(',', ':'),
                                       allow_nan=False).encode('utf8')).hexdigest()
     return {'scope': 'feedback_surrogate_proposal_only', 'status': 'proposal_ready' if best is not None else 'no_valid_candidate',
-            'selection_rule': 'maximum_corrected_soft_objective_among_valid_hard_scenarios',
+            'selection_rule': 'maximum_corrected_hard_target_margin',
             'offsets': list(offsets), 'observation_sha256': digest, 'history': history,
             'hard_screening': screening, 'selected_index': best, 'prefit_prediction': prediction,
             'corrections': [{'center': item.center.tolist(), 'radius': item.radius,
                 'coefficients': item.coefficients.tolist(), 'sample_count': item.sample_count,
                 'comparison_contract_sha256': item.comparison_contract_sha256,
-                'surrogate_contract_sha256': item.surrogate_contract_sha256} for item in corrections]}
+                'surrogate_contract_sha256': item.surrogate_contract_sha256} for item in corrections],
+            'hard_corrections': [{'center': item.center.tolist(), 'radius': item.radius,
+                'coefficients': item.coefficients.tolist(), 'sample_count': item.sample_count,
+                'comparison_contract_sha256': item.comparison_contract_sha256,
+                'surrogate_contract_sha256': item.surrogate_contract_sha256} for item in hard_corrections]}

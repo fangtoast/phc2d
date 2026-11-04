@@ -89,5 +89,9 @@ def test_feedback_stencil_retains_all_roles_and_bounds():
     assert proposal['status'] == 'proposal_ready' and len(proposal['history']) == 2
     assert len(proposal['prefit_prediction']['corrected_smooth_edges']) == 3
     assert all(item['sample_count'] == 1 for item in proposal['corrections'])
+    assert proposal['selection_rule'] == 'maximum_corrected_hard_target_margin'
+    scores = [item['corrected_hard_selection_score'] for item in proposal['hard_screening']['candidates']
+              if item['status'] == 'surrogate_only']
+    assert proposal['hard_screening']['candidates'][proposal['selected_index']]['corrected_hard_selection_score'] == max(scores)
     with pytest.raises(ValueError, match='scenario'):
         fit_scenario_corrections(bound[:-1], offsets=offsets, center=[.5, 0.], radius=.2, ridge=1e-5)

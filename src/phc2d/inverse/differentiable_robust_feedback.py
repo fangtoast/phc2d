@@ -91,10 +91,12 @@ def bind_scenario_feedback(prediction: Mapping[str, Any], result: Mapping[str, A
 
 
 def fit_scenario_corrections(observations: Sequence[Mapping[str, Any]], *, offsets: Sequence[float],
-                             center: Any, radius: float, ridge: float) -> list[Any]:
+                             center: Any, radius: float, ridge: float,
+                             prediction_field: str = 'predicted_edges') -> list[Any]:
     """Fit each manufacturing scenario using only its own physical observations."""
     values = [float(value) for value in offsets]
-    if len(values) != len(set(values)) or not values or not np.isfinite(values).all():
+    if (len(values) != len(set(values)) or not values or not np.isfinite(values).all()
+            or prediction_field not in ('predicted_edges', 'hard_edges')):
         raise ValueError('invalid correction offsets')
     result = []
     for offset in values:
@@ -103,6 +105,8 @@ def fit_scenario_corrections(observations: Sequence[Mapping[str, Any]], *, offse
                  <= radius + 1e-12]
         if not local:
             raise ValueError('no local physical feedback for one manufacturing scenario')
+        if prediction_field != 'predicted_edges':
+            local = [{**row, 'predicted_edges': row[prediction_field]} for row in local]
         result.append(fit_composite_edge_correction(local, center=center, radius=radius, ridge=ridge))
     return result
 

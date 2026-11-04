@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import numpy as np
+from phc2d.inverse.local_edge_correction import LocalEdgeCorrection
 
 
 def _bytes(value: Any) -> bytes:
@@ -80,9 +81,37 @@ def lock_corrected_robust_campaign(manifest: Mapping[str, Any], results: Mapping
                 or any(row['index'] != index for index, row in enumerate(candidates))):
             raise ValueError('corrected robust trajectory or initial mismatch')
         eligible = [row for row in candidates if row['status'] == 'surrogate_only']
-        if not eligible or any(not math.isfinite(float(history[row['index']]['objective'])) for row in eligible):
+        if (not eligible or item.get('selection_rule') != 'maximum_corrected_hard_target_margin'
+                or len(item.get('hard_corrections', [])) != len(used_offsets)
+                or any(not math.isfinite(float(history[row['index']]['objective'])) for row in eligible)):
             raise ValueError('completed corrected robust trial has no finite candidate')
-        winner = max(eligible, key=lambda row: (float(history[row['index']]['objective']), -row['index']))
+        hard_corrections = []
+        for raw in item['hard_corrections']:
+            center = np.asarray(raw['center'], dtype=float)
+            coefficients = np.asarray(raw['coefficients'], dtype=float)
+            if (center.tolist() != cfg['center'] or raw['radius'] != cfg['radius']
+                    or raw['surrogate_contract_sha256'] != cfg['surrogate_contract_sha256']
+                    or not raw['comparison_contract_sha256'] or coefficients.shape != (len(center)+1, 2)
+                    or not np.isfinite(coefficients).all()):
+                raise ValueError('corrected robust hard-residual identity mismatch')
+            hard_corrections.append(LocalEdgeCorrection(center, raw['radius'], coefficients,
+                raw['comparison_contract_sha256'], raw['surrogate_contract_sha256'], raw['sample_count']))
+        def hard_score(row: Mapping[str, Any]) -> float:
+            bands = np.asarray(row['robust_prediction']['bands'], dtype=float)
+            pair, target = cfg['lower_band'], float(cfg['target_frequency'])
+            if (bands.ndim != 3 or bands.shape[0] != len(used_offsets) or bands.shape[2] <= pair
+                    or not np.isfinite(bands).all() or target <= 0):
+                raise ValueError('corrected robust hard spectrum mismatch')
+            edges = np.stack((bands[:, :, pair-1].max(axis=1), bands[:, :, pair].min(axis=1)), axis=1)
+            point = history[row['index']]['parameters']
+            corrected = np.stack([correction.correct(point, edges[i]) for i, correction in enumerate(hard_corrections)])
+            margins = 2*np.minimum(target-corrected[:, 0], corrected[:, 1]-target)/target
+            score = float(margins.mean() if spec['mode'] == 'mean' else margins.min())
+            if (not np.allclose(corrected, row['corrected_hard_edges'], rtol=0, atol=1e-8)
+                    or not math.isclose(score, float(row['corrected_hard_selection_score']), rel_tol=0, abs_tol=1e-8)):
+                raise ValueError('corrected robust hard selection score mismatch')
+            return score
+        winner = max(eligible, key=lambda row: (hard_score(row), -row['index']))
         if item['selected_index'] != winner['index'] or item['prefit_prediction']['point'] != history[winner['index']]['parameters']:
             raise ValueError('corrected robust selection or prefit prediction mismatch')
         diagnostic = item['full_scenarios_diagnostic']['candidates']
