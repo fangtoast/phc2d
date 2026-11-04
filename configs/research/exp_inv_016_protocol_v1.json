@@ -1,0 +1,49 @@
+{
+  "experiment_id": "EXP-INV-016",
+  "dataset_sha256": "7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6",
+  "checkpoint_sha256": "c8a30e043891ad645fefbb8d9285009a90371ace5725a275df1e9986e9a2c79e",
+  "source_selection_seed": 20261105,
+  "source_count": 5,
+  "source_id_offset": 100000,
+  "master_resolution": 512,
+  "epsilon_air": 1.0,
+  "epsilon_material": 8.9,
+  "target_frequencies": [0.55, 0.57, 0.6],
+  "optimization_seeds": [20261105, 20261106, 20261107],
+  "methods": ["adam", "de", "random"],
+  "feedback_arms": ["adam_trajectory", "adam_residual", "de_residual"],
+  "evaluations": 60,
+  "initial_options": [[[0.0, 0.0]]],
+  "diagnostic_evaluation_counts": [1, 20, 40, 60],
+  "manufacturing_offsets": [-0.001953125, 0.0, 0.001953125],
+  "four_parameter": {
+    "coefficient_keys": [[0, "cos"], [0, "sin"], [1, "cos"]],
+    "scales": [0.2, 0.2, 0.2, 0.1],
+    "lower": [-0.5, -0.5, -0.5, -0.5],
+    "upper": [0.5, 0.5, 0.5, 0.5],
+    "initial_options": [[[0.0, 0.0, 0.0, 0.0]]],
+    "optimization_seeds": [20261105]
+  },
+  "high_accuracy": {
+    "target_frequency": 0.57,
+    "optimization_seed": 20261105,
+    "methods": ["pure_adam", "adam_residual"],
+    "resolution": 224,
+    "verification_resolution": 256,
+    "initial_spacing": 0.05555555555555555,
+    "edge_tolerance": 0.00025,
+    "resolution_tolerance": 0.00025,
+    "offsets": [0.0]
+  },
+  "resource_envelope": {
+    "gpu_platform": "n56",
+    "gpu_hours_max": 360.0,
+    "m9_allocated_core_hours_max": 1500.0,
+    "m9_max_concurrent_shards": 4,
+    "m9_cpus_per_shard": 10,
+    "m9_workers_per_shard": 8,
+    "m9_memory_mib_per_shard": 32768,
+    "wsl_independent_replay_accounted_separately": true,
+    "automatic_retry": false
+  }
+}
