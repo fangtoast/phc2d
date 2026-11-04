@@ -1,4 +1,4 @@
-"""Run paired nominal and worst-scenario differentiable design shards.
+"""Run paired nominal, mean and worst-scenario differentiable design shards.
 
 Author: fangtoast
 Email: fangtoast@foxmail.com
@@ -15,8 +15,8 @@ from phc2d.inverse.differentiable_selection import rank_hard_trajectory, rank_ro
 
 def run_robust_shard(config: Mapping[str, Any], source: Any, predictor: Any, *, mode: str) -> dict[str, Any]:
     """Optimize from a shared initial point and retain the registered selection rule."""
-    if mode not in ('nominal', 'worst'):
-        raise ValueError('robust design mode must be nominal or worst')
+    if mode not in ('nominal', 'mean', 'worst'):
+        raise ValueError('robust design mode must be nominal, mean or worst')
     offsets = tuple(float(value) for value in config['offsets'])
     if len(offsets) != 3 or 0.0 not in offsets or not any(x < 0 for x in offsets) or not any(x > 0 for x in offsets):
         raise ValueError('nominal and both signed manufacturing offsets are required')
@@ -30,7 +30,7 @@ def run_robust_shard(config: Mapping[str, Any], source: Any, predictor: Any, *, 
     if mode == 'nominal':
         history = optimize_fourier_adam(source, predictor, **shared)
     else:
-        history = optimize_robust_fourier_adam(source, predictor, offsets=offsets, **shared)
+        history = optimize_robust_fourier_adam(source, predictor, offsets=offsets, scenario_reduction=mode, **shared)
     screening = dict(coefficient_keys=keys, max_mode_radius=config['max_mode_radius'],
         raster_method='master_block_mean_v1', source_resolution=config['source_resolution'],
         input_resolution=config['input_resolution'], material_fraction_bounds=tuple(config['material_fraction_bounds']),
@@ -39,7 +39,7 @@ def run_robust_shard(config: Mapping[str, Any], source: Any, predictor: Any, *, 
         selected = rank_hard_trajectory(source, predictor, history, **screening)
         diagnostic = rank_robust_trajectory(source, predictor, history, offsets=offsets, **screening)
     else:
-        selected = rank_robust_trajectory(source, predictor, history, offsets=offsets, **screening)
+        selected = rank_robust_trajectory(source, predictor, history, offsets=offsets, score_reduction=mode, **screening)
         diagnostic = None
     return {'scope': 'surrogate_only', 'mode': mode, 'history': history, 'selection': selected,
             'robust_diagnostic': diagnostic, 'offsets': list(offsets), 'elapsed_s': time.monotonic() - start,

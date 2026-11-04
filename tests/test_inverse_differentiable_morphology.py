@@ -51,7 +51,10 @@ def test_robust_margin_uses_shared_target_across_scenarios():
     one = robust_fourier_margin(source, Predictor(), params, offsets=[0.], **args)
     assert one.item() == pytest.approx(nominal.item())
     robust = robust_fourier_margin(source, Predictor(), params, offsets=[-1/64, 0., 1/64], **args)
+    average = robust_fourier_margin(source, Predictor(), params, offsets=[-1/64, 0., 1/64],
+                                    scenario_reduction='mean', **args)
     assert robust.item() <= nominal.item()
+    assert robust.item() <= average.item()
     gradient, = torch.autograd.grad(robust, params)
     assert torch.isfinite(gradient).all()
     history = optimize_robust_fourier_adam(source, Predictor(), scales=[0.2, 0.1],
@@ -77,9 +80,14 @@ def test_robust_margin_uses_shared_target_across_scenarios():
         'temperature': .2, 'lower_band': 1, 'target_frequency': .5, 'beta': 100, 'learning_rate': .05,
         'evaluations': 2, 'initial': [.15, 0.], 'max_mode_radius': 1, 'material_fraction_bounds': [0., 1.]}
     nominal_result = run_robust_shard(config, source, Predictor(), mode='nominal')
+    mean_result = run_robust_shard(config, source, Predictor(), mode='mean')
     robust_result = run_robust_shard(config, source, Predictor(), mode='worst')
     assert nominal_result['history'][0]['parameters'] == pytest.approx([.15, 0.])
     assert robust_result['history'][0]['parameters'] == pytest.approx([.15, 0.])
     assert nominal_result['selection']['status'] == 'selected' and nominal_result['robust_diagnostic'] is not None
     assert robust_result['selection']['score'] == 'hard_common_target_margin'
+    assert mean_result['selection']['score'] == 'hard_mean_target_margin'
+    mean_candidate = mean_result['selection']['candidates'][mean_result['selection']['selected_index']]
+    prediction = mean_candidate['robust_prediction']
+    assert prediction['selection_score'] == pytest.approx(np.mean(prediction['scenario_target_margins']))
     assert robust_result['objective_evaluations'] == 2 and robust_result['scenario_inputs_per_objective'] == 3

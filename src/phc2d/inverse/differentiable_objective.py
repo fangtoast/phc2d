@@ -82,8 +82,9 @@ def corrected_fourier_margin(source: Any, predictor: Any, parameters: Any, norma
 
 def robust_fourier_margin(source: Any, predictor: Any, parameters: Any, *, coefficient_keys: Any,
                           master_resolution: int, input_resolution: int, temperature: float,
-                          offsets: Any, lower_band: int, target_frequency: float, beta: float) -> Any:
-    """Smooth worst target margin across periodic manufacturing scenarios."""
+                          offsets: Any, lower_band: int, target_frequency: float, beta: float,
+                          scenario_reduction: str = 'worst') -> Any:
+    """Smooth target margin across periodic manufacturing scenarios."""
     import torch
     from phc2d.data.differentiable_fourier import fourier_material_weight
     from phc2d.inverse.differentiable_morphology import periodic_soft_offset
@@ -91,7 +92,8 @@ def robust_fourier_margin(source: Any, predictor: Any, parameters: Any, *, coeff
     values = tuple(float(offset) for offset in offsets)
     if (not values or 0.0 not in values or len(set(values)) != len(values)
             or any(not math.isfinite(value) for value in values)
-            or not math.isfinite(target_frequency) or target_frequency <= 0):
+            or not math.isfinite(target_frequency) or target_frequency <= 0
+            or scenario_reduction not in ('worst', 'mean')):
         raise ValueError('finite unique manufacturing offsets including zero are required')
     weight = fourier_material_weight(source, parameters, coefficient_keys=coefficient_keys,
                                      master_resolution=master_resolution,
@@ -105,6 +107,8 @@ def robust_fourier_margin(source: Any, predictor: Any, parameters: Any, *, coeff
         scenarios.append(shifted.reshape(input_resolution, factor, input_resolution, factor).mean(dim=(1, 3)))
     edges = smooth_band_edges(predictor.predict_tensor(torch.stack(scenarios)), lower_band=lower_band, beta=beta)
     margins = torch.stack((target_frequency - edges[:, 0], edges[:, 1] - target_frequency), dim=1)
+    if scenario_reduction == 'mean':
+        return (-2 * torch.logsumexp(-beta * margins, dim=1) / (beta * target_frequency)).mean()
     return -2 * torch.logsumexp(-beta * margins.flatten(), dim=0) / (beta * target_frequency)
 
 
@@ -355,7 +359,8 @@ def optimize_robust_fourier_adam(source: Any, predictor: Any, *, coefficient_key
                                  scales: Any, lower: Any, upper: Any, master_resolution: int,
                                  input_resolution: int, temperature: float, offsets: Any,
                                  lower_band: int, target_frequency: float, beta: float,
-                                 learning_rate: float, steps: int, initial: Any = None) -> list[dict[str, Any]]:
+                                 learning_rate: float, steps: int, initial: Any = None,
+                                 scenario_reduction: str = 'worst') -> list[dict[str, Any]]:
     """Optimize the shared target margin across differentiable periodic offsets."""
     import torch
 
@@ -371,7 +376,7 @@ def optimize_robust_fourier_adam(source: Any, predictor: Any, *, coefficient_key
         return robust_fourier_margin(source, predictor, base + scale*z,
             coefficient_keys=keys, master_resolution=master_resolution, input_resolution=input_resolution,
             temperature=temperature, offsets=offsets, lower_band=lower_band,
-            target_frequency=target_frequency, beta=beta)
+            target_frequency=target_frequency, beta=beta, scenario_reduction=scenario_reduction)
 
     start = torch.zeros_like(base) if initial is None else torch.as_tensor(initial, dtype=base.dtype, device=base.device)
     history = optimize_adam(objective, start, lower=lower, upper=upper,

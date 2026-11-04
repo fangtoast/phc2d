@@ -80,13 +80,14 @@ def rank_hard_trajectory(source: Any, predictor: Any, history: Sequence[dict[str
 
 
 def rank_robust_trajectory(source: Any, predictor: Any, history: Sequence[dict[str, Any]], *,
-                           offsets: Sequence[float], **settings: Any) -> dict[str, Any]:
-    """Select by the exact sampled common target margin of hard scenarios."""
+                           offsets: Sequence[float], score_reduction: str = 'worst', **settings: Any) -> dict[str, Any]:
+    """Select by the exact sampled common or mean target margin of hard scenarios."""
     from phc2d.data.full_cell_spec import FullCellStructureSpec
     from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, predict_perturbed_gap
 
     values = tuple(float(value) for value in offsets)
-    if not values or 0.0 not in values or len(values) != len(set(values)) or not np.isfinite(values).all():
+    if (not values or 0.0 not in values or len(values) != len(set(values))
+            or not np.isfinite(values).all() or score_reduction not in ('worst', 'mean')):
         raise ValueError('finite unique offsets including nominal zero required')
     result = rank_hard_trajectory(source, predictor, history, **settings)
     best = None
@@ -101,7 +102,13 @@ def rank_robust_trajectory(source: Any, predictor: Any, history: Sequence[dict[s
         if prediction['status'] != 'surrogate_only':
             row['status'] = prediction['status']
             continue
-        score = float(prediction['gap']['target_margin'])
+        bands = np.asarray(prediction['bands'], dtype=np.float64)
+        lower_band, target = settings['lower_band'], settings['target_frequency']
+        margins = 2 * np.minimum(target - bands[:, :, lower_band - 1].max(axis=1),
+                                  bands[:, :, lower_band].min(axis=1) - target) / target
+        prediction['scenario_target_margins'] = margins.tolist()
+        score = float(prediction['gap']['target_margin'] if score_reduction == 'worst' else margins.mean())
+        prediction['selection_score'] = score
         if best is None or score > best[0]:
             best = (score, row['index'])
     for row in result['candidates']:
@@ -111,6 +118,6 @@ def rank_robust_trajectory(source: Any, predictor: Any, history: Sequence[dict[s
                 row.update(status='duplicate_geometry_rejected', duplicate_of_status=previous['status'])
     result.update(status='selected' if best is not None else 'no_valid_candidates',
                   selected_index=None if best is None else best[1], offsets=list(values),
-                  score='hard_common_target_margin',
+                  score='hard_common_target_margin' if score_reduction == 'worst' else 'hard_mean_target_margin',
                   accounting='nominal_screen_plus_one_batched_scenario_prediction_per_unique_eligible_grid')
     return result
