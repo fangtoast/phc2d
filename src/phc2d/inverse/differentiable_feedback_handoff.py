@@ -21,6 +21,30 @@ def _serialized(value: Any) -> bytes:
     return json.dumps(value, indent=2, allow_nan=False).encode('utf8')
 
 
+def validate_round_summaries(summaries: list[Mapping[str, Any]], *, arms: Mapping[str, Any],
+                             design_manifest: Mapping[str, Any], arms_sha256: str,
+                             design_manifest_sha256: str, round_index: int) -> None:
+    """Require all source shards to use the same input and code identity."""
+    expected = {row['source_id'] for row in design_manifest['sources']}
+    if len(summaries) != len(expected) or {row['source_id'] for row in summaries} != expected:
+        raise ValueError('feedback GPU source summaries incomplete')
+    commits = set()
+    for row in summaries:
+        source_id = row['source_id']
+        roster = {f"{arm['seed_id']}_{arm['arm']}" for arm in arms['arms']
+                  if arm['seed_id'].startswith(f'source_{source_id:04d}_')}
+        runtime = row['runtime']
+        if (row.get('arms_sha256') != arms_sha256 or row.get('manifest_sha256') != design_manifest_sha256
+                or row.get('round') != round_index or not row.get('code_commit') or not row.get('cluster_id')
+                or runtime.get('contract') != {'precision': 'fp32', 'amp_enabled': False, 'tf32_enabled': False}
+                or runtime.get('matmul_tf32_enabled') is not False or runtime.get('cudnn_tf32_enabled') is not False
+                or len(row['arms']) != len(roster) or {item['arm'] for item in row['arms']} != roster):
+            raise ValueError('feedback GPU source summary identity mismatch')
+        commits.add(row['code_commit'])
+    if len(commits) != 1:
+        raise ValueError('feedback GPU code identities differ')
+
+
 def lock_feedback_round(arms: Mapping[str, Any], requests: Mapping[str, Mapping[str, Any]], *,
                         design_manifest: Mapping[str, Any], design_lock: Mapping[str, Any],
                         base_sha256: str, design_manifest_sha256: str, round_index: int) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -81,6 +105,10 @@ def main() -> None:
     raw_arms, raw_design, raw_lock, raw_base = (Path(getattr(args, key)).read_bytes()
         for key in ('arms', 'design_manifest', 'design_lock', 'base'))
     arms, design, design_lock, base = (json.loads(raw) for raw in (raw_arms, raw_design, raw_lock, raw_base))
+    summaries = [json.loads(path.read_bytes()) for path in Path(args.request_directory).glob('source_*_summary.json')]
+    validate_round_summaries(summaries, arms=arms, design_manifest=design,
+        arms_sha256=hashlib.sha256(raw_arms).hexdigest(), design_manifest_sha256=hashlib.sha256(raw_design).hexdigest(),
+        round_index=args.round)
     requests = {}
     for path in Path(args.request_directory).glob('*/request.json'):
         request = json.loads(path.read_bytes())

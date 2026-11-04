@@ -9,7 +9,7 @@ import pytest
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.differentiable_campaign_handoff import build_campaign_request
-from phc2d.inverse.differentiable_feedback_handoff import _serialized, lock_feedback_round
+from phc2d.inverse.differentiable_feedback_handoff import _serialized, lock_feedback_round, validate_round_summaries
 from phc2d.inverse.differentiable_feedback_round import freeze_round
 from phc2d.inverse.feedback_state import start_feedback
 
@@ -73,3 +73,20 @@ def test_frozen_feedback_handoff_uses_unique_physical_cases():
         design_manifest=design, design_lock=design_lock, base_sha256='base',
         design_manifest_sha256='design', round_index=0)
     assert failed_lock['records'][0]['status'] == 'no_valid_candidate'
+
+
+def test_round_summaries_require_complete_matching_gpu_shards():
+    arms = {'arms': [{'seed_id': 'source_0008_initial_0_adam', 'arm': 'adam_residual'}]}
+    design = {'sources': [{'source_id': 8}]}
+    summary = {'source_id': 8, 'arms_sha256': 'arms', 'manifest_sha256': 'design', 'round': 0,
+               'code_commit': 'commit', 'cluster_id': 'n56', 'arms': [
+                   {'arm': 'source_0008_initial_0_adam_adam_residual'}],
+               'runtime': {'contract': {'precision': 'fp32', 'amp_enabled': False, 'tf32_enabled': False},
+                           'matmul_tf32_enabled': False, 'cudnn_tf32_enabled': False}}
+    kw = dict(arms=arms, design_manifest=design, arms_sha256='arms', design_manifest_sha256='design', round_index=0)
+    validate_round_summaries([summary], **kw)
+    with pytest.raises(ValueError, match='incomplete'):
+        validate_round_summaries([], **kw)
+    bad = copy.deepcopy(summary); bad['runtime']['matmul_tf32_enabled'] = True
+    with pytest.raises(ValueError, match='identity mismatch'):
+        validate_round_summaries([bad], **kw)
