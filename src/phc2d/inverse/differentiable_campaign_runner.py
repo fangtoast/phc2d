@@ -26,7 +26,10 @@ def run_trials(manifest: Mapping[str, Any], *, manifest_sha256: str, source_id: 
     if not manifest_sha256 or not code_commit or not cluster_id or method not in methods:
         raise ValueError('missing campaign identity or invalid method')
     trials = [row for row in manifest['trials'] if row['source_id'] == source_id and row['method'] == method]
-    if len(trials) != 3 or {row['initial_index'] for row in trials} != {0, 1, 2}:
+    sources = [row for row in manifest.get('sources', []) if row['source_id'] == source_id]
+    expected = ({item['initial_index'] for item in sources[0]['initials']} if len(sources) == 1
+                else {0, 1, 2} if not manifest.get('sources') else set())
+    if not expected or len(trials) != len(expected) or {row['initial_index'] for row in trials} != expected:
         raise ValueError('source/method trial roster mismatch')
     output.mkdir(parents=True, exist_ok=True)
     completed = []

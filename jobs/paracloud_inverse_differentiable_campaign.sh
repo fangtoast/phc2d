@@ -10,20 +10,14 @@ set -euo pipefail
 : "${PHC2D_MANIFEST_SHA256:?Set frozen manifest hash}"
 : "${PHC2D_SOURCE_DIRECTORY:?Set frozen source directory}"
 : "${PHC2D_CHECKPOINT:?Set frozen model}"
-: "${PHC2D_METHOD:?Set adam, de or random}"
+: "${PHC2D_METHOD:?Set the registered design method}"
 : "${PHC2D_OUTPUT_ROOT:?Set trial output directory}"
 : "${PHC2D_EXPECTED_COMMIT:?Set deployed code identity}"
 : "${SLURM_ARRAY_TASK_ID:?Set source shard index}"
 case "$PHC2D_GPU_PLATFORM:$PHC2D_METHOD" in
-  n40:adam|n56:de|n56:random) ;;
+  n40:adam|n56:de|n56:random|n40:nominal|n40:mean|n40:worst|n56:nominal|n56:mean|n56:worst) ;;
   n56:adam) [[ "${PHC2D_N56_TAKEOVER:-0}" == 1 ]] || { echo 'explicit N56 takeover required' >&2; exit 2; } ;;
   *) echo 'unsupported method/platform assignment' >&2; exit 2 ;;
-esac
-case "$SLURM_ARRAY_TASK_ID" in
-  0) source_id=8 ;;
-  1) source_id=491 ;;
-  2) source_id=348 ;;
-  *) echo 'invalid source shard index' >&2; exit 2 ;;
 esac
 if [[ "$PHC2D_GPU_PLATFORM" == n56 ]]; then
   export PHC2D_ENV="${PHC2D_ENV:-/data/run01/scxl892/envs/phc2d_gpu_cu128_torch271_r1}"
@@ -36,6 +30,17 @@ fi
 source "$PHC2D_ROOT/jobs/paracloud_gpu_common.sh"
 [[ "$PHC2D_DEPLOYED_GIT_COMMIT" == "$PHC2D_EXPECTED_COMMIT" ]] || { echo 'deployment mismatch' >&2; exit 2; }
 printf '%s  %s\n' "$PHC2D_MANIFEST_SHA256" "$PHC2D_MANIFEST" | sha256sum -c -
+source_id="$(python - "$PHC2D_MANIFEST" "$SLURM_ARRAY_TASK_ID" <<'PY'
+import json, sys
+rows = json.load(open(sys.argv[1], encoding='utf8'))['sources']
+index = int(sys.argv[2])
+ids = [row['source_id'] for row in rows]
+if (not 0 <= index < len(ids) or len(ids) != len(set(ids))
+        or any(isinstance(x, bool) or not isinstance(x, int) or x < 0 for x in ids)):
+    raise SystemExit('invalid source shard index or roster')
+print(ids[index])
+PY
+)"
 printf -v source_path '%s/source_%04d.json' "$PHC2D_SOURCE_DIRECTORY" "$source_id"
 python -m phc2d.inverse.differentiable_campaign_runner --manifest "$PHC2D_MANIFEST" \
   --source "$source_path" --source-id "$source_id" --checkpoint "$PHC2D_CHECKPOINT" \
