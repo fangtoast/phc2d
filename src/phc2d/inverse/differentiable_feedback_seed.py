@@ -50,5 +50,22 @@ def prepare_feedback_stencil(source: Any, predictor: Any, *, base: Mapping[str, 
         for index, candidate, item in zip(indices, screening['candidates'], history):
             records[index] = {'label': f'offset_{index}', 'point': item['parameters'], 'candidate': candidate}
     soft = audit_locked_soft({'records': records}, predictor, base)
+    beta, pair = float(base['beta']), int(base['lower_band'])
+    if not np.isfinite(beta) or beta <= 0:
+        raise ValueError('invalid feedback smoothing parameter')
+    hard_predictions = {row['candidate']['master_grid_sha256']: row['candidate']['bands']
+                        for row in records if row['candidate'] is not None and 'bands' in row['candidate']}
+    for record, soft_row in zip(records, soft['roles']):
+        if soft_row['status'] != 'computed':
+            continue
+        band = np.asarray(soft_row['soft_bands'], dtype=np.float64)
+        hard = np.asarray(hard_predictions[record['candidate']['master_grid_sha256']], dtype=np.float64)
+        low, upper = band[:, pair - 1], band[:, pair]
+        low_max, upper_min = float(low.max()), float(upper.min())
+        record['surrogate_edges'] = {
+            'hard_edges': [float(hard[:, pair - 1].max()), float(hard[:, pair].min())],
+            'soft_exact_edges': [low_max, upper_min],
+            'soft_smooth_edges': [float(low_max + np.log(np.exp(beta * (low - low_max)).sum()) / beta),
+                                  float(upper_min - np.log(np.exp(-beta * (upper - upper_min)).sum()) / beta)]}
     return {'scope': 'feedback_initial_stencil_surrogate_only', 'source_parameter_hash': source.parameter_hash,
             'initial': center.tolist(), 'records': records, 'soft_audit': soft}
