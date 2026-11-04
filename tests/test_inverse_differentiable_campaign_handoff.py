@@ -31,3 +31,10 @@ def test_campaign_handoff_deduplicates_geometry_and_validates_hash():
     bad['records'][0]['candidate']['master_grid_sha256'] = 'wrong'
     with pytest.raises(ValueError, match='structure hash'):
         build_campaign_request(**{**args, 'lock': bad})
+    robust_manifest = {**manifest, 'scope': 'preregistered_robust_design', 'offsets': [-1/64, 0., 1/64],
+                       'physical_protocol': {'offsets': [-1/64, 0., 1/64], 'raster_resolution': 64}}
+    physical, protocol = build_campaign_request(**{**args, 'manifest': robust_manifest})
+    assert protocol['offsets'] == robust_manifest['offsets'] and len(physical['rows']) == 1
+    robust_manifest['offsets'] = [-2/64, 0., 2/64]
+    with pytest.raises(ValueError, match='offsets differ'):
+        build_campaign_request(**{**args, 'manifest': robust_manifest})

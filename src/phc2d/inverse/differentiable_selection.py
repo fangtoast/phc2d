@@ -92,6 +92,7 @@ def rank_robust_trajectory(source: Any, predictor: Any, history: Sequence[dict[s
     result = rank_hard_trajectory(source, predictor, history, **settings)
     best = None
     for row in result['candidates']:
+        row['nominal_status'] = row['status']
         if row['status'] != 'surrogate_only':
             continue
         structure = FullCellStructureSpec.from_mapping(row['structure'])

@@ -58,9 +58,17 @@ def build_campaign_request(lock: Mapping[str, Any], manifest: Mapping[str, Any],
                          'structure': structure.to_mapping()})
         coverage.update(status='queued', case_index=grids[digest])
         roles.append(coverage)
-    protocol = base['physical_protocol']
-    if protocol['offsets'] != [0.0] or protocol['raster_resolution'] != resolution:
-        raise ValueError('expected nominal master-grid physical protocol')
+    protocol = manifest['physical_protocol'] if manifest.get('scope') == 'preregistered_robust_design' else base['physical_protocol']
+    if manifest.get('scope') == 'preregistered_robust_design':
+        offsets = manifest['offsets']
+        expected_protocol = {**base['physical_protocol'], 'offsets': offsets}
+        if (protocol != expected_protocol or protocol['offsets'] != offsets or len(offsets) != 3 or 0.0 not in offsets
+                or not any(value < 0 for value in offsets) or not any(value > 0 for value in offsets)):
+            raise ValueError('robust physical offsets differ from the registered campaign')
+    elif protocol['offsets'] != [0.0]:
+        raise ValueError('expected nominal physical protocol')
+    if protocol['raster_resolution'] != resolution:
+        raise ValueError('physical and master-grid resolutions differ')
     raw = json.dumps(protocol, indent=2, allow_nan=False).encode('utf8')
     physical = {'scope': 'locked_paired_surrogate_campaign', 'selection_lock_sha256': lock_sha256,
                 'campaign_manifest_sha256': manifest_sha256, 'protocol_sha256': hashlib.sha256(raw).hexdigest(),

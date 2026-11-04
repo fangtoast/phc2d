@@ -7,7 +7,11 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 import copy
+import argparse
+import hashlib
+import json
 import math
+from pathlib import Path
 from typing import Any, Mapping
 
 
@@ -26,7 +30,7 @@ def build_robust_campaign(design: Mapping[str, Any], settings: Mapping[str, Any]
             or isinstance(settings['evaluations'], bool) or settings['evaluations'] <= 0
             or not isinstance(settings['evaluations'], int)):
         raise ValueError('invalid robust design modes, offsets or evaluation budget')
-    trials, seen = [], set()
+    trials, seen, protocol = [], set(), None
     for source in design['sources']:
         source_id = source['source_id']
         for initial in source['initials']:
@@ -46,12 +50,39 @@ def build_robust_campaign(design: Mapping[str, Any], settings: Mapping[str, Any]
                         raise ValueError('source configuration does not match frozen initial')
                     config.update(experiment_id=settings['experiment_id'], evaluations=settings['evaluations'],
                                   offsets=offsets)
+                    nominal_protocol = config['physical_protocol']
+                    if nominal_protocol['offsets'] != [0.0]:
+                        raise ValueError('parent physical protocol must be nominal')
+                    proposed = {**copy.deepcopy(nominal_protocol), 'offsets': offsets}
+                    if protocol is not None and protocol != proposed:
+                        raise ValueError('paired physical protocols differ')
+                    protocol = proposed
                 trials.append({'trial_id': f"source_{source_id:04d}_initial_{initial['initial_index']}_{mode}",
                     'source_id': source_id, 'initial_index': initial['initial_index'], 'mode': mode,
                     'method': mode, 'status': initial['status'], 'config': config})
-    if not trials:
-        raise ValueError('empty robust campaign')
+    if not trials or protocol is None:
+        raise ValueError('empty robust campaign or no ready trial')
     return {'experiment_id': settings['experiment_id'], 'scope': 'preregistered_robust_design',
             'parent_manifest_sha256': design_manifest_sha256, 'base_config_sha256': design['base_config_sha256'],
-            'sources': copy.deepcopy(design['sources']), 'offsets': offsets, 'modes': list(modes),
+            'sources': copy.deepcopy(design['sources']), 'offsets': offsets, 'physical_protocol': protocol, 'modes': list(modes),
             'evaluations': settings['evaluations'], 'trials': trials}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ('design-manifest', 'settings', 'output'):
+        parser.add_argument('--' + name, required=True)
+    args = parser.parse_args()
+    design_raw, settings_raw = Path(args.design_manifest).read_bytes(), Path(args.settings).read_bytes()
+    settings = json.loads(settings_raw)
+    digest = hashlib.sha256(design_raw).hexdigest()
+    if settings['parent_manifest_sha256'] != digest:
+        raise ValueError('registered parent design manifest differs')
+    result = build_robust_campaign(json.loads(design_raw), settings, design_manifest_sha256=digest)
+    result['campaign_sha256'] = hashlib.sha256(settings_raw).hexdigest()
+    with Path(args.output).open('x', encoding='utf8') as stream:
+        json.dump(result, stream, indent=2, allow_nan=False)
+
+
+if __name__ == '__main__':
+    main()
