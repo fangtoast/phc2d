@@ -16,6 +16,7 @@ set -euo pipefail
 : "${SLURM_ARRAY_TASK_ID:?Set source shard index}"
 case "$PHC2D_GPU_PLATFORM:$PHC2D_METHOD" in
   n40:adam|n56:de|n56:random) ;;
+  n56:adam) [[ "${PHC2D_N56_TAKEOVER:-0}" == 1 ]] || { echo 'explicit N56 takeover required' >&2; exit 2; } ;;
   *) echo 'unsupported method/platform assignment' >&2; exit 2 ;;
 esac
 case "$SLURM_ARRAY_TASK_ID" in

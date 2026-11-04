@@ -33,4 +33,6 @@ def test_campaign_submission_is_bounded_and_idempotent(tmp_path):
     duplicate = subprocess.run(['bash', str(script)], env=env, capture_output=True, text=True)
     assert duplicate.returncode != 0 and 'receipt exists' in duplicate.stderr
     wrong = subprocess.run(['bash', str(script)], env={**env, 'PHC2D_GPU_PLATFORM': 'n56'}, capture_output=True, text=True)
-    assert wrong.returncode != 0 and 'assignment' in wrong.stderr
+    assert wrong.returncode != 0 and 'takeover' in wrong.stderr
+    takeover = {**env, 'PHC2D_GPU_PLATFORM': 'n56', 'PHC2D_N56_TAKEOVER': '1', 'PHC2D_SUBMIT_DRY_RUN': '1'}
+    assert subprocess.run(['bash', str(script)], env=takeover, capture_output=True).returncode == 0
