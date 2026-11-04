@@ -38,6 +38,11 @@ def advance_feedback_round(arms: Mapping[str, Any], observations: Mapping[str, A
         if arm['status'] != 'ready':
             output.append(copy.deepcopy(arm))
             continue
+        if row['status'] not in ('cached_physical_observation', 'observed'):
+            failed = copy.deepcopy(dict(arm))
+            failed.update(status='round_physical_unavailable', round_failure=row['status'])
+            output.append(failed)
+            continue
         directory = request_directory/name
         request = json.loads((directory/'request.json').read_bytes())
         if request['frozen']['frozen_sha256'] != saved['frozen_sha256']:
@@ -45,13 +50,8 @@ def advance_feedback_round(arms: Mapping[str, Any], observations: Mapping[str, A
         if row['status'] == 'cached_physical_observation':
             composite = request['frozen']['cached_observation']
             physical = arm['physical_observations'][composite['parameter_hash']]
-        elif row['status'] == 'observed':
-            composite, physical = row['composite'], row['physical']
         else:
-            failed = copy.deepcopy(dict(arm))
-            failed.update(status='round_physical_unavailable', round_failure=row['status'])
-            output.append(failed)
-            continue
+            composite, physical = row['composite'], row['physical']
         record = save_round_completion(directory, physical=physical, composite=composite)
         output.append(advance_feedback_arm(arm, record))
     updated['arms'] = output

@@ -92,3 +92,8 @@ def test_round_runner_freezes_proposal_and_refuses_to_overwrite(tmp_path, monkey
     (output / 'config.json').write_text('{}')
     with pytest.raises(ValueError, match='identity mismatch'):
         run_feedback_arm_round(arm, **kwargs)
+    monkeypatch.setattr(proposal_module, 'propose_corrected_design',
+                        lambda *a, **k: {'status': 'no_valid_candidate', 'history': []})
+    kwargs['output'] = tmp_path / 'failed_round'
+    assert run_feedback_arm_round(arm, **kwargs)['status'] == 'no_valid_candidate'
+    assert run_feedback_arm_round(arm, **kwargs)['status'] == 'no_valid_candidate'

@@ -69,3 +69,7 @@ def test_frozen_feedback_handoff_uses_unique_physical_cases():
         design_lock=design_lock, base_sha256='base', design_manifest_sha256='design', round_index=0)
     assert cached_lock['records'][0]['candidate'] is None
     assert cached_lock['records'][0]['status'] == 'cached_physical_observation'
+    _, failed_lock = lock_feedback_round(arms, {name: {'failure_status': 'no_valid_candidate'}},
+        design_manifest=design, design_lock=design_lock, base_sha256='base',
+        design_manifest_sha256='design', round_index=0)
+    assert failed_lock['records'][0]['status'] == 'no_valid_candidate'

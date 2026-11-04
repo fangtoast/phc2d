@@ -98,6 +98,13 @@ def run_feedback_arm_round(arm: Mapping[str, Any], *, base: Mapping[str, Any],
         try:
             saved_config = json.loads((output/'config.json').read_bytes())
             proposal = json.loads((output/'proposal.json').read_bytes())
+            failure_path = output/'failure.json'
+            if failure_path.exists():
+                failure = json.loads(failure_path.read_bytes())
+                if (saved_config != config or failure.get('status') != 'no_valid_candidate'
+                        or proposal.get('status') != failure['status'] or (output/'request.json').exists()):
+                    raise ValueError('existing failed feedback round identity mismatch')
+                return failure
             request = json.loads((output/'request.json').read_bytes())
         except (OSError, ValueError) as exc:
             raise ValueError('incomplete existing feedback round; reconcile before resuming') from exc
@@ -108,7 +115,12 @@ def run_feedback_arm_round(arm: Mapping[str, Any], *, base: Mapping[str, Any],
                 'cached': frozen['cached_observation'] is not None}
     proposal = propose_corrected_design(source, predictor, observations, config=config)
     if proposal['status'] != 'proposal_ready':
-        return {'status': proposal['status'], 'proposal': proposal}
+        output.mkdir(parents=False, exist_ok=False)
+        for name, payload in (('config.json', config), ('proposal.json', proposal),
+                              ('failure.json', {'status': proposal['status']})):
+            with (output/name).open('x', encoding='utf8') as stream:
+                json.dump(payload, stream, indent=2, allow_nan=False)
+        return {'status': proposal['status']}
     frozen = freeze_round(restore_feedback(arm['state']), proposal, observations)
     save_round_request(output, frozen=frozen, observations=observations)
     for name, payload in (('config.json', config), ('proposal.json', proposal)):

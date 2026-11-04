@@ -46,6 +46,9 @@ def lock_feedback_round(arms: Mapping[str, Any], requests: Mapping[str, Mapping[
         request = requests.get(name)
         if request is None:
             raise ValueError('ready feedback arm has no frozen request')
+        if request.get('failure_status') == 'no_valid_candidate':
+            records.append({**item, 'candidate': None, 'status': 'no_valid_candidate'})
+            continue
         frozen, bank, proposal = request['frozen'], request['observations'], request['proposal']
         recomputed = json.loads(_serialized(freeze_round(restore_feedback(arm['state']), proposal, bank)))
         if (bank != arm['observations'] or len(arm['state']['history']) != round_index
@@ -83,6 +86,10 @@ def main() -> None:
         request = json.loads(path.read_bytes())
         request['proposal'] = json.loads((path.parent/'proposal.json').read_bytes())
         requests[path.parent.name] = request
+    for path in Path(args.request_directory).glob('*/failure.json'):
+        if path.parent.name in requests:
+            raise ValueError('feedback arm has both a request and a failure')
+        requests[path.parent.name] = {'failure_status': json.loads(path.read_bytes())['status']}
     design_sha, base_sha = hashlib.sha256(raw_design).hexdigest(), hashlib.sha256(raw_base).hexdigest()
     synthetic, lock = lock_feedback_round(arms, requests, design_manifest=design, design_lock=design_lock,
         base_sha256=base_sha, design_manifest_sha256=design_sha, round_index=args.round)
