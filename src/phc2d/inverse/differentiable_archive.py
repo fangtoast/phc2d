@@ -32,7 +32,8 @@ def archive_design(*, config_raw: bytes, lock_raw: bytes, shard_raw: Mapping[str
         raise ValueError('shard role mismatch')
     from phc2d.inverse.differentiable_lock import combine_shards
 
-    reconstructed = combine_shards(shards)
+    takeover = lock.get('platforms_by_role', {}).get('directions') == 'paracloud_n56'
+    reconstructed = combine_shards(shards, n56_takeover=takeover)
     if any(lock.get(key) != value for key, value in reconstructed.items()):
         raise ValueError('selection lock cannot be reconstructed from the shards')
     output.mkdir(parents=True, exist_ok=False)

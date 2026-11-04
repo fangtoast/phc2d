@@ -44,6 +44,14 @@ def test_archive_requires_exact_shards_and_keeps_design_scope(tmp_path):
     assert metrics['inference_counts_derived_from_completed_shards']['adam']['backward'] == 20
     assert metrics['inference_counts_derived_from_completed_shards']['directions']['forward_without_grad'] == 11
     assert (tmp_path/'run/shards/adam.json').read_bytes() == shards['adam']
+    for role in ('directions', 'adam'):
+        parsed[role]['cluster_id'] = 'paracloud_n56'
+    takeover_shards = {role: json.dumps(parsed[role]).encode() for role in roles}
+    takeover_lock = combine_shards(parsed, n56_takeover=True)
+    takeover_lock['shard_sha256'] = {role: hashlib.sha256(raw).hexdigest() for role, raw in takeover_shards.items()}
+    archive_design(config_raw=config, lock_raw=json.dumps(takeover_lock).encode(),
+                   shard_raw=takeover_shards, output=tmp_path/'takeover')
+    assert json.loads((tmp_path/'takeover/selection.lock.json').read_text())['platforms_by_role']['adam'] == 'paracloud_n56'
     with pytest.raises(ValueError, match='hash mismatch'):
         archive_design(config_raw=config, lock_raw=lock, shard_raw={**shards, 'de': b'bad'}, output=tmp_path/'bad')
     data['records'][0]['label'] = 'tampered'
