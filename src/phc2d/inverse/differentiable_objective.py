@@ -80,6 +80,34 @@ def corrected_fourier_margin(source: Any, predictor: Any, parameters: Any, norma
     return -2 * torch.logsumexp(-beta * margins, dim=0) / (beta * target_frequency)
 
 
+def robust_fourier_margin(source: Any, predictor: Any, parameters: Any, *, coefficient_keys: Any,
+                          master_resolution: int, input_resolution: int, temperature: float,
+                          offsets: Any, lower_band: int, target_frequency: float, beta: float) -> Any:
+    """Smooth worst target margin across periodic manufacturing scenarios."""
+    import torch
+    from phc2d.data.differentiable_fourier import fourier_material_weight
+    from phc2d.inverse.differentiable_morphology import periodic_soft_offset
+
+    values = tuple(float(offset) for offset in offsets)
+    if (not values or 0.0 not in values or len(set(values)) != len(values)
+            or any(not math.isfinite(value) for value in values)
+            or not math.isfinite(target_frequency) or target_frequency <= 0):
+        raise ValueError('finite unique manufacturing offsets including zero are required')
+    weight = fourier_material_weight(source, parameters, coefficient_keys=coefficient_keys,
+                                     master_resolution=master_resolution,
+                                     output_resolution=master_resolution, temperature=temperature)
+    if input_resolution <= 0 or master_resolution % input_resolution:
+        raise ValueError('input resolution must divide the master resolution')
+    factor = master_resolution // input_resolution
+    scenarios = []
+    for offset in values:
+        shifted = periodic_soft_offset(weight, offset=offset)
+        scenarios.append(shifted.reshape(input_resolution, factor, input_resolution, factor).mean(dim=(1, 3)))
+    edges = smooth_band_edges(predictor.predict_tensor(torch.stack(scenarios)), lower_band=lower_band, beta=beta)
+    margins = torch.stack((target_frequency - edges[:, 0], edges[:, 1] - target_frequency), dim=1)
+    return -2 * torch.logsumexp(-beta * margins.flatten(), dim=0) / (beta * target_frequency)
+
+
 def optimize_adam(objective: Any, initial: Any, *, lower: Any, upper: Any,
                   learning_rate: float, steps: int) -> list[dict[str, Any]]:
     """Maximize a scalar objective inside a box and return the full trajectory.
@@ -279,6 +307,36 @@ def optimize_corrected_fourier_adam(source: Any, predictor: Any, correction: Any
             temperature=temperature, lower_band=lower_band, target_frequency=target_frequency, beta=beta)
 
     history = optimize_adam(objective, center, lower=lo, upper=hi,
+                            learning_rate=learning_rate, steps=steps)
+    for row in history:
+        z = torch.as_tensor(row['parameters'], dtype=base.dtype, device=base.device)
+        row['fourier_parameters'] = (base + scale*z).detach().cpu().tolist()
+    return history
+
+
+def optimize_robust_fourier_adam(source: Any, predictor: Any, *, coefficient_keys: Any,
+                                 scales: Any, lower: Any, upper: Any, master_resolution: int,
+                                 input_resolution: int, temperature: float, offsets: Any,
+                                 lower_band: int, target_frequency: float, beta: float,
+                                 learning_rate: float, steps: int) -> list[dict[str, Any]]:
+    """Optimize the shared target margin across differentiable periodic offsets."""
+    import torch
+
+    keys = tuple(coefficient_keys)
+    base = torch.tensor([float(source.parameters['modes'][i][component]) for i, component in keys]
+                        + [float(source.parameters['threshold'])], dtype=torch.float64,
+                        device=predictor.device)
+    scale = torch.as_tensor(scales, dtype=base.dtype, device=base.device)
+    if scale.shape != base.shape or not torch.isfinite(scale).all() or (scale <= 0).any():
+        raise ValueError('one finite positive scale per parameter required')
+
+    def objective(z: Any) -> Any:
+        return robust_fourier_margin(source, predictor, base + scale*z,
+            coefficient_keys=keys, master_resolution=master_resolution, input_resolution=input_resolution,
+            temperature=temperature, offsets=offsets, lower_band=lower_band,
+            target_frequency=target_frequency, beta=beta)
+
+    history = optimize_adam(objective, torch.zeros_like(base), lower=lower, upper=upper,
                             learning_rate=learning_rate, steps=steps)
     for row in history:
         z = torch.as_tensor(row['parameters'], dtype=base.dtype, device=base.device)
