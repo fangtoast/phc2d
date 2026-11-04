@@ -15,7 +15,71 @@ import math
 from pathlib import Path
 from typing import Any, Mapping
 
-from phc2d.inverse.feedback_state import start_feedback
+from phc2d.inverse.feedback_state import restore_feedback, start_feedback
+
+
+def prepare_round_configuration(arm: Mapping[str, Any], *, base: Mapping[str, Any],
+                                campaign: Mapping[str, Any], source: Mapping[str, Any],
+                                round_index: int, observations_sha256: str) -> dict[str, Any]:
+    """Bind one ready arm to its current incumbent and the frozen input bank."""
+    if arm.get('status') != 'ready' or not observations_sha256:
+        raise ValueError('ready arm and observation file identity required')
+    state = restore_feedback(arm['state'])
+    if (state.pending is not None or round_index != len(state.history)
+            or not 0 <= round_index < campaign['rounds']
+            or state.remaining_evaluations != campaign['rounds'] - round_index):
+        raise ValueError('feedback round state or budget mismatch')
+    if (campaign['evaluations_per_round'] != 20 or arm['method'] not in ('adam', 'de')
+            or not isinstance(arm['apply_correction'], bool)):
+        raise ValueError('feedback method or evaluation budget mismatch')
+    if arm['seed_id'].split('_initial_', 1)[0] != f"source_{source['source_id']:04d}":
+        raise ValueError('feedback source identity mismatch')
+    bank = arm['observations']
+    contract = state.incumbent_observation['provenance']['comparison_contract_sha256']
+    if not bank or any(row.get('comparison_contract_sha256') != contract
+                       or row.get('surrogate_contract_sha256') != arm['surrogate_contract_sha256']
+                       for row in bank):
+        raise ValueError('feedback observation bank contract mismatch')
+    config = copy.deepcopy(dict(base))
+    config.update(source_sha256=source['source_sha256'], observations_sha256=observations_sha256,
+                  surrogate_contract_sha256=arm['surrogate_contract_sha256'],
+                  comparison_contract_sha256=contract, center=list(state.incumbent_parameters),
+                  radius=state.radius, ridge=campaign['ridge'], method=arm['method'],
+                  apply_correction=arm['apply_correction'], steps=campaign['evaluations_per_round'] - 1,
+                  seed=int(base['seed']) + round_index)
+    return config
+
+
+def advance_feedback_arm(arm: Mapping[str, Any], record: Mapping[str, Any]) -> dict[str, Any]:
+    """Resume one arm from its authenticated, persisted physical comparison."""
+    before = restore_feedback(arm['state'])
+    completed = record['completion']
+    after = restore_feedback(completed['state'])
+    physical = record['physical']
+    composite = record['composite']
+    if (completed.get('schema') != 'differentiable_feedback_round_completed_v1'
+            or len(after.history) != len(before.history) + 1
+            or list(after.history[:-1]) != list(before.history)
+            or after.remaining_evaluations != before.remaining_evaluations - 1
+            or after.history[-1]['parameter_hash'] != composite['parameter_hash']
+            or physical['provenance']['parameter_hash'] != composite['parameter_hash']
+            or completed['observation_for_next_round']['parameter_hash'] != composite['parameter_hash']):
+        raise ValueError('completed round does not continue this arm')
+    expected_bank = list(arm['observations'])
+    if not completed['cached']:
+        expected_bank.append(composite)
+    if record['next_observations'] != expected_bank:
+        raise ValueError('completed round observation bank mismatch')
+    result = copy.deepcopy(dict(arm))
+    result['state'] = copy.deepcopy(completed['state'])
+    result['observations'] = copy.deepcopy(record['next_observations'])
+    prior = result['physical_observations'].get(composite['parameter_hash'])
+    if prior is not None and prior != physical:
+        raise ValueError('cached physical observation differs from original')
+    result['physical_observations'][composite['parameter_hash']] = copy.deepcopy(physical)
+    if after.remaining_evaluations == 0:
+        result['status'] = 'completed'
+    return result
 
 
 def initialize_feedback_arms(seed_observations: Mapping[str, Any], *, campaign: Mapping[str, Any],

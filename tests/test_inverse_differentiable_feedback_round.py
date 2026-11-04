@@ -7,6 +7,8 @@ import pytest
 from phc2d.inverse.differentiable_feedback_round import (complete_round, freeze_round,
     save_round_completion, save_round_request)
 from phc2d.inverse.feedback_state import start_feedback
+from phc2d.inverse.differentiable_feedback_campaign import advance_feedback_arm
+from dataclasses import asdict
 
 
 def test_feedback_round_freezes_predictions_before_observation(tmp_path):
@@ -43,6 +45,13 @@ def test_feedback_round_freezes_predictions_before_observation(tmp_path):
     stored = save_round_completion(directory, physical=physical('b', .34, .66), composite=composite)
     assert stored == save_round_completion(directory, physical=physical('b', .34, .66), composite=composite)
     assert len(stored['next_observations']) == 2
+    arm = {'status': 'ready', 'state': asdict(state), 'observations': bank,
+           'physical_observations': {'a': physical('a', .4, .6)}}
+    advanced = advance_feedback_arm(arm, stored)
+    assert advanced['state']['remaining_evaluations'] == 2
+    assert advanced['physical_observations']['b'] == physical('b', .34, .66)
+    with pytest.raises(ValueError, match='does not continue'):
+        advance_feedback_arm(advanced, stored)
     cached_bank = [composite]
     cached_proposal = copy.deepcopy(proposal)
     cached_proposal['observation_sha256'] = hashlib.sha256(json.dumps(
