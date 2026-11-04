@@ -173,6 +173,37 @@ def audit_budgeted_nominal_feedback_proposal(output_root: Path, *, expected_requ
             'candidate_rows': len(trace), 'actual_inferences': cost['inferences']}
 
 
+def audit_feedback_proposal_against_batch_journal(output_root: Path, *, expected_request_sha256: str,
+        journal_directory: Path, initial_sha256: str, expected_head: str, lane: str,
+        expected_source: FullCellStructureSpec, expected_options: dict[str, Any],
+        expected_provenance: dict[str, Any]) -> dict[str, Any]:
+    """Bind a proposal to the externally authenticated journal head and frozen inputs.
+
+    The caller must authenticate the journal's physical and scheduler evidence,
+    freeze the supplied inputs independently, and serialize audit and dispatch.
+    This check neither advances state nor authorizes a physical job.
+    """
+    from phc2d.inverse.feedback_journal import verify_batch_journal
+
+    batch, event_count = verify_batch_journal(journal_directory, initial_sha256=initial_sha256,
+                                               expected_head=expected_head)
+    if lane not in batch.lanes or any(lane in item.workers.values() for item in batch.batches.values()):
+        raise ValueError('feedback lane missing or batch not settled')
+    request_raw = (Path(output_root)/'request.json').read_bytes()
+    if hashlib.sha256(request_raw).hexdigest() != expected_request_sha256:
+        raise ValueError('feedback request identity mismatch')
+    request = json.loads(request_raw)
+    expected = {'state': asdict(batch.lanes[lane]), 'source': expected_source.to_mapping(),
+                'options': expected_options, 'provenance': expected_provenance}
+    # Normalize tuple-valued scientific inputs exactly as the saved JSON does.
+    expected = json.loads(json.dumps(expected, sort_keys=True, allow_nan=False))
+    if any(request.get(key) != value for key, value in expected.items()):
+        raise ValueError('feedback request differs from journal or frozen inputs')
+    audit = audit_budgeted_nominal_feedback_proposal(output_root, expected_request_sha256=expected_request_sha256)
+    return {**audit, 'journal_head': expected_head, 'journal_events': event_count, 'lane': lane,
+            'scope': 'journal_bound_proposal_not_execution_authorization'}
+
+
 def propose_fourier_candidate(state: FeedbackState, source: FullCellStructureSpec, predictor: Any, *,
                               coefficient_keys: tuple[tuple[int, str], ...],
                               global_bounds: Sequence[tuple[float, float]], origin: Sequence[float],

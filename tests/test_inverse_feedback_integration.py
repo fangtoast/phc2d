@@ -23,7 +23,8 @@ from phc2d.inverse.feedback_handoff import build_robust_solver_manifest
 from phc2d.inverse.feedback_journal import create_batch_journal, append_batch_event, verify_batch_journal
 from phc2d.inverse.audit_perturb_refine import run_case as run_offset_case
 from phc2d.inverse.resource_ledger import ResourceAmount, ResourceLedger
-from phc2d.inverse.fourier_feedback_proposal import propose_fourier_candidate, run_budgeted_nominal_feedback_proposal
+from phc2d.inverse.fourier_feedback_proposal import (propose_fourier_candidate, run_budgeted_nominal_feedback_proposal,
+    audit_feedback_proposal_against_batch_journal)
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
@@ -153,15 +154,28 @@ def test_budgeted_proposal_through_persisted_batch_and_restart(tmp_path):
         result, head = append_batch_event(journal, initial_sha256=initial, expected_head=head,
             batch_id='batch', operation=operation, payload=payload)
         return result
-    proposal = run_budgeted_nominal_feedback_proposal(feedback, source, ToyPredictor(),
-        output_root=tmp_path/'proposal', provenance={'scope': 'toy'}, coefficient_keys=(),
+    proposal_options = dict(coefficient_keys=(),
         global_bounds=((threshold-.5, threshold+.5),), origin=[0], scales=[1], max_mode_radius=1,
         seed=3, population_size=5, surrogate_budget=10, raster_method='master_block_mean_v1',
         source_resolution=16, input_resolution=8, material_fraction_bounds=(0, 1), lower_band=1,
-        surrogate_contract_sha256='model', perturbation_offsets=(0.,))['result']
+        surrogate_contract_sha256='model', perturbation_offsets=(0.,))
+    artifact = run_budgeted_nominal_feedback_proposal(feedback, source, ToyPredictor(),
+        output_root=tmp_path/'proposal', provenance={'scope': 'toy'}, **proposal_options)
+    proposal = artifact['result']
+    audit_args = dict(expected_request_sha256=artifact['request_sha256'], journal_directory=journal,
+        initial_sha256=initial, expected_head=head, lane='lane', expected_source=source,
+        expected_options=proposal_options, expected_provenance={'scope': 'toy'})
+    assert audit_feedback_proposal_against_batch_journal(tmp_path/'proposal', **audit_args)['journal_events'] == 0
+    with pytest.raises(ValueError, match='frozen inputs'):
+        audit_feedback_proposal_against_batch_journal(tmp_path/'proposal',
+            **{**audit_args, 'expected_options': {**proposal_options, 'surrogate_budget': 9}})
     candidate = FullCellStructureSpec.from_mapping(proposal['structure'])
     event('prepare', {'task_id': 'task', 'cluster_id': 'toy', 'workers': {'worker': 'lane'},
         'proposals': {'worker': proposal['proposal']}, 'reservation': {'cpu_core_seconds': 40, 'gpu_seconds': 0}})
+    with pytest.raises(ValueError, match='not settled'):
+        audit_feedback_proposal_against_batch_journal(tmp_path/'proposal', **{**audit_args, 'expected_head': head})
+    with pytest.raises(ValueError, match='journal head differs'):
+        audit_feedback_proposal_against_batch_journal(tmp_path/'proposal', **audit_args)
     event('submission_unknown', {'reason': 'toy submit'})
     restored, _ = verify_batch_journal(journal, initial_sha256=initial, expected_head=head)
     assert restored.batches['batch'].phase == 'submission_unknown'
@@ -182,5 +196,7 @@ def test_budgeted_proposal_through_persisted_batch_and_restart(tmp_path):
     settled = event('settle', {'accounting': encoded(b'100|COMPLETED|10|4|cpu=4,node=1\n'), 'expected_gpus': 0})
     restored, count = verify_batch_journal(journal, initial_sha256=initial, expected_head=head)
     assert restored == settled and count == 5
+    with pytest.raises(ValueError, match='journal or frozen inputs'):
+        audit_feedback_proposal_against_batch_journal(tmp_path/'proposal', **{**audit_args, 'expected_head': head})
     assert restored.lanes['lane'].remaining_evaluations == 1
     assert restored.ledger.totals()['actual'] == ResourceAmount(40, 0)
