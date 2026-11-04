@@ -15,7 +15,7 @@ def test_robust_campaign_pairs_modes_and_rejects_identity_changes():
     design = {'scope': 'preregistered_surrogate_design', 'base_config_sha256': 'base',
               'sources': [source], 'trials': [trial]}
     settings = {'experiment_id': 'EXP-INV-015', 'modes': ['nominal', 'mean', 'worst'],
-                'offsets': [-.01, 0, .01], 'evaluations': 60}
+                'offsets': [-.01, 0, .01], 'evaluations': 60, 'feedback': {'radius': .2, 'ridge': 1e-6}}
     manifest = build_robust_campaign(design, settings, design_manifest_sha256='parent')
     assert [row['mode'] for row in manifest['trials']] == settings['modes']
     assert all(row['config']['initial'] == [.15, 0.] for row in manifest['trials'])

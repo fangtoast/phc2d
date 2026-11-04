@@ -23,12 +23,14 @@ def build_robust_campaign(design: Mapping[str, Any], settings: Mapping[str, Any]
         raise ValueError('robust design campaign identity mismatch')
     modes = settings['modes']
     offsets = [float(value) for value in settings['offsets']]
+    feedback = settings['feedback']
     if (len(modes) != len(set(modes)) or set(modes) != {'nominal', 'mean', 'worst'}
             or len(offsets) != 3 or len(set(offsets)) != 3 or 0.0 not in offsets
             or not all(math.isfinite(x) for x in offsets)
             or not any(x < 0 for x in offsets) or not any(x > 0 for x in offsets)
             or isinstance(settings['evaluations'], bool) or settings['evaluations'] <= 0
-            or not isinstance(settings['evaluations'], int)):
+            or not isinstance(settings['evaluations'], int)
+            or not all(math.isfinite(float(feedback[key])) and float(feedback[key]) > 0 for key in ('radius', 'ridge'))):
         raise ValueError('invalid robust design modes, offsets or evaluation budget')
     trials, seen, protocol = [], set(), None
     for source in design['sources']:
@@ -65,7 +67,7 @@ def build_robust_campaign(design: Mapping[str, Any], settings: Mapping[str, Any]
     return {'experiment_id': settings['experiment_id'], 'scope': 'preregistered_robust_design',
             'parent_manifest_sha256': design_manifest_sha256, 'base_config_sha256': design['base_config_sha256'],
             'sources': copy.deepcopy(design['sources']), 'offsets': offsets, 'physical_protocol': protocol, 'modes': list(modes),
-            'evaluations': settings['evaluations'], 'trials': trials}
+            'evaluations': settings['evaluations'], 'feedback': copy.deepcopy(feedback), 'trials': trials}
 
 
 def main() -> None:

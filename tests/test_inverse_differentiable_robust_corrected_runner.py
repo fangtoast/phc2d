@@ -22,6 +22,7 @@ def test_corrected_trials_use_same_stencil_and_mode_specific_scenarios(tmp_path,
     specs = [{'trial_id': f'trial_{mode}', 'source_id': 8, 'initial_index': 0, 'mode': mode,
               'status': 'ready', 'config': cfg} for mode in ('nominal', 'mean', 'worst')]
     manifest = {'scope': 'preregistered_robust_design', 'offsets': offsets, 'trials': specs,
+        'feedback': {'radius': .2, 'ridge': 1e-6},
         'sources': [{'source_id': 8, 'source_parameter_hash': 'source-hash', 'initials': [{'initial_index': 0}]}]}
     rows = [{'trial_id': 'source_0008_initial_0_nominal', 'role': f'offset_{index}', 'status': 'observed',
              'scenarios': [{'offset': offset, 'observation': {}} for offset in offsets]} for index in range(5)]

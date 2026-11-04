@@ -6,7 +6,10 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 """
 from __future__ import annotations
 
+import argparse
+import hashlib
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any, Mapping
@@ -25,7 +28,8 @@ def run_corrected_robust_trials(manifest: Mapping[str, Any], feedback: Mapping[s
             or feedback.get('scope') != 'robust_stencil_physical_observations'
             or feedback.get('campaign_manifest_sha256') != manifest_sha256
             or not manifest_sha256 or not feedback_sha256 or not code_commit or not cluster_id
-            or mode not in ('nominal', 'mean', 'worst') or feedback['offsets'] != manifest['offsets']):
+            or mode not in ('nominal', 'mean', 'worst') or feedback['offsets'] != manifest['offsets']
+            or radius != manifest['feedback']['radius'] or ridge != manifest['feedback']['ridge']):
         raise ValueError('invalid corrected robust campaign identity')
     sources = [item for item in manifest['sources'] if item['source_id'] == source_id]
     specs = [item for item in manifest['trials'] if item['source_id'] == source_id and item['mode'] == mode]
@@ -83,3 +87,32 @@ def run_corrected_robust_trials(manifest: Mapping[str, Any], feedback: Mapping[s
             json.dump(payload, stream, indent=2, allow_nan=False)
         completed.append(trial_id)
     return completed
+
+
+def main() -> None:
+    from phc2d.inverse.differentiable_mvp import load_design_inputs
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ('manifest', 'feedback', 'source', 'checkpoint', 'mode', 'output'):
+        parser.add_argument('--' + name, required=True)
+    parser.add_argument('--source-id', required=True, type=int)
+    parser.add_argument('--radius', required=True, type=float)
+    parser.add_argument('--ridge', required=True, type=float)
+    parser.add_argument('--device', default='cpu')
+    args = parser.parse_args()
+    manifest_raw, feedback_raw = Path(args.manifest).read_bytes(), Path(args.feedback).read_bytes()
+    manifest, feedback = json.loads(manifest_raw), json.loads(feedback_raw)
+    trials = [row for row in manifest['trials'] if row['source_id'] == args.source_id
+              and row['mode'] == args.mode and row['status'] == 'ready']
+    if not trials:
+        raise ValueError('no ready corrected robust trial for source and mode')
+    source, predictor, runtime = load_design_inputs(trials[0]['config'], args.source, args.checkpoint, device=args.device)
+    result = run_corrected_robust_trials(manifest, feedback, manifest_sha256=hashlib.sha256(manifest_raw).hexdigest(),
+        feedback_sha256=hashlib.sha256(feedback_raw).hexdigest(), source_id=args.source_id, mode=args.mode,
+        source=source, predictor=predictor, runtime=runtime, code_commit=os.environ['PHC2D_DEPLOYED_GIT_COMMIT'],
+        cluster_id=os.environ['PHC2D_CLUSTER_ID'], output=Path(args.output), radius=args.radius, ridge=args.ridge)
+    print(json.dumps({'completed_trial_ids': result}))
+
+
+if __name__ == '__main__':
+    main()
