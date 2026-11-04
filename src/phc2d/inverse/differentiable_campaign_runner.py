@@ -54,6 +54,9 @@ def run_trials(manifest: Mapping[str, Any], *, manifest_sha256: str, source_id: 
                     raise ValueError('incomplete optimization trajectory')
                 result.update(identity, status='completed', source_id=source_id,
                               source_parameter_hash=source.parameter_hash, initial_index=row['initial_index'],
+                              source_sha256=cfg['source_sha256'], checkpoint_sha256=predictor.checkpoint_sha256,
+                              k_points_sha256=cfg['k_points_sha256'],
+                              k_points=predictor.k_points.detach().cpu().tolist(),
                               config=cfg, runtime=dict(runtime))
                 payload = result
             except Exception as exc:

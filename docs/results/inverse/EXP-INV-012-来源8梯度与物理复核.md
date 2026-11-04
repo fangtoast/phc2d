@@ -12,8 +12,8 @@ evidence_scope: 已观察来源8的12角色开发批，非独立泛化测试
 evidence_date: 2026-11-05
 dataset_scope: K5 Binary 来源8，TE B4–B5，目标频率0.57
 evidence_level: solver_replay
-evidence_status: partial
-validation_backend: M9 MPB，WSL独立复核进行中
+evidence_status: pilot
+validation_backend: mixed
 source_artifacts:
   - runs/20261105/EXP-INV-012_202611050000
 ---
@@ -52,6 +52,8 @@ source_artifacts:
 | DE／Random Top-1 | -0.002399 | -0.016292 | -0.021206 | (0.574643, 0.582062) |
 
 其余两个反随机方向及所有谱差保留在[机器可读比较](../../../runs/20261105/EXP-INV-012_202611050000/physical_comparison.json)。12个角色中代理判定目标覆盖为0，M9 加密结果为7；这不是独立样本上的成功率。正梯度0.05胜过对应随机方向，但0.10低于随机方向，不能据此宣称梯度普遍优于随机搜索。
+
+Adam 相对初始的裕量差换算为单边频率距离约 $4.48\times10^{-4}$，小于本协议 $5\times10^{-4}$ 的带边数值容差；因此现有数据只表明数值上略低，不能认定出现超出数值容差的真实退化。
 
 同 k 全谱 MAE 为 0.00440–0.00462，MRE 为 0.669%–0.698%，计算范围为 81 点×10 条带，分母下限 $10^{-8}$，每角色有一个落入下限的值。初始、Adam 和 DE 的排除第一带 MRE 分别为 0.705%、0.729% 和 0.726%。例如 Adam 的同 k MPB 裕量为 0.020204，加密后降为 0.003343；DE 从 -0.001991 降为 -0.016292，说明固定 k 与局部带边加密需分开报告。
 
