@@ -4,6 +4,7 @@ torch = pytest.importorskip('torch')
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.differentiable_feedback_seed import prepare_feedback_stencil
+from phc2d.inverse.differentiable_robust_stencil import predict_stencil_scenarios
 
 
 def test_feedback_stencil_retains_all_roles_and_bounds():
@@ -27,3 +28,9 @@ def test_feedback_stencil_retains_all_roles_and_bounds():
     edges = result['records'][0]['surrogate_edges']
     assert edges['soft_smooth_edges'][0] >= edges['soft_exact_edges'][0]
     assert edges['soft_smooth_edges'][1] <= edges['soft_exact_edges'][1]
+    scenarios = predict_stencil_scenarios(result, source, Predictor(), base=base, offsets=[-1/64, 0., 1/64])
+    assert len(scenarios['records']) == 5 and scenarios['records'][1]['status'] == 'outside_parameter_bounds'
+    row = scenarios['records'][0]
+    assert row['status'] == 'computed' and len(row['hard']['bands']) == 3
+    assert row['soft_smooth_edges'][1] == pytest.approx(edges['soft_smooth_edges'], abs=1e-6)
+    assert row['hard_edges'][1] == pytest.approx(edges['hard_edges'], abs=1e-6)
