@@ -72,7 +72,7 @@ WSL Ubuntu/meep_env 预选原点、原点半径 0.10 的正梯度/负梯度/正�
 
 48 为候选组上限，不是 solver 调用数。CPU 核时、GPU 卡时、WSL 复核核时、内存、并发、墙钟、失败/重试权限按同合同实测在准入前冻结；不继承前版额度。设计、在线物理（主方法为零）、最终复核成本分列，forward/backward、重启、FD、硬重预测、加密与重复任务全部记账；达到上限记 partial，不自动扩容。
 
-[原点子批资源提案](../../configs/research/exp_inv_012_resources_v1.json)为四个 GPU 分片各一张卡、最多 30 分钟；M9 物理复核最多四个三案例分片，各 5 CPU、12 GiB、2 小时，合计上限 40 核时。M9 参数参考 EXP-INV-010 同分辨率、三扰动计算的历史账单；本批仅有名义场景，实际案例数以锁定后的去重清单为准。`python -m phc2d.inverse.differentiable_resources --manifest MANIFEST_JSON --resources RESOURCES_JSON --output RESOURCE_PLAN_JSON` 可生成准确分片范围和预留核时，不提交作业。WSL 六个角色的复核成本单列；资源提案在两端预检和求解环境核对后冻结。
+[原点子批资源配置](../../configs/research/exp_inv_012_resources_v1.json)已在两端预检和求解环境核对后冻结：四个 GPU 分片各一张卡、最多 30 分钟；M9 物理复核最多四个三案例分片，各 5 CPU、12 GiB、2 小时，合计上限 40 核时。GPU 作业完成即释放资源，30 分钟为上限；N40 和 N56 预检的程序耗时分别约 13 秒和 22 秒。M9 参数参考 EXP-INV-010 同分辨率、三扰动计算的历史账单；本批仅有名义场景，实际案例数以锁定后的去重清单为准。`python -m phc2d.inverse.differentiable_resources --manifest MANIFEST_JSON --resources RESOURCES_JSON --output RESOURCE_PLAN_JSON` 可生成准确分片范围和预留核时，不提交作业。WSL 六个角色的复核成本单列。
 
 物理请求及资源计划齐备后，`jobs/bingxing_submit_inverse_012.sh` 按清单和资源哈希校验再提交 M9 数组；`PHC2D_SUBMIT_DRY_RUN=1` 只检查并输出分配，不创建回执或作业。提交器记录独立的物理求解代码 commit；设计代码身份由选择锁和请求中的锁哈希保留。
 

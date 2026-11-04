@@ -1,7 +1,7 @@
 {
   "experiment_id": "EXP-INV-012",
   "batch": "origin_12_development",
-  "status": "proposed_for_pre_submit_review",
+  "status": "frozen_for_origin_12",
   "gpu_design": {
     "partition": "gpu_4090",
     "gpus_per_job": 1,
