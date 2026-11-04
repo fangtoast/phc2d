@@ -6,6 +6,7 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 """
 import os
 import json
+import hashlib
 from pathlib import Path
 import subprocess
 
@@ -47,3 +48,13 @@ def test_submission_receipt_and_platform_assignment(tmp_path):
     assert second.returncode != 0 and 'already exists' in second.stderr
     wrong = subprocess.run(['bash', str(script)], env={**env, 'PHC2D_ROLE': 'de'}, capture_output=True, text=True)
     assert wrong.returncode != 0 and 'not assigned' in wrong.stderr
+    config_hash = hashlib.sha256((root/'configs/research/exp_inv_012_origin_v1.json').read_bytes()).hexdigest()
+    gate = tmp_path/'gate.json'
+    gate.write_text(json.dumps({'status': 'passed', 'config_sha256': config_hash, 'code_commit': 'a'*40}))
+    gate_hash = hashlib.sha256(gate.read_bytes()).hexdigest()
+    adam_env = {**env, 'PHC2D_ROLE': 'adam', 'PHC2D_SUBMIT_DRY_RUN': '1',
+                'PHC2D_PREFLIGHT_GATE': str(gate), 'PHC2D_PREFLIGHT_GATE_SHA256': gate_hash}
+    assert subprocess.run(['bash', str(script)], env=adam_env, capture_output=True).returncode == 0
+    bad = subprocess.run(['bash', str(script)], env={**adam_env, 'PHC2D_PREFLIGHT_GATE_SHA256': '0'*64},
+                         capture_output=True, text=True)
+    assert bad.returncode != 0

@@ -25,6 +25,9 @@ if [[ "$PHC2D_ROLE" != preflight ]]; then
   : "${PHC2D_PREFLIGHT_GATE:?Set preflight gate path}"
   : "${PHC2D_PREFLIGHT_GATE_SHA256:?Set preflight gate SHA-256}"
   [[ -f "$PHC2D_PREFLIGHT_GATE" ]] || { echo 'preflight gate missing' >&2; exit 2; }
+  printf '%s  %s\n' "$PHC2D_PREFLIGHT_GATE_SHA256" "$PHC2D_PREFLIGHT_GATE" | sha256sum -c - >/dev/null
+  python3 -c 'import json,sys; x=json.load(open(sys.argv[1])); assert x["status"] == "passed" and x["config_sha256"] == sys.argv[2] and x["code_commit"] == sys.argv[3]' \
+    "$PHC2D_PREFLIGHT_GATE" "$PHC2D_CONFIG_SHA256" "$PHC2D_EXPECTED_COMMIT"
 fi
 case "${PHC2D_SUBMIT_DRY_RUN:-0}" in
   1)
