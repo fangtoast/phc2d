@@ -5,8 +5,10 @@ torch = pytest.importorskip('torch')
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.differentiable_feedback_seed import prepare_feedback_stencil
 from phc2d.inverse.differentiable_robust_stencil import predict_stencil_scenarios
-from phc2d.inverse.differentiable_robust_feedback import bind_scenario_feedback, fit_scenario_corrections
+from phc2d.inverse.differentiable_robust_feedback import (bind_scenario_feedback,
+    bind_robust_stencil_batch, fit_scenario_corrections)
 from phc2d.inverse.differentiable_robust_corrected import propose_corrected_robust_design
+from phc2d.inverse.differentiable_robust_stencil_lock import lock_robust_stencils
 
 
 def test_feedback_stencil_retains_all_roles_and_bounds():
@@ -37,6 +39,21 @@ def test_feedback_stencil_retains_all_roles_and_bounds():
     assert row['status'] == 'computed' and len(row['hard']['bands']) == 3
     assert row['soft_smooth_edges'][1] == pytest.approx(edges['soft_smooth_edges'], abs=1e-6)
     assert row['hard_edges'][1] == pytest.approx(edges['hard_edges'], abs=1e-6)
+    runtime_contract = {'precision': 'fp32', 'amp_enabled': False, 'tf32_enabled': False}
+    name, trial_id = 'source_0008_initial_0', 'source_0008_initial_0_nominal'
+    origin = {**result, 'design_manifest_sha256': 'parent', 'checkpoint_sha256': 'checkpoint', 'k_points_sha256': 'k'}
+    scenario = {**scenarios, 'source_id': 8, 'initial_index': 0, 'manifest_sha256': 'manifest',
+        'stencil_sha256': 'stencil', 'checkpoint_sha256': 'checkpoint', 'k_points_sha256': 'k', 'code_commit': 'commit',
+        'cluster_id': 'n56', 'runtime': {'contract': runtime_contract, 'matmul_tf32_enabled': False,
+                                         'cudnn_tf32_enabled': False}}
+    manifest = {'scope': 'preregistered_robust_design', 'parent_manifest_sha256': 'parent',
+        'offsets': [-1/64, 0., 1/64], 'sources': [{'source_id': 8, 'source_parameter_hash': source.parameter_hash,
+        'initials': [{'initial_index': 0, 'status': 'ready', 'initial': [.5, 0.]}]}],
+        'trials': [{'trial_id': trial_id, 'config': {'checkpoint_sha256': 'checkpoint', 'k_points_sha256': 'k',
+                                                      'runtime': runtime_contract}}]}
+    locked = lock_robust_stencils(manifest, {name: scenario}, {name: origin}, manifest_sha256='manifest',
+        design_lock={'manifest_sha256': 'parent', 'k_points': [[0., 0.]]}, nominal_sha256={name: 'stencil'})
+    assert len(locked['records']) == 5 and locked['records'][1]['status'] == 'outside_parameter_bounds'
     offsets = [-1/64, 0., 1/64]
     physical = {'case_index': 0, 'parameter_hash': row['parameter_hash'], 'manifest_sha256': 'manifest',
         'protocol_sha256': 'protocol', 'aggregate': {'status': 'numerically_stable'}, 'observations': []}
@@ -51,6 +68,16 @@ def test_feedback_stencil_retains_all_roles_and_bounds():
     bound = bind_scenario_feedback(row, physical, expected_case_index=0, expected_parameter_hash=row['parameter_hash'],
         offsets=offsets, manifest_sha256='manifest', protocol_sha256='protocol', surrogate_contract_sha256='model',
         k_points=[[0., 0.]], lower_band=1, beta=100)
+    batch_lock = {'purpose': 'robust_feedback_stencil', 'records': [{'label': 'trial/offset_0',
+        'trial_id': 'trial', 'role': 'offset_0', 'candidate': result['records'][0]['candidate'],
+        'scenario_prediction': row}]}
+    batch_manifest = {'selection_lock_sha256': 'lock', 'protocol_sha256': 'protocol', 'k_points': [[0., 0.]],
+        'role_coverage': [{'label': 'trial/offset_0', 'case_index': 0}], 'rows': [
+            {'parameter_hash': row['parameter_hash'], 'master_grid_sha256': row['hard']['grid_sha256'][1]}]}
+    batch = bind_robust_stencil_batch(batch_lock, batch_manifest, {'offsets': offsets}, {0: physical},
+        base={**base, 'checkpoint_sha256': 'checkpoint', 'k_points_sha256': 'k'}, lock_sha256='lock',
+        manifest_sha256='manifest', protocol_sha256='protocol')
+    assert batch['records'][0]['status'] == 'observed' and len(batch['records'][0]['scenarios']) == 3
     corrections = fit_scenario_corrections(bound, offsets=offsets, center=[.5, 0.], radius=.2, ridge=1e-5)
     assert len(corrections) == 3 and all(item.sample_count == 1 for item in corrections)
     assert len({item.comparison_contract_sha256 for item in corrections}) == 3

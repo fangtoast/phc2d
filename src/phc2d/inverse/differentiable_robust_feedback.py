@@ -7,7 +7,9 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 from __future__ import annotations
 
 import hashlib
+import argparse
 import json
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -103,3 +105,75 @@ def fit_scenario_corrections(observations: Sequence[Mapping[str, Any]], *, offse
             raise ValueError('no local physical feedback for one manufacturing scenario')
         result.append(fit_composite_edge_correction(local, center=center, radius=radius, ridge=ridge))
     return result
+
+
+def bind_robust_stencil_batch(lock: Mapping[str, Any], manifest: Mapping[str, Any],
+                              protocol: Mapping[str, Any], results: Mapping[int, Mapping[str, Any]], *,
+                              base: Mapping[str, Any], lock_sha256: str, manifest_sha256: str,
+                              protocol_sha256: str) -> dict[str, Any]:
+    """Bind each frozen stencil role while retaining missing or invalid outcomes."""
+    if (lock.get('purpose') != 'robust_feedback_stencil' or manifest['selection_lock_sha256'] != lock_sha256
+            or manifest['protocol_sha256'] != protocol_sha256
+            or len(lock['records']) != len(manifest['role_coverage'])):
+        raise ValueError('robust stencil batch identity mismatch')
+    offsets = protocol['offsets']
+    contract = {key: base[key] for key in ('checkpoint_sha256', 'k_points_sha256', 'source_resolution',
+        'input_resolution', 'temperature', 'beta', 'lower_band', 'coefficient_keys', 'scales')}
+    contract['offsets'] = offsets
+    surrogate_sha = hashlib.sha256(json.dumps(contract, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+    rows = []
+    for record, coverage in zip(lock['records'], manifest['role_coverage']):
+        if record['label'] != coverage['label']:
+            raise ValueError('robust stencil role order mismatch')
+        index = coverage['case_index']
+        entry = {'label': record['label'], 'trial_id': record['trial_id'], 'role': record['role'], 'case_index': index}
+        if index is None:
+            rows.append({**entry, 'status': coverage['status']})
+            continue
+        if index not in results:
+            rows.append({**entry, 'status': 'physical_result_missing'})
+            continue
+        result, physical, candidate = results[index], manifest['rows'][index], record['candidate']
+        if (candidate is None or candidate['master_grid_sha256'] != physical['master_grid_sha256']
+                or result['parameter_hash'] != physical['parameter_hash']):
+            raise ValueError('robust stencil physical geometry mismatch')
+        if result.get('aggregate', {}).get('status') != 'numerically_stable':
+            rows.append({**entry, 'status': 'physical_numerical_gate_failed'})
+            continue
+        scenario_rows = bind_scenario_feedback(record['scenario_prediction'], result, expected_case_index=index,
+            expected_parameter_hash=physical['parameter_hash'], offsets=offsets, manifest_sha256=manifest_sha256,
+            protocol_sha256=protocol_sha256, surrogate_contract_sha256=surrogate_sha,
+            k_points=manifest['k_points'], lower_band=base['lower_band'], beta=base['beta'])
+        rows.append({**entry, 'status': 'observed', 'scenarios': scenario_rows})
+    return {'scope': 'robust_stencil_physical_observations', 'selection_lock_sha256': lock_sha256,
+            'manifest_sha256': manifest_sha256, 'protocol_sha256': protocol_sha256,
+            'surrogate_contract_sha256': surrogate_sha, 'offsets': offsets, 'records': rows}
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ('lock', 'manifest', 'protocol', 'base', 'result-directory', 'output'):
+        parser.add_argument('--' + name, required=True)
+    args = parser.parse_args()
+    raw_lock, raw_manifest, raw_protocol, raw_base = (Path(getattr(args, key)).read_bytes()
+        for key in ('lock', 'manifest', 'protocol', 'base'))
+    results, hashes = {}, {}
+    for path in Path(args.result_directory).glob('case_*/results.json'):
+        raw = path.read_bytes()
+        result = json.loads(raw)
+        if result['case_index'] in results:
+            raise ValueError('duplicate robust feedback case')
+        results[result['case_index']] = result
+        hashes[str(result['case_index'])] = hashlib.sha256(raw).hexdigest()
+    output = bind_robust_stencil_batch(json.loads(raw_lock), json.loads(raw_manifest), json.loads(raw_protocol),
+        results, base=json.loads(raw_base), lock_sha256=hashlib.sha256(raw_lock).hexdigest(),
+        manifest_sha256=hashlib.sha256(raw_manifest).hexdigest(),
+        protocol_sha256=hashlib.sha256(raw_protocol).hexdigest())
+    output['physical_result_sha256'] = hashes
+    output['base_sha256'] = hashlib.sha256(raw_base).hexdigest()
+    with Path(args.output).open('x', encoding='utf8') as stream:
+        json.dump(output, stream, indent=2, allow_nan=False)
+
+
+if __name__ == '__main__':
+    main()
