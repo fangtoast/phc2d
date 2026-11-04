@@ -210,7 +210,7 @@ def optimize_fourier_adam(source: Any, predictor: Any, *, coefficient_keys: Any,
                           scales: Any, lower: Any, upper: Any, master_resolution: int,
                           input_resolution: int, temperature: float, lower_band: int,
                           target_frequency: float, beta: float, learning_rate: float,
-                          steps: int) -> list[dict[str, Any]]:
+                          steps: int, initial: Any = None) -> list[dict[str, Any]]:
     """Optimize normalized Fourier edits and return soft-objective evaluations.
 
     Selection and hard-geometry eligibility remain the responsibility of the
@@ -233,7 +233,8 @@ def optimize_fourier_adam(source: Any, predictor: Any, *, coefficient_keys: Any,
                                         lower_band=lower_band, target_frequency=target_frequency,
                                         beta=beta)
 
-    history = optimize_adam(objective, torch.zeros_like(base), lower=lower, upper=upper,
+    start = torch.zeros_like(base) if initial is None else torch.as_tensor(initial, dtype=base.dtype, device=base.device)
+    history = optimize_adam(objective, start, lower=lower, upper=upper,
                             learning_rate=learning_rate, steps=steps)
     for record in history:
         z = torch.as_tensor(record['parameters'], dtype=base.dtype, device=base.device)
@@ -245,7 +246,7 @@ def optimize_fourier_black_box(source: Any, predictor: Any, *, coefficient_keys:
                                scales: Any, lower: Any, upper: Any, master_resolution: int,
                                input_resolution: int, temperature: float, lower_band: int,
                                target_frequency: float, beta: float, evaluations: int,
-                               seed: int, method: str) -> list[dict[str, Any]]:
+                               seed: int, method: str, initial: Any = None) -> list[dict[str, Any]]:
     """Search the same normalized geometry and smooth objective as Fourier Adam."""
     import torch
 
@@ -264,7 +265,8 @@ def optimize_fourier_black_box(source: Any, predictor: Any, *, coefficient_keys:
                                         lower_band=lower_band, target_frequency=target_frequency,
                                         beta=beta)
 
-    history = optimize_black_box(objective, torch.zeros_like(base), lower=lower, upper=upper,
+    start = torch.zeros_like(base) if initial is None else torch.as_tensor(initial, dtype=base.dtype, device=base.device)
+    history = optimize_black_box(objective, start, lower=lower, upper=upper,
                                  evaluations=evaluations, seed=seed, method=method)
     for record in history:
         z = torch.as_tensor(record['parameters'], dtype=base.dtype, device=base.device)

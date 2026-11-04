@@ -77,3 +77,25 @@ def test_fourier_black_box_shares_adam_initial_objective():
                                              evaluations=5, seed=1, method=method)
         assert search[0]['objective'] == pytest.approx(adam[0]['objective'])
         assert search[0]['fourier_parameters'] == pytest.approx(adam[0]['fourier_parameters'])
+
+
+def test_fourier_algorithms_share_nonzero_initial_and_budget():
+    class Predictor:
+        device = torch.device('cpu')
+        def predict_tensor(self, image):
+            value = image.mean(dim=(1, 2))
+            return torch.stack((0.2 + 0.1 * value, 0.7 + 0.1 * value), dim=1).unsqueeze(1)
+
+    source = generate_unified_fourier_binary('source', master_seed=12, material_fraction_bin=1,
+                                             config={'fourier_cutoff': 3, 'audit_resolution': 32})
+    args = dict(coefficient_keys=[(0, 'cos')], scales=[0.2, 0.1], lower=[-0.5, -0.5],
+                upper=[0.5, 0.5], master_resolution=64, input_resolution=16, temperature=0.2,
+                lower_band=1, target_frequency=0.5, beta=100, initial=[0.15, 0.0])
+    adam = optimize_fourier_adam(source, Predictor(), **args, learning_rate=0.1, steps=5)
+    for method in ('de', 'random'):
+        result = optimize_fourier_black_box(source, Predictor(), **args,
+                                             evaluations=6, seed=1, method=method)
+        assert len(result) == len(adam) == 6
+        assert result[0]['parameters'] == pytest.approx([0.15, 0.0])
+        assert result[0]['fourier_parameters'] == pytest.approx(adam[0]['fourier_parameters'])
+        assert result[0]['objective'] == pytest.approx(adam[0]['objective'])

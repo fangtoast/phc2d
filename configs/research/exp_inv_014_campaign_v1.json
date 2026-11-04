@@ -1,0 +1,14 @@
+{
+  "experiment_id": "EXP-INV-014",
+  "status": "implementation_in_progress",
+  "base_campaign": "configs/research/exp_inv_013_campaign_v1.json",
+  "arms": ["adam_trajectory", "adam_residual", "de_residual"],
+  "initial_offsets": [[0.0, 0.0], [0.1, 0.0], [-0.1, 0.0], [0.0, 0.1], [0.0, -0.1]],
+  "rounds": 3,
+  "evaluations_per_round": 20,
+  "max_observation_roles": 8,
+  "initial_trust_radius": 0.2,
+  "rejection_radius_factor": 0.5,
+  "ridge": 0.000001,
+  "acceptance": "strict_physical_margin_improvement"
+}

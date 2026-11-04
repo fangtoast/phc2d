@@ -40,10 +40,12 @@ def run_shard(config: dict[str, Any], source: FullCellStructureSpec, predictor: 
     diagnostics = None
     if role == 'adam':
         history = optimize_fourier_adam(source, predictor, **shared,
-            learning_rate=config['learning_rate'], steps=config['evaluations'] - 1)
+            learning_rate=config['learning_rate'], steps=config['evaluations'] - 1,
+            initial=config.get('initial'))
     elif role in ('de', 'random'):
         history = optimize_fourier_black_box(source, predictor, **shared,
-            evaluations=config['evaluations'], seed=config['seed'], method=role)
+            evaluations=config['evaluations'], seed=config['seed'], method=role,
+            initial=config.get('initial'))
     else:
         base = torch.tensor([source.parameters['modes'][i][component] for i, component in keys]
                             + [source.parameters['threshold']], dtype=torch.float64, device=predictor.device)
