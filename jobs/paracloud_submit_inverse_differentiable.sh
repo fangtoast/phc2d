@@ -26,6 +26,14 @@ if [[ "$PHC2D_ROLE" != preflight ]]; then
   : "${PHC2D_PREFLIGHT_GATE_SHA256:?Set preflight gate SHA-256}"
   [[ -f "$PHC2D_PREFLIGHT_GATE" ]] || { echo 'preflight gate missing' >&2; exit 2; }
 fi
+case "${PHC2D_SUBMIT_DRY_RUN:-0}" in
+  1)
+    printf 'prepared platform=%s role=%s partition=gpu_4090 gpus=1 cpus=6 wall_minutes=30 config_sha256=%s\n' \
+      "$PHC2D_GPU_PLATFORM" "$PHC2D_ROLE" "$PHC2D_CONFIG_SHA256"
+    exit 0 ;;
+  0) ;;
+  *) echo 'invalid dry-run flag' >&2; exit 2 ;;
+esac
 mkdir -p "$PHC2D_BATCH_ROOT"
 receipt="$PHC2D_BATCH_ROOT/submission_${PHC2D_ROLE}.txt"
 pending="$PHC2D_BATCH_ROOT/submission_${PHC2D_ROLE}.pending"

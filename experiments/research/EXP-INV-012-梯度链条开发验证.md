@@ -19,6 +19,8 @@
 
 N40 和 N56 各用 `jobs/paracloud_inverse_differentiable_mvp.sh` 的 `preflight` 角色输出模型身份、中心谱、参数梯度、有限差分及耗时；`python -m phc2d.inverse.differentiable_preflight --input N40_JSON --input N56_JSON --output GATE_JSON` 合并准入。正式分片使用同一部署 commit、配置、来源和 checkpoint：N40 承担 `directions`、`adam`，N56 承担 `de`、`random`。`jobs/paracloud_submit_inverse_differentiable.sh` 按角色提交并保存回执，正式分片读取已通过的预检 gate；提交前核验资源和已有回执。N40 的 `gpu_4090` 分区使用每卡默认内存，调度器拒绝自定义内存参数；按实际分配记录费用。
 
+GPU 提交器设置 `PHC2D_SUBMIT_DRY_RUN=1` 可核对角色、平台与作业资源，不提交或创建回执。提交器可以来自较新的独立控制部署；实际执行代码仍使用 `PHC2D_ROOT` 所指的预检通过版本。
+
 四个分片返回后，`python -m phc2d.inverse.differentiable_lock --directions DIRECTIONS_JSON --adam ADAM_JSON --de DE_JSON --random RANDOM_JSON --output LOCK_JSON` 校验身份、中心谱、参数梯度和各自硬评分 Top-1，锁定 12 个角色。`python -m phc2d.inverse.differentiable_handoff --config CONFIG_JSON --lock LOCK_JSON --output-directory REQUEST_DIR` 生成现有 `audit_perturb_refine` 所需的 nominal 零偏移 MPB 请求。相同 512 硬栅格只求解一次并保留角色映射；相同 64 代理输入不代表相同硬几何。
 
 使用 `python -m phc2d.inverse.differentiable_archive --config CONFIG_JSON --lock LOCK_JSON --directions DIRECTIONS_JSON --adam ADAM_JSON --de DE_JSON --random RANDOM_JSON --output RUN_DIR` 将四个原始分片和锁按项目 run 合同归档；归档状态为 `design_locked`，物理验证状态另行更新。

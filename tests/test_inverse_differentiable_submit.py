@@ -29,6 +29,10 @@ def test_submission_receipt_and_platform_assignment(tmp_path):
            'PHC2D_SOURCE': str(source), 'PHC2D_CHECKPOINT': str(checkpoint),
            'PHC2D_EXPECTED_COMMIT': 'a'*40, 'PHC2D_BATCH_ROOT': str(tmp_path/'batch'),
            'SBATCH_CAPTURE': str(tmp_path/'sbatch_args')}
+    dry = subprocess.run(['bash', str(script)], env={**env, 'PHC2D_SUBMIT_DRY_RUN': '1'},
+                         capture_output=True, text=True)
+    assert dry.returncode == 0 and 'platform=n40 role=preflight' in dry.stdout
+    assert not (tmp_path/'batch').exists() and not (tmp_path/'sbatch_args').exists()
     first = subprocess.run(['bash', str(script)], env=env, capture_output=True, text=True)
     assert first.returncode == 0 and first.stdout.strip() == '12345'
     resources = json.loads((Path(__file__).resolve().parents[1]/'configs/research/exp_inv_012_resources_v1.json').read_text())
