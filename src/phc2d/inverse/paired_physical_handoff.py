@@ -18,6 +18,80 @@ from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
+def build_nominal_static_physical_request(*, campaign_bytes: bytes, campaign_sha256: str,
+                                          selections: Mapping[int, bytes], pilot_config_bytes: bytes,
+                                          prior_manifest_bytes: bytes, prior_protocol_bytes: bytes) -> dict[str, Any]:
+    """Build all frozen static candidate requests without submitting or solving.
+
+    The caller authenticates the campaign's provenance, scheduler chronology,
+    and execution lock. Identical grids across sources are retained as separate
+    registered roles rather than silently changing the attempt contract.
+    """
+    import yaml
+
+    if hashlib.sha256(campaign_bytes).hexdigest() != campaign_sha256:
+        raise ValueError('static campaign identity mismatch')
+    campaign, pilot = json.loads(campaign_bytes), yaml.safe_load(pilot_config_bytes)
+    prior, previous_protocol = json.loads(prior_manifest_bytes), json.loads(prior_protocol_bytes)
+    if (campaign.get('scope') != 'static_campaign_selection_not_physical_execution_lock'
+            or campaign.get('status') != 'locked_surrogate_only'
+            or campaign.get('pilot_config_sha256') != hashlib.sha256(pilot_config_bytes).hexdigest()
+            or hashlib.sha256(prior_manifest_bytes).hexdigest() != pilot['physical_manifest_sha256']
+            or hashlib.sha256(prior_protocol_bytes).hexdigest() != pilot['physics']['prior_protocol_sha256']
+            or prior.get('protocol_sha256') != pilot['physics']['prior_protocol_sha256']):
+        raise ValueError('static selection or original physical protocol mismatch')
+    ids = list(pilot['sources'].values())
+    records = campaign['sources']
+    if (not ids or len(set(ids)) != len(ids) or set(selections) != set(ids)
+            or [row['source_index'] for row in records] != ids):
+        raise ValueError('static source roster incomplete')
+    resolution = pilot['physics']['master_raster_resolution']
+    if (previous_protocol.get('offsets', []).count(0.0) != 1
+            or previous_protocol['raster_resolution'] != resolution or prior['raster_resolution'] != resolution
+            or prior['target_frequency'] != pilot['target']['frequency_a_over_lambda']
+            or prior['lower_band'] != pilot['target']['lower_band_one_based']):
+        raise ValueError('nominal geometry or target differs from prior contract')
+    config = FullCellMpbBandSolverConfig(**prior['solver_config'])
+    if config.polarization != pilot['target']['polarization'] or config.resolution != pilot['physics']['primary_resolution']:
+        raise ValueError('nominal solver differs from pilot contract')
+    protocol = {**previous_protocol, 'offsets': [0.0]}
+    if protocol['refinement']['verification_resolution'] != pilot['physics']['verification_resolution']:
+        raise ValueError('verification resolution differs from pilot contract')
+    protocol_raw = json.dumps(protocol, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf8')
+    rows = []
+    for source_index, record in zip(ids, records):
+        raw = selections[source_index]
+        if hashlib.sha256(raw).hexdigest() != record['selection_sha256'] or record['status'] != 'locked_surrogate_only':
+            raise ValueError('static source selection identity mismatch')
+        selection = json.loads(raw)
+        candidates = selection['selection']['selected']
+        if (selection.get('source_index') != source_index or selection['selection']['status'] != 'locked_surrogate_only'
+                or len(candidates) != pilot['search']['candidate_physical_attempts_per_method']):
+            raise ValueError('static candidate roster incomplete')
+        seen = set()
+        for rank, item in enumerate(candidates):
+            structure = FullCellStructureSpec.from_mapping(item['structure'])
+            grid = np.ascontiguousarray(structure.rasterize((resolution, resolution)), dtype=np.uint8)
+            digest = hashlib.sha256(grid.tobytes()).hexdigest()
+            if (structure.material_kind != 'binary' or not np.isin(grid, (0, 1)).all()
+                    or structure.parameter_hash != item['parameter_hash'] or digest != item['nominal_grid_sha256']
+                    or digest in seen or digest == selection['selection']['source_grid_sha256']
+                    or structure.epsilon_air != config.epsilon_air or structure.epsilon_material != config.epsilon_material):
+                raise ValueError('static candidate geometry or identity mismatch')
+            seen.add(digest)
+            rows.append({'source_index': source_index, 'label': 'candidate', 'method': 'static', 'rank': rank,
+                         'parameter_hash': structure.parameter_hash, 'nominal_grid_sha256': digest,
+                         'structure': structure.to_mapping()})
+    if len(rows) > pilot['resources']['new_physical_attempts_max']:
+        raise ValueError('static requests exceed total physical attempts')
+    manifest = {'scope': 'nominal_static_solver_request_not_execution_lock', 'status': 'surrogate_replay_request',
+                'campaign_sha256': campaign_sha256, 'k_points': prior['k_points'], 'lower_band': prior['lower_band'],
+                'target_frequency': prior['target_frequency'], 'solver_config': prior['solver_config'],
+                'raster_resolution': resolution, 'protocol_sha256': hashlib.sha256(protocol_raw).hexdigest(), 'rows': rows}
+    return {'scope': 'static_request_constructed_not_submitted', 'manifest': manifest,
+            'protocol': protocol, 'protocol_sha256': hashlib.sha256(protocol_raw).hexdigest()}
+
+
 def build_paired_physical_batch(
     sources: Sequence[Mapping[str, Any]], locks: Sequence[Mapping[str, Any]], *,
     expected_source_counts: Mapping[str, int], checkpoint_sha256_by_seed: Mapping[int, str],

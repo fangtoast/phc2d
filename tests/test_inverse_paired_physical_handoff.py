@@ -8,13 +8,14 @@ Copyright (c) 2026 fangtoast. All rights reserved.
 import copy
 import hashlib
 import json
+from dataclasses import asdict
 
 import numpy as np
 import pytest
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.audit_candidates import local_fourier_audit_candidates
-from phc2d.inverse.paired_physical_handoff import build_paired_physical_batch
+from phc2d.inverse.paired_physical_handoff import build_paired_physical_batch, build_nominal_static_physical_request
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
@@ -56,6 +57,68 @@ def fixture_inputs():
             'lower_band':1,'target_frequency':.5,'protocol_bytes':protocol,
             'protocol_sha256':hashlib.sha256(protocol).hexdigest()}
     return sources, locks, kwargs
+
+
+def test_nominal_static_request_keeps_full_roster_and_zero_offset(tmp_path):
+    import yaml
+    from phc2d.inverse.audit_perturb_refine import run_case
+    from phc2d.inverse.feedback_handoff import validate_robust_observation
+    sources, locks, old = fixture_inputs()
+    protocol_raw = old['protocol_bytes']
+    prior = {'protocol_sha256': old['protocol_sha256'], 'raster_resolution': 32,
+        'target_frequency': .5, 'lower_band': 1, 'solver_config': asdict(old['config']),
+        'k_points': old['k_points'].tolist()}
+    prior_raw = json.dumps(prior).encode()
+    pilot = {'sources': {s['stratum']: s['source_index'] for s in sources},
+        'physical_manifest_sha256': hashlib.sha256(prior_raw).hexdigest(),
+        'physics': {'prior_protocol_sha256': old['protocol_sha256'], 'master_raster_resolution': 32,
+                    'primary_resolution': 32, 'verification_resolution': 48},
+        'target': {'frequency_a_over_lambda': .5, 'lower_band_one_based': 1, 'polarization': 'TE'},
+        'search': {'candidate_physical_attempts_per_method': 2}, 'resources': {'new_physical_attempts_max': 12}}
+    pilot_raw = yaml.safe_dump(pilot, sort_keys=False).encode()
+    selections, records = {}, []
+    for sid in range(3):
+        lock = next(row for row in locks if row['source_index'] == sid and row['model_seed'] == 0)
+        selected = [lock['surrogate_choice'], lock['random_choice']]
+        selection = {'source_index': sid, 'selection': {'status': 'locked_surrogate_only',
+                     'source_grid_sha256': lock['source_grid_sha256'], 'selected': selected}}
+        raw = json.dumps(selection).encode()
+        selections[sid] = raw
+        records.append({'source_index': sid, 'selection_sha256': hashlib.sha256(raw).hexdigest(),
+                        'status': 'locked_surrogate_only'})
+    campaign = {'scope': 'static_campaign_selection_not_physical_execution_lock', 'status': 'locked_surrogate_only',
+                'pilot_config_sha256': hashlib.sha256(pilot_raw).hexdigest(), 'sources': records}
+    campaign_raw = json.dumps(campaign).encode()
+    args = {'campaign_bytes': campaign_raw, 'campaign_sha256': hashlib.sha256(campaign_raw).hexdigest(),
+            'selections': selections, 'pilot_config_bytes': pilot_raw,
+            'prior_manifest_bytes': prior_raw, 'prior_protocol_bytes': protocol_raw}
+    request = build_nominal_static_physical_request(**args)
+    assert request['protocol']['offsets'] == [0.0]
+    assert len(request['manifest']['rows']) == 6
+    assert [row['source_index'] for row in request['manifest']['rows']] == [0, 0, 1, 1, 2, 2]
+    manifest_path, protocol_path = tmp_path/'manifest.json', tmp_path/'protocol.json'
+    manifest_path.write_text(json.dumps(request['manifest']), encoding='utf8')
+    protocol_path.write_text(json.dumps(request['protocol'], sort_keys=True, separators=(',', ':')), encoding='utf8')
+    mh, ph = (hashlib.sha256(path.read_bytes()).hexdigest() for path in (manifest_path, protocol_path))
+    assert ph == request['protocol_sha256']
+    def solver(grid, *, k_points, config):
+        meta = {'grid_sha256': hashlib.sha256(np.ascontiguousarray(grid, dtype=np.uint8).tobytes()).hexdigest(),
+            'resolution': config.resolution, 'polarization': config.polarization, 'num_bands': config.num_bands,
+            'mesh_size': config.mesh_size, 'band_guard_count': config.band_guard_count,
+            'band_order_policy': config.band_order_policy, 'eigensolver_tolerance': config.eigensolver_tolerance,
+            'epsilon_air': config.epsilon_air, 'epsilon_material': config.epsilon_material,
+            'solver_backend': 'mock', 'solver_version': '1'}
+        return np.tile([.2, .8], (len(k_points), 1)), meta
+    output = run_case(manifest_path, expected_sha256=mh, protocol_path=protocol_path,
+        expected_protocol_sha256=ph, case_index=0, output_root=tmp_path/'cases', solver=solver)
+    checked = validate_robust_observation(manifest_bytes=manifest_path.read_bytes(), expected_manifest_sha256=mh,
+        protocol_bytes=protocol_path.read_bytes(), protocol_sha256=ph, case_index=0,
+        result=json.loads((output/'results.json').read_bytes()))
+    assert checked['provenance']['offsets'] == [0.0]
+    with pytest.raises(ValueError, match='roster incomplete'):
+        build_nominal_static_physical_request(**{**args, 'selections': {0: selections[0]}})
+    with pytest.raises(ValueError, match='protocol mismatch'):
+        build_nominal_static_physical_request(**{**args, 'prior_protocol_bytes': b'{}'})
 
 
 def test_paired_batch_deduplicates_roles_and_freezes_crosscheck():
