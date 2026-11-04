@@ -21,6 +21,8 @@ N40 和 N56 各用 `jobs/paracloud_inverse_differentiable_mvp.sh` 的 `preflight
 
 GPU 提交器设置 `PHC2D_SUBMIT_DRY_RUN=1` 可核对角色、平台与作业资源，不提交或创建回执。提交器可以来自较新的独立控制部署；实际执行代码仍使用 `PHC2D_ROOT` 所指的预检通过版本。
 
+来源 8 原点子批的方向诊断和 Adam 原由 N40 承担；因排队延迟，原作业在未运行时取消，由 N56 接管。提交器使用显式 `PHC2D_N56_TAKEOVER=1`，锁定时使用 `--n56-takeover`，并保留各分片实际平台；代理代码、配置和跨平台预检合同不变。
+
 四个分片返回后，`python -m phc2d.inverse.differentiable_lock --directions DIRECTIONS_JSON --adam ADAM_JSON --de DE_JSON --random RANDOM_JSON --output LOCK_JSON` 校验身份、中心谱、参数梯度和各自硬评分 Top-1，锁定 12 个角色。`python -m phc2d.inverse.differentiable_handoff --config CONFIG_JSON --lock LOCK_JSON --output-directory REQUEST_DIR` 生成现有 `audit_perturb_refine` 所需的 nominal 零偏移 MPB 请求。相同 512 硬栅格只求解一次并保留角色映射；相同 64 代理输入不代表相同硬几何。
 
 在物理结果揭示前，用 `python -m phc2d.inverse.differentiable_soft_audit --config CONFIG_JSON --lock LOCK_JSON --checkpoint CHECKPOINT --output SOFT_AUDIT_JSON` 保存已选硬几何对应的完整软输入代理谱、软硬精确裕量和谱差异。该诊断不改变锁定选择，计算成本单列。
