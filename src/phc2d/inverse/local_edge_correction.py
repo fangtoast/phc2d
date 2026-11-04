@@ -103,6 +103,30 @@ def fit_local_edge_correction(observations: Sequence[Mapping[str, Any]], *, cent
                                str(next(iter(signatures))), str(next(iter(surrogate_signatures))), len(observations))
 
 
+def fit_composite_edge_correction(observations: Sequence[Mapping[str, Any]], *, center: Any,
+                                  radius: float, ridge: float) -> LocalEdgeCorrection:
+    """Fit soft-to-physical edge residuals, using a constant for rank-deficient coverage.
+
+    ``predicted_edges`` must be the smooth edges for the recorded temperature;
+    ``physical_edges`` must come from the corresponding hard geometry. These
+    residuals include representation and smoothing effects as well as model error.
+    The contract hashes must identify all of those conventions.
+    """
+    fitted = fit_local_edge_correction(observations, center=center, radius=radius, ridge=ridge)
+    positions = np.stack([np.asarray(row['parameters'], dtype=np.float64) for row in observations])
+    design = np.column_stack((np.ones(len(positions)), positions - fitted.center))
+    if np.linalg.matrix_rank(design) == design.shape[1]:
+        return fitted
+    distances = np.linalg.norm(positions - fitted.center, axis=1)
+    weights = np.exp(-0.5 * (distances / radius) ** 2)
+    residuals = np.stack([np.asarray(row['physical_edges']) - np.asarray(row['predicted_edges'])
+                          for row in observations])
+    coefficients = np.zeros_like(fitted.coefficients)
+    coefficients[0] = np.average(residuals, axis=0, weights=weights)
+    return LocalEdgeCorrection(fitted.center, fitted.radius, coefficients, fitted.comparison_contract_sha256,
+                               fitted.surrogate_contract_sha256, fitted.sample_count)
+
+
 def correct_projected_with_anchor(anchor: Mapping[str, Any], candidate: Mapping[str, Any], *,
                                   anchor_structure: Any, candidate_structure: Any,
                                   verified_anchor: Mapping[str, Any], raster_resolution: int) -> dict[str, Any]:

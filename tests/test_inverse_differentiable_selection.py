@@ -25,5 +25,5 @@ def test_selection_records_duplicate_and_full_prediction():
         input_resolution=16, material_fraction_bounds=(0, 1), lower_band=1, target_frequency=0.5)
     assert result['selected_index'] == 0
     assert len(result['candidates'][0]['bands']) == 2
-    assert result['candidates'][1]['status'] == 'duplicate_input'
+    assert result['candidates'][1]['status'] == 'duplicate_geometry'
     assert result['candidates'][1]['duplicate_of'] == 0

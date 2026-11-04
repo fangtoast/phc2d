@@ -23,12 +23,10 @@ def rank_hard_trajectory(source: Any, predictor: Any, history: Sequence[dict[str
                          target_frequency: float) -> dict[str, Any]:
     """Rank each eligible hard design by the exact sampled surrogate margin.
 
-    Every trajectory record is retained. Identical model inputs are evaluated
-    once and recorded as duplicates of their earliest candidate.
+    Every trajectory record is retained. Duplicates are identified by the
+    hard master raster, not the potentially lossy model input raster.
     """
     import hashlib
-    import torch
-
     keys = tuple(coefficient_keys)
     rows = []
     seen: dict[str, int] = {}
@@ -45,20 +43,29 @@ def rank_hard_trajectory(source: Any, predictor: Any, history: Sequence[dict[str
             material_fraction_bounds=material_fraction_bounds)
         raster = np.ascontiguousarray(geometry.raster, dtype=np.float32)
         digest = hashlib.sha256(raster.tobytes()).hexdigest()
-        row = {'index': index, 'structure': structure.to_mapping(), 'input_sha256': digest,
+        master = np.ascontiguousarray(structure.rasterize((source_resolution, source_resolution)), dtype=np.uint8)
+        master_digest = hashlib.sha256(master.tobytes()).hexdigest()
+        row = {'index': index, 'structure': structure.to_mapping(), 'parameter_hash': structure.parameter_hash,
+               'input_sha256': digest,
+               'master_grid_sha256': master_digest,
                'material_fraction': geometry.material_fraction, 'status': geometry.status}
-        if geometry.status == 'eligible' and digest in seen:
-            row.update(status='duplicate_input', duplicate_of=seen[digest])
+        if geometry.status == 'eligible' and master_digest in seen:
+            row.update(status='duplicate_geometry', duplicate_of=seen[master_digest])
         elif geometry.status == 'eligible':
-            seen[digest] = index
-            result = screen_fourier_candidate(structure, predictor, raster_method=raster_method,
+            seen[master_digest] = index
+            class Capture:
+                bands = None
+                def predict_tensor(self, inputs: Any) -> Any:
+                    self.bands = predictor.predict_tensor(inputs)
+                    return self.bands
+            capture = Capture()
+            result = screen_fourier_candidate(structure, capture, raster_method=raster_method,
                 source_resolution=source_resolution, input_resolution=input_resolution,
                 material_fraction_bounds=material_fraction_bounds, lower_band=lower_band,
                 target_frequency=target_frequency)
             row.update(asdict(result))
             if result.status == 'surrogate_only':
-                with torch.no_grad():
-                    bands = predictor.predict_tensor(torch.as_tensor(raster[None])).detach().cpu().numpy()
+                bands = capture.bands.detach().cpu().numpy()
                 row['bands'] = bands[0].tolist()
                 margin = float(result.predicted_gap['target_margin'])
                 if best is None or margin > best[0]:

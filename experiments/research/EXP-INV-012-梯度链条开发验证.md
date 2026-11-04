@@ -7,11 +7,19 @@
 
 # EXP-INV-012：梯度链条开发验证
 
-**状态：Draft，未实施或运行；当前为纯代理路线修订版。** 别名 MVP-INV-001。前版 63 组/150 核时及物理 FD 引导方向方案不再采用；无已有执行锁或 run 被覆盖。研究问题是：冻结 GL 的参数梯度能否指导结构优化，使预先选定的硬结构在末尾 MPB 中呈现真实改善？本批只作开发诊断，不证明独立泛化。
+**状态：Draft，纯代理接口开发中，正式批次未运行。** 别名 MVP-INV-001。前版 63 组/150 核时及物理 FD 引导方向方案不再采用；无已有正式执行锁或 run 被覆盖。研究问题是：冻结 GL 的参数梯度能否指导结构优化，使预先选定的硬结构在末尾 MPB 中呈现真实改善？本批只作开发诊断，不证明独立泛化。
 
 入口见[当前目录](../../docs/planning/鲁棒带隙逆向/README.md)、[纯代理方法](../../docs/planning/鲁棒带隙逆向/纯代理方法.md)与[实验复核](../../docs/planning/鲁棒带隙逆向/实验与复核.md)。所有优化、候选过滤、评分和选型使用 GL；本批 MPB 成绩在选择锁之后揭示，不用于续跑、调参或补选。
 
 本实验交付完整研究的首个纯代理基线；后续 MPB 代理校正/微调属于 EXP-INV-014，按[推进与交付](../../docs/planning/鲁棒带隙逆向/推进与交付.md)实施，不改变本批候选的锁定规则。
+
+## 原点子批的运行入口
+
+[原点子批配置](../../configs/research/exp_inv_012_origin_v1.json)绑定来源 8 文件、K5 Binary 固定融合 3×3 seed 0 checkpoint 和 k 点哈希，并设定两参数范围、优化预算、物理协议及预检容差。该 checkpoint 来自 EXP-FWD-020 的 epoch-300 validation-best 探索续训；它与 010/011 门控模型分开。配置用于开发批，正式执行前须完成两端预检并固定实际资源。
+
+N40 和 N56 各用 `jobs/paracloud_inverse_differentiable_mvp.sh` 的 `preflight` 角色输出模型身份、中心谱、参数梯度、有限差分及耗时；`python -m phc2d.inverse.differentiable_preflight --input N40_JSON --input N56_JSON --output GATE_JSON` 合并准入。正式分片使用同一部署 commit、配置、来源和 checkpoint：N40 承担 `directions`、`adam`，N56 承担 `de`、`random`。`jobs/paracloud_submit_inverse_differentiable.sh` 按角色提交并保存回执，正式分片读取已通过的预检 gate；提交前核验资源和已有回执。
+
+四个分片返回后，`python -m phc2d.inverse.differentiable_lock --directions DIRECTIONS_JSON --adam ADAM_JSON --de DE_JSON --random RANDOM_JSON --output LOCK_JSON` 校验身份、中心谱、参数梯度和各自硬评分 Top-1，锁定 12 个角色。`python -m phc2d.inverse.differentiable_handoff --config CONFIG_JSON --lock LOCK_JSON --output-directory REQUEST_DIR` 生成现有 `audit_perturb_refine` 所需的 nominal 零偏移 MPB 请求。相同 512 硬栅格只求解一次并保留角色映射；相同 64 代理输入不代表相同硬几何。
 
 ## 输入与冻结
 

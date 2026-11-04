@@ -10,7 +10,7 @@ import hashlib
 import numpy as np
 import pytest
 
-from phc2d.inverse.local_edge_correction import fit_local_edge_correction, correct_projected_with_anchor
+from phc2d.inverse.local_edge_correction import fit_composite_edge_correction, fit_local_edge_correction, correct_projected_with_anchor
 from phc2d.inverse.fourier_design import update_fourier_binary
 from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, project_perturbed_band_order
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
@@ -46,6 +46,20 @@ def test_local_correction_rejects_unstable_and_mixed_protocols():
 def test_single_observation_gives_constant_correction():
     model = fit_local_edge_correction([observation('a', 0, .02)], center=[0], radius=1, ridge=.01)
     assert np.allclose(model.correct([.5], [.3, .8]), [.32, .78])
+
+
+def test_composite_correction_uses_constant_when_points_are_collinear():
+    rows = []
+    for index, x in enumerate((-0.5, 0., 0.5)):
+        row = observation(str(index), x, 0.02 + 0.01*x)
+        row['parameters'] = [x, 0.0]
+        rows.append(row)
+    model = fit_composite_edge_correction(rows, center=[0, 0], radius=1., ridge=1e-6)
+    assert np.all(model.coefficients[1:] == 0)
+    assert model.correct([0.1, 0.1], [.4, .7]) == pytest.approx([.42, .68])
+    rows[2]['parameters'][1] = 0.2
+    model = fit_composite_edge_correction(rows, center=[0, 0], radius=1., ridge=1e-6)
+    assert np.any(model.coefficients[1:] != 0)
 
 
 def projected_case_inputs():
