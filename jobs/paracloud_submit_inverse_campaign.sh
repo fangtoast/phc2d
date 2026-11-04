@@ -15,7 +15,7 @@ set -euo pipefail
 : "${PHC2D_RECEIPT_ROOT:?Set unique receipt directory}"
 : "${PHC2D_EXPECTED_COMMIT:?Set deployed code identity}"
 case "$PHC2D_GPU_PLATFORM:$PHC2D_METHOD" in
-  n40:adam|n56:de|n56:random) ;;
+  n40:adam|n56:de|n56:random|n40:feedback_seed|n56:feedback_seed) ;;
   n56:adam) [[ "${PHC2D_N56_TAKEOVER:-0}" == 1 ]] || { echo 'explicit N56 takeover required' >&2; exit 2; } ;;
   *) echo 'unsupported method/platform assignment' >&2; exit 2 ;;
 esac
@@ -24,6 +24,9 @@ printf '%s  %s\n' "$PHC2D_MANIFEST_SHA256" "$PHC2D_MANIFEST" | sha256sum -c - >/
 [[ -f "$PHC2D_CHECKPOINT" && -d "$PHC2D_SOURCE_DIRECTORY" ]] || { echo 'missing inputs' >&2; exit 2; }
 worker="${PHC2D_JOB_SCRIPT:-$PHC2D_ROOT/jobs/paracloud_inverse_differentiable_campaign.sh}"
 [[ -f "$worker" ]] || { echo 'missing worker script' >&2; exit 2; }
+if [[ -n "${PHC2D_JOB_SCRIPT:-}" && -z "${PHC2D_WORKER_SHA256:-}" ]]; then
+  echo 'overridden worker requires explicit hash' >&2; exit 2
+fi
 if [[ -n "${PHC2D_WORKER_SHA256:-}" ]]; then
   printf '%s  %s\n' "$PHC2D_WORKER_SHA256" "$worker" | sha256sum -c - >/dev/null
 fi
@@ -32,6 +35,8 @@ if [[ "${PHC2D_SUBMIT_DRY_RUN:-0}" == 1 ]]; then
   exit 0
 fi
 [[ "${PHC2D_SUBMIT_DRY_RUN:-0}" == 0 ]] || { echo 'invalid dry-run flag' >&2; exit 2; }
+job_prefix="${PHC2D_JOB_PREFIX:-inv013}"
+[[ "$job_prefix" =~ ^[A-Za-z0-9_]+$ ]] || { echo 'invalid job prefix' >&2; exit 2; }
 mkdir -p "$PHC2D_RECEIPT_ROOT"
 receipt="$PHC2D_RECEIPT_ROOT/submission_${PHC2D_METHOD}.txt"
 pending="$PHC2D_RECEIPT_ROOT/submission_${PHC2D_METHOD}.pending"
@@ -40,7 +45,7 @@ pending="$PHC2D_RECEIPT_ROOT/submission_${PHC2D_METHOD}.pending"
 export PHC2D_ROOT PHC2D_GPU_PLATFORM PHC2D_MANIFEST PHC2D_MANIFEST_SHA256 PHC2D_SOURCE_DIRECTORY
 export PHC2D_CHECKPOINT PHC2D_METHOD PHC2D_OUTPUT_ROOT PHC2D_EXPECTED_COMMIT
 job_id="$(sbatch --parsable --array=0-2 -p gpu_4090 --gres=gpu:1 -c 6 -t 01:00:00 \
-  -J "inv013_${PHC2D_METHOD}" -o "$PHC2D_RECEIPT_ROOT/${PHC2D_METHOD}_%A_%a.out" \
+  -J "${job_prefix}_${PHC2D_METHOD}" -o "$PHC2D_RECEIPT_ROOT/${PHC2D_METHOD}_%A_%a.out" \
   -e "$PHC2D_RECEIPT_ROOT/${PHC2D_METHOD}_%A_%a.err" --export=ALL \
   "$worker")"
 [[ "$job_id" =~ ^[0-9]+([\;][A-Za-z0-9_-]+)?$ ]] || { echo 'unexpected job ID; reconcile submission' >&2; exit 2; }
