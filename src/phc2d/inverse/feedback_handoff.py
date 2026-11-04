@@ -198,6 +198,34 @@ def build_robust_solver_manifest(state: FeedbackState, structure: FullCellStruct
     return manifest
 
 
+def build_robust_worker_manifest(states_by_worker: Mapping[str, FeedbackState],
+                                 structures_by_worker: Mapping[str, FullCellStructureSpec], *,
+                                 source_indices: Mapping[str, int], k_points: Any,
+                                 config: FullCellMpbBandSolverConfig, lower_band: int) -> tuple[dict[str, Any], dict[str, int]]:
+    """Assemble distinct pending workers into one packed-refinement manifest.
+
+    The caller authenticates state, physical inputs and the frozen worker roster
+    and reserves a shared allocation before submitting any work.
+    """
+    if (not isinstance(states_by_worker, Mapping) or not states_by_worker
+            or set(states_by_worker) != set(structures_by_worker) or set(states_by_worker) != set(source_indices)
+            or any(not isinstance(w, str) or not w.strip() for w in states_by_worker)):
+        raise ValueError('complete worker, structure and source roster required')
+    common, rows, indices, candidates = None, [], {}, set()
+    for worker in sorted(states_by_worker):
+        item = build_robust_solver_manifest(states_by_worker[worker], structures_by_worker[worker],
+            k_points=k_points, config=config, lower_band=lower_band, source_index=source_indices[worker])
+        fields = {key: value for key, value in item.items() if key != 'rows'}
+        candidate = item['rows'][0]['parameter_hash']
+        if (common is not None and fields != common) or candidate in candidates:
+            raise ValueError('worker solver contracts or candidate identities differ')
+        common = fields
+        candidates.add(candidate)
+        indices[worker] = len(rows)
+        rows.extend(item['rows'])
+    return {**common, 'rows': rows}, indices
+
+
 def validate_robust_observation(*, manifest_bytes: bytes, expected_manifest_sha256: str,
                                 protocol_bytes: bytes, protocol_sha256: str,
                                 case_index: int, result: Mapping[str, Any]) -> dict[str, Any]:

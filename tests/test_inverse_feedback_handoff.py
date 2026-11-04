@@ -20,7 +20,7 @@ from phc2d.inverse.feedback_evaluator import evaluate_feedback_candidate
 from phc2d.inverse.feedback_batch_dispatch import (FeedbackBatchState, prepare_worker_batch,
     mark_batch_submission_unknown, confirm_worker_batch, reconcile_worker_batch, settle_worker_batch,
     release_unstarted_worker_batch, restore_feedback_batch_state)
-from phc2d.inverse.feedback_handoff import (build_nominal_solver_manifest, consume_nominal_solver_result,
+from phc2d.inverse.feedback_handoff import (build_nominal_solver_manifest, consume_nominal_solver_result, build_robust_worker_manifest,
                                             build_robust_solver_manifest, consume_robust_solver_result,
                                             validate_robust_observation, consume_robust_worker_group,
                                             validate_nominal_observation_from_robust)
@@ -174,7 +174,14 @@ def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
     records = {'success': worker(0, mp.read_bytes(), mh, (output/'results.json').read_bytes(), None),
                'failure': worker(137, other_raw, hashlib.sha256(other_raw).hexdigest(), None, 'worker OOM')}
     updated, outcomes = consume_robust_worker_group(states, records)
-    shared_manifest = {**manifest, 'rows': [other_manifest['rows'][0], manifest['rows'][0]]}
+    shared_manifest, indices = build_robust_worker_manifest(states, {'success': candidate, 'failure': other},
+        source_indices={'success': 3, 'failure': 3}, k_points=points, config=config, lower_band=1)
+    assert indices == {'failure': 0, 'success': 1}
+    # Match the historical manifest's optional solver field used by this test.
+    del shared_manifest['solver_config']['band_order_policy']
+    with pytest.raises(ValueError, match='complete worker'):
+        build_robust_worker_manifest(states, {'success': candidate}, source_indices={'success': 3, 'failure': 3},
+                                     k_points=points, config=config, lower_band=1)
     shared_path = tmp_path/'shared_manifest.json'
     shared_path.write_text(json.dumps(shared_manifest), encoding='utf8')
     shared_raw = shared_path.read_bytes()
