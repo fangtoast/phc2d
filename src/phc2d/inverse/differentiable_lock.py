@@ -25,7 +25,7 @@ def combine_shards(shards: Mapping[str, dict[str, Any]]) -> dict[str, Any]:
     if any(shards[role].get('cluster_id') != platforms[role] for role in roles):
         raise ValueError('shard platform assignment mismatch')
     fields = ('config_sha256', 'source_sha256', 'source_parameter_hash', 'checkpoint_sha256',
-              'k_points_sha256', 'code_commit', 'k_points', 'device_parity_tolerance')
+              'k_points_sha256', 'code_commit', 'k_points', 'device_parity_tolerance', 'precision_contract')
     for field in fields:
         if not shards['directions'].get(field) or any(shards[r].get(field) != shards['directions'][field] for r in roles):
             raise ValueError(f'shard identity mismatch: {field}')

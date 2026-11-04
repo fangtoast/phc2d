@@ -19,7 +19,8 @@ def test_archive_requires_exact_shards_and_keeps_design_scope(tmp_path):
               'random_0.1', 'negative_random_0.1']
     identity = dict(config_sha256=hashlib.sha256(config).hexdigest(), source_sha256='source',
         source_parameter_hash='p', checkpoint_sha256='model', k_points_sha256='points',
-        code_commit='commit', k_points=[[0, 0]], device_parity_tolerance=1e-5)
+        code_commit='commit', k_points=[[0, 0]], device_parity_tolerance=1e-5,
+        precision_contract={'precision': 'fp32', 'amp_enabled': False, 'tf32_enabled': False})
     def candidate(index):
         return {'index': index, 'status': 'surrogate_only', 'master_grid_sha256': str(index),
                 'predicted_gap': {'target_margin': float(index)}, 'bands': [[0.4, 0.6]]}

@@ -22,7 +22,7 @@ def compare_preflights(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
         raise ValueError('one N40 and one N56 platform preflight are required')
     reference = records[0]
     fields = ('config_sha256', 'source_sha256', 'source_parameter_hash', 'checkpoint_sha256',
-              'k_points_sha256', 'code_commit', 'device_parity_tolerance')
+              'k_points_sha256', 'code_commit', 'device_parity_tolerance', 'precision_contract')
     if any(not reference.get(key) or any(row.get(key) != reference[key] for row in records[1:]) for key in fields):
         raise ValueError('preflight identity mismatch')
     center = reference['center']
@@ -33,6 +33,10 @@ def compare_preflights(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
     maximum = []
     for row in records:
         other = row['center']
+        if (row.get('precision_contract') != {'precision': 'fp32', 'amp_enabled': False, 'tf32_enabled': False}
+                or row.get('runtime', {}).get('matmul_tf32_enabled') is not False
+                or row.get('runtime', {}).get('cudnn_tf32_enabled') is not False):
+            raise ValueError('preflight precision contract mismatch')
         if (other['status'] != 'surrogate_only' or not row['diagnostics'].get('fd_passed')
                 or any(other[key] != center[key] for key in ('parameter_hash', 'master_grid_sha256', 'input_sha256'))):
             raise ValueError('preflight geometry or gradient gate mismatch')

@@ -18,6 +18,7 @@ import numpy as np
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.data.differentiable_fourier import fourier_material_weight
 from phc2d.inverse.frozen_band_adapter import FrozenBandAdapter
+from phc2d.inverse.differentiable_runtime import configure_design_runtime
 
 
 def audit_locked_soft(lock: Mapping[str, Any], predictor: Any, config: Mapping[str, Any]) -> dict[str, Any]:
@@ -82,14 +83,17 @@ def main() -> None:
     args = parser.parse_args()
     config_raw, lock_raw = Path(args.config).read_bytes(), Path(args.lock).read_bytes()
     config, lock = json.loads(config_raw), json.loads(lock_raw)
-    if lock['config_sha256'] != hashlib.sha256(config_raw).hexdigest():
+    runtime_info = configure_design_runtime(config['runtime'], device=args.device)
+    if (lock['config_sha256'] != hashlib.sha256(config_raw).hexdigest()
+            or lock['precision_contract'] != runtime_info['contract']):
         raise ValueError('lock and configuration differ')
     predictor = FrozenBandAdapter(args.checkpoint, sha256=config['checkpoint_sha256'], device=args.device)
     if predictor.k_points_sha256 != lock['k_points_sha256'] or predictor.checkpoint_sha256 != lock['checkpoint_sha256']:
         raise ValueError('locked model or k-point identity mismatch')
     report = audit_locked_soft(lock, predictor, config)
     report.update(lock_sha256=hashlib.sha256(lock_raw).hexdigest(), config_sha256=lock['config_sha256'],
-                  checkpoint_sha256=lock['checkpoint_sha256'], k_points_sha256=lock['k_points_sha256'])
+                  checkpoint_sha256=lock['checkpoint_sha256'], k_points_sha256=lock['k_points_sha256'],
+                  runtime=runtime_info)
     with Path(args.output).open('x', encoding='utf8') as stream:
         json.dump(report, stream, indent=2, allow_nan=False)
 

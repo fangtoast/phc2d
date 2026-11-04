@@ -36,6 +36,7 @@ GPU 提交器设置 `PHC2D_SUBMIT_DRY_RUN=1` 可核对角色、平台与作业�
 | 来源 | EXP-INV-010 来源池编号 8，完整源 spec/hash；不是训练行号；已观察开发来源，不因结果换来源 |
 | 目标 | TE、B4–B5、$a/\lambda=0.57$，精确有符号裕量 |
 | 主模型 | 固定 0.5/0.5 融合的 global_local_band_operator_v1、local_kernel=3、K5 Binary；具体 checkpoint/seed/hash 待冻结 |
+| 计算精度 | 按 checkpoint 原始合同使用 FP32、关闭 AMP 和 TF32；每个平台记录实际后端设置 |
 | 身份差异 | 010/011 门控 GL 的 hash 与成绩不归入固定融合模型 |
 | 变量 | modes[0].cos 与标准化潜场 threshold，实际模态向量从源 spec 读取，其余固定 |
 | 坐标 | $z=(\alpha-\alpha_0)/[0.2,0.1]$，草案箱域 $[-0.5,0.5]^2$ |

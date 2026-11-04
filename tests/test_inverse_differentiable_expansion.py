@@ -63,7 +63,8 @@ def test_extension_lock_preserves_all_four_centers_and_missing_directions():
               'random_0.1', 'negative_random_0.1']
     identity = {'base_config_sha256': 'base', 'extension_config_sha256': 'extension',
         'source_sha256': 'source', 'source_parameter_hash': 'parameter',
-        'checkpoint_sha256': 'model', 'k_points_sha256': 'k', 'k_points': [[0, 0]], 'code_commit': 'commit'}
+        'checkpoint_sha256': 'model', 'k_points_sha256': 'k', 'k_points': [[0, 0]], 'code_commit': 'commit',
+        'precision_contract': {'precision': 'fp32', 'amp_enabled': False, 'tf32_enabled': False}}
     shards = [dict(identity, center_index=i, center=extension['centers'][i], fd_passed=(i != 1),
                    records=[{'label': label, 'candidate': None, 'status': 'direction_unavailable'} for label in labels])
               for i in range(4)]

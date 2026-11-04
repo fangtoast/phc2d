@@ -45,6 +45,7 @@ def test_failed_preflight_keeps_diagnostic_values(tmp_path, monkeypatch):
     config = {'source_sha256': 'source', 'checkpoint_sha256': 'model', 'k_points_sha256': 'k',
               'input_resolution': 16, 'output_shape': [2, 2], 'local_kernel': 3,
               'dataset_domain': 'k5_binary', 'model_seed': 0, 'architecture_fingerprint': 'fingerprint',
+              'runtime': {'precision': 'fp32', 'amp_enabled': False, 'tf32_enabled': False},
               'solver_config': {'epsilon_air': 1., 'epsilon_material': 8.9}}
     cfg = tmp_path/'config.json'; cfg.write_text(json.dumps(config))
     class Source:
@@ -55,7 +56,7 @@ def test_failed_preflight_keeps_diagnostic_values(tmp_path, monkeypatch):
     monkeypatch.setattr(differentiable_mvp.FullCellStructureSpec, 'from_mapping', lambda data: Source())
     monkeypatch.setattr(differentiable_mvp, 'FrozenBandAdapter', lambda *args, **kwargs: Predictor())
     monkeypatch.setattr(torch, 'load', lambda *args, **kwargs: {'model_params': {'local_kernel': 3},
-        'resolved_config': {'experiment': {'domain': 'k5_binary', 'seed': 0}},
+        'resolved_config': {'experiment': {'domain': 'k5_binary', 'seed': 0}, 'runtime': config['runtime']},
         'model_identity': {'architecture_fingerprint': 'fingerprint'}})
     monkeypatch.setattr(differentiable_mvp, 'run_shard', lambda *args, **kwargs: {
         'selection': {'candidates': [{'status': 'surrogate_only'}]}, 'elapsed_s': 1,

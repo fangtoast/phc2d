@@ -20,6 +20,7 @@ from phc2d.inverse.differentiable_objective import (fourier_surrogate_margin,
     optimize_fourier_adam, optimize_fourier_black_box)
 from phc2d.inverse.differentiable_selection import rank_hard_trajectory
 from phc2d.inverse.frozen_band_adapter import FrozenBandAdapter
+from phc2d.inverse.differentiable_runtime import configure_design_runtime
 
 
 def run_shard(config: dict[str, Any], source: FullCellStructureSpec, predictor: Any,
@@ -109,6 +110,7 @@ def main() -> None:
         raise FileExistsError('output or prior failure exists; reconcile before retry')
     raw = Path(args.config).read_bytes()
     config = json.loads(raw)
+    runtime_info = configure_design_runtime(config['runtime'], device=args.device)
     source_mapping, _ = read_checked_json(args.source, config['source_sha256'])
     source = FullCellStructureSpec.from_mapping(source_mapping)
     predictor = FrozenBandAdapter(args.checkpoint, sha256=config['checkpoint_sha256'], device=args.device)
@@ -121,6 +123,8 @@ def main() -> None:
             or payload['resolved_config']['experiment']['domain'] != config['dataset_domain']
             or payload['resolved_config']['experiment']['seed'] != config['model_seed']
             or payload['model_identity']['architecture_fingerprint'] != config['architecture_fingerprint']
+            or any(payload['resolved_config']['runtime'].get(key) != value
+                   for key, value in config['runtime'].items())
             or source.epsilon_air != config['solver_config']['epsilon_air']
             or source.epsilon_material != config['solver_config']['epsilon_material']):
         raise ValueError('checkpoint identity or input contract mismatch')
@@ -131,6 +135,7 @@ def main() -> None:
             center = probe['selection']['candidates'][0]
             result = {'role': 'preflight', 'scope': 'engineering_preflight_only',
                       'elapsed_s': probe['elapsed_s'], 'diagnostics': probe['diagnostics'],
+                      'precision_contract': runtime_info['contract'], 'runtime': runtime_info,
                       'center': {key: center.get(key) for key in
                                  ('status', 'parameter_hash', 'master_grid_sha256', 'input_sha256', 'bands')},
                       'cuda_peak_memory_bytes': torch.cuda.max_memory_allocated() if args.device.startswith('cuda') else None}
@@ -150,6 +155,7 @@ def main() -> None:
                   k_points_sha256=predictor.k_points_sha256,
                   k_points=predictor.k_points.detach().cpu().tolist(),
                   device_parity_tolerance=config['device_parity_tolerance'],
+                  precision_contract=runtime_info['contract'], runtime=runtime_info,
                   code_commit=os.environ.get('PHC2D_DEPLOYED_GIT_COMMIT'),
                   cluster_id=os.environ.get('PHC2D_CLUSTER_ID'), device=args.device)
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -76,6 +76,7 @@ def main() -> None:
     from phc2d.data.full_cell_spec import FullCellStructureSpec
     from phc2d.inverse.audit_refine import read_checked_json
     from phc2d.inverse.frozen_band_adapter import FrozenBandAdapter
+    from phc2d.inverse.differentiable_runtime import configure_design_runtime
 
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('config', 'source', 'checkpoint', 'observations', 'output'):
@@ -87,6 +88,7 @@ def main() -> None:
         raise FileExistsError(output)
     config_raw = Path(args.config).read_bytes()
     config = json.loads(config_raw)
+    runtime_info = configure_design_runtime(config['runtime'], device=args.device)
     source_raw, _ = read_checked_json(args.source, config['source_sha256'])
     source = FullCellStructureSpec.from_mapping(source_raw)
     predictor = FrozenBandAdapter(args.checkpoint, sha256=config['checkpoint_sha256'], device=args.device)
@@ -100,7 +102,7 @@ def main() -> None:
     result.update(config_sha256=hashlib.sha256(config_raw).hexdigest(),
                   observation_file_sha256=observation_digest,
                   source_sha256=config['source_sha256'], checkpoint_sha256=predictor.checkpoint_sha256,
-                  code_commit=os.environ.get('PHC2D_DEPLOYED_GIT_COMMIT'), device=args.device)
+                  runtime=runtime_info, code_commit=os.environ.get('PHC2D_DEPLOYED_GIT_COMMIT'), device=args.device)
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open('x', encoding='utf8') as stream:
         json.dump(result, stream, indent=2, allow_nan=False)

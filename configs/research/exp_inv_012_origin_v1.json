@@ -9,6 +9,7 @@
   "dataset_domain": "k5_binary",
   "model_seed": 0,
   "architecture_fingerprint": "f90e7493e6a39a3aaef38fb4486ba4295eb0e9e496a871a9d4291ab9dae00bb8",
+  "runtime": {"precision": "fp32", "amp_enabled": false, "tf32_enabled": false},
   "coefficient_keys": [[0, "cos"]],
   "scales": [0.2, 0.1],
   "lower": [-0.5, -0.5],

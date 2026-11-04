@@ -21,6 +21,7 @@ from phc2d.inverse.audit_refine import read_checked_json
 from phc2d.inverse.differentiable_objective import fourier_surrogate_margin
 from phc2d.inverse.differentiable_selection import rank_hard_trajectory
 from phc2d.inverse.frozen_band_adapter import FrozenBandAdapter
+from phc2d.inverse.differentiable_runtime import configure_design_runtime
 
 
 def combine_centers(shards: list[Mapping[str, Any]], extension: Mapping[str, Any]) -> dict[str, Any]:
@@ -32,7 +33,7 @@ def combine_centers(shards: list[Mapping[str, Any]], extension: Mapping[str, Any
         raise ValueError('center indices are missing or duplicated')
     first = by_index[0]
     identities = ('base_config_sha256', 'extension_config_sha256', 'source_sha256', 'source_parameter_hash',
-                  'checkpoint_sha256', 'k_points_sha256', 'k_points', 'code_commit')
+                  'checkpoint_sha256', 'k_points_sha256', 'k_points', 'code_commit', 'precision_contract')
     if (first.get('base_config_sha256') != extension['base_config_sha256']
             or any(not first.get(key) or any(by_index[i].get(key) != first[key] for i in range(4))
                    for key in identities)):
@@ -152,6 +153,7 @@ def main() -> None:
     args = parser.parse_args()
     base_raw, extension_raw = Path(args.base_config).read_bytes(), Path(args.extension_config).read_bytes()
     config, extension = json.loads(base_raw), json.loads(extension_raw)
+    runtime_info = configure_design_runtime(config['runtime'], device=args.device)
     base_hash = hashlib.sha256(base_raw).hexdigest()
     if base_hash != extension['base_config_sha256'] or len(extension['centers']) != 4:
         raise ValueError('extension is not bound to the registered base configuration')
@@ -166,6 +168,7 @@ def main() -> None:
                   source_sha256=config['source_sha256'], source_parameter_hash=source.parameter_hash,
                   checkpoint_sha256=predictor.checkpoint_sha256, k_points_sha256=predictor.k_points_sha256,
                   k_points=predictor.k_points.detach().cpu().tolist(),
+                  precision_contract=runtime_info['contract'], runtime=runtime_info,
                   code_commit=os.environ.get('PHC2D_DEPLOYED_GIT_COMMIT'),
                   cluster_id=os.environ.get('PHC2D_CLUSTER_ID'), device=args.device)
     output = Path(args.output)
