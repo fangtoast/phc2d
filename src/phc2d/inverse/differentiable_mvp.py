@@ -124,6 +124,7 @@ def main() -> None:
             or source.epsilon_air != config['solver_config']['epsilon_air']
             or source.epsilon_material != config['solver_config']['epsilon_material']):
         raise ValueError('checkpoint identity or input contract mismatch')
+    result = None
     try:
         if args.role == 'preflight':
             probe = run_shard(config, source, predictor, role='directions')
@@ -141,7 +142,8 @@ def main() -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.with_suffix(path.suffix + '.failure.json').open('x', encoding='utf8') as stream:
             json.dump({'role': args.role, 'error_type': type(exc).__name__, 'message': str(exc),
-                       'config_sha256': hashlib.sha256(raw).hexdigest()}, stream, indent=2)
+                       'config_sha256': hashlib.sha256(raw).hexdigest(), 'partial_result': result},
+                      stream, indent=2, allow_nan=False)
         raise
     result.update(config_sha256=hashlib.sha256(raw).hexdigest(), source_sha256=config['source_sha256'],
                   source_parameter_hash=source.parameter_hash, checkpoint_sha256=predictor.checkpoint_sha256,
