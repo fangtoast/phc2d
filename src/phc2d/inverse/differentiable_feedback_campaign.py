@@ -101,7 +101,7 @@ def run_feedback_arm_round(arm: Mapping[str, Any], *, base: Mapping[str, Any],
             request = json.loads((output/'request.json').read_bytes())
         except (OSError, ValueError) as exc:
             raise ValueError('incomplete existing feedback round; reconcile before resuming') from exc
-        frozen = freeze_round(restore_feedback(arm['state']), proposal, observations)
+        frozen = json.loads(json.dumps(freeze_round(restore_feedback(arm['state']), proposal, observations), allow_nan=False))
         if (saved_config != config or request != {'frozen': frozen, 'observations': observations}):
             raise ValueError('existing feedback round identity mismatch')
         return {'status': 'frozen_reused', 'frozen_sha256': frozen['frozen_sha256'],

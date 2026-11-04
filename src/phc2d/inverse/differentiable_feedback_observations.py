@@ -22,7 +22,7 @@ def bind_seed_observations(seed_lock: Mapping[str, Any], manifest: Mapping[str, 
                            results: Mapping[int, Mapping[str, Any]], *, base: Mapping[str, Any],
                            lock_sha256: str, manifest_sha256: str) -> dict[str, Any]:
     """Authenticate physical results and create fit-compatible per-role observations."""
-    if (seed_lock.get('purpose') != 'feedback_initial_stencil'
+    if (seed_lock.get('purpose') not in ('feedback_initial_stencil', 'feedback_round')
             or manifest.get('selection_lock_sha256') != lock_sha256
             or len(seed_lock['records']) != len(manifest['role_coverage'])):
         raise ValueError('feedback seed lock and physical manifest mismatch')
@@ -87,7 +87,8 @@ def bind_seed_observations(seed_lock: Mapping[str, Any], manifest: Mapping[str, 
         rows.append({**row, 'status': 'observed', 'physical': physical, 'composite': composite,
                      'physical_reused_from_parameter_hash': reused_hash,
                      'source_evidence': result.get('source_evidence')})
-    return {'scope': 'feedback_initial_observations', 'selection_lock_sha256': lock_sha256,
+    scope = 'feedback_initial_observations' if seed_lock['purpose'] == 'feedback_initial_stencil' else 'feedback_round_observations'
+    return {'scope': scope, 'selection_lock_sha256': lock_sha256,
             'physical_manifest_sha256': manifest_sha256, 'surrogate_contract_sha256': surrogate_sha,
             'design_manifest_sha256': seed_lock['manifest_sha256'],
             'records': rows}

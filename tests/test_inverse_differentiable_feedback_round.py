@@ -8,6 +8,7 @@ from phc2d.inverse.differentiable_feedback_round import (complete_round, freeze_
     save_round_completion, save_round_request)
 from phc2d.inverse.feedback_state import start_feedback
 from phc2d.inverse.differentiable_feedback_campaign import advance_feedback_arm
+from phc2d.inverse.differentiable_feedback_advance import advance_feedback_round
 from dataclasses import asdict
 
 
@@ -52,6 +53,22 @@ def test_feedback_round_freezes_predictions_before_observation(tmp_path):
     assert advanced['physical_observations']['b'] == physical('b', .34, .66)
     with pytest.raises(ValueError, match='does not continue'):
         advance_feedback_arm(advanced, stored)
+    named = {**arm, 'seed_id': 'source_0008_initial_0_adam', 'arm': 'adam_residual'}
+    name = 'source_0008_initial_0_adam_adam_residual'
+    campaign_dir = tmp_path / name
+    directory.rename(campaign_dir)
+    lock = {'purpose': 'feedback_round', 'round_index': 0,
+            'records': [{'trial_id': name, 'frozen_sha256': frozen['frozen_sha256']}]}
+    observations = {'scope': 'feedback_round_observations', 'selection_lock_sha256': 'lock',
+                    'records': [{'trial_id': name, 'status': 'observed',
+                                 'physical': physical('b', .34, .66), 'composite': composite}]}
+    next_round = advance_feedback_round({'arms': [named]}, observations, lock=lock,
+                                        lock_sha256='lock', request_directory=tmp_path)
+    assert next_round['arms'][0]['state']['remaining_evaluations'] == 2
+    missing = copy.deepcopy(observations); missing['records'][0]['status'] = 'physical_result_missing'
+    failed = advance_feedback_round({'arms': [named]}, missing, lock=lock,
+                                    lock_sha256='lock', request_directory=tmp_path)
+    assert failed['arms'][0]['status'] == 'round_physical_unavailable'
     cached_bank = [composite]
     cached_proposal = copy.deepcopy(proposal)
     cached_proposal['observation_sha256'] = hashlib.sha256(json.dumps(
