@@ -96,6 +96,9 @@ def compare_physical_results(lock: Mapping[str, Any], manifest: Mapping[str, Any
         absolute = np.abs(delta)
         relative = absolute / np.maximum(np.abs(physical_bands), 1e-8)
         stable = result['aggregate']['status'] == 'numerically_stable'
+        gates = ('last_refinement_stable', 'resolution_stable', 'adaptive_refinement_converged')
+        if stable and not all(row.get(key) is True for key in gates):
+            raise ValueError('physical stability status disagrees with numerical gates')
         rows.append({**entry, 'status': result['aggregate']['status'],
             'same_k_spectrum_mae': float(np.mean(absolute)),
             'same_k_spectrum_rmse': float(np.sqrt(np.mean(delta**2))),
@@ -126,8 +129,11 @@ def compare_physical_results(lock: Mapping[str, Any], manifest: Mapping[str, Any
     completed = case_indices.intersection(results)
     failed = case_indices.intersection(failures)
     return {'scope': 'locked_surrogate_vs_physical', 'roles': rows,
+            'unique_cases_registered': len(case_indices),
             'unique_cases_with_results': len(completed),
             'unique_cases_failed': len(failed),
+            'unique_cases_missing': len(case_indices - completed - failed),
+            'physical_case_elapsed_s_sum_scope': 'sum_of_case_wall_times_not_allocated_core_hours',
             'physical_case_elapsed_s_sum': float(sum(float(results[i]['elapsed_s']) for i in completed)
                                                    + sum(float(failures[i]['elapsed_s']) for i in failed))}
 

@@ -21,7 +21,9 @@ def test_physical_comparison_uses_original_k_and_retains_missing_roles():
     trace = {'offset': 0., 'provenance': {'evaluated_grid_sha256': 'grid'},
              'arrays': {'k_points': [[0, 0], [0.5, 0], [0.25, 0]],
                         'bands': [[0.31, 0.71], [0.41, 0.81], [0.42, 0.69]]},
-             'row': {'refined_lower_edge_frequency': 0.42, 'refined_upper_edge_frequency': 0.69}}
+             'row': {'refined_lower_edge_frequency': 0.42, 'refined_upper_edge_frequency': 0.69,
+                     'last_refinement_stable': True, 'resolution_stable': True,
+                     'adaptive_refinement_converged': True}}
     result = {'case_index': 0, 'manifest_sha256': 'manifest', 'protocol_sha256': 'protocol',
               'parameter_hash': 'parameter', 'observations': [trace], 'elapsed_s': 3,
               'aggregate': {'status': 'numerically_stable'}}
@@ -40,6 +42,10 @@ def test_physical_comparison_uses_original_k_and_retains_missing_roles():
     altered = copy.deepcopy(result)
     altered['observations'][0]['provenance']['evaluated_grid_sha256'] = 'other'
     with pytest.raises(ValueError, match='grid'):
+        compare_physical_results(lock, manifest, {0: altered}, **args)
+    altered = copy.deepcopy(result)
+    altered['observations'][0]['row']['resolution_stable'] = False
+    with pytest.raises(ValueError, match='numerical gates'):
         compare_physical_results(lock, manifest, {0: altered}, **args)
     assert compare_physical_results(lock, manifest, {}, **args)['roles'][0]['status'] == 'physical_result_missing'
     unresolved = copy.deepcopy(result)
