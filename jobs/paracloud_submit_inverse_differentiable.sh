@@ -32,7 +32,7 @@ pending="$PHC2D_BATCH_ROOT/submission_${PHC2D_ROLE}.pending"
 [[ ! -e "$receipt" ]] || { echo 'submission receipt already exists' >&2; exit 2; }
 ( set -o noclobber; printf 'role=%s\n' "$PHC2D_ROLE" > "$pending" ) || { echo 'submission pending; reconcile before retry' >&2; exit 2; }
 export PHC2D_ROOT PHC2D_GPU_PLATFORM PHC2D_ROLE PHC2D_SOURCE PHC2D_CHECKPOINT PHC2D_EXPECTED_COMMIT
-job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 --mem=24G -t 00:30:00 \
+job_id="$(sbatch --parsable -p gpu_4090 --gres=gpu:1 -c 6 -t 00:30:00 \
   -J "inv012_${PHC2D_ROLE}" -o "$PHC2D_BATCH_ROOT/${PHC2D_ROLE}_%j.out" \
   -e "$PHC2D_BATCH_ROOT/${PHC2D_ROLE}_%j.err" --export=ALL \
   "$PHC2D_ROOT/jobs/paracloud_inverse_differentiable_mvp.sh")"
