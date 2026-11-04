@@ -1,0 +1,26 @@
+"""Exercise the registered feedback stencil and boundary coverage."""
+import pytest
+torch = pytest.importorskip('torch')
+
+from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
+from phc2d.inverse.differentiable_feedback_seed import prepare_feedback_stencil
+
+
+def test_feedback_stencil_retains_all_roles_and_bounds():
+    class Predictor:
+        device = torch.device('cpu')
+        def predict_tensor(self, image):
+            value = image.mean(dim=(1, 2))
+            return torch.stack((0.2 + 0.1 * value, 0.7 + 0.1 * value), dim=1).unsqueeze(1)
+    source = generate_unified_fourier_binary('source', master_seed=12, material_fraction_bin=1,
+                                             config={'fourier_cutoff': 3, 'audit_resolution': 32})
+    base = {'coefficient_keys': [[0, 'cos']], 'scales': [0.2, 0.1], 'lower': [-0.5, -0.5],
+            'upper': [0.5, 0.5], 'max_mode_radius': 1.0, 'source_resolution': 64,
+            'input_resolution': 16, 'material_fraction_bounds': [0, 1], 'lower_band': 1,
+            'target_frequency': .5, 'temperature': .2}
+    cfg = {'initial_offsets': [[0, 0], [.1, 0], [-.1, 0], [0, .1], [0, -.1]]}
+    result = prepare_feedback_stencil(source, Predictor(), base=base, campaign=cfg, initial=[.5, 0])
+    assert len(result['records']) == 5
+    assert result['records'][1]['status'] == 'outside_parameter_bounds'
+    assert result['records'][0]['point'] == [.5, 0]
+    assert result['soft_audit']['roles'][1]['status'] == 'not_eligible'

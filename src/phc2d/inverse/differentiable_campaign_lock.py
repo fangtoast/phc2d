@@ -25,7 +25,7 @@ def lock_campaign(manifest: Mapping[str, Any], trials: Mapping[str, Mapping[str,
         raise ValueError('trial roster incomplete or duplicated')
     if diagnostic_counts != [1, 20, 40, 60]:
         raise ValueError('diagnostic schedule differs from registration')
-    records, commits, k_reference = [], set(), None
+    records, commits, k_reference, paired = [], set(), None, {}
     sources = {row['source_id']: row for row in manifest['sources']}
     if len(sources) != len(manifest['sources']):
         raise ValueError('duplicate source identity')
@@ -49,6 +49,11 @@ def lock_campaign(manifest: Mapping[str, Any], trials: Mapping[str, Mapping[str,
                 or item.get('checkpoint_sha256') != spec['config']['checkpoint_sha256']
                 or item.get('k_points_sha256') != spec['config']['k_points_sha256']):
             raise ValueError('trial configuration mismatch')
+        runtime = item.get('runtime', {})
+        if (runtime.get('contract') != spec['config']['runtime']
+                or runtime.get('matmul_tf32_enabled') is not False
+                or runtime.get('cudnn_tf32_enabled') is not False):
+            raise ValueError('trial precision contract mismatch')
         points = np.ascontiguousarray(item['k_points'], dtype=np.float32)
         if (points.ndim != 2 or points.shape[1] != 2 or not np.isfinite(points).all()
                 or hashlib.sha256(points.tobytes()).hexdigest() != spec['config']['k_points_sha256']):
@@ -62,6 +67,24 @@ def lock_campaign(manifest: Mapping[str, Any], trials: Mapping[str, Mapping[str,
                 or history[0]['parameters'] != spec['config']['initial']
                 or any(candidate['index'] != i for i, candidate in enumerate(candidates))):
             raise ValueError('trial trajectory, pairing or evaluation count mismatch')
+        center = candidates[0]
+        pairing = (spec['source_id'], spec['initial_index'])
+        if pairing in paired:
+            reference = paired[pairing]
+            if (center['master_grid_sha256'] != reference['master_grid_sha256']
+                    or center['input_sha256'] != reference['input_sha256']
+                    or center['status'] != reference['status']):
+                raise ValueError('paired initial geometry or status mismatch')
+            if center['status'] == 'surrogate_only':
+                bands = np.asarray(center['bands'], dtype=np.float64)
+                original = np.asarray(reference['bands'], dtype=np.float64)
+                tolerance = float(spec['config']['device_parity_tolerance'])
+                if (bands.shape != original.shape or not np.isfinite(bands).all()
+                        or not np.isfinite(original).all() or not math.isfinite(tolerance)
+                        or np.max(np.abs(bands - original)) > tolerance):
+                    raise ValueError('paired initial spectrum parity failed')
+        else:
+            paired[pairing] = center
         eligible = [row for row in candidates if row['status'] == 'surrogate_only']
         if any(not math.isfinite(float(row['predicted_gap']['target_margin'])) for row in eligible):
             raise ValueError('nonfinite hard score')
