@@ -9,6 +9,7 @@ import hashlib
 import os
 from pathlib import Path
 import subprocess
+import sys
 import pytest
 
 from phc2d.inverse.differentiable_resources import plan_physical_resources
@@ -55,10 +56,14 @@ def test_m9_dry_run_checks_manifest_and_budget_without_submitting(tmp_path):
     assert 'cases=11 shards=4 cpus=5 memory_mib=12288 wall_minutes=120' in result.stdout
     assert not (tmp_path/'receipt').exists() and not (tmp_path/'output').exists()
     bin_dir = tmp_path/'bin'; bin_dir.mkdir()
+    fallback_python = bin_dir/'python3.11'
+    fallback_python.write_text(f'#!/bin/sh\nexec "{sys.executable}" "$@"\n')
+    fallback_python.chmod(0o755)
     fake_sbatch = bin_dir/'sbatch'
     fake_sbatch.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$SBATCH_CAPTURE"\nprintf "12345\\n"\n')
     fake_sbatch.chmod(0o755)
     submit_env = {**env, 'PATH': str(bin_dir) + os.pathsep + os.environ['PATH'],
+                  'PHC2D_SUBMIT_PYTHON': str(tmp_path/'missing-python'),
                   'SBATCH_CAPTURE': str(tmp_path/'sbatch_args'), 'PHC2D_SUBMIT_DRY_RUN': '0'}
     submitted = subprocess.run(['bash', str(script)], env=submit_env, capture_output=True, text=True)
     assert submitted.returncode == 0, submitted.stderr

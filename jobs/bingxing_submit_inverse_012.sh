@@ -16,11 +16,15 @@ set -euo pipefail
 export PHC2D_MANIFEST_SHA256="$(sha256sum "$PHC2D_MANIFEST" | awk '{print $1}')"
 export PHC2D_PROTOCOL_SHA256="$(sha256sum "$PHC2D_PROTOCOL" | awk '{print $1}')"
 resource_sha="$(sha256sum "$PHC2D_RESOURCES" | awk '{print $1}')"
-details="$(PYTHONPATH="$PHC2D_ROOT/src" python3 - "$PHC2D_MANIFEST" "$PHC2D_PROTOCOL_SHA256" "$PHC2D_RESOURCES" "$resource_sha" "$PHC2D_RESOURCE_PLAN" <<'PY'
-import json, sys
-from phc2d.inverse.differentiable_resources import plan_physical_resources
+submit_python="${PHC2D_SUBMIT_PYTHON:-python3}"
+if ! "$submit_python" -c 'import sys; sys.exit(sys.version_info < (3, 10))' >/dev/null 2>&1; then
+  submit_python=python3.11
+fi
+details="$("$submit_python" - "$PHC2D_MANIFEST" "$PHC2D_PROTOCOL_SHA256" "$PHC2D_RESOURCES" "$resource_sha" "$PHC2D_RESOURCE_PLAN" "$PHC2D_ROOT/src/phc2d/inverse/differentiable_resources.py" <<'PY'
+import json, runpy, sys
 from hashlib import sha256
-manifest_path, protocol_hash, resources_path, resource_hash, plan_path = sys.argv[1:]
+manifest_path, protocol_hash, resources_path, resource_hash, plan_path, module_path = sys.argv[1:]
+plan_physical_resources = runpy.run_path(module_path)['plan_physical_resources']
 raw = open(manifest_path, 'rb').read()
 manifest, resources = json.loads(raw), json.load(open(resources_path))
 saved = json.load(open(plan_path))
