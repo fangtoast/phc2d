@@ -68,16 +68,28 @@ def rebind_seed_results(target: Mapping[str, Any], reference: Mapping[str, Any],
                 continue
             source, source_result_sha = available[source_index]
             source_row, target_row = source_manifest['rows'][source_index], target['rows'][target_index]
+            traces = source['observations']
             if (source.get('case_index') != source_index or source.get('manifest_sha256') != digest
                     or source.get('protocol_sha256') != target['protocol_sha256']
                     or source.get('parameter_hash') != source_row['parameter_hash']
                     or source_row['master_grid_sha256'] != target_row['master_grid_sha256']
                     or item['master_grid_sha256'] != target_row['master_grid_sha256']
-                    or len(source['observations']) != 1
-                    or source['observations'][0]['provenance']['evaluated_grid_sha256'] != item['master_grid_sha256']
+                    or not traces or len({trace['offset'] for trace in traces}) != len(traces)
+                    or sum(trace['offset'] == 0.0 for trace in traces) != 1
+                    or next(trace for trace in traces if trace['offset'] == 0.0)['provenance']['evaluated_grid_sha256'] != item['master_grid_sha256']
                     or source['aggregate']['provenance']['parameter_hash'] != source_row['parameter_hash']
                     or not source_result_sha):
                 raise ValueError('reused solver evidence identity mismatch')
+            if len(traces) > 1:
+                import numpy as np
+                from phc2d.data.full_cell_spec import FullCellStructureSpec
+                from phc2d.inverse.perturbation_screen import periodic_perturbation_grids
+                structure = FullCellStructureSpec.from_mapping(target_row['structure'])
+                offsets = tuple(trace['offset'] for trace in traces)
+                grids = periodic_perturbation_grids(structure, resolution=target['raster_resolution'], offsets=offsets)
+                hashes = [hashlib.sha256(np.ascontiguousarray(grid, dtype=np.uint8).tobytes()).hexdigest() for grid in grids]
+                if hashes != [trace['provenance']['evaluated_grid_sha256'] for trace in traces]:
+                    raise ValueError('reused solver scenario grids differ')
             derived = copy.deepcopy(dict(source))
             derived.update(case_index=target_index, source_index=target_row['source_index'], label=target_row['label'],
                            parameter_hash=target_row['parameter_hash'], manifest_sha256=target_sha256,
@@ -86,6 +98,9 @@ def rebind_seed_results(target: Mapping[str, Any], reference: Mapping[str, Any],
                                             'parameter_hash': source_row['parameter_hash'],
                                             'result_sha256': source_result_sha})
             derived['aggregate']['provenance']['parameter_hash'] = target_row['parameter_hash']
+            for trace in derived['observations']:
+                if 'parameter_hash' in trace['provenance']:
+                    trace['provenance']['parameter_hash'] = target_row['parameter_hash']
             output[target_index] = derived
     return output
 
