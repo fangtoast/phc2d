@@ -12,7 +12,7 @@ evidence_scope: 三个开发来源及三个配对初值，有限制造场景
 evidence_date: 2026-11-05
 dataset_scope: K5 Binary，TE B4–B5，目标频率0.57
 evidence_level: solver_replay
-evidence_status: in_progress
+evidence_status: pilot
 validation_backend: mixed
 source_artifacts:
   - runs/20261105/EXP-INV-015_202611050412
