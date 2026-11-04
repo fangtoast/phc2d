@@ -38,5 +38,7 @@ def test_campaign_submission_is_bounded_and_idempotent(tmp_path):
     assert subprocess.run(['bash', str(script)], env=takeover, capture_output=True).returncode == 0
     feedback = {**env, 'PHC2D_GPU_PLATFORM': 'n56', 'PHC2D_METHOD': 'feedback_seed', 'PHC2D_SUBMIT_DRY_RUN': '1'}
     assert subprocess.run(['bash', str(script)], env=feedback, capture_output=True).returncode == 0
+    feedback_round = {**feedback, 'PHC2D_METHOD': 'feedback_round'}
+    assert subprocess.run(['bash', str(script)], env=feedback_round, capture_output=True).returncode == 0
     override = {**feedback, 'PHC2D_JOB_SCRIPT': str(root/'jobs/paracloud_inverse_differentiable_campaign.sh')}
     assert subprocess.run(['bash', str(script)], env=override, capture_output=True).returncode != 0

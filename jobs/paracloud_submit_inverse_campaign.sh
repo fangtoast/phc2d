@@ -15,7 +15,7 @@ set -euo pipefail
 : "${PHC2D_RECEIPT_ROOT:?Set unique receipt directory}"
 : "${PHC2D_EXPECTED_COMMIT:?Set deployed code identity}"
 case "$PHC2D_GPU_PLATFORM:$PHC2D_METHOD" in
-  n40:adam|n56:de|n56:random|n40:feedback_seed|n56:feedback_seed) ;;
+  n40:adam|n56:de|n56:random|n40:feedback_seed|n56:feedback_seed|n40:feedback_round|n56:feedback_round) ;;
   n56:adam) [[ "${PHC2D_N56_TAKEOVER:-0}" == 1 ]] || { echo 'explicit N56 takeover required' >&2; exit 2; } ;;
   *) echo 'unsupported method/platform assignment' >&2; exit 2 ;;
 esac
