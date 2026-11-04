@@ -5,6 +5,7 @@ torch = pytest.importorskip('torch')
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.differentiable_feedback_seed import prepare_feedback_stencil
 from phc2d.inverse.differentiable_robust_stencil import predict_stencil_scenarios
+from phc2d.inverse.differentiable_robust_feedback import bind_scenario_feedback, fit_scenario_corrections
 
 
 def test_feedback_stencil_retains_all_roles_and_bounds():
@@ -34,3 +35,22 @@ def test_feedback_stencil_retains_all_roles_and_bounds():
     assert row['status'] == 'computed' and len(row['hard']['bands']) == 3
     assert row['soft_smooth_edges'][1] == pytest.approx(edges['soft_smooth_edges'], abs=1e-6)
     assert row['hard_edges'][1] == pytest.approx(edges['hard_edges'], abs=1e-6)
+    offsets = [-1/64, 0., 1/64]
+    physical = {'case_index': 0, 'parameter_hash': row['parameter_hash'], 'manifest_sha256': 'manifest',
+        'protocol_sha256': 'protocol', 'aggregate': {'status': 'numerically_stable'}, 'observations': []}
+    for index, offset in enumerate(offsets):
+        low, high = row['hard_edges'][index]
+        physical['observations'].append({'offset': offset, 'provenance': {
+            'evaluated_grid_sha256': row['hard']['grid_sha256'][index], 'parameter_hash': row['parameter_hash'],
+            'comparison_contract_sha256': 'refinement'}, 'arrays': {'k_points': [[0., 0.]],
+            'bands': row['hard']['bands'][index]}, 'row': {'refined_lower_edge_frequency': low,
+            'refined_upper_edge_frequency': high, 'last_refinement_stable': True,
+            'resolution_stable': True, 'adaptive_refinement_converged': True}})
+    bound = bind_scenario_feedback(row, physical, expected_case_index=0, expected_parameter_hash=row['parameter_hash'],
+        offsets=offsets, manifest_sha256='manifest', protocol_sha256='protocol', surrogate_contract_sha256='model',
+        k_points=[[0., 0.]], lower_band=1, beta=100)
+    corrections = fit_scenario_corrections(bound, offsets=offsets, center=[.5, 0.], radius=.2, ridge=1e-5)
+    assert len(corrections) == 3 and all(item.sample_count == 1 for item in corrections)
+    assert len({item.comparison_contract_sha256 for item in corrections}) == 3
+    with pytest.raises(ValueError, match='scenario'):
+        fit_scenario_corrections(bound[:-1], offsets=offsets, center=[.5, 0.], radius=.2, ridge=1e-5)
