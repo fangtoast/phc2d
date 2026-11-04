@@ -6,11 +6,13 @@ from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.differentiable_feedback_seed import prepare_feedback_stencil
 from phc2d.inverse.differentiable_robust_stencil import predict_stencil_scenarios
 from phc2d.inverse.differentiable_robust_feedback import bind_scenario_feedback, fit_scenario_corrections
+from phc2d.inverse.differentiable_robust_corrected import propose_corrected_robust_design
 
 
 def test_feedback_stencil_retains_all_roles_and_bounds():
     class Predictor:
         device = torch.device('cpu')
+        checkpoint_sha256 = 'checkpoint'
         def predict_tensor(self, image):
             value = image.mean(dim=(1, 2))
             return torch.stack((0.2 + 0.1 * value, 0.7 + 0.1 * value), dim=1).unsqueeze(1)
@@ -52,5 +54,12 @@ def test_feedback_stencil_retains_all_roles_and_bounds():
     corrections = fit_scenario_corrections(bound, offsets=offsets, center=[.5, 0.], radius=.2, ridge=1e-5)
     assert len(corrections) == 3 and all(item.sample_count == 1 for item in corrections)
     assert len({item.comparison_contract_sha256 for item in corrections}) == 3
+    config = {**base, 'checkpoint_sha256': 'checkpoint', 'surrogate_contract_sha256': 'model',
+              'offsets': offsets, 'center': [.5, 0.], 'radius': .2, 'ridge': 1e-5,
+              'evaluations': 2, 'learning_rate': .05}
+    proposal = propose_corrected_robust_design(source, Predictor(), bound, config=config)
+    assert proposal['status'] == 'proposal_ready' and len(proposal['history']) == 2
+    assert len(proposal['prefit_prediction']['corrected_smooth_edges']) == 3
+    assert all(item['sample_count'] == 1 for item in proposal['corrections'])
     with pytest.raises(ValueError, match='scenario'):
         fit_scenario_corrections(bound[:-1], offsets=offsets, center=[.5, 0.], radius=.2, ridge=1e-5)
