@@ -50,7 +50,11 @@ def rank_hard_trajectory(source: Any, predictor: Any, history: Sequence[dict[str
                'master_grid_sha256': master_digest,
                'material_fraction': geometry.material_fraction, 'status': geometry.status}
         if geometry.status == 'eligible' and master_digest in seen:
-            row.update(status='duplicate_geometry', duplicate_of=seen[master_digest])
+            previous = seen[master_digest]
+            previous_status = rows[previous]['status']
+            row.update(status='duplicate_geometry' if previous_status == 'surrogate_only'
+                       else 'duplicate_geometry_rejected', duplicate_of=previous,
+                       duplicate_of_status=previous_status)
         elif geometry.status == 'eligible':
             seen[master_digest] = index
             class Capture:
