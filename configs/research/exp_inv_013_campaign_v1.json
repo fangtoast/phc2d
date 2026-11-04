@@ -1,6 +1,6 @@
 {
   "experiment_id": "EXP-INV-013",
-  "status": "implementation_in_progress",
+  "status": "ready_for_design",
   "base_config": "configs/research/exp_inv_012_origin_v1.json",
   "base_config_sha256": "d447606587c516b5dd865ecde4e9d90858e137fd055dd7c6d16c40376cec2639",
   "sources": [

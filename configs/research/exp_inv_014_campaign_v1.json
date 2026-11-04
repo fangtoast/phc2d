@@ -10,5 +10,5 @@
   "initial_trust_radius": 0.2,
   "rejection_radius_factor": 0.5,
   "ridge": 0.000001,
-  "acceptance": "strict_physical_margin_improvement"
+  "acceptance": "strict_physical_improvement"
 }
