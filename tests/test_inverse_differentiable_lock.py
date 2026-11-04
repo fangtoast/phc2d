@@ -20,10 +20,10 @@ def test_lock_checks_identity_roster_and_hard_ranking():
     def candidate(i):
         return {'index': i, 'status': 'surrogate_only', 'master_grid_sha256': str(i),
                 'predicted_gap': {'target_margin': float(i)}, 'bands': [[0.4, 0.6]]}
-    shards = {'directions': dict(identity, role='directions', history=[{'label': x} for x in labels],
+    shards = {'directions': dict(identity, role='directions', cluster_id='paracloud_n40', history=[{'label': x} for x in labels],
               diagnostics={'fd_passed': True}, selection={'candidates': [candidate(i) for i in range(9)]})}
     for role in ('adam', 'de', 'random'):
-        shards[role] = dict(identity, role=role, history=[{}]*20,
+        shards[role] = dict(identity, role=role, cluster_id='paracloud_n40' if role == 'adam' else 'paracloud_n56', history=[{}]*20,
                             selection={'selected_index': 19, 'candidates': [candidate(i) for i in range(20)]})
     lock = combine_shards(shards)
     assert len(lock['records']) == 12

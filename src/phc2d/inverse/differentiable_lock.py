@@ -20,6 +20,10 @@ def combine_shards(shards: Mapping[str, dict[str, Any]]) -> dict[str, Any]:
     roles = ('directions', 'adam', 'de', 'random')
     if set(shards) != set(roles) or any(shards[r].get('role') != r for r in roles):
         raise ValueError('exactly one shard for each required role is needed')
+    platforms = {'directions': 'paracloud_n40', 'adam': 'paracloud_n40',
+                 'de': 'paracloud_n56', 'random': 'paracloud_n56'}
+    if any(shards[role].get('cluster_id') != platforms[role] for role in roles):
+        raise ValueError('shard platform assignment mismatch')
     fields = ('config_sha256', 'source_sha256', 'source_parameter_hash', 'checkpoint_sha256',
               'k_points_sha256', 'code_commit', 'k_points', 'device_parity_tolerance')
     for field in fields:

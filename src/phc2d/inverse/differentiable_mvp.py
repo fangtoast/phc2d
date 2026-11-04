@@ -148,7 +148,8 @@ def main() -> None:
                   k_points_sha256=predictor.k_points_sha256,
                   k_points=predictor.k_points.detach().cpu().tolist(),
                   device_parity_tolerance=config['device_parity_tolerance'],
-                  code_commit=os.environ.get('PHC2D_DEPLOYED_GIT_COMMIT'), device=args.device)
+                  code_commit=os.environ.get('PHC2D_DEPLOYED_GIT_COMMIT'),
+                  cluster_id=os.environ.get('PHC2D_CLUSTER_ID'), device=args.device)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('x', encoding='utf8') as stream:
         json.dump(result, stream, indent=2, allow_nan=False)

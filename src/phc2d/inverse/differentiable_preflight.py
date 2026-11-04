@@ -16,8 +16,10 @@ import numpy as np
 
 def compare_preflights(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
     """Check matching source, checkpoint, code, center input, gradient gate, and spectrum."""
-    if len(records) < 2 or any(row.get('role') != 'preflight' for row in records):
-        raise ValueError('at least two preflight records are required')
+    if len(records) != 2 or any(row.get('role') != 'preflight' for row in records):
+        raise ValueError('two preflight records are required')
+    if {row.get('cluster_id') for row in records} != {'paracloud_n40', 'paracloud_n56'}:
+        raise ValueError('one N40 and one N56 platform preflight are required')
     reference = records[0]
     fields = ('config_sha256', 'source_sha256', 'source_parameter_hash', 'checkpoint_sha256',
               'k_points_sha256', 'code_commit', 'device_parity_tolerance')

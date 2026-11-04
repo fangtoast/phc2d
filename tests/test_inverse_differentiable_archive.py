@@ -28,7 +28,7 @@ def test_archive_requires_exact_shards_and_keeps_design_scope(tmp_path):
         count = 9 if role == 'directions' else 20
         history = [{'step': i, 'parameters': [0.0], 'fourier_parameters': [0.1],
                     **({'label': labels[i]} if role == 'directions' else {})} for i in range(count)]
-        parsed[role] = dict(identity, role=role, elapsed_s=1.0, history=history,
+        parsed[role] = dict(identity, role=role, cluster_id='paracloud_n40' if role in ('directions', 'adam') else 'paracloud_n56', elapsed_s=1.0, history=history,
                             selection={'selected_index': count-1, 'candidates': [candidate(i) for i in range(count)]})
     parsed['directions']['diagnostics'] = {'fd_passed': True}
     shards = {role: json.dumps(parsed[role]).encode() for role in roles}
