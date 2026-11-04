@@ -15,11 +15,21 @@ from typing import Any, Mapping
 
 
 def plan_seed_reuse(target: Mapping[str, Any], reference: Mapping[str, Any], *,
-                    target_sha256: str, reference_sha256: str) -> tuple[dict[str, Any], dict[str, Any]]:
+                    target_sha256: str, reference_sha256: str,
+                    allow_target_change: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
     """Map equal hard grids to prior cases and create a manifest for new cases."""
-    fields = ('protocol_sha256', 'k_points', 'lower_band', 'target_frequency', 'solver_config', 'raster_resolution')
+    if not isinstance(allow_target_change, bool):
+        raise ValueError('target-change reuse must be explicit')
+    fields = ('protocol_sha256', 'k_points', 'lower_band', 'solver_config', 'raster_resolution')
+    if not allow_target_change:
+        fields += ('target_frequency',)
     if any(target.get(key) != reference.get(key) for key in fields):
         raise ValueError('physical reuse contracts differ')
+    if allow_target_change:
+        import math
+        if any(isinstance(item.get('target_frequency'), bool) or not isinstance(item.get('target_frequency'), (int, float))
+               or not math.isfinite(item['target_frequency']) or item['target_frequency'] <= 0 for item in (target, reference)):
+            raise ValueError('positive finite target frequencies required for reuse')
     prior = {}
     for index, row in enumerate(reference['rows']):
         digest = row['master_grid_sha256']
@@ -44,6 +54,9 @@ def plan_seed_reuse(target: Mapping[str, Any], reference: Mapping[str, Any], *,
                                         for i, row in enumerate(rows)]}
     plan = {'scope': 'feedback_seed_physical_reuse_plan', 'target_manifest_sha256': target_sha256,
             'reference_manifest_sha256': reference_sha256, 'reused': reused, 'fresh': fresh}
+    if allow_target_change:
+        plan['allow_target_change'] = True
+        plan['target_frequencies'] = {'target': target['target_frequency'], 'reference': reference['target_frequency']}
     return plan, fresh_manifest
 
 
@@ -54,7 +67,7 @@ def rebind_seed_results(target: Mapping[str, Any], reference: Mapping[str, Any],
                         fresh_results: Mapping[int, tuple[Mapping[str, Any], str]]) -> dict[int, dict[str, Any]]:
     """Create explicitly derived target records without changing any raw solver output."""
     expected, expected_fresh = plan_seed_reuse(target, reference, target_sha256=target_sha256,
-                                               reference_sha256=reference_sha256)
+        reference_sha256=reference_sha256, allow_target_change=plan.get('allow_target_change', False))
     if (any(plan.get(key) != value for key, value in expected.items())
             or plan.get('fresh_manifest_sha256') != fresh_sha256 or fresh != expected_fresh):
         raise ValueError('reuse plan or fresh manifest differs from frozen mapping')
@@ -109,10 +122,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('target-manifest', 'reference-manifest', 'output-directory'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--allow-target-change', action='store_true')
     args = parser.parse_args()
     target_raw, reference_raw = Path(args.target_manifest).read_bytes(), Path(args.reference_manifest).read_bytes()
     plan, fresh = plan_seed_reuse(json.loads(target_raw), json.loads(reference_raw),
-        target_sha256=hashlib.sha256(target_raw).hexdigest(), reference_sha256=hashlib.sha256(reference_raw).hexdigest())
+        target_sha256=hashlib.sha256(target_raw).hexdigest(), reference_sha256=hashlib.sha256(reference_raw).hexdigest(),
+        allow_target_change=args.allow_target_change)
     output = Path(args.output_directory)
     output.mkdir(parents=True, exist_ok=False)
     fresh_raw = json.dumps(fresh, indent=2, allow_nan=False).encode('utf8')

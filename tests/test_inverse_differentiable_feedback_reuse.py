@@ -22,6 +22,12 @@ def test_seed_reuse_deduplicates_and_rejects_different_contract():
     other = copy.deepcopy(reference); other['solver_config']['resolution'] = 128
     with pytest.raises(ValueError, match='contracts'):
         plan_seed_reuse(target, other, target_sha256='target', reference_sha256='reference')
+    other_target = {**target, 'target_frequency': .57}
+    with pytest.raises(ValueError, match='contracts'):
+        plan_seed_reuse(other_target, reference, target_sha256='target', reference_sha256='reference')
+    explicit, _ = plan_seed_reuse(other_target, reference, target_sha256='target', reference_sha256='reference',
+                                  allow_target_change=True)
+    assert explicit['allow_target_change'] is True and explicit['target_frequencies']['reference'] == .5
 
 
 def test_rebound_evidence_retains_original_source_and_rejects_tampering():
