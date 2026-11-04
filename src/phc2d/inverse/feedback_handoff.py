@@ -272,9 +272,14 @@ def consume_robust_solver_result(state: FeedbackState, *, manifest_bytes: bytes,
     if digest != expected_manifest_sha256 or hashlib.sha256(protocol_bytes).hexdigest() != protocol_sha256:
         raise ValueError('manifest or protocol digest mismatch')
     manifest, protocol = json.loads(manifest_bytes), json.loads(protocol_bytes)
-    if state.pending is None or manifest.get('status') != 'feedback_robust_solver_request' or len(manifest['rows']) != 1:
+    rows = manifest.get('rows')
+    if state.pending is None or manifest.get('status') != 'feedback_robust_solver_request' or not isinstance(rows, list):
         raise ValueError('invalid pending robust solver request')
-    request = manifest['rows'][0]
+    matches = [i for i, row in enumerate(rows) if row.get('parameter_hash') == state.pending.parameter_hash]
+    if len(matches) != 1:
+        raise ValueError('pending candidate must occur exactly once in robust solver request')
+    case_index = matches[0]
+    request = rows[case_index]
     structure = FullCellStructureSpec.from_mapping(request['structure'])
     if (structure.parameter_hash != state.pending.parameter_hash or request['parameter_hash'] != structure.parameter_hash
             or manifest['surrogate_contract_sha256'] != state.pending.surrogate_contract_sha256
@@ -282,7 +287,7 @@ def consume_robust_solver_result(state: FeedbackState, *, manifest_bytes: bytes,
         raise ValueError('pending candidate or prediction contract mismatch')
     observation = validate_robust_observation(manifest_bytes=manifest_bytes,
         expected_manifest_sha256=expected_manifest_sha256, protocol_bytes=protocol_bytes,
-        protocol_sha256=protocol_sha256, case_index=0, result=result)
+        protocol_sha256=protocol_sha256, case_index=case_index, result=result)
     if state.incumbent_observation['provenance'].get('solver_identity') != observation['provenance']['solver_identity']:
         raise ValueError('incumbent and candidate solver identity mismatch')
     return finish_feedback(state, observation=observation)
@@ -324,9 +329,10 @@ def consume_robust_worker_group(
             raise ValueError('worker request or protocol digest mismatch')
         manifest, protocol = json.loads(manifest_raw), json.loads(protocol_raw)
         rows = manifest.get('rows')
-        if (manifest.get('status') != 'feedback_robust_solver_request' or not isinstance(rows, list) or len(rows) != 1
-                or rows[0].get('label') != 'candidate' or rows[0].get('parameter_hash') != candidate
-                or FullCellStructureSpec.from_mapping(rows[0]['structure']).parameter_hash != candidate
+        matches = [row for row in rows if row.get('parameter_hash') == candidate] if isinstance(rows, list) else []
+        if (manifest.get('status') != 'feedback_robust_solver_request' or len(matches) != 1
+                or matches[0].get('label') != 'candidate'
+                or FullCellStructureSpec.from_mapping(matches[0]['structure']).parameter_hash != candidate
                 or manifest.get('surrogate_contract_sha256') != state.pending.surrogate_contract_sha256
                 or manifest.get('target_frequency') != state.target_frequency
                 or manifest.get('lower_band') != state.incumbent_observation['row']['lower_band_one_based']

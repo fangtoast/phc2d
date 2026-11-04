@@ -174,6 +174,30 @@ def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
     records = {'success': worker(0, mp.read_bytes(), mh, (output/'results.json').read_bytes(), None),
                'failure': worker(137, other_raw, hashlib.sha256(other_raw).hexdigest(), None, 'worker OOM')}
     updated, outcomes = consume_robust_worker_group(states, records)
+    shared_manifest = {**manifest, 'rows': [other_manifest['rows'][0], manifest['rows'][0]]}
+    shared_path = tmp_path/'shared_manifest.json'
+    shared_path.write_text(json.dumps(shared_manifest), encoding='utf8')
+    shared_raw = shared_path.read_bytes()
+    shared_hash = hashlib.sha256(shared_raw).hexdigest()
+    shared_output = run_offset_case(shared_path, expected_sha256=shared_hash, protocol_path=pp,
+        expected_protocol_sha256=ph, case_index=1, output_root=tmp_path/'shared_cases', solver=solver)
+    shared_records = {'success': worker(0, shared_raw, shared_hash, (shared_output/'results.json').read_bytes(), None),
+                      'failure': worker(137, shared_raw, shared_hash, None, 'worker OOM')}
+    shared_updated, shared_outcomes = consume_robust_worker_group(states, shared_records)
+    assert shared_updated == updated
+    assert shared_outcomes['success']['candidate_sha256'] == candidate.parameter_hash
+    wrong_result = json.loads(shared_records['success']['result_bytes'])
+    wrong_result['case_index'] = 0
+    wrong_records = {**shared_records, 'success': {**shared_records['success'],
+                                                    'result_bytes': json.dumps(wrong_result).encode()}}
+    with pytest.raises(ValueError, match='solver result identity mismatch'):
+        consume_robust_worker_group(states, wrong_records)
+    duplicate_manifest = {**shared_manifest, 'rows': shared_manifest['rows'] + [shared_manifest['rows'][1]]}
+    duplicate_raw = json.dumps(duplicate_manifest).encode()
+    duplicate_records = {**shared_records, 'success': {**shared_records['success'], 'manifest_bytes': duplicate_raw,
+        'manifest_sha256': hashlib.sha256(duplicate_raw).hexdigest()}}
+    with pytest.raises(ValueError, match='worker request does not match'):
+        consume_robust_worker_group(states, duplicate_records)
     assert updated['success'].remaining_evaluations == 0
     assert updated['failure'].history[-1]['status'] == 'solver_failure'
     assert updated['failure'].remaining_evaluations == 0
