@@ -39,26 +39,47 @@ def compare_crosscheck(manifest: Mapping[str, Any], roles: list[str], *,
             if (result['case_index'] != idx or result['parameter_hash'] != physical['parameter_hash']
                     or result['manifest_sha256'] != manifest_sha256
                     or result['protocol_sha256'] != manifest['protocol_sha256']
-                    or len(result['observations']) != 1
-                    or result['observations'][0]['provenance']['evaluated_grid_sha256'] != physical['master_grid_sha256']):
+                    or not result['observations']):
                 raise ValueError('crosscheck geometry or case identity mismatch')
         if any(a[key] != b[key] for key in ('manifest_sha256', 'protocol_sha256')):
             raise ValueError('crosscheck manifest or protocol mismatch')
-        aa, bb = a['observations'][0]['arrays'], b['observations'][0]['arrays']
-        ka, kb = np.asarray(aa['k_points'], dtype=float), np.asarray(bb['k_points'], dtype=float)
-        va, vb = np.asarray(aa['bands'], dtype=float), np.asarray(bb['bands'], dtype=float)
-        n = len(points)
-        if (ka.ndim != 2 or kb.ndim != 2 or len(ka) < n or len(kb) < n
-                or not np.allclose(ka[:n], points, atol=1e-7, rtol=0)
-                or not np.allclose(kb[:n], points, atol=1e-7, rtol=0)
-                or va.ndim != 2 or vb.ndim != 2 or va[:n].shape != vb[:n].shape
-                or len(va) < n or len(vb) < n or not np.isfinite(va[:n]).all()
-                or not np.isfinite(vb[:n]).all()):
-            raise ValueError('crosscheck k grid or spectrum mismatch')
-        delta = float(np.max(np.abs(va[:n] - vb[:n])))
-        stable = all(x['aggregate']['status'] == 'numerically_stable' for x in (a, b))
+        offsets = [trace.get('offset', 0.0) for trace in a['observations']]
+        if (offsets != [trace.get('offset', 0.0) for trace in b['observations']]
+                or len(offsets) != len(set(offsets)) or 0.0 not in offsets):
+            raise ValueError('crosscheck scenario roster mismatch')
+        if len(offsets) == 1:
+            hashes = [physical['master_grid_sha256']]
+        else:
+            from phc2d.data.full_cell_spec import FullCellStructureSpec
+            from phc2d.inverse.perturbation_screen import periodic_perturbation_grids
+            structure = FullCellStructureSpec.from_mapping(physical['structure'])
+            grids = periodic_perturbation_grids(structure, resolution=manifest['raster_resolution'], offsets=tuple(offsets))
+            hashes = [hashlib.sha256(np.ascontiguousarray(grid, dtype=np.uint8).tobytes()).hexdigest() for grid in grids]
+            if hashes[offsets.index(0.0)] != physical['master_grid_sha256']:
+                raise ValueError('crosscheck master geometry mismatch')
+        scenario_deltas, stable = [], all(x['aggregate']['status'] == 'numerically_stable' for x in (a, b))
+        for i, (left, right) in enumerate(zip(a['observations'], b['observations'])):
+            if any(trace['provenance']['evaluated_grid_sha256'] != hashes[i] for trace in (left, right)):
+                raise ValueError('crosscheck scenario geometry mismatch')
+            aa, bb = left['arrays'], right['arrays']
+            ka, kb = np.asarray(aa['k_points'], dtype=float), np.asarray(bb['k_points'], dtype=float)
+            va, vb = np.asarray(aa['bands'], dtype=float), np.asarray(bb['bands'], dtype=float)
+            n = len(points)
+            if (ka.ndim != 2 or kb.ndim != 2 or len(ka) < n or len(kb) < n
+                    or not np.allclose(ka[:n], points, atol=1e-7, rtol=0)
+                    or not np.allclose(kb[:n], points, atol=1e-7, rtol=0)
+                    or va.ndim != 2 or vb.ndim != 2 or va[:n].shape != vb[:n].shape
+                    or len(va) < n or len(vb) < n or not np.isfinite(va[:n]).all()
+                    or not np.isfinite(vb[:n]).all()):
+                raise ValueError('crosscheck k grid or spectrum mismatch')
+            scenario_deltas.append(float(np.max(np.abs(va[:n] - vb[:n]))))
+            if len(offsets) > 1:
+                gates = ('last_refinement_stable', 'resolution_stable', 'adaptive_refinement_converged')
+                stable = stable and all(all(trace['row'].get(key) is True for key in gates) for trace in (left, right))
+        delta = max(scenario_deltas)
         rows.append({**row, 'status': 'passed' if stable and delta <= tolerance else 'failed',
                      'max_absolute_spectrum_difference': delta, 'both_numerically_stable': stable,
+                     'scenario_offsets': offsets, 'scenario_max_absolute_differences': scenario_deltas,
                      'm9_elapsed_s': a['elapsed_s'], 'wsl_elapsed_s': b['elapsed_s']})
     return {'scope': 'selected_same_k_cross_environment', 'frequency_absolute_tolerance': tolerance,
             'roles': rows, 'all_passed': all(row['status'] == 'passed' for row in rows)}
