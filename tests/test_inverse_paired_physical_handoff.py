@@ -15,7 +15,8 @@ import pytest
 
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 from phc2d.inverse.audit_candidates import local_fourier_audit_candidates
-from phc2d.inverse.paired_physical_handoff import build_paired_physical_batch, build_nominal_static_physical_request
+from phc2d.inverse.paired_physical_handoff import (build_paired_physical_batch, build_nominal_static_physical_request,
+                                                   materialize_nominal_static_physical_request)
 from phc2d.solvers.full_cell import FullCellMpbBandSolverConfig
 
 
@@ -96,11 +97,12 @@ def test_nominal_static_request_keeps_full_roster_and_zero_offset(tmp_path):
     assert request['protocol']['offsets'] == [0.0]
     assert len(request['manifest']['rows']) == 6
     assert [row['source_index'] for row in request['manifest']['rows']] == [0, 0, 1, 1, 2, 2]
-    manifest_path, protocol_path = tmp_path/'manifest.json', tmp_path/'protocol.json'
-    manifest_path.write_text(json.dumps(request['manifest']), encoding='utf8')
-    protocol_path.write_text(json.dumps(request['protocol'], sort_keys=True, separators=(',', ':')), encoding='utf8')
+    materialized = materialize_nominal_static_physical_request(request, tmp_path/'request')
+    manifest_path, protocol_path = tmp_path/'request'/'manifest.json', tmp_path/'request'/'protocol.json'
     mh, ph = (hashlib.sha256(path.read_bytes()).hexdigest() for path in (manifest_path, protocol_path))
-    assert ph == request['protocol_sha256']
+    assert ph == request['protocol_sha256'] and mh == materialized['manifest_sha256']
+    with pytest.raises(FileExistsError):
+        materialize_nominal_static_physical_request(request, tmp_path/'request')
     def solver(grid, *, k_points, config):
         meta = {'grid_sha256': hashlib.sha256(np.ascontiguousarray(grid, dtype=np.uint8).tobytes()).hexdigest(),
             'resolution': config.resolution, 'polarization': config.polarization, 'num_bands': config.num_bands,

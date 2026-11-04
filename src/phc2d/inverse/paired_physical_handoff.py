@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -90,6 +91,29 @@ def build_nominal_static_physical_request(*, campaign_bytes: bytes, campaign_sha
                 'raster_resolution': resolution, 'protocol_sha256': hashlib.sha256(protocol_raw).hexdigest(), 'rows': rows}
     return {'scope': 'static_request_constructed_not_submitted', 'manifest': manifest,
             'protocol': protocol, 'protocol_sha256': hashlib.sha256(protocol_raw).hexdigest()}
+
+
+def materialize_nominal_static_physical_request(request: Mapping[str, Any], output_root: Path) -> dict[str, Any]:
+    """Save a constructed nominal request once; this does not authorize execution."""
+    if request.get('scope') != 'static_request_constructed_not_submitted':
+        raise ValueError('constructed nominal static request required')
+    manifest, protocol = request['manifest'], request['protocol']
+    protocol_raw = json.dumps(protocol, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf8')
+    protocol_hash = hashlib.sha256(protocol_raw).hexdigest()
+    if (protocol_hash != request.get('protocol_sha256') or manifest.get('protocol_sha256') != protocol_hash
+            or manifest.get('scope') != 'nominal_static_solver_request_not_execution_lock'
+            or protocol.get('offsets') != [0.0]):
+        raise ValueError('constructed manifest or protocol mismatch')
+    manifest_raw = json.dumps(manifest, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf8')
+    root = Path(output_root)
+    root.mkdir(parents=True, exist_ok=False)
+    with (root/'protocol.json').open('xb') as stream:
+        stream.write(protocol_raw)
+    with (root/'manifest.json').open('xb') as stream:
+        stream.write(manifest_raw)
+    return {'scope': 'materialized_static_request_not_execution_lock',
+            'manifest_sha256': hashlib.sha256(manifest_raw).hexdigest(), 'protocol_sha256': protocol_hash,
+            'case_count': len(manifest['rows'])}
 
 
 def build_paired_physical_batch(
