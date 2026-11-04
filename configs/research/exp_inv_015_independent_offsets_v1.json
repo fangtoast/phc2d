@@ -1,0 +1,17 @@
+{
+  "experiment_id": "EXP-INV-015",
+  "scope": "preregistered_unseen_manufacturing_offsets_and_wsl_roles",
+  "offsets": [-0.00390625, 0.0, 0.00390625],
+  "roles": [
+    "source_0008_initial_0_worst/top1",
+    "source_0008_initial_0_worst_corrected/top1",
+    "source_0491_initial_0_worst/top1",
+    "source_0491_initial_0_worst_corrected/top1",
+    "source_0348_initial_0_worst/top1",
+    "source_0348_initial_0_worst_corrected/top1"
+  ],
+  "wsl_crosscheck": {
+    "environment": "Ubuntu/meep_env",
+    "max_absolute_spectrum_difference": 0.000001
+  }
+}
