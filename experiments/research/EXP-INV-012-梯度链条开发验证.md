@@ -59,6 +59,8 @@ GPU 提交器设置 `PHC2D_SUBMIT_DRY_RUN=1` 可核对角色、平台与作业�
 
 若仅执行原点链路，须在锁前单独登记 12 组子批（原点、8 方向、3 终点），其余四中心是后续预注册扩展；不看成功结果再冒称同一个完整 48 组批。物理 FD 如后续需要，仅解释已经锁定的方向并另记费用，不能据此新增优化候选。
 
+四中心扩展使用[独立配置](../../configs/research/exp_inv_012_four_centers_v1.json)和 `phc2d.inverse.differentiable_expansion`；每个中心生成中心及八个方向角色，共 36 个角色。`jobs/paracloud_inverse_differentiable_expansion.sh` 支持在预检通过后分别运行四个中心，`phc2d.inverse.differentiable_expansion_lock` 对四份分片做身份检查并锁定完整角色。零梯度保留不可用方向，随机方向仍按预定种子生成；四中心扩展须独立登记资源、选型和物理清单。
+
 三种算法分别评价自己锁定的 Top-1；方向诊断不参与最终选型，不从全部 MPB 结果中挑最好结构冒称 GL 输出。来源 8 初始可能已为正裕量，须报告相对初值变化。Top-M 若另行研究，事先冻结 M 和聚合规则；MPB best-of-M 与纯代理 Top-1 分列。
 
 ## MPB 复核与成本
