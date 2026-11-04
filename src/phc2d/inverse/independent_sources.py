@@ -15,6 +15,18 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 
 
+def validate_frozen_method_lock(raw: bytes, expected_sha256: str) -> dict[str, Any]:
+    """Require an explicit frozen method identity before selecting held-out sources."""
+    if hashlib.sha256(raw).hexdigest() != expected_sha256:
+        raise ValueError('independent test method-lock hash mismatch')
+    lock = json.loads(raw)
+    if (lock.get('scope') != 'frozen_inverse_method_selection' or lock.get('status') != 'frozen'
+            or not isinstance(lock.get('selected_method'), str) or not lock['selected_method']
+            or not isinstance(lock.get('evidence_sha256'), str) or not lock['evidence_sha256']):
+        raise ValueError('independent test requires a frozen method and evidence identity')
+    return lock
+
+
 def select_heldout_sources(dataset: Path, *, dataset_sha256: str, method_lock_sha256: str,
                            seed: int, count: int, source_id_offset: int, master_resolution: int,
                            excluded_parameter_hashes: Sequence[str], excluded_grid_hashes: Sequence[str],
@@ -135,6 +147,7 @@ def main() -> None:
     if (settings.get('experiment_id') != 'EXP-INV-016' or settings.get('method_lock_sha256') != method_sha
             or len(args.exclusion) != len(args.exclusion_sha256)):
         raise ValueError('independent test method or exclusion inventory mismatch')
+    validate_frozen_method_lock(method_raw, settings['method_lock_sha256'])
     inputs = [{'name': Path(name).name, 'bytes': Path(name).read_bytes(), 'sha256': digest}
               for name, digest in zip(args.exclusion, args.exclusion_sha256)]
     exclusions = collect_inverse_exclusions(inputs)

@@ -15,6 +15,7 @@ from typing import Any, Mapping
 
 from phc2d.data.full_cell_spec import FullCellStructureSpec
 from phc2d.inverse.differentiable_campaign import build_campaign
+from phc2d.inverse.independent_sources import validate_frozen_method_lock
 
 
 def _bytes(value: Any) -> bytes:
@@ -73,6 +74,7 @@ def main() -> None:
     settings, roster = json.loads(settings_raw), json.loads(roster_raw)
     if settings['base_sha256'] != hashlib.sha256(base_raw).hexdigest():
         raise ValueError('independent base model configuration differs')
+    validate_frozen_method_lock(method_raw, settings['method_lock_sha256'])
     sources = {}
     for row in roster['sources']:
         raw = (Path(args.source_directory)/f"source_{row['id']:04d}.json").read_bytes()

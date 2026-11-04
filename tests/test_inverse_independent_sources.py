@@ -7,10 +7,16 @@ import pytest
 
 h5py = pytest.importorskip('h5py')
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
-from phc2d.inverse.independent_sources import select_heldout_sources, write_heldout_sources, collect_inverse_exclusions
+from phc2d.inverse.independent_sources import (select_heldout_sources, write_heldout_sources,
+    collect_inverse_exclusions, validate_frozen_method_lock)
 
 
 def test_heldout_selection_preserves_split_and_development_exclusions(tmp_path):
+    method = json.dumps({'scope': 'frozen_inverse_method_selection', 'status': 'frozen',
+                         'selected_method': 'adam_residual', 'evidence_sha256': 'evidence'}).encode()
+    assert validate_frozen_method_lock(method, hashlib.sha256(method).hexdigest())['status'] == 'frozen'
+    with pytest.raises(ValueError, match='hash mismatch'):
+        validate_frozen_method_lock(method, 'wrong')
     structures = [generate_unified_fourier_binary(f'source-{i}', master_seed=12, material_fraction_bin=1,
         config={'fourier_cutoff': 3, 'audit_resolution': 32}) for i in range(5)]
     path = tmp_path/'dataset.h5'
