@@ -47,7 +47,7 @@ def test_feedback_round_caps_unique_cases_and_array_size():
     manifest = {'selection_lock_sha256': 'lock', 'rows': [{} for _ in range(27)]}
     plan = plan_physical_resources(manifest, resources, manifest_sha256='manifest')
     assert len(plan['shards']) == 4 and plan['max_concurrent_shards'] == 4
-    assert plan['max_allocated_core_hours'] == 80
+    assert plan['cpus_per_shard'] == 12 and plan['max_allocated_core_hours'] == 96
     with pytest.raises(ValueError, match='budget'):
         plan_physical_resources({**manifest, 'rows': [{} for _ in range(28)]}, resources, manifest_sha256='manifest')
 
