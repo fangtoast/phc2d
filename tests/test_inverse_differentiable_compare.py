@@ -28,10 +28,35 @@ def test_physical_comparison_uses_original_k_and_retains_missing_roles():
     args = dict(lock_sha256='lock', manifest_sha256='manifest', protocol_sha256='protocol')
     report = compare_physical_results(lock, manifest, {0: result}, **args)
     assert report['roles'][0]['same_k_spectrum_mae'] == pytest.approx(0.01)
+    assert report['roles'][0]['same_k_spectrum_rmse'] == pytest.approx(0.01)
+    assert report['roles'][0]['same_k_spectrum_mre_pct'] == pytest.approx(
+        100 * sum(0.01 / x for x in (0.31, 0.71, 0.41, 0.81)) / 4)
+    assert report['roles'][0]['same_k_edge_error'] == pytest.approx([-0.01, -0.01])
+    assert report['roles'][0]['same_k_target_margin_error'] == pytest.approx(0.04)
     assert report['roles'][0]['physical_refined_target_margin'] == pytest.approx(0.32)
+    assert report['roles'][0]['physical_refined_contains_target'] is True
+    assert report['roles'][0]['physical_refined_margin_change_from_center'] == 0
     assert report['roles'][1]['status'] == 'no_valid_candidate'
     altered = copy.deepcopy(result)
     altered['observations'][0]['provenance']['evaluated_grid_sha256'] = 'other'
     with pytest.raises(ValueError, match='grid'):
         compare_physical_results(lock, manifest, {0: altered}, **args)
     assert compare_physical_results(lock, manifest, {}, **args)['roles'][0]['status'] == 'physical_result_missing'
+    unresolved = copy.deepcopy(result)
+    unresolved['aggregate']['status'] = 'numerical_gate_failed'
+    assert compare_physical_results(lock, manifest, {0: unresolved}, **args)['roles'][0]['physical_refined_contains_target'] is None
+    zero = copy.deepcopy(result)
+    zero['observations'][0]['arrays']['bands'][0][0] = 0.0
+    zero_report = compare_physical_results(lock, manifest, {0: zero}, **args)['roles'][0]
+    assert zero_report['same_k_floor_count'] == 1
+    assert zero_report['same_k_spectrum_mre_pct'] > zero_report['same_k_spectrum_mre_bands_2_plus_pct']
+    duplicate_lock = copy.deepcopy(lock)
+    duplicate_manifest = copy.deepcopy(manifest)
+    duplicate_lock['records'][1] = {'label': 'other', 'candidate': {
+        'master_grid_sha256': 'grid', 'bands': [[0.32, 0.72], [0.42, 0.82]]}}
+    duplicate_manifest['role_coverage'][1] = {'label': 'other', 'case_index': 0}
+    duplicate_report = compare_physical_results(duplicate_lock, duplicate_manifest, {0: result}, **args)
+    assert duplicate_report['unique_cases_with_results'] == 1
+    assert duplicate_report['physical_case_elapsed_s_sum'] == 3
+    assert duplicate_report['roles'][0]['same_k_edge_error'] == pytest.approx([-0.01, -0.01])
+    assert duplicate_report['roles'][1]['same_k_edge_error'] == pytest.approx([0.01, 0.01])
