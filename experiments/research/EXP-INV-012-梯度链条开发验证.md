@@ -21,6 +21,10 @@ N40 和 N56 各用 `jobs/paracloud_inverse_differentiable_mvp.sh` 的 `preflight
 
 四个分片返回后，`python -m phc2d.inverse.differentiable_lock --directions DIRECTIONS_JSON --adam ADAM_JSON --de DE_JSON --random RANDOM_JSON --output LOCK_JSON` 校验身份、中心谱、参数梯度和各自硬评分 Top-1，锁定 12 个角色。`python -m phc2d.inverse.differentiable_handoff --config CONFIG_JSON --lock LOCK_JSON --output-directory REQUEST_DIR` 生成现有 `audit_perturb_refine` 所需的 nominal 零偏移 MPB 请求。相同 512 硬栅格只求解一次并保留角色映射；相同 64 代理输入不代表相同硬几何。
 
+使用 `python -m phc2d.inverse.differentiable_archive --config CONFIG_JSON --lock LOCK_JSON --directions DIRECTIONS_JSON --adam ADAM_JSON --de DE_JSON --random RANDOM_JSON --output RUN_DIR` 将四个原始分片和锁按项目 run 合同归档；归档状态为 `design_locked`，物理验证状态另行更新。
+
+求解后用 `python -m phc2d.inverse.differentiable_compare --lock LOCK_JSON --manifest MANIFEST_JSON --protocol PROTOCOL_JSON --result CASE_JSON --output COMPARISON_JSON` 比较原始同 k 频谱与加密带边；多个 case 重复传入 `--result`，缺失角色保留状态。采样和分辨率结果保留在原始 solver 输出，不与同 k 频谱误差合并。
+
 ## 输入与冻结
 
 | 项目 | 草案合同 |

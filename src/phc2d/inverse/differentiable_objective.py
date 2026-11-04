@@ -266,7 +266,8 @@ def optimize_corrected_fourier_adam(source: Any, predictor: Any, correction: Any
     lo = torch.as_tensor(lower, dtype=base.dtype, device=base.device)
     hi = torch.as_tensor(upper, dtype=base.dtype, device=base.device)
     if (scale.shape != base.shape or center.shape != base.shape or lo.shape != base.shape
-            or hi.shape != base.shape or not torch.isfinite(scale).all() or (scale <= 0).any()):
+            or hi.shape != base.shape or not torch.isfinite(scale).all() or (scale <= 0).any()
+            or not math.isfinite(correction.radius) or correction.radius <= 0):
         raise ValueError('invalid corrected optimization dimensions or scales')
     halfwidth = correction.radius / math.sqrt(len(base))
     lo = torch.maximum(lo, center - halfwidth)
