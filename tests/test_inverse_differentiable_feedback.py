@@ -38,6 +38,13 @@ def test_corrected_proposal_fits_observations_and_screens_hard_structures():
     assert result['status'] == 'proposal_ready'
     assert len(result['history']) == 4 and result['correction']['sample_count'] == 3
     assert result['hard_screening']['candidates'][result['selected_index']]['status'] == 'surrogate_only'
+    assert result['prefit_prediction']['extra_forward_calls'] == 1
+    assert result['prefit_prediction']['point'] == result['history'][result['selected_index']]['parameters']
+    uncorrected = propose_corrected_design(source, Predictor(), observations,
+                                            config={**config, 'apply_correction': False})
+    assert uncorrected['correction']['enabled'] is False
+    assert uncorrected['prefit_prediction']['corrected_smooth_edges'] == pytest.approx(
+        uncorrected['prefit_prediction']['soft_smooth_edges'])
     de = propose_corrected_design(source, Predictor(), observations,
                                   config={**config, 'method': 'de', 'steps': 4, 'seed': 5})
     assert de['status'] == 'proposal_ready' and len(de['history']) == 5

@@ -10,8 +10,11 @@ import argparse
 import hashlib
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+import numpy as np
 
 from phc2d.inverse.differentiable_objective import (optimize_corrected_fourier_adam,
                                                      optimize_corrected_fourier_black_box)
@@ -35,8 +38,23 @@ def propose_corrected_design(source: Any, predictor: Any, observations: Sequence
             or any(row.get('surrogate_contract_sha256') != surrogate_contract
                    or row.get('comparison_contract_sha256') != physical_contract for row in observations)):
         raise ValueError('observation and configured feedback contracts differ')
-    correction = fit_composite_edge_correction(observations, center=config['center'],
-        radius=config['radius'], ridge=config['ridge'])
+    center = np.asarray(config['center'], dtype=np.float64)
+    radius = float(config['radius'])
+    if center.ndim != 1 or not np.isfinite(center).all() or not np.isfinite(radius) or radius <= 0:
+        raise ValueError('invalid local center or radius')
+    local = []
+    for row in observations:
+        point = np.asarray(row['parameters'], dtype=np.float64)
+        if point.shape != center.shape or not np.isfinite(point).all():
+            raise ValueError('invalid observation position')
+        if np.linalg.norm(point - center) <= radius + 1e-12:
+            local.append(row)
+    correction = fit_composite_edge_correction(local, center=center, radius=radius, ridge=config['ridge'])
+    enabled = config.get('apply_correction', True)
+    if not isinstance(enabled, bool):
+        raise ValueError('apply_correction must be boolean')
+    if not enabled:
+        correction = replace(correction, coefficients=np.zeros_like(correction.coefficients))
     keys = tuple((int(i), str(component)) for i, component in config['coefficient_keys'])
     shared = dict(
         coefficient_keys=keys, scales=config['scales'], lower=config['lower'], upper=config['upper'],
@@ -61,14 +79,39 @@ def propose_corrected_design(source: Any, predictor: Any, observations: Sequence
     best = max(eligible, key=lambda i: (history[i]['objective'], -i)) if eligible else None
     observations_raw = json.dumps(list(observations), sort_keys=True, separators=(',', ':'),
                                   allow_nan=False).encode('utf8')
+    prediction = None
+    if best is not None:
+        import torch
+        from phc2d.data.differentiable_fourier import fourier_material_weight
+        from phc2d.inverse.differentiable_objective import smooth_band_edges
+        entry = history[best]
+        parameters = torch.as_tensor(entry['fourier_parameters'], dtype=torch.float64, device=predictor.device)
+        point = torch.as_tensor(entry['parameters'], dtype=torch.float64, device=predictor.device)
+        with torch.no_grad():
+            raster = fourier_material_weight(source, parameters, coefficient_keys=keys,
+                master_resolution=config['source_resolution'], output_resolution=config['input_resolution'],
+                temperature=config['temperature'])
+            bands = predictor.predict_tensor(raster.unsqueeze(0))
+            smooth = smooth_band_edges(bands, lower_band=config['lower_band'], beta=config['beta'])[0]
+            exact = torch.stack((bands[0, :, config['lower_band'] - 1].max(),
+                                 bands[0, :, config['lower_band']].min()))
+            corrected = correction.correct_tensor(point, smooth)
+        hard = np.asarray(screening['candidates'][best]['bands'], dtype=np.float64)
+        prediction = {'point': entry['parameters'], 'soft_exact_edges': exact.cpu().tolist(),
+                      'soft_smooth_edges': smooth.cpu().tolist(),
+                      'hard_edges': [float(np.max(hard[:, config['lower_band'] - 1])),
+                                     float(np.min(hard[:, config['lower_band']]))],
+                      'corrected_smooth_edges': corrected.cpu().tolist(), 'extra_forward_calls': 1}
     return {'status': 'proposal_ready' if best is not None else 'no_valid_candidate', 'method': method,
             'evidence_scope': 'feedback_surrogate_proposal_only',
             'observation_sha256': hashlib.sha256(observations_raw).hexdigest(),
             'correction': {'center': correction.center.tolist(), 'radius': correction.radius,
                 'coefficients': correction.coefficients.tolist(), 'sample_count': correction.sample_count,
+                'enabled': enabled, 'fitted_parameter_hashes': [row['parameter_hash'] for row in local],
                 'comparison_contract_sha256': correction.comparison_contract_sha256,
                 'surrogate_contract_sha256': correction.surrogate_contract_sha256},
-            'history': history, 'hard_screening': screening, 'selected_index': best}
+            'history': history, 'hard_screening': screening, 'selected_index': best,
+            'prefit_prediction': prediction}
 
 
 def main() -> None:
