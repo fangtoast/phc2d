@@ -41,6 +41,17 @@ def test_three_source_budget_caps_array_concurrency():
         plan_physical_resources(manifest, resources, manifest_sha256='manifest')
 
 
+def test_feedback_round_caps_unique_cases_and_array_size():
+    root = Path(__file__).resolve().parents[1]
+    resources = json.loads((root/'configs/research/exp_inv_014_round_resources_v1.json').read_text())
+    manifest = {'selection_lock_sha256': 'lock', 'rows': [{} for _ in range(27)]}
+    plan = plan_physical_resources(manifest, resources, manifest_sha256='manifest')
+    assert len(plan['shards']) == 4 and plan['max_concurrent_shards'] == 4
+    assert plan['max_allocated_core_hours'] == 80
+    with pytest.raises(ValueError, match='budget'):
+        plan_physical_resources({**manifest, 'rows': [{} for _ in range(28)]}, resources, manifest_sha256='manifest')
+
+
 def test_three_source_m9_submission_respects_array_cap(tmp_path):
     root = Path(__file__).resolve().parents[1]
     deployment = tmp_path/'deployment'; deployment.mkdir()
