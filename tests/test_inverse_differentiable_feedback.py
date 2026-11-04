@@ -38,6 +38,10 @@ def test_corrected_proposal_fits_observations_and_screens_hard_structures():
     assert result['status'] == 'proposal_ready'
     assert len(result['history']) == 4 and result['correction']['sample_count'] == 3
     assert result['hard_screening']['candidates'][result['selected_index']]['status'] == 'surrogate_only'
+    de = propose_corrected_design(source, Predictor(), observations,
+                                  config={**config, 'method': 'de', 'steps': 4, 'seed': 5})
+    assert de['status'] == 'proposal_ready' and len(de['history']) == 5
+    assert de['history'][0]['objective'] == pytest.approx(result['history'][0]['objective'])
     observations[1]['numerical_gate_passed'] = False
     with pytest.raises(ValueError, match='numerical gates'):
         propose_corrected_design(source, Predictor(), observations, config=config)

@@ -272,17 +272,11 @@ def optimize_fourier_black_box(source: Any, predictor: Any, *, coefficient_keys:
     return history
 
 
-def optimize_corrected_fourier_adam(source: Any, predictor: Any, correction: Any, *,
-                                    coefficient_keys: Any, scales: Any, lower: Any, upper: Any,
-                                    master_resolution: int, input_resolution: int,
-                                    temperature: float, lower_band: int, target_frequency: float,
-                                    beta: float, learning_rate: float, steps: int) -> list[dict[str, Any]]:
-    """Optimize a frozen composite correction inside its local trust region.
-
-    The parameter center is relative to the original source. The inscribed
-    box keeps every optimizer evaluation within the fitted Euclidean radius.
-    Candidate screening and physical acceptance are separate responsibilities.
-    """
+def _corrected_search_setup(source: Any, predictor: Any, correction: Any, *,
+                            coefficient_keys: Any, scales: Any, lower: Any, upper: Any,
+                            master_resolution: int, input_resolution: int, temperature: float,
+                            lower_band: int, target_frequency: float, beta: float) -> tuple[Any, ...]:
+    """Construct the common corrected objective and inscribed local box."""
     import torch
 
     keys = tuple(coefficient_keys)
@@ -305,9 +299,50 @@ def optimize_corrected_fourier_adam(source: Any, predictor: Any, correction: Any
         return corrected_fourier_margin(source, predictor, base + scale*z, z, correction,
             coefficient_keys=keys, master_resolution=master_resolution, input_resolution=input_resolution,
             temperature=temperature, lower_band=lower_band, target_frequency=target_frequency, beta=beta)
+    return objective, base, scale, center, lo, hi
+
+
+def optimize_corrected_fourier_adam(source: Any, predictor: Any, correction: Any, *,
+                                    coefficient_keys: Any, scales: Any, lower: Any, upper: Any,
+                                    master_resolution: int, input_resolution: int,
+                                    temperature: float, lower_band: int, target_frequency: float,
+                                    beta: float, learning_rate: float, steps: int) -> list[dict[str, Any]]:
+    """Optimize a frozen composite correction inside its local trust region.
+
+    The parameter center is relative to the original source. The inscribed
+    box keeps every optimizer evaluation within the fitted Euclidean radius.
+    Candidate screening and physical acceptance are separate responsibilities.
+    """
+    import torch
+
+    objective, base, scale, center, lo, hi = _corrected_search_setup(source, predictor, correction,
+        coefficient_keys=coefficient_keys, scales=scales, lower=lower, upper=upper,
+        master_resolution=master_resolution, input_resolution=input_resolution, temperature=temperature,
+        lower_band=lower_band, target_frequency=target_frequency, beta=beta)
 
     history = optimize_adam(objective, center, lower=lo, upper=hi,
                             learning_rate=learning_rate, steps=steps)
+    for row in history:
+        z = torch.as_tensor(row['parameters'], dtype=base.dtype, device=base.device)
+        row['fourier_parameters'] = (base + scale*z).detach().cpu().tolist()
+    return history
+
+
+def optimize_corrected_fourier_black_box(source: Any, predictor: Any, correction: Any, *,
+                                         coefficient_keys: Any, scales: Any, lower: Any, upper: Any,
+                                         master_resolution: int, input_resolution: int,
+                                         temperature: float, lower_band: int, target_frequency: float,
+                                         beta: float, evaluations: int, seed: int, method: str) -> list[dict[str, Any]]:
+    """Search the same locally corrected objective without using its gradients."""
+    import torch
+
+    objective, base, scale, center, lo, hi = _corrected_search_setup(source, predictor, correction,
+        coefficient_keys=coefficient_keys, scales=scales, lower=lower, upper=upper,
+        master_resolution=master_resolution, input_resolution=input_resolution, temperature=temperature,
+        lower_band=lower_band, target_frequency=target_frequency, beta=beta)
+
+    history = optimize_black_box(objective, center, lower=lo.cpu().numpy(), upper=hi.cpu().numpy(),
+                                 evaluations=evaluations, seed=seed, method=method)
     for row in history:
         z = torch.as_tensor(row['parameters'], dtype=base.dtype, device=base.device)
         row['fourier_parameters'] = (base + scale*z).detach().cpu().tolist()
