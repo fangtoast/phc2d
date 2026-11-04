@@ -109,6 +109,17 @@ def lock_robust_campaign(manifest: Mapping[str, Any], results: Mapping[str, Mapp
             if selection['status'] != 'no_valid_candidates' or selection['selected_index'] is not None:
                 raise ValueError('invalid empty robust selection')
             top = None
+        def include_scenarios(candidate: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
+            if candidate is None or spec['mode'] != 'nominal' or candidate['status'] != 'surrogate_only':
+                return candidate
+            diagnostic = item['robust_diagnostic']['candidates'][candidate['index']]
+            if diagnostic['master_grid_sha256'] != candidate['master_grid_sha256']:
+                raise ValueError('nominal scenario diagnostic geometry differs')
+            if diagnostic['status'] == 'duplicate_geometry':
+                diagnostic = item['robust_diagnostic']['candidates'][diagnostic['duplicate_of']]
+            return {**candidate, 'robust_prediction': diagnostic.get('robust_prediction'),
+                    'scenario_prediction_status': diagnostic['status']}
+        center, top = include_scenarios(center), include_scenarios(top)
         records.append({'trial_id': spec['trial_id'], 'label': f"{spec['trial_id']}/initial",
                         'role': 'initial', 'candidate': center})
         records.append({**prefix, 'candidate': top, 'status': 'selected' if top else 'no_valid_candidate'})
