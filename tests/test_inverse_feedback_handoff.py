@@ -280,7 +280,7 @@ def test_robust_handoff_recomputes_offset_grids_and_common_gap(tmp_path):
         'manifest_sha256': item['manifest_sha256'], 'protocol': encoded(item['protocol_bytes']),
         'protocol_sha256': item['protocol_sha256'],
         'result': None if item['result_bytes'] is None else encoded(item['result_bytes']),
-        'failure_reason': item['failure_reason']} for name, item in records.items()}
+        'failure_reason': item['failure_reason']} for name, item in shared_records.items()}
     corrupted_payload = dict(worker_payload)
     corrupted_payload['success'] = {**worker_payload['success'], 'result': 'not-base64!'}
     with pytest.raises(ValueError, match='invalid batch event'):
