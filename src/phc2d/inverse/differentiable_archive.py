@@ -58,7 +58,26 @@ def archive_design(*, config_raw: bytes, lock_raw: bytes, shard_raw: Mapping[str
     result = {'status': 'design_locked', 'physical_validation': 'not_run',
               'roles': [{'label': row['label'], 'status': row['candidate']['status'] if row['candidate']
                          else row['status'], 'duplicate_of': row.get('duplicate_of')} for row in lock['records']]}
+    counts = {}
+    for role in roles:
+        shard = shards[role]
+        hard = sum(row['status'] in ('surrogate_only', 'band_order_violation',
+                                     'negative_frequency', 'nonfinite_prediction')
+                   for row in shard['selection']['candidates'])
+        if role == 'directions':
+            gradient = shard['diagnostics']['gradient']
+            finite_difference = 2 * len(gradient) * len(shard['diagnostics']['finite_differences'])
+            with_grad, backward, without_grad = 1, 1, finite_difference + hard
+        elif role == 'adam':
+            with_grad = backward = len(shard['history'])
+            without_grad = hard
+        else:
+            with_grad = backward = 0
+            without_grad = len(shard['history']) + hard
+        counts[role] = {'forward_with_grad': with_grad, 'forward_without_grad': without_grad,
+                        'backward': backward, 'hard_inference': hard}
     metrics = {'design_elapsed_s_by_shard': {role: shards[role]['elapsed_s'] for role in roles},
+               'inference_counts_derived_from_completed_shards': counts,
                'physical_evaluations': 0, 'scope': 'surrogate_only'}
     for name, value in (('results.json', result), ('metrics.json', metrics)):
         (output/name).write_text(json.dumps(value, indent=2, allow_nan=False), encoding='utf8')

@@ -30,7 +30,8 @@ def test_archive_requires_exact_shards_and_keeps_design_scope(tmp_path):
                     **({'label': labels[i]} if role == 'directions' else {})} for i in range(count)]
         parsed[role] = dict(identity, role=role, cluster_id='paracloud_n40' if role in ('directions', 'adam') else 'paracloud_n56', elapsed_s=1.0, history=history,
                             selection={'selected_index': count-1, 'candidates': [candidate(i) for i in range(count)]})
-    parsed['directions']['diagnostics'] = {'fd_passed': True}
+    parsed['directions']['diagnostics'] = {'fd_passed': True, 'gradient': [0.1],
+                                            'finite_differences': [{'step': 0.01}]}
     shards = {role: json.dumps(parsed[role]).encode() for role in roles}
     data = combine_shards(parsed)
     data['shard_sha256'] = {role: hashlib.sha256(raw).hexdigest() for role, raw in shards.items()}
@@ -38,6 +39,9 @@ def test_archive_requires_exact_shards_and_keeps_design_scope(tmp_path):
     archive_design(config_raw=config, lock_raw=lock, shard_raw=shards, output=tmp_path/'run')
     result = json.loads((tmp_path/'run/results.json').read_text())
     assert result['status'] == 'design_locked' and result['physical_validation'] == 'not_run'
+    metrics = json.loads((tmp_path/'run/metrics.json').read_text())
+    assert metrics['inference_counts_derived_from_completed_shards']['adam']['backward'] == 20
+    assert metrics['inference_counts_derived_from_completed_shards']['directions']['forward_without_grad'] == 11
     assert (tmp_path/'run/shards/adam.json').read_bytes() == shards['adam']
     with pytest.raises(ValueError, match='hash mismatch'):
         archive_design(config_raw=config, lock_raw=lock, shard_raw={**shards, 'de': b'bad'}, output=tmp_path/'bad')
