@@ -17,7 +17,7 @@ import yaml
 
 from phc2d.inverse.paired_search_contract import build_paired_search_requests
 from phc2d.inverse.paired_search_execution import (execute_paired_search_request, inspect_nominal_static_request,
-                                                   audit_nominal_static_request, execute_budgeted_nominal_static_request)
+    audit_nominal_static_request, execute_budgeted_nominal_static_request, lock_budgeted_nominal_static_candidates)
 from phc2d.inverse.paired_search_materialization import materialize_paired_search_requests
 from phc2d.inverse.surrogate_design import audit_surrogate_design
 from phc2d.models import build_model
@@ -119,7 +119,8 @@ def test_budgeted_nominal_request_executes_both_synthetic_trajectories(tmp_path,
         'model_seed': 1, 'checkpoint_sha256': ck_sha,
         'physics': {'master_raster_resolution': 32, 'model_input_resolution': 8, 'offset_a': 0.},
         'search': {'coefficient_keys': [[0, 'cos']], 'scales': [.2, .1], 'initial_radius': .5,
-                   'population_size': 5, 'surrogate_evaluations_per_round': 5, 'seeds_by_round': [11, 12]}}
+                   'population_size': 5, 'surrogate_evaluations_per_round': 5, 'seeds_by_round': [11, 12],
+                   'candidate_physical_attempts_per_method': 2}}
     pilot_raw, prior_raw = yaml.safe_dump(pilot).encode(), yaml.safe_dump(prior).encode()
     source = generate_unified_fourier_binary('pilot', master_seed=20, material_fraction_bin=1,
                                              config={'fourier_cutoff': 2, 'audit_resolution': 16})
@@ -151,6 +152,20 @@ def test_budgeted_nominal_request_executes_both_synthetic_trajectories(tmp_path,
         assert row['inferences'] <= 5
         assert audit_prediction_archive_against_calls(tmp_path/'output'/f"inference_{row['seed']}",
             tmp_path/'output'/f"predictions_{row['seed']}.npz", row)['unique_inferences'] == row['inferences']
+    selection_args = {key: args[key] for key in ('manifest_sha256', 'source_index', 'pilot_config_bytes',
+                      'prior_config_bytes', 'expected_source_sha256', 'checkpoint_path', 'output_root')}
+    selection = lock_budgeted_nominal_static_candidates(root, **selection_args, selection_path=tmp_path/'selection.json')
+    assert selection['scope'] == 'one_source_static_selection_not_execution_lock'
+    assert [row['seed'] for row in selection['evidence']] == [11, 12]
+    with pytest.raises(FileExistsError):
+        lock_budgeted_nominal_static_candidates(root, **selection_args, selection_path=tmp_path/'selection.json')
+    cost_path = tmp_path/'output'/'cost_11.json'
+    cost = json.loads(cost_path.read_bytes())
+    cost['inferences'] += 1
+    cost_path.write_text(json.dumps(cost), encoding='utf8')
+    with pytest.raises(ValueError, match='cost record and inference evidence'):
+        lock_budgeted_nominal_static_candidates(root, **selection_args, selection_path=tmp_path/'bad_selection.json')
+    assert not (tmp_path/'bad_selection.json').exists()
     with pytest.raises(FileExistsError):
         execute_budgeted_nominal_static_request(root, **args)
 

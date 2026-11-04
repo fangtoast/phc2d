@@ -163,6 +163,70 @@ def execute_budgeted_nominal_static_request(request_root: Path, *, manifest_sha2
             'trajectories': result['trajectories']}
 
 
+def lock_budgeted_nominal_static_candidates(request_root: Path, *, manifest_sha256: str, source_index: int,
+                                             pilot_config_bytes: bytes, prior_config_bytes: bytes,
+                                             expected_source_sha256: str, checkpoint_path: str,
+                                             output_root: Path, selection_path: Path) -> dict[str, Any]:
+    """Audit both saved trajectories, then write one source's static selection.
+
+    Scheduler identity, independent request audit, chronology and all other
+    sources remain caller-owned. This is not a campaign-wide execution lock.
+    """
+    from phc2d.data.full_cell_spec import FullCellStructureSpec
+    from phc2d.inverse.frozen_band_adapter import audit_prediction_archive_against_calls
+    from phc2d.inverse.surrogate_design import audit_nominal_prediction_archive, audit_surrogate_design
+    from phc2d.inverse.trace_selection import lock_static_nominal_candidates
+    import yaml
+
+    request_root, output_root, selection_path = Path(request_root), Path(output_root), Path(selection_path)
+    request = audit_nominal_static_request(request_root, manifest_sha256=manifest_sha256, source_index=source_index,
+        pilot_config_bytes=pilot_config_bytes, prior_config_bytes=prior_config_bytes,
+        expected_source_sha256=expected_source_sha256, expected_checkpoint_path=checkpoint_path)
+    config_raw = (request_root/f'configs/source_{source_index:04d}.json').read_bytes()
+    source_raw = (request_root/f'sources/source_{source_index:04d}.json').read_bytes()
+    if (hashlib.sha256(config_raw).hexdigest() != request['config_sha256']
+            or hashlib.sha256(source_raw).hexdigest() != expected_source_sha256):
+        raise ValueError('request changed after audit')
+    config = json.loads(config_raw)
+    source = FullCellStructureSpec.from_mapping(json.loads(source_raw))
+    traces, evidence = [], []
+    for seed in config['seeds']:
+        seed_path = output_root/f'config_{seed}.json'
+        seed_raw = seed_path.read_bytes()
+        expected_config = {**config, 'seeds': [seed]}
+        if json.loads(seed_raw) != expected_config:
+            raise ValueError('trajectory config differs from frozen request')
+        run = output_root/f'trajectory_{seed}'
+        summary = json.loads((run/'summary.json').read_bytes())
+        if (summary['provenance'].get('parent_config_sha256') != hashlib.sha256(config_raw).hexdigest()
+                or summary['provenance'].get('request_manifest_sha256') != manifest_sha256):
+            raise ValueError('trajectory parent configuration differs')
+        audit_surrogate_design(run, config_bytes=seed_raw, source_bytes=source_raw,
+                               checkpoint_sha256=config['checkpoint_sha256'])
+        trace_raw = (run/f'seed_{seed}'/'search.json').read_bytes()
+        trace = json.loads(trace_raw)
+        cost_raw = (output_root/f'cost_{seed}.json').read_bytes()
+        cost = json.loads(cost_raw)
+        if cost.get('seed') != seed or cost.get('max_inferences') != config['search_options']['evaluation_budget']:
+            raise ValueError('trajectory cost identity mismatch')
+        archive = output_root/f'predictions_{seed}.npz'
+        audit_prediction_archive_against_calls(output_root/f'inference_{seed}', archive, cost)
+        audit_nominal_prediction_archive(trace=trace, options=config['search_options'], cost=cost, archive_path=archive)
+        traces.append(trace['evaluations'])
+        evidence.append({'seed': seed, 'trace_sha256': hashlib.sha256(trace_raw).hexdigest(),
+            'cost_sha256': hashlib.sha256(cost_raw).hexdigest(),
+            'archive_sha256': hashlib.sha256(archive.read_bytes()).hexdigest()})
+    selected = lock_static_nominal_candidates(source, traces, raster_resolution=config['search_options']['source_resolution'],
+        candidates=yaml.safe_load(pilot_config_bytes)['search']['candidate_physical_attempts_per_method'],
+        evaluations_per_trace=config['search_options']['evaluation_budget'])
+    result = {'scope': 'one_source_static_selection_not_execution_lock', 'source_index': source_index,
+              'request_manifest_sha256': manifest_sha256, 'source_sha256': expected_source_sha256,
+              'request_config_sha256': request['config_sha256'], 'evidence': evidence, 'selection': selected}
+    with selection_path.open('xb') as stream:
+        stream.write(json.dumps(result, sort_keys=True, separators=(',', ':'), allow_nan=False).encode('utf8'))
+    return result
+
+
 def execute_paired_search_request(
     request_root: Path, *, manifest_sha256: str, request_index: int,
     output_root: Path, device: str,
