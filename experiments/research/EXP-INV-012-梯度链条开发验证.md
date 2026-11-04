@@ -67,6 +67,8 @@ WSL Ubuntu/meep_env 预选原点、原点半径 0.10 的正梯度/负梯度/正�
 
 [原点子批资源提案](../../configs/research/exp_inv_012_resources_v1.json)为四个 GPU 分片各一张卡、最多 30 分钟；M9 物理复核最多四个三案例分片，各 5 CPU、12 GiB、2 小时，合计上限 40 核时。M9 参数参考 EXP-INV-010 同分辨率、三扰动计算的历史账单；本批仅有名义场景，实际案例数以锁定后的去重清单为准。`python -m phc2d.inverse.differentiable_resources --manifest MANIFEST_JSON --resources RESOURCES_JSON --output RESOURCE_PLAN_JSON` 可生成准确分片范围和预留核时，不提交作业。WSL 六个角色的复核成本单列；资源提案在两端预检和求解环境核对后冻结。
 
+物理请求及资源计划齐备后，`jobs/bingxing_submit_inverse_012.sh` 按清单和资源哈希校验再提交 M9 数组；`PHC2D_SUBMIT_DRY_RUN=1` 只检查并输出分配，不创建回执或作业。提交器记录独立的物理求解代码 commit；设计代码身份由选择锁和请求中的锁哈希保留。
+
 ## gate 与交付
 
 | gate | 证据 |
