@@ -57,3 +57,7 @@ def test_robust_margin_uses_shared_target_across_scenarios():
         learning_rate=0.05, steps=2, **args)
     assert len(history) == 3
     assert all(len(row['fourier_parameters']) == 2 for row in history)
+    paired = optimize_robust_fourier_adam(source, Predictor(), scales=[0.2, 0.1],
+        lower=[-0.5, -0.5], upper=[0.5, 0.5], offsets=[-1/64, 0., 1/64],
+        learning_rate=0.05, steps=0, initial=[.15, 0.], **args)
+    assert paired[0]['parameters'] == pytest.approx([.15, 0.])

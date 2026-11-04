@@ -355,7 +355,7 @@ def optimize_robust_fourier_adam(source: Any, predictor: Any, *, coefficient_key
                                  scales: Any, lower: Any, upper: Any, master_resolution: int,
                                  input_resolution: int, temperature: float, offsets: Any,
                                  lower_band: int, target_frequency: float, beta: float,
-                                 learning_rate: float, steps: int) -> list[dict[str, Any]]:
+                                 learning_rate: float, steps: int, initial: Any = None) -> list[dict[str, Any]]:
     """Optimize the shared target margin across differentiable periodic offsets."""
     import torch
 
@@ -373,7 +373,8 @@ def optimize_robust_fourier_adam(source: Any, predictor: Any, *, coefficient_key
             temperature=temperature, offsets=offsets, lower_band=lower_band,
             target_frequency=target_frequency, beta=beta)
 
-    history = optimize_adam(objective, torch.zeros_like(base), lower=lower, upper=upper,
+    start = torch.zeros_like(base) if initial is None else torch.as_tensor(initial, dtype=base.dtype, device=base.device)
+    history = optimize_adam(objective, start, lower=lower, upper=upper,
                             learning_rate=learning_rate, steps=steps)
     for row in history:
         z = torch.as_tensor(row['parameters'], dtype=base.dtype, device=base.device)
