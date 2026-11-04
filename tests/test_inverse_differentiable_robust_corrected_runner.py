@@ -38,3 +38,12 @@ def test_corrected_trials_use_same_stencil_and_mode_specific_scenarios(tmp_path,
     assert len(calls[1][0]) == 15 and calls[1][1]['scenario_reduction'] == 'mean'
     assert len(calls[2][0]) == 15 and calls[2][1]['scenario_reduction'] == 'worst'
     assert len(runner.run_corrected_robust_trials(**kwargs, mode='nominal')) == 1 and len(calls) == 3
+    def fail(*args, **kwargs):
+        raise RuntimeError('model failure')
+    monkeypatch.setattr(runner, 'propose_corrected_robust_design', fail)
+    failed = {**kwargs, 'output': tmp_path/'failed'}
+    with pytest.raises(RuntimeError, match='model failure'):
+        runner.run_corrected_robust_trials(**failed, mode='nominal')
+    assert (tmp_path/'failed/trial_nominal_corrected.failure.json').exists()
+    with pytest.raises(FileExistsError, match='reconciled'):
+        runner.run_corrected_robust_trials(**failed, mode='nominal')

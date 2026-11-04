@@ -42,8 +42,11 @@ def run_corrected_robust_trials(manifest: Mapping[str, Any], feedback: Mapping[s
     for spec in specs:
         trial_id = spec['trial_id'] + '_corrected'
         path = output / f'{trial_id}.json'
+        failure = output / f'{trial_id}.failure.json'
         identity = {'trial_id': trial_id, 'manifest_sha256': manifest_sha256, 'feedback_sha256': feedback_sha256,
                     'code_commit': code_commit, 'cluster_id': cluster_id}
+        if failure.exists():
+            raise FileExistsError(f'prior corrected robust failure must be reconciled: {trial_id}')
         if path.exists():
             old = json.loads(path.read_bytes())
             if any(old.get(key) != value for key, value in identity.items()):
@@ -69,13 +72,18 @@ def run_corrected_robust_trials(manifest: Mapping[str, Any], feedback: Mapping[s
                     radius=radius, ridge=ridge, surrogate_contract_sha256=feedback['surrogate_contract_sha256'],
                     scenario_reduction='mean' if mode == 'mean' else 'worst')
                 started = time.monotonic()
-                result = propose_corrected_robust_design(source, predictor, selected_bank, config=cfg)
-                keys = tuple((int(i), str(component)) for i, component in cfg['coefficient_keys'])
-                diagnostic = rank_robust_trajectory(source, predictor, result['history'], offsets=manifest['offsets'],
-                    coefficient_keys=keys, max_mode_radius=cfg['max_mode_radius'], raster_method='master_block_mean_v1',
-                    source_resolution=cfg['source_resolution'], input_resolution=cfg['input_resolution'],
-                    material_fraction_bounds=tuple(cfg['material_fraction_bounds']), lower_band=cfg['lower_band'],
-                    target_frequency=cfg['target_frequency'])
+                try:
+                    result = propose_corrected_robust_design(source, predictor, selected_bank, config=cfg)
+                    keys = tuple((int(i), str(component)) for i, component in cfg['coefficient_keys'])
+                    diagnostic = rank_robust_trajectory(source, predictor, result['history'], offsets=manifest['offsets'],
+                        coefficient_keys=keys, max_mode_radius=cfg['max_mode_radius'], raster_method='master_block_mean_v1',
+                        source_resolution=cfg['source_resolution'], input_resolution=cfg['input_resolution'],
+                        material_fraction_bounds=tuple(cfg['material_fraction_bounds']), lower_band=cfg['lower_band'],
+                        target_frequency=cfg['target_frequency'])
+                except Exception as exc:
+                    with failure.open('x', encoding='utf8') as stream:
+                        json.dump({**identity, 'error_type': type(exc).__name__, 'message': str(exc)}, stream)
+                    raise
                 payload = {**result, **identity, 'status': 'completed' if result['status'] == 'proposal_ready' else result['status'],
                     'mode': mode, 'source_id': source_id, 'source_parameter_hash': source.parameter_hash,
                     'initial_index': spec['initial_index'], 'source_sha256': cfg['source_sha256'],
