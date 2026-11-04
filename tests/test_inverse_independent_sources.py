@@ -34,6 +34,12 @@ def test_heldout_selection_preserves_split_and_development_exclusions(tmp_path):
     exclusions = collect_inverse_exclusions([{'name': 'prior', 'bytes': evidence,
                                               'sha256': hashlib.sha256(evidence).hexdigest()}])
     assert excluded.parameter_hash in exclusions['parameter_hashes']
+    separate = json.dumps({'parameters': [{'parameter_hash': 'parameter-only'}],
+                           'grids': [{'master_grid_sha256': 'grid-only'}]}).encode()
+    separate_exclusions = collect_inverse_exclusions([{'name': 'separate', 'bytes': separate,
+                                                       'sha256': hashlib.sha256(separate).hexdigest()}])
+    assert separate_exclusions['parameter_hashes'] == ['parameter-only']
+    assert separate_exclusions['master_grid_sha256'] == ['grid-only']
     kwargs = dict(dataset_sha256=dataset_sha, method_lock_sha256='method', seed=7, count=2,
         source_id_offset=100000, master_resolution=64, excluded_parameter_hashes=[excluded.parameter_hash],
         excluded_grid_hashes=[hashlib.sha256(grid.tobytes()).hexdigest()], epsilon_air=excluded.epsilon_air,

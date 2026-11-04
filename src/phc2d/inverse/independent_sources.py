@@ -114,8 +114,9 @@ def collect_inverse_exclusions(inputs: Sequence[Mapping[str, Any]]) -> dict[str,
     def visit(value: Any) -> None:
         if isinstance(value, Mapping):
             parameter, grid = value.get('parameter_hash'), value.get('master_grid_sha256')
-            if isinstance(parameter, str) and parameter and isinstance(grid, str) and grid:
+            if isinstance(parameter, str) and parameter:
                 parameters.add(parameter)
+            if isinstance(grid, str) and grid:
                 grids.add(grid)
             for nested in value.values():
                 visit(nested)
