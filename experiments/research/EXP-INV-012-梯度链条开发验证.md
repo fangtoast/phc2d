@@ -63,7 +63,9 @@ N40 和 N56 各用 `jobs/paracloud_inverse_differentiable_mvp.sh` 的 `preflight
 
 WSL Ubuntu/meep_env 预选原点、原点半径 0.10 的正梯度/负梯度/正随机、Adam 终点和 DE 终点六个角色，拟按 $10^{-6}$ 全谱绝对差复核；重复只报覆盖，不按成绩换角色。跨环境一致不等于 k 或空间分辨率已收敛。旧零偏移谱只有在结构和完整配置/谱身份核对后才可作评价参考，不能输入设计器。
 
-48 为候选组上限，不是 solver 调用数。CPU 核时、GPU 卡时、WSL 复核核时、内存、并发、墙钟、失败/重试权限按同合同实测在准入前冻结；不继承前版额度。本次仅改文档，不提交计算。设计、在线物理（主方法为零）、最终复核成本分列，forward/backward、重启、FD、硬重预测、加密与重复任务全部记账；达到上限记 partial，不自动扩容。
+48 为候选组上限，不是 solver 调用数。CPU 核时、GPU 卡时、WSL 复核核时、内存、并发、墙钟、失败/重试权限按同合同实测在准入前冻结；不继承前版额度。设计、在线物理（主方法为零）、最终复核成本分列，forward/backward、重启、FD、硬重预测、加密与重复任务全部记账；达到上限记 partial，不自动扩容。
+
+[原点子批资源提案](../../configs/research/exp_inv_012_resources_v1.json)为四个 GPU 分片各一张卡、最多 30 分钟；M9 物理复核最多四个三案例分片，各 5 CPU、12 GiB、2 小时，合计上限 40 核时。M9 参数参考 EXP-INV-010 同分辨率、三扰动计算的历史账单；本批仅有名义场景，实际案例数以锁定后的去重清单为准。`python -m phc2d.inverse.differentiable_resources --manifest MANIFEST_JSON --resources RESOURCES_JSON --output RESOURCE_PLAN_JSON` 可生成准确分片范围和预留核时，不提交作业。WSL 六个角色的复核成本单列；资源提案在两端预检和求解环境核对后冻结。
 
 ## gate 与交付
 

@@ -1,0 +1,41 @@
+{
+  "experiment_id": "EXP-INV-012",
+  "batch": "origin_12_development",
+  "status": "proposed_for_pre_submit_review",
+  "gpu_design": {
+    "partition": "gpu_4090",
+    "gpus_per_job": 1,
+    "cpus_per_job": 6,
+    "memory": "partition_default",
+    "wall_seconds_per_job": 1800,
+    "roles_by_platform": {
+      "n40": ["directions", "adam"],
+      "n56": ["de", "random"]
+    },
+    "jobs": 4,
+    "max_allocated_gpu_hours": 2.0,
+    "automatic_retry": false
+  },
+  "physical_replay": {
+    "platform": "m9",
+    "max_candidate_roles": 12,
+    "cases_per_shard": 3,
+    "max_shards": 4,
+    "workers_per_shard": 3,
+    "cpus_per_shard": 5,
+    "memory_mib_per_shard": 12288,
+    "worker_memory_mib": 1024,
+    "setup_reserve_mib": 2048,
+    "wall_seconds_per_shard": 7200,
+    "max_allocated_core_hours": 40.0,
+    "automatic_retry": false,
+    "historical_resource_reference": "runs/20261102/EXP-INV-010_202611020411/source_generation_authorized/physical_complete/audit.json",
+    "historical_scope": "84 three-offset cases on M9, 48.623611 allocated core-hours; not this batch's cost"
+  },
+  "wsl_crosscheck": {
+    "environment": "Ubuntu/meep_env",
+    "roles": ["center", "gradient_0.1", "negative_gradient_0.1", "random_0.1", "adam_top1", "de_top1"],
+    "max_absolute_spectrum_difference": 0.000001,
+    "cost_accounted_separately": true
+  }
+}
