@@ -25,3 +25,8 @@ def test_scenario_replay_uses_only_preregistered_endpoint_roles():
     with pytest.raises(ValueError, match='selected endpoints'):
         build_registered_scenario_replay(lock, manifest, base, registration,
             lock_sha256='lock', manifest_sha256='manifest', base_sha256='base', registration_sha256='registered')
+    lock['records'][0]['label'], lock['records'][0]['role'] = 'a/final', 'final'
+    registration['roles'] = ['a/final']
+    _, selection = build_registered_scenario_replay(lock, manifest, base, registration,
+        lock_sha256='lock', manifest_sha256='manifest', base_sha256='base', registration_sha256='registered')
+    assert selection['records'][0]['label'] == 'a/final'
