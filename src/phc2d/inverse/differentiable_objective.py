@@ -42,10 +42,42 @@ def smooth_target_margin(bands: Any, *, lower_band: int, target_frequency: float
             or isinstance(lower_band, bool) or not isinstance(lower_band, int)
             or not 1 <= lower_band < bands.shape[2]):
         raise ValueError('expected batch, k and adjacent band dimensions')
+    edges = smooth_band_edges(bands, lower_band=lower_band, beta=beta)
+    margins = torch.stack((target_frequency - edges[:, 0], edges[:, 1] - target_frequency), dim=1)
+    return -2 * torch.logsumexp(-beta * margins, dim=1) / (beta * target_frequency)
+
+
+def smooth_band_edges(bands: Any, *, lower_band: int, beta: float) -> Any:
+    """Return differentiable upper/lower extrema of an adjacent band pair."""
+    import torch
+
+    if (bands.ndim != 3 or bands.shape[0] == 0 or bands.shape[1] == 0
+            or isinstance(lower_band, bool) or not isinstance(lower_band, int)
+            or not 1 <= lower_band < bands.shape[2] or not math.isfinite(beta) or beta <= 0):
+        raise ValueError('invalid bands, band pair, or smoothing parameter')
     lower = torch.logsumexp(beta * bands[:, :, lower_band - 1], dim=1) / beta
     upper = -torch.logsumexp(-beta * bands[:, :, lower_band], dim=1) / beta
-    margins = torch.stack((target_frequency - lower, upper - target_frequency), dim=1)
-    return -2 * torch.logsumexp(-beta * margins, dim=1) / (beta * target_frequency)
+    return torch.stack((lower, upper), dim=1)
+
+
+def corrected_fourier_margin(source: Any, predictor: Any, parameters: Any, normalized_point: Any,
+                             correction: Any, *, coefficient_keys: Any, master_resolution: int,
+                             input_resolution: int, temperature: float, lower_band: int,
+                             target_frequency: float, beta: float) -> Any:
+    """Use a frozen local composite-residual correction inside the soft objective."""
+    import torch
+    from phc2d.data.differentiable_fourier import fourier_material_weight
+
+    if not math.isfinite(target_frequency) or target_frequency <= 0:
+        raise ValueError('target frequency must be positive and finite')
+    raster = fourier_material_weight(source, parameters, coefficient_keys=coefficient_keys,
+                                     master_resolution=master_resolution,
+                                     output_resolution=input_resolution, temperature=temperature)
+    edges = smooth_band_edges(predictor.predict_tensor(raster.unsqueeze(0)),
+                              lower_band=lower_band, beta=beta)[0]
+    corrected = correction.correct_tensor(normalized_point, edges)
+    margins = torch.stack((target_frequency - corrected[0], corrected[1] - target_frequency))
+    return -2 * torch.logsumexp(-beta * margins, dim=0) / (beta * target_frequency)
 
 
 def optimize_adam(objective: Any, initial: Any, *, lower: Any, upper: Any,
