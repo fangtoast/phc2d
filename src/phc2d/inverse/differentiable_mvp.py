@@ -99,24 +99,15 @@ def run_shard(config: dict[str, Any], source: FullCellStructureSpec, predictor: 
             'elapsed_s': time.monotonic() - start, 'scope': 'surrogate_only'}
 
 
-def main() -> None:
+def load_design_inputs(config: dict[str, Any], source_path: str, checkpoint_path: str,
+                       *, device: str) -> tuple[Any, Any, dict[str, Any]]:
+    """Load and verify the frozen surrogate and a source under the design contract."""
     import torch
-
-    parser = argparse.ArgumentParser(description=__doc__)
-    for name in ('config', 'source', 'checkpoint', 'role', 'output'):
-        parser.add_argument('--' + name, required=True)
-    parser.add_argument('--device', default='cpu')
-    args = parser.parse_args()
-    path = Path(args.output)
-    if path.exists() or path.with_suffix(path.suffix + '.failure.json').exists():
-        raise FileExistsError('output or prior failure exists; reconcile before retry')
-    raw = Path(args.config).read_bytes()
-    config = json.loads(raw)
-    runtime_info = configure_design_runtime(config['runtime'], device=args.device)
-    source_mapping, _ = read_checked_json(args.source, config['source_sha256'])
+    runtime_info = configure_design_runtime(config['runtime'], device=device)
+    source_mapping, _ = read_checked_json(source_path, config['source_sha256'])
     source = FullCellStructureSpec.from_mapping(source_mapping)
-    predictor = FrozenBandAdapter(args.checkpoint, sha256=config['checkpoint_sha256'], device=args.device)
-    payload = torch.load(args.checkpoint, map_location='cpu', weights_only=True)
+    predictor = FrozenBandAdapter(checkpoint_path, sha256=config['checkpoint_sha256'], device=device)
+    payload = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
     if (predictor.model_name != 'global_local_band_operator_v1'
             or predictor.k_points_sha256 != config['k_points_sha256']
             or predictor.input_shape != (config['input_resolution'],)*2
@@ -130,6 +121,23 @@ def main() -> None:
             or source.epsilon_air != config['solver_config']['epsilon_air']
             or source.epsilon_material != config['solver_config']['epsilon_material']):
         raise ValueError('checkpoint identity or input contract mismatch')
+    return source, predictor, runtime_info
+
+
+def main() -> None:
+    import torch
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ('config', 'source', 'checkpoint', 'role', 'output'):
+        parser.add_argument('--' + name, required=True)
+    parser.add_argument('--device', default='cpu')
+    args = parser.parse_args()
+    path = Path(args.output)
+    if path.exists() or path.with_suffix(path.suffix + '.failure.json').exists():
+        raise FileExistsError('output or prior failure exists; reconcile before retry')
+    raw = Path(args.config).read_bytes()
+    config = json.loads(raw)
+    source, predictor, runtime_info = load_design_inputs(config, args.source, args.checkpoint, device=args.device)
     result = None
     try:
         if args.role == 'preflight':
