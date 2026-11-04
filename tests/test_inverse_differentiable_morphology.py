@@ -11,6 +11,7 @@ torch = pytest.importorskip('torch')
 from phc2d.inverse.differentiable_morphology import periodic_soft_offset
 from phc2d.inverse.morphology import periodic_binary_offset
 from phc2d.inverse.differentiable_objective import fourier_surrogate_margin, robust_fourier_margin, optimize_robust_fourier_adam
+from phc2d.inverse.differentiable_selection import rank_robust_trajectory
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 
 
@@ -61,3 +62,12 @@ def test_robust_margin_uses_shared_target_across_scenarios():
         lower=[-0.5, -0.5], upper=[0.5, 0.5], offsets=[-1/64, 0., 1/64],
         learning_rate=0.05, steps=0, initial=[.15, 0.], **args)
     assert paired[0]['parameters'] == pytest.approx([.15, 0.])
+    ranked = rank_robust_trajectory(source, Predictor(), history, offsets=[-1/64, 0., 1/64],
+        coefficient_keys=[(0, 'cos')], max_mode_radius=1, raster_method='master_block_mean_v1',
+        source_resolution=64, input_resolution=16, material_fraction_bounds=(0., 1.),
+        lower_band=1, target_frequency=.5)
+    assert ranked['status'] == 'selected'
+    candidate = ranked['candidates'][ranked['selected_index']]
+    assert len(candidate['robust_prediction']['grid_sha256']) == 3
+    assert len(candidate['robust_prediction']['bands']) == 3
+    assert candidate['robust_prediction']['gap']['target_margin'] <= candidate['predicted_gap']['target_margin'] + 1e-8

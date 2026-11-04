@@ -77,3 +77,40 @@ def rank_hard_trajectory(source: Any, predictor: Any, history: Sequence[dict[str
         rows.append(row)
     return {'status': 'selected' if best else 'no_valid_candidates',
             'selected_index': None if best is None else best[1], 'candidates': rows}
+
+
+def rank_robust_trajectory(source: Any, predictor: Any, history: Sequence[dict[str, Any]], *,
+                           offsets: Sequence[float], **settings: Any) -> dict[str, Any]:
+    """Select by the exact sampled common target margin of hard scenarios."""
+    from phc2d.data.full_cell_spec import FullCellStructureSpec
+    from phc2d.inverse.perturbation_screen import periodic_perturbation_grids, predict_perturbed_gap
+
+    values = tuple(float(value) for value in offsets)
+    if not values or 0.0 not in values or len(values) != len(set(values)) or not np.isfinite(values).all():
+        raise ValueError('finite unique offsets including nominal zero required')
+    result = rank_hard_trajectory(source, predictor, history, **settings)
+    best = None
+    for row in result['candidates']:
+        if row['status'] != 'surrogate_only':
+            continue
+        structure = FullCellStructureSpec.from_mapping(row['structure'])
+        grids = periodic_perturbation_grids(structure, resolution=settings['source_resolution'], offsets=values)
+        prediction = predict_perturbed_gap(grids, predictor, input_resolution=settings['input_resolution'],
+            lower_band=settings['lower_band'], target_frequency=settings['target_frequency'])
+        row['robust_prediction'] = prediction
+        if prediction['status'] != 'surrogate_only':
+            row['status'] = prediction['status']
+            continue
+        score = float(prediction['gap']['target_margin'])
+        if best is None or score > best[0]:
+            best = (score, row['index'])
+    for row in result['candidates']:
+        if row['status'] == 'duplicate_geometry':
+            previous = result['candidates'][row['duplicate_of']]
+            if previous['status'] != 'surrogate_only':
+                row.update(status='duplicate_geometry_rejected', duplicate_of_status=previous['status'])
+    result.update(status='selected' if best is not None else 'no_valid_candidates',
+                  selected_index=None if best is None else best[1], offsets=list(values),
+                  score='hard_common_target_margin',
+                  accounting='nominal_screen_plus_one_batched_scenario_prediction_per_unique_eligible_grid')
+    return result
