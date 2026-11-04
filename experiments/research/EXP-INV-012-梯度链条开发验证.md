@@ -23,6 +23,8 @@ GPU 提交器设置 `PHC2D_SUBMIT_DRY_RUN=1` 可核对角色、平台与作业�
 
 四个分片返回后，`python -m phc2d.inverse.differentiable_lock --directions DIRECTIONS_JSON --adam ADAM_JSON --de DE_JSON --random RANDOM_JSON --output LOCK_JSON` 校验身份、中心谱、参数梯度和各自硬评分 Top-1，锁定 12 个角色。`python -m phc2d.inverse.differentiable_handoff --config CONFIG_JSON --lock LOCK_JSON --output-directory REQUEST_DIR` 生成现有 `audit_perturb_refine` 所需的 nominal 零偏移 MPB 请求。相同 512 硬栅格只求解一次并保留角色映射；相同 64 代理输入不代表相同硬几何。
 
+在物理结果揭示前，用 `python -m phc2d.inverse.differentiable_soft_audit --config CONFIG_JSON --lock LOCK_JSON --checkpoint CHECKPOINT --output SOFT_AUDIT_JSON` 保存已选硬几何对应的完整软输入代理谱、软硬精确裕量和谱差异。该诊断不改变锁定选择，计算成本单列。
+
 使用 `python -m phc2d.inverse.differentiable_archive --config CONFIG_JSON --lock LOCK_JSON --directions DIRECTIONS_JSON --adam ADAM_JSON --de DE_JSON --random RANDOM_JSON --output RUN_DIR` 将四个原始分片和锁按项目 run 合同归档；归档状态为 `design_locked`，物理验证状态另行更新。
 
 求解后用 `python -m phc2d.inverse.differentiable_compare --lock LOCK_JSON --manifest MANIFEST_JSON --protocol PROTOCOL_JSON --result CASE_JSON --output COMPARISON_JSON` 比较原始同 k 频谱与加密带边；多个 case 重复传入 `--result`，求解失败记录以 `--failure` 传入，缺失和失败角色分别保留。采样和分辨率结果保留在原始 solver 输出，不与同 k 频谱误差合并。
