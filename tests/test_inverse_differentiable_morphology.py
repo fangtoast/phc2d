@@ -10,9 +10,11 @@ import pytest
 torch = pytest.importorskip('torch')
 from phc2d.inverse.differentiable_morphology import periodic_soft_offset
 from phc2d.inverse.morphology import periodic_binary_offset
-from phc2d.inverse.differentiable_objective import fourier_surrogate_margin, robust_fourier_margin, optimize_robust_fourier_adam
+from phc2d.inverse.differentiable_objective import (fourier_surrogate_margin, robust_fourier_margin,
+    optimize_robust_fourier_adam, optimize_corrected_robust_adam)
 from phc2d.inverse.differentiable_selection import rank_robust_trajectory
 from phc2d.inverse.differentiable_robust import run_robust_shard
+from phc2d.inverse.local_edge_correction import LocalEdgeCorrection
 from phc2d.generators.full_cell_latent import generate_unified_fourier_binary
 
 
@@ -57,6 +59,17 @@ def test_robust_margin_uses_shared_target_across_scenarios():
     assert robust.item() <= average.item()
     gradient, = torch.autograd.grad(robust, params)
     assert torch.isfinite(gradient).all()
+    correction = LocalEdgeCorrection(np.array([0., 0.]), .2, np.zeros((3, 2)), 'physical', 'model', 3)
+    normalized = torch.tensor([0., 0.], dtype=torch.float64, requires_grad=True)
+    corrected = robust_fourier_margin(source, Predictor(), params, offsets=[-1/64, 0., 1/64],
+        normalized_point=normalized, scenario_corrections=[correction] * 3, **args)
+    assert corrected.item() == pytest.approx(robust.item())
+    assert torch.isfinite(torch.autograd.grad(corrected, normalized, retain_graph=True)[0]).all()
+    corrected_history = optimize_corrected_robust_adam(source, Predictor(), [correction] * 3,
+        scales=[.2, .1], lower=[-.5, -.5], upper=[.5, .5], offsets=[-1/64, 0., 1/64],
+        learning_rate=.05, steps=1, **args)
+    assert len(corrected_history) == 2
+    assert np.linalg.norm(corrected_history[-1]['parameters']) <= .2
     history = optimize_robust_fourier_adam(source, Predictor(), scales=[0.2, 0.1],
         lower=[-0.5, -0.5], upper=[0.5, 0.5], offsets=[-1/64, 0., 1/64],
         learning_rate=0.05, steps=2, **args)

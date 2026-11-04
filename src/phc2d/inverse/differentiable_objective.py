@@ -83,7 +83,8 @@ def corrected_fourier_margin(source: Any, predictor: Any, parameters: Any, norma
 def robust_fourier_margin(source: Any, predictor: Any, parameters: Any, *, coefficient_keys: Any,
                           master_resolution: int, input_resolution: int, temperature: float,
                           offsets: Any, lower_band: int, target_frequency: float, beta: float,
-                          scenario_reduction: str = 'worst') -> Any:
+                          scenario_reduction: str = 'worst', normalized_point: Any = None,
+                          scenario_corrections: Any = None) -> Any:
     """Smooth target margin across periodic manufacturing scenarios."""
     import torch
     from phc2d.data.differentiable_fourier import fourier_material_weight
@@ -106,6 +107,18 @@ def robust_fourier_margin(source: Any, predictor: Any, parameters: Any, *, coeff
         shifted = periodic_soft_offset(weight, offset=offset)
         scenarios.append(shifted.reshape(input_resolution, factor, input_resolution, factor).mean(dim=(1, 3)))
     edges = smooth_band_edges(predictor.predict_tensor(torch.stack(scenarios)), lower_band=lower_band, beta=beta)
+    if scenario_corrections is not None:
+        corrections = tuple(scenario_corrections)
+        if normalized_point is None or len(corrections) != len(values):
+            raise ValueError('one correction per scenario and a normalized point are required')
+        first = corrections[0]
+        if any(c.radius != first.radius or c.surrogate_contract_sha256 != first.surrogate_contract_sha256
+               or not torch.equal(torch.as_tensor(c.center), torch.as_tensor(first.center)) for c in corrections):
+            raise ValueError('scenario corrections do not share a local surrogate contract')
+        edges = torch.stack([correction.correct_tensor(normalized_point, edges[i])
+                             for i, correction in enumerate(corrections)])
+    elif normalized_point is not None:
+        raise ValueError('normalized point requires scenario corrections')
     margins = torch.stack((target_frequency - edges[:, 0], edges[:, 1] - target_frequency), dim=1)
     if scenario_reduction == 'mean':
         return (-2 * torch.logsumexp(-beta * margins, dim=1) / (beta * target_frequency)).mean()
@@ -384,4 +397,43 @@ def optimize_robust_fourier_adam(source: Any, predictor: Any, *, coefficient_key
     for row in history:
         z = torch.as_tensor(row['parameters'], dtype=base.dtype, device=base.device)
         row['fourier_parameters'] = (base + scale*z).detach().cpu().tolist()
+    return history
+
+
+def optimize_corrected_robust_adam(source: Any, predictor: Any, corrections: Any, *, coefficient_keys: Any,
+                                   scales: Any, lower: Any, upper: Any, master_resolution: int,
+                                   input_resolution: int, temperature: float, offsets: Any,
+                                   lower_band: int, target_frequency: float, beta: float,
+                                   learning_rate: float, steps: int,
+                                   scenario_reduction: str = 'worst') -> list[dict[str, Any]]:
+    """Optimize scenario-specific physical corrections in their shared local radius."""
+    import torch
+
+    corrections = tuple(corrections)
+    offsets = tuple(offsets)
+    if not corrections or len(corrections) != len(offsets):
+        raise ValueError('one correction per scenario required')
+    keys = tuple(coefficient_keys)
+    base = torch.tensor([float(source.parameters['modes'][i][component]) for i, component in keys]
+                        + [float(source.parameters['threshold'])], dtype=torch.float64, device=predictor.device)
+    scale = torch.as_tensor(scales, dtype=base.dtype, device=base.device)
+    center = torch.as_tensor(corrections[0].center, dtype=base.dtype, device=base.device)
+    lo = torch.as_tensor(lower, dtype=base.dtype, device=base.device)
+    hi = torch.as_tensor(upper, dtype=base.dtype, device=base.device)
+    if (scale.shape != base.shape or center.shape != base.shape or lo.shape != base.shape or hi.shape != base.shape
+            or not torch.isfinite(scale).all() or (scale <= 0).any()
+            or not math.isfinite(corrections[0].radius) or corrections[0].radius <= 0):
+        raise ValueError('invalid corrected robust dimensions or scales')
+    halfwidth = corrections[0].radius / math.sqrt(len(base))
+    lo, hi = torch.maximum(lo, center-halfwidth), torch.minimum(hi, center+halfwidth)
+    def objective(point: Any) -> Any:
+        return robust_fourier_margin(source, predictor, base + scale*point,
+            coefficient_keys=keys, master_resolution=master_resolution, input_resolution=input_resolution,
+            temperature=temperature, offsets=offsets, lower_band=lower_band, target_frequency=target_frequency,
+            beta=beta, scenario_reduction=scenario_reduction, normalized_point=point,
+            scenario_corrections=corrections)
+    history = optimize_adam(objective, center, lower=lo, upper=hi, learning_rate=learning_rate, steps=steps)
+    for row in history:
+        point = torch.as_tensor(row['parameters'], dtype=base.dtype, device=base.device)
+        row['fourier_parameters'] = (base + scale*point).detach().cpu().tolist()
     return history
