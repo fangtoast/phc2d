@@ -82,6 +82,42 @@ def advance_feedback_arm(arm: Mapping[str, Any], record: Mapping[str, Any]) -> d
     return result
 
 
+def run_feedback_arm_round(arm: Mapping[str, Any], *, base: Mapping[str, Any],
+                           campaign: Mapping[str, Any], source_meta: Mapping[str, Any],
+                           source: Any, predictor: Any, round_index: int,
+                           output: Path) -> dict[str, Any]:
+    """Run and freeze one 20-evaluation proposal before any new physical solve."""
+    from phc2d.inverse.differentiable_feedback import propose_corrected_design
+    from phc2d.inverse.differentiable_feedback_round import freeze_round, save_round_request
+
+    observations = arm['observations']
+    raw = json.dumps({'observations': observations}, indent=2, allow_nan=False).encode('utf8')
+    config = prepare_round_configuration(arm, base=base, campaign=campaign, source=source_meta,
+        round_index=round_index, observations_sha256=hashlib.sha256(raw).hexdigest())
+    if output.exists():
+        try:
+            saved_config = json.loads((output/'config.json').read_bytes())
+            proposal = json.loads((output/'proposal.json').read_bytes())
+            request = json.loads((output/'request.json').read_bytes())
+        except (OSError, ValueError) as exc:
+            raise ValueError('incomplete existing feedback round; reconcile before resuming') from exc
+        frozen = freeze_round(restore_feedback(arm['state']), proposal, observations)
+        if (saved_config != config or request != {'frozen': frozen, 'observations': observations}):
+            raise ValueError('existing feedback round identity mismatch')
+        return {'status': 'frozen_reused', 'frozen_sha256': frozen['frozen_sha256'],
+                'cached': frozen['cached_observation'] is not None}
+    proposal = propose_corrected_design(source, predictor, observations, config=config)
+    if proposal['status'] != 'proposal_ready':
+        return {'status': proposal['status'], 'proposal': proposal}
+    frozen = freeze_round(restore_feedback(arm['state']), proposal, observations)
+    save_round_request(output, frozen=frozen, observations=observations)
+    for name, payload in (('config.json', config), ('proposal.json', proposal)):
+        with (output/name).open('x', encoding='utf8') as stream:
+            json.dump(payload, stream, indent=2, allow_nan=False)
+    return {'status': 'frozen', 'frozen_sha256': frozen['frozen_sha256'],
+            'cached': frozen['cached_observation'] is not None}
+
+
 def initialize_feedback_arms(seed_observations: Mapping[str, Any], *, campaign: Mapping[str, Any],
                              target_frequency: float, expected_seed_ids: set[str] | None = None) -> dict[str, Any]:
     """Give all arms the same authenticated initial observations and budget."""
