@@ -11,6 +11,7 @@ def test_robust_campaign_pairs_modes_and_rejects_identity_changes():
               'initials': [{'initial_index': 0, 'status': 'ready', 'initial': [.15, 0.]}]}
     trial = {'source_id': 8, 'initial_index': 0, 'method': 'adam', 'status': 'ready',
              'config': {'initial': [.15, 0.], 'source_sha256': 'source', 'evaluations': 60,
+                        'lower': [-.5, -.5], 'upper': [.5, .5],
                         'physical_protocol': {'offsets': [0.0], 'raster_resolution': 64}}}
     design = {'scope': 'preregistered_surrogate_design', 'base_config_sha256': 'base',
               'sources': [source], 'trials': [trial]}
@@ -20,6 +21,7 @@ def test_robust_campaign_pairs_modes_and_rejects_identity_changes():
     assert [row['mode'] for row in manifest['trials']] == settings['modes']
     assert all(row['config']['initial'] == [.15, 0.] for row in manifest['trials'])
     assert all(row['config']['evaluations'] == 60 for row in manifest['trials'])
+    assert all(row['config']['lower'] == pytest.approx([.15-.2/2**.5, -.2/2**.5]) for row in manifest['trials'])
     assert manifest['physical_protocol']['offsets'] == [-.01, 0., .01]
     bad = copy.deepcopy(design); bad['trials'][0]['config']['initial'] = [0., 0.]
     with pytest.raises(ValueError, match='frozen initial'):

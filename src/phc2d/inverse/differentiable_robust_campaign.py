@@ -50,6 +50,13 @@ def build_robust_campaign(design: Mapping[str, Any], settings: Mapping[str, Any]
                     config = copy.deepcopy(old[0]['config'])
                     if config['initial'] != initial['initial'] or config['source_sha256'] != source['source_sha256']:
                         raise ValueError('source configuration does not match frozen initial')
+                    point = initial['initial']
+                    if (len(point) != len(config['lower']) or len(point) != len(config['upper']) or not point
+                            or any(not lo <= value <= hi for value, lo, hi in zip(point, config['lower'], config['upper']))):
+                        raise ValueError('invalid paired robust initial or bounds')
+                    halfwidth = float(feedback['radius']) / math.sqrt(len(point))
+                    config['lower'] = [max(lo, value-halfwidth) for value, lo in zip(point, config['lower'])]
+                    config['upper'] = [min(hi, value+halfwidth) for value, hi in zip(point, config['upper'])]
                     config.update(experiment_id=settings['experiment_id'], evaluations=settings['evaluations'],
                                   offsets=offsets)
                     nominal_protocol = config['physical_protocol']
