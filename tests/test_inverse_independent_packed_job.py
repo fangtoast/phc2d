@@ -82,3 +82,11 @@ def test_packed_submission_requires_controller_identity_and_single_receipt(tmp_p
     assert subprocess.run(['bash', str(script)], env=env, capture_output=True).returncode != 0
     env.update(PHC2D_CONTROLLER_COMMIT='different', PHC2D_RECEIPT_ROOT=str(tmp_path/'other_receipts'))
     assert subprocess.run(['bash', str(script)], env=env, capture_output=True).returncode != 0
+    feedback = json.dumps({'scope':'independent_feedback_packed_dispatch', 'variant':'feedback',
+                           'controller_commit':'controller', 'sources':[{'id': i} for i in range(5)]}).encode()
+    dispatch.write_bytes(feedback)
+    env.update(PHC2D_CONTROLLER_COMMIT='controller', PHC2D_VARIANT='feedback',
+               PHC2D_DISPATCH_SHA256=hashlib.sha256(feedback).hexdigest(),
+               PHC2D_RECEIPT_ROOT=str(tmp_path/'feedback_receipts'))
+    assert subprocess.run(['bash', str(script)], env=env, capture_output=True).returncode == 0
+    assert 'job_id=12345' in (tmp_path/'feedback_receipts/submission_feedback.txt').read_text()
