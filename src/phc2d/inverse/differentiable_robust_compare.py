@@ -110,6 +110,8 @@ def compare_robust_results(lock: Mapping[str, Any], manifest: Mapping[str, Any],
                 item['same_k_spectrum_mae'] = float(np.abs(delta).mean())
                 item['same_k_spectrum_rmse'] = float(np.sqrt(np.square(delta).mean()))
                 item['same_k_spectrum_mre_pct'] = float(100*np.mean(np.abs(delta)/np.maximum(np.abs(bands[:len(points)]), 1e-8)))
+                item['same_k_relative_denominator_floor'] = 1e-8
+                item['same_k_floor_count'] = int(np.count_nonzero(np.abs(bands[:len(points)]) < 1e-8))
                 item['surrogate_target_margin'] = float(2 * min(target-estimated[:, pair-1].max(),
                                                                 estimated[:, pair].min()-target) / target)
             scenario_rows.append(item)
