@@ -109,8 +109,8 @@ def test_four_parameter_fourier_algorithms_use_shared_origin_and_budget():
             return torch.stack((0.2 + 0.1 * value, 0.7 + 0.1 * value), dim=1).unsqueeze(1)
 
     source = generate_unified_fourier_binary('source', master_seed=12, material_fraction_bin=1,
-                                             config={'fourier_cutoff': 3, 'audit_resolution': 32})
-    args = dict(coefficient_keys=[(0, 'cos'), (0, 'sin'), (1, 'cos')], scales=[0.2, 0.2, 0.2, 0.1],
+                                             config={'fourier_cutoff': 5, 'audit_resolution': 32})
+    args = dict(coefficient_keys=[(0, 'cos'), (0, 'sin'), (9, 'cos')], scales=[0.2, 0.2, 0.2, 0.1],
                 lower=[-0.5]*4, upper=[0.5]*4, master_resolution=64, input_resolution=16,
                 temperature=0.2, lower_band=1, target_frequency=0.5, beta=100, initial=[0.0]*4)
     adam = optimize_fourier_adam(source, Predictor(), **args, learning_rate=0.1, steps=4)

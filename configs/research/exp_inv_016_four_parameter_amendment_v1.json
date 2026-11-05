@@ -1,0 +1,11 @@
+{
+  "experiment_id": "EXP-INV-016",
+  "scope": "four_parameter_mode_index_amendment_before_design",
+  "parent_protocol_sha256": "8fe083d7435d060c0786e739126aa07c07f3d1d29a9dac233396050f9c9df0b2",
+  "original_coefficient_keys": [[0, "cos"], [0, "sin"], [1, "cos"]],
+  "coefficient_keys": [[0, "cos"], [0, "sin"], [9, "cos"]],
+  "mode_coordinates": [[0, 1], [0, 1], [1, 0]],
+  "max_mode_radius": 1.0,
+  "reason": "mode 1 is (0,2) and violates the existing radius-one contract; mode 9 is (1,0) in all selected structures. No four-parameter design or test band label was used.",
+  "other_protocol_fields_unchanged": true
+}
