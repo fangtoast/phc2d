@@ -237,6 +237,8 @@ nav:
           - 三来源纯代理对照: results/inverse/EXP-INV-013-三来源纯代理对照.md
           - 物理反馈对照: results/inverse/EXP-INV-014-物理反馈对照.md
           - 制造鲁棒对照: results/inverse/EXP-INV-015-制造鲁棒对照.md
+          - 独立来源纯代理结果: results/inverse/EXP-INV-016-独立来源纯代理结果.md
+          - 独立来源与物理反馈: results/inverse/EXP-INV-016-独立来源与物理反馈结果.md
           - 鲁棒逆向探索性审计: results/inverse/鲁棒带隙逆向可用性审计.md
           - 前版反馈路线（已取代）: planning/鲁棒带隙逆向/历史方案/可微物理反馈路线.md
           - 前版反馈方法: planning/鲁棒带隙逆向/历史方案/可微方法协议.md
