@@ -48,3 +48,14 @@ def test_robust_comparison_rebuilds_scenarios_and_common_target_margin():
     bad = copy.deepcopy(result); bad['observations'][0]['provenance']['evaluated_grid_sha256'] = 'wrong'
     with pytest.raises(ValueError, match='grid mismatch'):
         compare_robust_results(**{**args, 'results': {0: bad}})
+
+    nominal_only = copy.deepcopy(lock)
+    nominal_only['records'][0]['candidate'].pop('robust_prediction')
+    nominal_only['records'][0]['candidate']['bands'] = spectra[1]
+    nominal_report = compare_robust_results(**{**args, 'lock': nominal_only})
+    scenarios = nominal_report['roles'][0]['scenarios']
+    assert 'same_k_spectrum_mae' not in scenarios[0]
+    assert scenarios[1]['same_k_spectrum_mae'] == pytest.approx(.005)
+    assert scenarios[1]['same_k_spectrum_rmse'] == pytest.approx(.005)
+    assert 'same_k_spectrum_mae' not in scenarios[2]
+    assert 'surrogate_common_target_margin' not in nominal_report['roles'][0]

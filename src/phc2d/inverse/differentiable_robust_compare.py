@@ -76,6 +76,12 @@ def compare_robust_results(lock: Mapping[str, Any], manifest: Mapping[str, Any],
             predicted = np.asarray(prediction['bands'], dtype=np.float64)
             if predicted.ndim != 3 or predicted.shape[:2] != (len(offsets), len(points)) or not np.isfinite(predicted).all():
                 raise ValueError('robust surrogate spectrum mismatch')
+        nominal_prediction = None
+        if predicted is None and candidate.get('bands') is not None:
+            nominal_prediction = np.asarray(candidate['bands'], dtype=np.float64)
+            if (nominal_prediction.ndim != 2 or nominal_prediction.shape[0] != len(points)
+                    or nominal_prediction.shape[1] <= pair or not np.isfinite(nominal_prediction).all()):
+                raise ValueError('nominal surrogate spectrum mismatch')
         scenario_rows, refined = [], []
         stable = result['aggregate']['status'] == 'numerically_stable'
         gates = ('last_refinement_stable', 'resolution_stable', 'adaptive_refinement_converged')
@@ -96,13 +102,16 @@ def compare_robust_results(lock: Mapping[str, Any], manifest: Mapping[str, Any],
             refined.append(edges)
             item = {'offset': offsets[i], 'physical_refined_edges': edges,
                     'physical_refined_target_margin': float(2 * min(target-edges[0], edges[1]-target) / target)}
-            if predicted is not None:
-                if predicted[i].shape != bands[:len(points)].shape:
+            estimated = predicted[i] if predicted is not None else nominal_prediction if offsets[i] == 0.0 else None
+            if estimated is not None:
+                if estimated.shape != bands[:len(points)].shape:
                     raise ValueError('robust spectrum shape mismatch')
-                delta = predicted[i] - bands[:len(points)]
+                delta = estimated - bands[:len(points)]
                 item['same_k_spectrum_mae'] = float(np.abs(delta).mean())
-                item['surrogate_target_margin'] = float(2 * min(target-predicted[i, :, pair-1].max(),
-                                                                predicted[i, :, pair].min()-target) / target)
+                item['same_k_spectrum_rmse'] = float(np.sqrt(np.square(delta).mean()))
+                item['same_k_spectrum_mre_pct'] = float(100*np.mean(np.abs(delta)/np.maximum(np.abs(bands[:len(points)]), 1e-8)))
+                item['surrogate_target_margin'] = float(2 * min(target-estimated[:, pair-1].max(),
+                                                                estimated[:, pair].min()-target) / target)
             scenario_rows.append(item)
         lower, upper = max(edge[0] for edge in refined), min(edge[1] for edge in refined)
         common = float(2 * min(target-lower, upper-target) / target)
