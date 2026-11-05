@@ -22,6 +22,7 @@ def test_pairs_independent_methods_and_reports_source_level_interaction():
     assert result['comparisons']['residual_minus_trajectory']['mean_of_source_means']==pytest.approx(.03)
     assert result['gradient_feedback_interaction']['mean_of_source_means']==pytest.approx(.03)
     assert result['by_target_index']['00']['adam']['registered']==1
+    assert result['by_source']['008']['adam']['registered']==1
     feedback['target_00_seed_1']['roles'].append(feedback['target_00_seed_1']['roles'][0])
     with pytest.raises(ValueError,match='duplicate'):
         analyze_independent(pure,feedback)

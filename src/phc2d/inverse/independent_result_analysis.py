@@ -63,6 +63,12 @@ def analyze_independent(pure: Mapping[str, Any], feedback: Mapping[str, Any]) ->
     groups = {method:summarize(rows) for method,rows in sorted(summaries.items())}
     by_target = {target:{method:summarize(rows) for method,rows in sorted(methods.items())}
                  for target,methods in sorted(targets.items())}
+    source_rows: dict[str, dict[str, list[Mapping[str, Any]]]] = defaultdict(lambda: defaultdict(list))
+    for (_,source,_), methods in cases.items():
+        for method,row in methods.items():
+            source_rows[source][method].append(row)
+    by_source = {source:{method:summarize(rows) for method,rows in sorted(methods.items())}
+                 for source,methods in sorted(source_rows.items())}
     comparisons = {}
     for name, left, right in (('trajectory_minus_adam','adam_trajectory','adam'),
                               ('residual_minus_trajectory','adam_residual','adam_trajectory'),
@@ -83,6 +89,7 @@ def analyze_independent(pure: Mapping[str, Any], feedback: Mapping[str, Any]) ->
             interactions[source].append((margin('adam_residual')-margin('adam'))-(margin('de_residual')-margin('de')))
     interaction_means = {s:statistics.mean(v) for s,v in sorted(interactions.items())}
     return {'scope':'paired_independent_physical_results', 'groups':groups, 'by_target_index':by_target,
+            'by_source':by_source,
             'comparisons':comparisons,
             'gradient_feedback_interaction':{'paired_roles':sum(map(len,interactions.values())),
                 'source_means':interaction_means,
