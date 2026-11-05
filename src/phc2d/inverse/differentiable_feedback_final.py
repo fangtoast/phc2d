@@ -77,6 +77,8 @@ def freeze_final_feedback(arms: Mapping[str, Any], design: Mapping[str, Any], de
         raise ValueError('empty or duplicate final feedback roster')
     synthetic = {'base_config_sha256': design['base_config_sha256'], 'trials': trials,
                  'parent_design_manifest_sha256': design_sha256, 'final_arms_sha256': arms_sha256}
+    if 'experiment_id' in design:
+        synthetic['experiment_id'] = design['experiment_id']
     lock = {'scope': 'locked_paired_surrogate_campaign', 'purpose': 'feedback_final',
             'manifest_sha256': hashlib.sha256(_bytes(synthetic)).hexdigest(),
             'final_arms_sha256': arms_sha256, 'k_points': design_lock['k_points'], 'records': records}
