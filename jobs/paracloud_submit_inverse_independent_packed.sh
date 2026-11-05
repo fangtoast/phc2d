@@ -23,10 +23,10 @@ case "$PHC2D_VARIANT" in two) wall=02:00:00 ;; four) wall=01:00:00 ;; *) exit 2 
 [[ "$(tr -d '[:space:]' < "$PHC2D_ROOT/DEPLOYED_GIT_COMMIT")" == "$PHC2D_EXPECTED_COMMIT" ]] || exit 2
 printf '%s  %s\n' "$PHC2D_DISPATCH_SHA256" "$PHC2D_DISPATCH" | sha256sum -c - >/dev/null
 printf '%s  %s\n' "$PHC2D_WORKER_SHA256" "$PHC2D_WORKER" | sha256sum -c - >/dev/null
-count="$(python3 - "$PHC2D_DISPATCH" "$PHC2D_VARIANT" <<'PY'
+count="$(python3 - "$PHC2D_DISPATCH" "$PHC2D_VARIANT" "$PHC2D_CONTROLLER_COMMIT" <<'PY'
 import json,sys
 p=json.load(open(sys.argv[1],encoding='utf8')); ids=[x['id'] for x in p['sources']]
-if p['scope']!='independent_gpu_packed_dispatch' or p['variant']!=sys.argv[2] or len(ids)!=5 or len(set(ids))!=len(ids): raise SystemExit('bad dispatch')
+if p['scope']!='independent_gpu_packed_dispatch' or p['variant']!=sys.argv[2] or p['controller_commit']!=sys.argv[3] or len(ids)!=5 or len(set(ids))!=len(ids): raise SystemExit('bad dispatch')
 print(len(ids))
 PY
 )"
