@@ -1,0 +1,27 @@
+{
+  "experiment_id": "EXP-INV-016",
+  "batch": "independent_high_accuracy_pure_adam",
+  "status": "frozen_for_registered_high_accuracy_roles",
+  "physical_replay": {
+    "platform": "m9",
+    "max_candidate_roles": 5,
+    "cases_per_shard": 5,
+    "max_shards": 1,
+    "max_concurrent_shards": 1,
+    "workers_per_shard": 5,
+    "cpus_per_shard": 6,
+    "memory_mib_per_shard": 24576,
+    "worker_memory_mib": 2048,
+    "setup_reserve_mib": 4096,
+    "wall_seconds_per_shard": 7200,
+    "max_allocated_core_hours": 12.0,
+    "automatic_retry": false
+  },
+  "wsl_crosscheck": {
+    "environment": "Ubuntu/meep_env",
+    "roles": [],
+    "scope": "high_accuracy_final_roles_registered_separately",
+    "max_absolute_spectrum_difference": 1e-06,
+    "cost_accounted_separately": true
+  }
+}
