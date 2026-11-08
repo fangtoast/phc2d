@@ -51,6 +51,8 @@
 | Field / adapted PINO | 校准与准入仍 blocked | [历史准入](docs/results/field-physics/field_eigen_te_b4_dense_k_admission_20260722.md)；不进入候选排序 |
 | 生成式 inverse | V2 Objective-Bridge 仅有 seed0 replay；full-cell 正式闭环尚未完成 | [inverse 结果](docs/results/inverse/a2_inverse_objective_bridge_seed0_v1_20260727.md)、[当前协议](docs/planning/全胞逆向索引.md) |
 
+架构调整计划处于 Draft，首批拟整理正向 Dataset 和模型调用接口，验收以兼容及行为对照为准。[架构调整与迁移计划](docs/planning/项目代码结构重构/架构调整与迁移计划.md)
+
 ## 实现与交付入口
 
 - 代码、CLI、配置与 tests 证明实现合同；正式工程验收使用 WSL Ubuntu / meep_env，不能自动升级科学证据。

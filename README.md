@@ -77,6 +77,8 @@ python -m phc2d.cli forward train --config configs/smoke/forward_synthetic_res_m
 
 
 
+`src/phc2d/` 按数据、模型、任务、求解器和运行服务组织。现行边界见[系统架构](docs/参考/系统架构.md)，目标目录见 [Draft 迁移计划](docs/planning/项目代码结构重构/架构调整与迁移计划.md)。
+
 ## 项目组成
 
 - **Data**：数据 schema、结构表示、k 路径、MPB 适配器和数据集检查。

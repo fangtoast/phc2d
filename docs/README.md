@@ -23,6 +23,7 @@ primary_layer: L4
 
 | 阅读目标 | 入口 |
 |---|---|
+| 代码架构及目标迁移 | [系统架构](参考/系统架构.md) · [Draft 迁移计划](planning/项目代码结构重构/架构调整与迁移计划.md) |
 | 项目全景与当前研究主线 | [文档首页](index.md) |
 | 当前实验、结论、状态与 Experiment ID | [当前结果](结果/README.md) |
 | 结果对应的 run、metrics 与 solver 证据 | [实验与证据库](results/README.md) |
