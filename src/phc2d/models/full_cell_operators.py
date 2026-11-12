@@ -47,7 +47,13 @@ def _build_factorized_band_operator(
     local_operator_kind: str,
     branch_fusion: str,
     dense_head_hidden_dim: int | None = None,
+    fusion_factory: Any | None = None,
 ) -> Any:
+    """Compose the native operator with an optional reusable branch fusion.
+
+    The legacy nested classes and parameter names remain unchanged for checkpoint
+    compatibility. Fusion ownership is injected instead of extending that runner.
+    """
     torch, nn, functional = require_torch(model_name, need_functional=True)
     in_shape, in_channels = image_contract(input_shape, model_name=model_name)
     out_shape, _, _ = target_contract(output_shape)
@@ -217,6 +223,7 @@ def _build_factorized_band_operator(
                 else None
             )
             self.drop_path = DropPath(probability)
+            self.fusion = None if fusion_factory is None else fusion_factory(nn, torch, model_width)
 
         def forward(self, x: Any, lane_features: Any | None) -> Any:
             normalized = self.norm(x)
@@ -249,7 +256,10 @@ def _build_factorized_band_operator(
                 branches.append(branch_module(normalized))
                 if self.gates is not None:
                     weights.append(torch.sigmoid(self.gates[gate_index]))
-            if not branches:
+            if self.fusion is not None and branches:
+                names = [name for name in self.active_branches if name not in disabled_branches]
+                update = self.fusion(branches, names)
+            elif not branches:
                 update = torch.zeros_like(x)
             else:
                 if self.gates is None:
@@ -363,6 +373,11 @@ def _build_factorized_band_operator(
 
     FactorizedBandOperator.__phc2d_architecture_module__ = "phc2d.models.full_cell_upgrades"
     return FactorizedBandOperator()
+
+
+def build_factorized_band_operator(**kwargs: Any) -> Any:
+    """Public composition seam; retain legacy nested class identities and schemas."""
+    return _build_factorized_band_operator(**kwargs)
 
 
 def build_tfno2d_band_v3(

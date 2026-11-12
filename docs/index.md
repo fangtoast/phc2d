@@ -5,7 +5,7 @@ page_type: landing
 status: draft
 audience: 研究使用者、研究生、开发者与评审者
 owner: 研究生维护，导师审阅研究主张
-last_reviewed: 2026-08-21
+last_reviewed: 2026-11-04
 reading_time: 5 minutes
 primary_layer: L4
 ---
@@ -38,7 +38,7 @@ primary_layer: L4
 |---|---|---|
 | 全胞数据与物理标签 | B/G 双路线数据链已建立，MPB 分辨率收敛支持正式数据使用 `resolution=64` | 物理验收不能由 surrogate 指标替代 |
 | 全胞正向代理 | 50k 模型升级、K=20 单 seed 与跨数据域验证已有结果 | 本域最优不代表跨域通用；跨域验证仍是 surrogate 层 |
-| 逆向设计 | V2 数据已有 seed-0 real-MPB replay 证据 | full-cell inverse 的正式训练与 replay 尚未完成 |
+| 逆向设计 | 当前[纯代理研究路线](planning/鲁棒带隙逆向/研究总方案.md)先完成纯代理设计与锁后 MPB 复核，再用物理观测适配代理，比较制造共同带隙与效率；V2 已有 seed-0 replay 属独立历史证据 | 新系列尚未运行，旧生成式与开发审计证据分别保留 |
 | Field / adapted PINO | 历史 admission gate 未通过 | 不进入当前正式结果主线 |
 
 ## 去哪里继续阅读

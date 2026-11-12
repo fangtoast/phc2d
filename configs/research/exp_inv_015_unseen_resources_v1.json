@@ -1,0 +1,27 @@
+{
+  "experiment_id": "EXP-INV-015",
+  "batch": "unseen_manufacturing_offsets",
+  "status": "frozen_for_independent_offsets",
+  "physical_replay": {
+    "platform": "m9",
+    "max_candidate_roles": 6,
+    "cases_per_shard": 8,
+    "max_shards": 1,
+    "max_concurrent_shards": 1,
+    "workers_per_shard": 6,
+    "cpus_per_shard": 10,
+    "memory_mib_per_shard": 32768,
+    "worker_memory_mib": 1024,
+    "setup_reserve_mib": 4096,
+    "wall_seconds_per_shard": 7200,
+    "max_allocated_core_hours": 20.0,
+    "automatic_retry": false
+  },
+  "wsl_crosscheck": {
+    "environment": "Ubuntu/meep_env",
+    "roles": [],
+    "scope": "role_registration_in_exp_inv_015_independent_offsets_v1",
+    "max_absolute_spectrum_difference": 0.000001,
+    "cost_accounted_separately": true
+  }
+}

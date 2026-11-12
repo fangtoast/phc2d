@@ -1,0 +1,16 @@
+{
+  "experiment_id": "EXP-INV-013",
+  "status": "ready_for_design",
+  "base_config": "configs/research/exp_inv_012_origin_v1.json",
+  "base_config_sha256": "d447606587c516b5dd865ecde4e9d90858e137fd055dd7c6d16c40376cec2639",
+  "sources": [
+    {"id": 8, "sha256": "e677d082a96ee130194aa32d84430a4fd21a7fc48f504de2a353459b00283675"},
+    {"id": 491, "sha256": "11aaf7e098303e9042399379ab7a59ff753b0db16e1f62e76596140ef0f6930e"},
+    {"id": 348, "sha256": "1e2f7117e8b49ca8ffe90ddb48b5fef6985737c910a93ce4cdd608d6b5c96f78"}
+  ],
+  "initial_options": [[[0.0, 0.0]], [[0.15, 0.0], [-0.15, 0.0]], [[0.0, 0.15], [0.0, -0.15]]],
+  "methods": ["adam", "de", "random"],
+  "evaluations": 60,
+  "diagnostic_evaluation_counts": [1, 20, 40, 60],
+  "seed": 20261104
+}

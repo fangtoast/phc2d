@@ -1314,6 +1314,119 @@ experiments:
     - validation-only
     - audit
 
+  - id: EXP-DAT-008
+    title: PCSEL多晶格测试数据生成
+    task: data
+    status: active
+    mapping_status: complete
+    research_question: 已确认的十二族解析PCSEL平面几何能否按统一MPB合同生成可追溯测试标签并交付N40？
+    spec:
+      - experiments/research/EXP-DAT-008-PCSEL多晶格测试数据.md
+    config:
+      - configs/research/full_cell_pcsel_exp_dat_008_bingxing_v1.yaml
+    runs:
+      local:
+        - runs/20261021/EXP-DAT-008_20261021_geometry_admission_v2
+        - runs/20261021/EXP-DAT-008_202610211514
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments: []
+    decision:
+      state: continue
+      summary: M9 plan6284297已完成，solve6284298四片运行，finalize6284299等待；源提交f3f7360，后续验收和N40交付仍未完成，不自动重试。
+    tags: [pcsel, mpb, test-only, geometry-transfer, bingxing, n40]
+  - id: EXP-FWD-026
+    title: 核心模型自适应收敛扩展
+    task: forward
+    status: active
+    mapping_status: complete
+    research_question: 在冻结数据和架构条件下，增加优化预算能否达到预定验证平台期？
+    spec: [experiments/research/EXP-FWD-026-收敛训练协议.md]
+    config: [configs/research/full_cell_convergence_n40_v1.yaml]
+    runs:
+      local: []
+      referenced_not_local: [runs/20261022/EXP-FWD-026_202610221311]
+    result: []
+    report: []
+    related_experiments: []
+    decision:
+      state: continue
+      summary: 用户已授权同条件三seed与每平台8GPU；运行和收敛状态以新campaign原始证据为准，不覆盖固定预算结果。
+    tags: [convergence, validation-only, three-seed, adaptive-optimization]
+  - id: EXP-FWD-027
+    title: 分支消融自适应收敛扩展
+    task: forward
+    status: active
+    mapping_status: complete
+    research_question: 在冻结数据和架构条件下，增加优化预算能否达到预定验证平台期？
+    spec: [experiments/research/EXP-FWD-026-收敛训练协议.md]
+    config: [configs/research/full_cell_convergence_n40_v1.yaml]
+    runs:
+      local: []
+      referenced_not_local: [runs/20261022/EXP-FWD-027_202610221311]
+    result: []
+    report: []
+    related_experiments: []
+    decision:
+      state: continue
+      summary: 用户已授权同条件三seed与每平台8GPU；运行和收敛状态以新campaign原始证据为准，不覆盖固定预算结果。
+    tags: [convergence, validation-only, three-seed, adaptive-optimization]
+  - id: EXP-FWD-028
+    title: 其他模型同条件三seed收敛训练
+    task: forward
+    status: active
+    mapping_status: complete
+    research_question: 在冻结数据和架构条件下，增加优化预算能否达到预定验证平台期？
+    spec: [experiments/research/EXP-FWD-026-收敛训练协议.md]
+    config: [configs/research/full_cell_convergence_n56_v1.yaml]
+    runs:
+      local: []
+      referenced_not_local: [runs/20261022/EXP-FWD-028_202610221337]
+    result: []
+    report: []
+    related_experiments: []
+    decision:
+      state: continue
+      summary: 用户已授权同条件三seed与每平台8GPU；运行和收敛状态以新campaign原始证据为准，不覆盖固定预算结果。
+    tags: [convergence, validation-only, three-seed, adaptive-optimization]
+  - id: EXP-FWD-033
+    title: K5与K20等总量混合分支消融
+    task: forward
+    status: planned
+    mapping_status: complete
+    research_question: 相同8k训练总量下，K5与K20混合来源对完整模型和单分支表现有何影响？
+    spec: [experiments/research/EXP-FWD-033-等量混合分支消融.md]
+    config: [configs/research/full_cell_equal_mixed_branch_exp_fwd_033_v1.yaml]
+    runs:
+      local: [runs/20261102/EXP-FWD-033_202611021031]
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments: [EXP-FWD-026, EXP-FWD-027, EXP-FWD-032]
+    decision:
+      state: pending
+      summary: 四来源4k选择、两机混合数据、48项配置与288个测试目标已冻结并通过准备审计；远程准入、训练和测试尚未授权。
+    tags: [equal-count, mixed-domain, global-local, ablation]
+  - id: EXP-FWD-032
+    title: K5与F50单域全局局部分支消融
+    task: forward
+    status: active
+    mapping_status: complete
+    research_question: 同一单域训练合同下，完整全局局部模型、独立分支和容量对照的原域与迁移表现如何？
+    spec: [experiments/research/EXP-FWD-032-单域全局局部消融.md]
+    config: [configs/research/full_cell_single_domain_branch_ablation_exp_fwd_032_v1.yaml]
+    runs:
+      local: []
+      referenced_not_local: []
+    result: []
+    report: []
+    related_experiments: [EXP-FWD-026]
+    decision:
+      state: continue
+      summary: 24项历史Full基线审计通过，训练与测试目标身份冻结；N56准入12/12通过并启动训练1754904，N40准入5524780排队。
+    tags: [single-domain, ablation, global-local, admission]
+
 deferred_history:
   - scope: 2026-05 至 2026-06 初期的 legacy reproduction、FEM/MPB 与 smoke runs
     reason: 历史价值存在，但不属于当前活跃或论文核心实验，暂不批量登记。

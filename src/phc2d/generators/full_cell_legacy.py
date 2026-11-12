@@ -111,35 +111,9 @@ build_full_cell_structure_spec = _build_spec
 
 def _periodic_component_count(binary: np.ndarray) -> int:
     """Count four-neighbour components on a periodic square grid."""
+    from phc2d.data.periodic_geometry import periodic_component_sizes
 
-    mask = np.asarray(binary, dtype=bool)
-    if mask.ndim != 2:
-        raise ValueError("periodic component count expects a 2D grid")
-    rows, cols = mask.shape
-    parent: dict[int, int] = {}
-
-    def root(value: int) -> int:
-        parent.setdefault(value, value)
-        while parent[value] != value:
-            parent[value] = parent[parent[value]]
-            value = parent[value]
-        return value
-
-    def union(a: int, b: int) -> None:
-        ra, rb = root(a), root(b)
-        if ra != rb:
-            parent[rb] = ra
-
-    for row in range(rows):
-        for col in range(cols):
-            if not mask[row, col]:
-                continue
-            current = row * cols + col
-            parent.setdefault(current, current)
-            for nr, nc in ((row, (col + 1) % cols), ((row + 1) % rows, col)):
-                if mask[nr, nc]:
-                    union(current, nr * cols + nc)
-    return len({root(value) for value in parent})
+    return len(periodic_component_sizes(binary))
 
 
 def _p4m_symmetry_error(grid: np.ndarray) -> float:

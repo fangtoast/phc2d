@@ -1,0 +1,104 @@
+# Official four-domain comparison; frozen scientific contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+experiment_id: EXP-FWD-031
+authorization_id: user-2026-10-27-implement-exp-fwd-031-two-servers-sixteen-gpu
+seeds:
+- 0
+- 1
+- 2
+test_authorized: false
+gpu_limit: 8
+automatic_retry: false
+datasets:
+  k5_binary:
+    path: /data/run01/scxl892/data/exp_fwd_020/full_cell_binary_fourier_k5_bz9_10000_xingyi_v1.h5
+    sha256: 7d2c6bef128c7ee61e0c5ca0eb9561b95992ccf8e53f325274c4889752ea86b6
+    grid_field: material_area_fraction_grid_64
+    lane: binary
+  k5_graded:
+    path: /data/run01/scxl892/data/exp_fwd_020/full_cell_graded_fourier_k5_bz9_10000_xingyi_v1.h5
+    sha256: eb140534d941cbdb53addca279f00337810124a34fade20a19bfb969e0e6af20
+    grid_field: material_weight_grid_64
+    lane: graded
+  f50_binary:
+    path: /data/run01/scxl892/data/exp_fwd_020/full_cell_binary_bz9_50000_xingyi_v1.h5
+    sha256: e2d99e0c59c3bf5dfebc507e756dbcd18c8623f331ad6193832d774df5213f00
+    grid_field: material_weight_grid_64
+    lane: binary
+  f50_graded:
+    path: /data/run01/scxl892/data/exp_fwd_020/full_cell_graded_bz9_50000_xingyi_v1.h5
+    sha256: 172786bc4b689d13f5938480fe82c25a4b8d9bad9a7d98bcd7eac778dad38a46
+    grid_field: material_weight_grid_64
+    lane: graded
+models:
+  official_fno_band_v1:
+    width: 64
+    depth: 4
+    modes:
+    - 12
+    - 12
+  official_tucker_tfno_band_v1:
+    width: 64
+    depth: 4
+    modes:
+    - 12
+    - 12
+    rank: 0.1
+  global_local_channel_gate_v1:
+    width: 64
+    depth: 6
+    modes:
+    - 12
+    - 12
+    factorization_rank: 0.75
+    norm_groups: 8
+    channel_expansion: 4
+    local_kernel: 3
+    drop_path: 0.1
+    dropout: 0.05
+training:
+  train_size: 8000
+  train_subset_salt: exp-fwd-021-domain-ranking-v1
+  max_epochs: 1000
+  optimizer: adamw
+  learning_rates:
+    official_fno_band_v1: 0.0005
+    official_tucker_tfno_band_v1: 0.0005
+    global_local_channel_gate_v1: 0.0005
+  weight_decay: 1.0e-05
+  micro_batch_size: 16
+  effective_batch_size: 64
+  loss: normalized_full_matrix_mse
+  checkpoint_selection: validation_bands_2_10_mre
+  scheduler_metric: val_bands_2_10_mre_pct
+  primary_reporting_metric: bands_1_10_mre_pct
+  early_stopping_patience: 0
+  epoch_100_continue_gate: false
+  require_finite_gradients: true
+  record_model_diagnostics: true
+protocol:
+  start_epoch: 300
+  minimum_extension: 100
+  check_interval: 20
+  improvement_window: 80
+  improvement_threshold: 0.001
+  stability_window: 60
+  stability_threshold: 0.005
+  confirmations: 2
+  initial_lr_factor: 0.2
+  min_lr_factor: 0.01
+  factor: 0.5
+  patience: 30
+  cooldown: 10
+runtime:
+  device: cuda:0
+  require_accelerator: true
+  precision: fp32
+  amp_enabled: false
+  tf32_enabled: false
+  num_workers: 0
+  cache_in_memory: true
+  pin_memory: true
+  non_blocking_transfer: true

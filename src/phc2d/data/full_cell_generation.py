@@ -37,6 +37,7 @@ from phc2d.data.single_hole import (
     build_single_hole_structure as _build_single_hole_structure,
     build_single_hole_test_plan,
 )
+from phc2d.data.pcsel_geometry import build_pcsel_test_plan, validate_pcsel_config
 from phc2d.generators.full_cell import (
     build_full_cell_structure_spec,
     generate_binary_polar_holes,
@@ -243,11 +244,12 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
             "full_cell_v1": {"graded_medium", "binary_air_holes"},
             "full_cell_fourier_v2": {"graded_fourier", "binary_fourier"},
             "full_cell_single_hole_v1": {"single_hole_six_family"},
+            "full_cell_pcsel_v1": {"pcsel_twelve_family"},
         }
         if protocol not in allowed_lanes_by_protocol:
             problems.append(
                 "dataset.protocol must be full_cell_v1, full_cell_fourier_v2, "
-                "or full_cell_single_hole_v1"
+                "full_cell_single_hole_v1, or full_cell_pcsel_v1"
             )
         allowed_lanes = allowed_lanes_by_protocol.get(protocol, set())
         if dataset.get("lane") not in allowed_lanes:
@@ -266,7 +268,7 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
         )
         if [int(value) for value in dataset.get("raster_resolutions", [])] != expected_rasters:
             problems.append(f"dataset.raster_resolutions must be exactly {expected_rasters}")
-        if protocol in {"full_cell_fourier_v2", "full_cell_single_hole_v1"}:
+        if protocol in {"full_cell_fourier_v2", "full_cell_single_hole_v1", "full_cell_pcsel_v1"}:
             raster_contract = dict(dataset.get("raster_contract") or {})
             if raster_contract.get("method") != MASTER_BLOCK_MEAN_V1:
                 problems.append(f"{protocol} requires master_block_mean_v1")
@@ -324,6 +326,8 @@ def _validate_config(cfg: Mapping[str, Any]) -> list[str]:
                 problems.append(
                     "full_cell_single_hole_v1 is test-only and requires all samples in test"
                 )
+        if protocol == "full_cell_pcsel_v1":
+            problems.extend(validate_pcsel_config(cfg))
         plan_workers = generator.get("plan_workers", 1)
         if not (isinstance(plan_workers, str) and plan_workers.lower() == "auto"):
             try:
@@ -542,6 +546,11 @@ def _structure_schedule(
     generator_cfg: Mapping[str, Any] | None = None,
 ) -> list[tuple[str, Any, str]]:
     rows: list[tuple[str, Any, str]] = []
+    if lane == "pcsel_twelve_family":
+        plan = build_pcsel_test_plan()
+        if count != len(plan):
+            raise ValueError("PCSEL requires the frozen 24000-case plan")
+        return [("analytic_pcsel_v1", row, row["parameters"]["shape"]) for row in plan]
     if lane == "single_hole_six_family":
         samples_per_family = int(dict(generator_cfg or {}).get("samples_per_family", 200))
         plan = build_single_hole_test_plan(samples_per_family=samples_per_family)
@@ -597,11 +606,19 @@ def _generate_structure_task(
     index, family, variant, stratum, seed, sample_id_prefix, generator_cfg = task
     sample_id = (
         str(variant["sample_id"])
-        if family == "analytic_single_hole_v1"
+        if family in {"analytic_single_hole_v1", "analytic_pcsel_v1"}
         else f"{sample_id_prefix}_{index:06d}"
     )
     pairing_key = sample_id if "paired_cohort_seed" in generator_cfg else None
-    if family == "analytic_single_hole_v1":
+    if family == "analytic_pcsel_v1":
+        structure = build_full_cell_structure_spec(
+            sample_id=sample_id, family=family, material_kind="binary",
+            payload=dict(variant["parameters"]),
+            metadata={"stats": {"shape": stratum, "air_fraction": variant["parameters"]["air_fraction"]}},
+            epsilon_air=float(generator_cfg["epsilon_air"]),
+            epsilon_material=float(generator_cfg["epsilon_material"]),
+        )
+    elif family == "analytic_single_hole_v1":
         parameters = dict(variant["parameters"])
         structure = _build_single_hole_structure(
             sample_id=sample_id,
@@ -799,7 +816,7 @@ def _load_frozen_sample_plan(
     for index, (row, (expected_family, _variant, expected_stratum)) in enumerate(zip(rows, expected_schedule)):
         sample_id = (
             str(_variant["sample_id"])
-            if expected_family == "analytic_single_hole_v1"
+            if expected_family in {"analytic_single_hole_v1", "analytic_pcsel_v1"}
             else f"{sample_id_prefix}_{index:06d}"
         )
         if int(row.get("sample_index", -1)) != index or str(row.get("sample_id")) != sample_id:

@@ -5,7 +5,7 @@ page_type: plan
 status: draft
 audience: 正向代理研究者与论文审阅者
 owner: fangtoast
-last_reviewed: 2026-10-20
+last_reviewed: 2026-10-21
 reading_time: 5 minutes
 primary_layer: L3
 plan_state: active
@@ -33,7 +33,7 @@ plan_state: active
 | seeds / 数量 | 0/1/2，共 54 项 | 0/1/2，共 30 项 |
 | 选择 | 原生 validation Bands 2–10 MRE 最优 | mixed validation Bands 2–10 MRE 最优 |
 | 测试 | 完成全部训练并冻结 checkpoint 后，54 个 native idx_test cell | validation-only，未授权 test |
-| 平台 | N56 gpu_5090，1 GPU＋8 CPU，默认内存，最多 7 并发 | N40 gpu_4090，1 GPU＋6 CPU，默认内存，最多 3 并发 |
+| 平台（原提交） | N56 gpu_5090，1 GPU＋8 CPU，默认内存，最多 7 并发 | N40 gpu_4090，1 GPU＋6 CPU，默认内存，最多 3 并发 |
 
 优化沿用模型专属基础学习率、AdamW、FP32、AMP/TF32 off、effective batch 64，不进行额外调参。024 micro batch 64；025 沿用 micro batch 8。恒定学习率和固定轮数只回答预算内比较，不将 300 epoch 解释为充分优化。checkpoint 选择不读 test；train-only normalizer 与同域训练子集跨模型和 seed 固定。
 
@@ -64,7 +64,7 @@ plan_state: active
 
 ## 五、执行平台调整
 
-N56隔离部署写入发生文件系统阻塞，GPU作业尚未提交。依据用户此前明确允许N40或N56，024改用[N40执行覆盖配置](../../configs/research/full_cell_core_confirmation_exp_fwd_024_n40_v1.yaml)：继承全部科学合同与数据SHA，仅替换同哈希数据路径、环境与资源。024最多4并发、6个数组slot；与025最多3并发合计7GPU，数组上限6+10=16。025既有作业不改资源。两平台环境不同，因此时间只作为执行成本，不从跨平台历史耗时解释架构因果。
+N56隔离部署写入发生文件系统阻塞，GPU作业尚未提交。依据用户此前明确允许N40或N56，024改用[N40执行覆盖配置](../../configs/research/full_cell_core_confirmation_exp_fwd_024_n40_v1.yaml)：继承全部科学合同与数据SHA，仅替换同哈希数据路径、环境与资源。初次部署时024最多4并发、6个数组slot；与025原提交最多3并发合计7GPU，数组上限6+10=16。025后续并发修订见第七节。两平台环境不同，因此时间只作为执行成本，不从跨平台历史耗时解释架构因果。
 
 024的最后一个成功训练bundle在全部bundle完成标记与完整训练审计闭合后，独占冻结54个validation-best checkpoint并执行54个native test；不用额外排队作业，不在其他训练尚未完成时提前读test。finalizer失败保留独占意向记录，不自动重试。测试输出逐样本、逐band、每seed cell和三seed均值/样本SD；不把样本P95或seed SD解释为置信区间。
 
@@ -73,3 +73,11 @@ N56隔离部署写入发生文件系统阻塞，GPU作业尚未提交。依据�
 用户在训练开始后、test尚未执行时明确：测试主指标为Band 1–10 MRE；Band 2–10完整保留在原始制品供查询，默认主表不单列，Band 1也不单列。默认读取 `native_test_primary_summary.csv`，其每seed明细为 `native_test_primary_cells.csv`；原 `native_test_summary.csv`、`native_test_cells.csv` 与逐band/逐样本文件仍保留全部辅助指标。
 
 本修订仅涉及L3测试展示，不修改已冻结训练配置、validation checkpoint选择、收敛判据、数据或运行资源。已经启动的Python进程保留原版本；对该campaign追加独立、版本记录的汇总步骤，等原测试全部完成后导出主表，不重跑训练或测试。
+
+## 七、N40消融并发执行修订
+
+依据用户2026-10-21明确授权，EXP-FWD-025既有数组5506441的并发上限由3提高至6；执行前核验原提交时间为2026-10-20 19:37:00，核心训练当时最多占用2张GPU，账户GPU总上限为8张。该修订允许现有待运行批次提前调度，不取消、重启、重提或重排已有训练，也不改变每项1 GPU、6 CPU、默认内存及24小时上限。
+
+原冻结配置、manifest与已生成的逐任务配置保持原字节，调度变更前后SHA-256核验一致。原提交的3并发记录继续保留，执行修订证据位于N40 campaign `/data/run01/scw6g7a/phc2d/runs/20261020/EXP-FWD-025_202610201920/resource_adjustment_20261021T041040Z.json`，记录授权、调度命令、原提交身份和变更前后配置哈希。学习率、数据划分、normalizer、validation checkpoint选择、300 epoch预算和validation-only边界不变；实际并发差异需随耗时证据保留，不将跨并发时段耗时解释为受控架构速度比较。
+
+核心训练与测试结束后，用户2026-10-21进一步授权消融使用最多8张GPU，既有数组并发上限由6提高至8。执行时仅余7个未结束的原始bundle（6个运行、1个排队），因此本次调整最多允许7个原始bundle同时运行；上限为8不代表实际占用8卡。该操作不拆分bundle、不取消或重提作业，冻结文件在调整前后哈希一致。后续资源修订证据为同一campaign下的 `resource_adjustment_eight_gpu_20261021.json`；训练与validation-only科学合同保持原样。

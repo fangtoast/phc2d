@@ -32,6 +32,7 @@ def resolve_full_cell_training_config(
     models = dict(config.get("models") or {})
     training = dict(config.get("training") or {})
     continuation = dict(config.get("continuation") or {})
+    adaptive = dict(config.get("adaptive_optimization") or {})
     runtime = dict(config.get("runtime") or {})
     experiment = dict(config.get("experiment") or {})
     output = dict(config.get("output") or {})
@@ -115,9 +116,13 @@ def resolve_full_cell_training_config(
         "runtime": runtime,
         "output": output,
         "continuation": continuation,
+        "adaptive_optimization": adaptive,
     }
     if not admission_probe:
         continuation_enabled = bool(continuation)
+        if adaptive:
+            from phc2d.forward.adaptive_convergence import validate_adaptive_contract
+            validate_adaptive_contract(adaptive, str(experiment.get("experiment_id")), training, continuation)
         allowed_epochs = {20, 100, 200, 300, 600} if continuation_enabled else {20, 100, 200}
         if str(experiment.get("experiment_id")) in {"EXP-FWD-024", "EXP-FWD-025"}:
             allowed_epochs.add(300)
@@ -125,6 +130,8 @@ def resolve_full_cell_training_config(
                 raise ValueError("fixed-300 confirmation requires from-scratch epoch 300")
             if int(training.get("required_stop_epoch", -1)) != 300:
                 raise ValueError("fixed-300 confirmation requires terminal epoch 300")
+        if adaptive:
+            allowed_epochs.add(1000)
         if int(resolved["training"]["max_epochs"]) not in allowed_epochs:
             raise ValueError(f"formal training max_epochs must be one of {sorted(allowed_epochs)}")
         if int(training.get("early_stopping_patience", 0)) < 0:
@@ -137,7 +144,7 @@ def resolve_full_cell_training_config(
             raise ValueError("formal training requires FP32")
         if bool(runtime.get("amp_enabled")) or bool(runtime.get("tf32_enabled")):
             raise ValueError("formal training forbids AMP and TF32")
-        if continuation_enabled:
+        if continuation_enabled and not adaptive:
             continuation_experiment = str(experiment.get("experiment_id"))
             if continuation_experiment not in {"EXP-FWD-009", "EXP-FWD-020"}:
                 raise ValueError("weight-only continuation requires a registered experiment")

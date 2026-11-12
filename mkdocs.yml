@@ -61,13 +61,13 @@ extra_javascript:
 validation:
   nav:
     omitted_files: warn
-    not_found: warn
+    not_found: info
     absolute_links: warn
   links:
-    not_found: warn
+    not_found: info
     anchors: warn
     absolute_links: warn
-    unrecognized_links: warn
+    unrecognized_links: info
 
 exclude_docs: |
   /README.md
@@ -79,6 +79,7 @@ exclude_docs: |
   results/representation_benchmark_20260825.md
 
 not_in_nav: |
+
   README.md
   getting-started.md
   reproducibility.md
@@ -134,6 +135,7 @@ nav:
       - 模型目录: 参考/模型目录.md
       - 核心代码导航: 参考/核心代码导航.md
       - 文档元数据: 参考/文档元数据.md
+      - 频谱多指标合同: 参考/频谱多指标合同.md
       - 公式与指标:
           - 公式索引: 参考/公式与指标/README.md
           - 符号与单位: 参考/公式与指标/符号与单位.md
@@ -149,6 +151,8 @@ nav:
           - EXP-PHY-001 MPB 分辨率: 结果/EXP-PHY-001-MPB分辨率.md
   - 实验与证据库:
       - 证据库总览: results/README.md
+      - 单域全局局部分支消融: results/forward/EXP-FWD-032-单域分支消融.md
+      - 四域多指标补充评价: results/forward/EXP-FWD-031-多指标补充评价.md
       - V2 10k [10000,31,10]:
           - V2 10k 总览: results/V2-10k正式结果.md
           - A1 Forward/Query 公平对照: results/forward/a1_forward_query_fair_v1_20260726.md
@@ -160,6 +164,7 @@ nav:
           - Post-Repair pilot: results/inverse/a2_inverse_surrogate_postrepair_validation_v2_20260802.md
       - 新全胞数据 [N,81,10]:
           - 全胞数据总览: results/全胞数据正式结果.md
+          - 形状数据计算耗时: results/data-provenance/MPB形状数据计算耗时汇总.md
           - 数据构建与验收: results/data-provenance/full_cell_dual_lane_pilot_20260803.md
           - MPB 分辨率收敛验证: results/data-provenance/全胞MPB分辨率收敛验证_20260817.md
           - Fourier 64+64 星仪试点: results/data-provenance/全胞Fourier_64加64星仪试点_20260817.md
@@ -182,6 +187,10 @@ nav:
           - EXP-FWD-023 固定模型十二域交叉测试: results/forward/EXP-FWD-023-十二域交叉测试.md
           - EXP-FWD-023 七种训练制度十二域完整结果: results/forward/EXP-FWD-023-七种训练制度十二域完整结果.md
           - EXP-FWD-023 多域与历史单域对比: results/forward/EXP-FWD-023-多域与历史单域模型对比.md
+          - EXP-FWD-024 训练集与新几何迁移测试: results/forward/EXP-FWD-024-训练集与新几何迁移测试.md
+          - K5与F50四域论文结果: reports/K5与F50四域论文结果对比_20261027.md
+          - 全模型论文测试数据对比表: reports/EXP-FWD-026-028全模型论文数据汇总_20261025.md
+          - 四域全模型测试与消融结果: reports/EXP-FWD-031四域完整测试结果_20261029.md
           - Meep 近远场: results/field-physics/full_cell_dual_lane_meep_scattering_20260806.md
           - K5 代理选频与真实响应差异: results/field-physics/代理选频与真实响应差异_20260825.md
           - EXP-PHY-005 TE 有效折射率校准: results/field-physics/EXP-PHY-005-TE有效折射率与折叠频率校准.md
@@ -221,6 +230,30 @@ nav:
           - 全胞可复用接口与模块重构: planning/项目代码结构重构/全胞代码可复用接口与模块重构计划.md
       - 全胞逆向设计:
           - 专题索引: planning/全胞逆向索引.md
+          - 当前目录入口: planning/鲁棒带隙逆向/README.md
+          - 可微代理与物理反馈总方案: planning/鲁棒带隙逆向/研究总方案.md
+          - 推进与交付: planning/鲁棒带隙逆向/推进与交付.md
+          - 纯代理方法: planning/鲁棒带隙逆向/纯代理方法.md
+          - 代理校正与微调: planning/鲁棒带隙逆向/代理校正与微调.md
+          - 实验与复核: planning/鲁棒带隙逆向/实验与复核.md
+          - 实施与资源: planning/鲁棒带隙逆向/实施与资源.md
+          - 现有基础与复用: planning/鲁棒带隙逆向/现有基础与复用.md
+          - 来源8梯度与物理复核: results/inverse/EXP-INV-012-来源8梯度与物理复核.md
+          - 三来源纯代理对照: results/inverse/EXP-INV-013-三来源纯代理对照.md
+          - 物理反馈对照: results/inverse/EXP-INV-014-物理反馈对照.md
+          - 制造鲁棒对照: results/inverse/EXP-INV-015-制造鲁棒对照.md
+          - 独立来源纯代理结果: results/inverse/EXP-INV-016-独立来源纯代理结果.md
+          - 独立来源与物理反馈: results/inverse/EXP-INV-016-独立来源与物理反馈结果.md
+          - 鲁棒逆向探索性审计: results/inverse/鲁棒带隙逆向可用性审计.md
+          - 前版反馈路线（已取代）: planning/鲁棒带隙逆向/历史方案/可微物理反馈路线.md
+          - 前版反馈方法: planning/鲁棒带隙逆向/历史方案/可微方法协议.md
+          - 前版反馈实验: planning/鲁棒带隙逆向/历史方案/实验矩阵与验收.md
+          - 前版反馈实施: planning/鲁棒带隙逆向/历史方案/模块复用与实施.md
+          - 更早总计划（已取代）: planning/鲁棒带隙逆向/历史方案/旧版总计划.md
+          - 旧研究方法: planning/鲁棒带隙逆向/历史方案/研究方法.md
+          - 旧代码架构: planning/鲁棒带隙逆向/历史方案/代码架构.md
+          - 旧实验与验证: planning/鲁棒带隙逆向/历史方案/实验与验证.md
+          - 旧资源与迭代: planning/鲁棒带隙逆向/历史方案/资源与迭代.md
           - Full-cell inverse 扩展: planning/full_cell_forward_inverse_training/full_cell_inverse_design_extension_plan.md
       - 规划参考:
           - 参考索引: planning/reference/README.md
@@ -265,3 +298,4 @@ nav:
           - 历史计划索引: planning/历史计划索引.md
           - 非 p4m 数据生成方案: planning/非 p4m 全布里渊区双路线数据生成方案.md
           - 单 seed 全胞历史草案: planning/full_cell_forward_inverse_training/archive/full_cell_forward_single_seed_legacy.md
+

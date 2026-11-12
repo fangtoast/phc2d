@@ -16,7 +16,7 @@ def test_model_architecture_atlas_covers_live_registry() -> None:
     coverage = model_architecture_atlas.registry_coverage()
     assert coverage["missing"] == []
     assert coverage["extra"] == []
-    assert len(coverage["registered"]) == 27
+    assert len(coverage["registered"]) == 30
     assert "global_local_band_operator_v1" in coverage["registered"]
 
 
@@ -38,7 +38,7 @@ def test_model_architecture_atlas_renders_eight_figures(monkeypatch, tmp_path: P
 
     assert result["status"] == "model_architecture_atlas_completed"
     assert result["figure_count"] == 8
-    assert result["registered_model_count"] == 27
+    assert result["registered_model_count"] == 30
     assert result["artifact_count"] == 17
     assert (tmp_path / "atlas_manifest.json").is_file()
 

@@ -116,6 +116,13 @@ def test_formal_results_navigation_is_an_explicit_whitelist() -> None:
         "results/field-physics/EXP-PHY-005-TE有效折射率与折叠频率校准.md",
         "results/field-physics/EXP-PHY-006-全BZ带隙边缘加密试点.md",
         "results/field-physics/EXP-PHY-007-validation带隙标签门.md",
+        'reports/EXP-FWD-026-028全模型论文数据汇总_20261025.md',
+        'reports/EXP-FWD-031四域完整测试结果_20261029.md',
+        'reports/K5与F50四域论文结果对比_20261027.md',
+        'results/data-provenance/MPB形状数据计算耗时汇总.md',
+        'results/forward/EXP-FWD-024-训练集与新几何迁移测试.md',
+        'results/forward/EXP-FWD-031-多指标补充评价.md',
+        'results/forward/EXP-FWD-032-单域分支消融.md',
         "reports/全胞双路线正向与逆向模型报告_20260810.md",
     }
 

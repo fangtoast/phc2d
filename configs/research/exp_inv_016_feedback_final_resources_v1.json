@@ -1,0 +1,27 @@
+{
+  "experiment_id": "EXP-INV-016",
+  "batch": "independent_feedback_final_three_scenario",
+  "status": "frozen_for_feedback_final_replay",
+  "physical_replay": {
+    "platform": "m9",
+    "max_candidate_roles": 16,
+    "cases_per_shard": 8,
+    "max_shards": 2,
+    "max_concurrent_shards": 2,
+    "workers_per_shard": 8,
+    "cpus_per_shard": 10,
+    "memory_mib_per_shard": 32768,
+    "worker_memory_mib": 1024,
+    "setup_reserve_mib": 4096,
+    "wall_seconds_per_shard": 7200,
+    "max_allocated_core_hours": 40.0,
+    "automatic_retry": false
+  },
+  "wsl_crosscheck": {
+    "environment": "Ubuntu/meep_env",
+    "roles": [],
+    "scope": "high_accuracy_final_roles_registered_separately",
+    "max_absolute_spectrum_difference": 1e-06,
+    "cost_accounted_separately": true
+  }
+}

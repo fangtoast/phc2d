@@ -5,7 +5,7 @@ page_type: landing
 status: draft
 audience: 逆向设计研究者、复现执行者与证据审阅者
 owner: 研究生维护
-last_reviewed: 2026-08-14
+last_reviewed: 2026-11-04
 reading_time: 5 minutes
 primary_layer: L3
 ---
@@ -18,6 +18,10 @@ primary_layer: L3
 -->
 
 # 逆向设计结果
+
+当前方法规划见[纯代理逆向路线](../../planning/鲁棒带隙逆向/研究总方案.md)。[EXP-INV-012 来源8结果](EXP-INV-012-来源8梯度与物理复核.md)、[EXP-INV-013 三来源对照](EXP-INV-013-三来源纯代理对照.md)、[EXP-INV-014 反馈对照](EXP-INV-014-物理反馈对照.md)及[EXP-INV-015 制造鲁棒对照](EXP-INV-015-制造鲁棒对照.md)已完成 M9 复核和预选 WSL 独立对照；[EXP-INV-016 独立来源纯代理结果](EXP-INV-016-独立来源纯代理结果.md)与[物理反馈配对结果](EXP-INV-016-独立来源与物理反馈结果.md)已完成锁定终点物理比较及预选角色高精度对照。下列历史证据不因重规划升级为梯度或反馈有效性结论。
+
+探索性诊断：[鲁棒带隙逆向可用性审计](鲁棒带隙逆向可用性审计.md)。该 validation 审计的数值门尚未满足，不属于正式逆向结果。
 
 ## 已形成训练或回放证据
 

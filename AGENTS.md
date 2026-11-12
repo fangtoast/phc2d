@@ -21,9 +21,9 @@ It defines non-negotiable boundaries, not project background, tutorials, or task
 - Extend the nearest responsible module unless a new boundary is demonstrably necessary.
 - Do not create a new top-level directory without an explicit migration or governance decision.
 - Temporary task output, chat reasoning, smoke results, and Agent notes are not permanent project knowledge.
-- AI-created knowledge is Draft until a human owner reviews and accepts it.
+- AI-created knowledge is Draft until a human owner reviews and accepts it. Draft marks human acceptance status; continue authorized validation, integration, and delivery preparation.
 - For changes, declare one primary layer: L0 research goal, L1 scientific argument, L2 method architecture, L3 experiment/evidence, or L4 implementation.
-- Cross-layer reading is allowed; unscoped cross-layer mutation is not.
+- Cross-layer reading is allowed. The primary layer organizes responsibility; explicitly scoped supporting changes needed for the authorized objective may span other layers.
 - Current artifacts and live repository behavior outrank memory, TODOs, plans, and narrative summaries.
 - Evidence authority is:
 
@@ -34,6 +34,16 @@ run / solver / metrics / checkpoint
   > TODO / plan
   > synthesis report / chat summary
 ```
+
+### Objective and execution
+
+- Preserve the user's objective, applicability conditions, evaluation criteria, and deliverables. Adjust claim strength to evidence; obtain a user decision before changing task coverage, metrics, or deliverables.
+- Carry authorized tasks through investigation, implementation, validation, and delivery. Reuse existing information and authorization; perform routine, necessary, reversible local work without repeated confirmation.
+- Treat obstacles as actionable problems: inspect causes, existing capabilities, alternative interfaces, and necessary adapters; pursue a path that preserves the objective and verify it.
+- When evidence is insufficient, identify the affected judgment and perform decision-relevant checks or experiments within the authorized budget.
+- Gates define stage conditions. Once conditions pass, continue subsequent authorized work. A failed technical gate calls for diagnosis and correction; pause affected work when verified external dependencies, a required human scientific decision, new authorization, or the resource limit prevents progress.
+- Stop when the objective is complete, the user requests a stop, the agreed budget is reached, or verified external input or new authorization is required. Complete independent work and present the smallest concrete decision needed to proceed.
+- Add checks, configuration, compatibility paths, and abstractions for explicit requirements or known failures, with complexity proportional to the task.
 
 ## 2. Repository Responsibilities
 
@@ -138,7 +148,7 @@ experiment spec -> config -> run artifacts -> curated result
 - Smoke, preflight, dry-run, config readiness, and single-seed pilots must not be promoted into formal completion claims.
 - MPB/Meep and formal acceptance must run in WSL `Ubuntu` with conda `meep_env`.
 - Windows `.venv` output may support editing or local diagnostics but is not project acceptance evidence.
-- Remote or expensive experiments require explicit authorization; monitoring is read-only by default, with no automatic retry, cancellation, resubmission, or resource change.
+- Remote or expensive experiments require explicit authorization. Reuse existing authorization and continue covered stages within the agreed budget. Monitoring is read-only by default; retry, cancellation, resubmission, or resource changes require authorization covering those actions.
 
 ## 6. Documentation Rules
 
@@ -172,7 +182,7 @@ Human-readable documentation has these roles:
 - Project-wide model claims must reconcile the live model registry, the model inventory, and non-registry inverse methods.
 - New or renamed canonical Markdown must be reachable from `docs/README.md` or a linked index.
 - New human-facing filenames under `docs/` should be concise Chinese unless the name is a fixed identifier or compatibility path.
-- AI-created or substantially rewritten documents remain Draft until human acceptance.
+- AI-created or substantially rewritten documents remain Draft until human acceptance; continue authorized checks and integration while that review is pending.
 - Documentation completion never upgrades experimental completion.
 
 ## 7. Planning Lifecycle
@@ -196,6 +206,7 @@ Human-readable documentation has these roles:
 All human-facing research documentation must:
 
 - lead with the conclusion;
+- state necessary scope and technical conditions where they affect interpretation, avoid repeated caveats, and preserve the original operation and evidence strength;
 - prefer tables for comparisons, states, mappings, and gates;
 - link evidence near the claim it supports;
 - distinguish fact, interpretation, decision, and unknown;
@@ -212,7 +223,7 @@ Before changing the project:
 
 - Read the nearest authority files; project-wide work also requires `PROJECT_MAP.md`, `docs/README.md`, and `docs/collaboration.md`.
 - Inspect `git status` and preserve unrelated user changes.
-- Confirm the authorized files, primary layer, scientific boundary, and non-goals.
+- Establish the authorized files, primary layer, scientific boundary, and non-goals from the request and context; ask only when missing information materially changes execution.
 - Prefer the smallest coherent change that leaves a reusable seam.
 
 If a task changes directory structure or canonical paths:

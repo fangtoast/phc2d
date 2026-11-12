@@ -1,0 +1,8 @@
+{
+  "experiment_id": "EXP-INV-015",
+  "parent_manifest_sha256": "b2b924cf085c6f993099bb07d261075d81e744b0bf8721bada45b416a4a7218f",
+  "modes": ["nominal", "mean", "worst"],
+  "offsets": [-0.001953125, 0.0, 0.001953125],
+  "evaluations": 60,
+  "feedback": {"radius": 0.2, "ridge": 0.000001}
+}

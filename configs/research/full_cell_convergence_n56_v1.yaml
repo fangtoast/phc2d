@@ -1,0 +1,100 @@
+# Bounded validation-only adaptive training campaign.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+authorization_id: user-2026-10-22-start-convergence-n40-n56-eight-gpu
+protocol:
+  start_epoch: 300
+  minimum_extension: 100
+  check_interval: 20
+  improvement_window: 80
+  improvement_threshold: 0.001
+  stability_window: 60
+  stability_threshold: 0.005
+  confirmations: 2
+  initial_lr_factor: 0.2
+  min_lr_factor: 0.01
+  factor: 0.5
+  patience: 30
+  cooldown: 10
+seeds:
+- 0
+- 1
+- 2
+max_concurrent_gpus: 8
+max_total_epoch: 1000
+test_authorized: false
+primary_reporting_metric: bands_1_10_mre_pct
+seed_aggregation: mean_and_sample_standard_deviation
+checkpoint_selection: validation_bands_2_10_mre
+automatic_retry: false
+platform: n56
+core_template: configs/research/full_cell_core_confirmation_exp_fwd_024_v1.yaml
+models:
+  mlp:
+    hidden_dim: 256
+    depth: 6
+    dropout: 0.05
+    activation: gelu
+  res_mlp_wide:
+    hidden_dim: 256
+    depth: 6
+    dropout: 0.05
+    activation: gelu
+  lifted_cnn:
+    channels: 12
+    activation: gelu
+  fno2d_band_v2:
+    width: 32
+    depth: 4
+    modes:
+    - 8
+    - 8
+    band_modes:
+    - 5
+    - 5
+    fourier_rank: 8
+    activation: gelu
+  mlp_mixer_band_v1:
+    token_grid:
+    - 16
+    - 16
+    embed_dim: 256
+    depth: 8
+    token_mlp_dim: 128
+    channel_mlp_dim: 512
+    dropout: 0.05
+    drop_path: 0.1
+    layer_scale_init: 0.0001
+    head_hidden_dim: 256
+    band_embedding_dim: 32
+    fourier_frequencies:
+    - 1
+    - 2
+    - 4
+    - 8
+  res_mlp_gated_v2:
+    hidden_dim: 320
+    depth: 8
+    expansion: 2
+    dropout: 0.05
+    drop_path: 0.1
+    layer_scale_init: 0.0001
+    head_hidden_dim: 256
+    band_embedding_dim: 32
+    fourier_frequencies:
+    - 1
+    - 2
+    - 4
+    - 8
+learning_rates:
+  mlp: 0.0003
+  res_mlp_wide: 0.0003
+  lifted_cnn: 0.001
+  fno2d_band_v2: 0.001
+  mlp_mixer_band_v1: 0.0003
+  res_mlp_gated_v2: 0.0003
+partition: gpu_5090
+environment: /data/run01/scxl892/envs/phc2d_gpu_cu128_torch271_r1
+cpus_per_gpu: 8
+architecture_source: /data/run01/scxl892/phc2d-exp-fwd-021-3406994/configs/research/full_cell_multidomain_exp_fwd_021_v1.yaml

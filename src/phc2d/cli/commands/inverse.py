@@ -23,6 +23,9 @@ def configure(sub: Any) -> None:
     )
     inverse_train.add_argument("--config", type=Path, default=None)
     inverse_train.set_defaults(command="inverse train")
+    from phc2d.cli.commands.inverse_feedback import configure_feedback_inspect
+
+    configure_feedback_inspect(inverse_sub)
     inverse_full_cell_preflight = inverse_sub.add_parser(
         "full-cell-preflight",
         help="Run the 15-case full-cell analytic Stage-A single-batch gate.",
@@ -152,6 +155,11 @@ def configure(sub: Any) -> None:
 def run(ns: Any) -> bool:
     """Run a parsed command when it belongs to this domain."""
 
+    if ns.command == "inverse feedback-inspect":
+        from phc2d.cli.commands.inverse_feedback import run_feedback_inspect
+
+        run_feedback_inspect(ns)
+        return True
     if ns.command == "inverse train":
         from phc2d.inverse import run_inverse_train
 

@@ -1,0 +1,14 @@
+# Official four-domain comparison; frozen scientific contract.
+# Author: fangtoast
+# Email: fangtoast@foxmail.com
+# Copyright (c) 2026 fangtoast. All rights reserved.
+base_profile: official_comparison_exp_fwd_031_v1.yaml
+platform: n56
+domains:
+- k5_graded
+- f50_binary
+dataset_root: /data/run01/scxl892/data/exp_fwd_020
+torch_environment: /data/run01/scxl892/envs/phc2d_gpu_cu128_torch271_r1
+official_overlay: /data/run01/scxl892/envs/phc2d_exp_fwd_031/official_overlay
+partition: gpu_5090
+cpus_per_gpu: 8

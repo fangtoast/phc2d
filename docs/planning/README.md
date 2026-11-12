@@ -5,7 +5,7 @@ page_type: landing
 status: draft
 audience: 研究用户、复现执行者与项目维护者
 owner: 研究生维护
-last_reviewed: 2026-08-27
+last_reviewed: 2026-11-04
 reading_time: 4 minutes
 primary_layer: L4
 ---
@@ -26,14 +26,28 @@ primary_layer: L4
 - [三核心模型与分支消融固定预算确认](https://github.com/fangtoast/phc2d/blob/main/experiments/research/EXP-FWD-024-%E4%B8%89%E6%A0%B8%E5%BF%83%E6%A8%A1%E5%9E%8B%E5%9B%BA%E5%AE%9A%E9%A2%84%E7%AE%97%E7%A1%AE%E8%AE%A4.md)：2026-10-20授权；状态以run为准。
 - [单孔形状迁移测试](https://github.com/fangtoast/phc2d/blob/main/experiments/research/EXP-DAT-007-%E5%8D%95%E5%AD%94%E5%BD%A2%E7%8A%B6%E8%BF%81%E7%A7%BB%E6%B5%8B%E8%AF%95.md)：六种代表孔形，先完成MPB数值pilot。
 
+## 截稿前补充实验
+
+- [单域全局局部消融](../../experiments/research/EXP-FWD-032-单域全局局部消融.md)：K5/F50 四域分支与容量对照；待完成基线审计、执行清单和准入。
+- [四域多指标补充评价](https://github.com/fangtoast/phc2d/blob/master/experiments/research/EXP-FWD-031-多指标补充评价.md)：冻结已有测试身份，补算相对 L²、MAE、MSE/RMSE 与 P95；完整性与原 MRE 测试分开验收。
+
+- [官方算子与通道融合对比](../../experiments/research/EXP-FWD-031-官方算子与通道融合对比.md)：四域三模型三种子，从零训练；先核查 12 项准入，训练与 validation 之外的评价另行安排。
+- [同条件三seed收敛训练](../../experiments/research/EXP-FWD-026-收敛训练协议.md)：EXP-FWD-026/027在N40扩展，028在N56对齐六单域与三个seed；每平台最多8GPU，验证停止与1000轮上限。
+
+- [三核心模型与分支消融固定预算确认](../../experiments/research/EXP-FWD-024-三核心模型固定预算确认.md)：2026-10-20授权；状态以run为准。
+- [单孔形状迁移测试](../../experiments/research/EXP-DAT-007-单孔形状迁移测试.md)：六种代表孔形，先完成MPB数值pilot。
+- PCSEL多晶格测试数据（EXP-DAT-008，协议入口见项目实验索引）：2026-10-21确认十二族各2000结构；授权M9生成及N40交付，保留generation-only边界。
+
 ## 仍可能约束后续工作的入口
+
+非生成式独立研究从[可微代理与物理反馈总方案](鲁棒带隙逆向/研究总方案.md)进入：先交付全程 GL 的纯代理基线，再完成少量 MPB 观测驱动的代理校正/微调与制造鲁棒比较，按[推进与交付](鲁棒带隙逆向/推进与交付.md)组织工作包。下一 gate 为 EXP-INV-012（MVP-INV-001）的模型身份、软硬几何合同与预算冻结；新系列尚未运行。[目录入口](鲁棒带隙逆向/README.md)路由现行方法、推进、实验、工程和历史来源，原实验和失败证据保留。
 
 | 范围 | 入口 | 使用边界 |
 |---|---|---|
 | 研究阶段主线 | [FNO 与生成式网络研究计划](fno_generative_network_adjustment_plan_20260617.md) | 只约束其覆盖的任务族、gate 与 replay 边界；不自动覆盖后续 full-cell 任务 |
 | Full-cell forward loss | [工作频率与带隙损失探索计划](工作频率与带隙损失探索计划.md) | 先通过加密 band-edge 标签门；固定 backbone，只比较一个新 loss 候选 |
 | Full-cell forward 组件 | [FNO、TFNO 与 ConvNeXt 组件归因计划](FNO-TFNO-ConvNeXt组件归因计划.md) | 固定原 loss；先做冻结诊断，再做同家族最小消融和跨家族桥接 |
-| Full-cell inverse | [全胞逆向索引](全胞逆向索引.md) | codec、Stage-A、候选筛选与 replay 的现行协议入口 |
+| Full-cell inverse | [全胞逆向索引](全胞逆向索引.md) | 纯代理基线、MPB 代理适配与制造共同带隙研究；生成式协议和旧无梯度路线分别追溯 |
 | 架构治理 | [项目代码结构重构](项目代码结构重构/README.md) | 作为待复核的长期架构记录；不能据此断言重构已完成 |
 | 历史演进 | [时间线](时间线.md) | 用于查日期、取代关系和结果入口，不作为执行日志继续扩张 |
 

@@ -1,0 +1,10 @@
+{
+  "experiment_id": "EXP-INV-012",
+  "batch": "four_center_extension_development",
+  "status": "draft_not_submitted",
+  "base_config_sha256": "d447606587c516b5dd865ecde4e9d90858e137fd055dd7c6d16c40376cec2639",
+  "centers": [[0.05, 0.0], [-0.05, 0.0], [0.0, 0.05], [0.0, -0.05]],
+  "seed_offset": 100,
+  "max_candidate_roles": 36,
+  "selection_scope": "direction_diagnostic_only"
+}

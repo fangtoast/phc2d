@@ -24,6 +24,7 @@ from phc2d.data.full_cell_hashing import (
     jsonable_full_cell_value,
 )
 from phc2d.data.single_hole import evaluate_single_hole
+from phc2d.data.pcsel_geometry import evaluate_pcsel
 
 
 FULL_CELL_SCHEMA_VERSION = "phc2d.full_cell.v1"
@@ -136,6 +137,7 @@ MaterialWeightEvaluator = Callable[[np.ndarray, np.ndarray, Mapping[str, Any]], 
 MATERIAL_EVALUATORS: Mapping[str, MaterialWeightEvaluator] = MappingProxyType(
     {
         "analytic_single_hole_v1": evaluate_single_hole,
+        "analytic_pcsel_v1": evaluate_pcsel,
         "graded_rbf_fourier": _graded_rbf_weight,
         "binary_polar_holes": _binary_polar_weight,
         "binary_spectral_threshold": _binary_spectral_weight,

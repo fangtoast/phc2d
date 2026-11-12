@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+import hashlib
 from typing import Any
 
 import numpy as np
@@ -93,6 +94,47 @@ def build_full_cell_material_function(mp: Any, structure: FullCellStructureSpec)
         return mp.Medium(epsilon=float(epsilon))
 
     return material
+
+
+def build_periodic_binary_material_function(mp: Any, grid: np.ndarray, *,
+                                            epsilon_air: float, epsilon_material: float):
+    """Map a square periodic binary cell raster to MPB's material callback.
+
+    Grid rows correspond to y, columns to x; each pixel occupies its cell
+    around the original cell-center sample. Values are material weights.
+    """
+    values = np.asarray(grid)
+    if values.ndim != 2 or values.shape[0] == 0 or values.shape[0] != values.shape[1]:
+        raise ValueError("grid must be a nonempty square")
+    if not np.isfinite(values).all() or not np.isin(values, (0, 1)).all():
+        raise ValueError("grid must be finite and binary")
+    if not np.isfinite([epsilon_air, epsilon_material]).all() or not epsilon_material > epsilon_air > 0:
+        raise ValueError("invalid dielectric constants")
+    material = np.asarray(values, dtype=np.uint8).copy()
+    n = material.shape[0]
+
+    def callback(position: Any):
+        x = (float(position.x) + 0.5) % 1.0
+        y = (float(position.y) + 0.5) % 1.0
+        value = material[min(int(y * n), n-1), min(int(x * n), n-1)]
+        return mp.Medium(epsilon=float(epsilon_material if value else epsilon_air))
+
+    return callback
+
+
+def solve_bands_for_periodic_binary_grid_mpb(
+    grid: np.ndarray, *, k_points: Sequence[Sequence[float]],
+    config: FullCellMpbBandSolverConfig,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    """Solve a periodic piecewise-constant grid, not an analytic structure."""
+    mp, _ = load_mpb_modules()
+    callback = build_periodic_binary_material_function(
+        mp, grid, epsilon_air=config.epsilon_air, epsilon_material=config.epsilon_material)
+    array = np.ascontiguousarray(np.asarray(grid, dtype=np.uint8))
+    bands, metadata = _run_mode_solver(k_points=k_points, config=config, geometry=[], default_material=callback)
+    return bands, {**metadata, "geometry_convention": "periodic_binary_pixel_cells_v1",
+                   "grid_shape": list(array.shape), "grid_sha256": hashlib.sha256(array.tobytes()).hexdigest(),
+                   "epsilon_air": float(config.epsilon_air), "epsilon_material": float(config.epsilon_material)}
 
 
 def solve_bands_for_full_cell_mpb(

@@ -1,0 +1,17 @@
+{
+  "experiment_id": "EXP-INV-014",
+  "scope": "preregistered_final_cross_environment_roles",
+  "wsl_crosscheck": {
+    "environment": "Ubuntu/meep_env",
+    "roles": [
+      "source_0008_initial_0_adam_adam_residual/final",
+      "source_0008_initial_0_adam_de_residual/final",
+      "source_0491_initial_0_adam_adam_residual/final",
+      "source_0491_initial_0_adam_de_residual/final",
+      "source_0348_initial_0_adam_adam_residual/final",
+      "source_0348_initial_0_adam_de_residual/final"
+    ],
+    "max_absolute_spectrum_difference": 0.000001,
+    "cost_accounted_separately": true
+  }
+}
